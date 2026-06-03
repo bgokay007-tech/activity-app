@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// KATEGORİ TÜRÜ
+enum CategoryType {
+  SPORTS
+  ARTS
+  GAMES
+}
+
+// KULLANICI
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  username    String   @unique
+  password    String
+  fullName    String?
+  avatar      String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // İlişkiler
+  interests     UserInterest[]
+  posts         Post[]
+  comments      Comment[]
+  likes         Like[]
+  followers     Follow[]  @relation("following")
+  following     Follow[]  @relation("follower")
+  sentRequests     ActivityRequest[] @relation("sender")
+  receivedRequests ActivityRequest[] @relation("receiver")
+  tournaments   TournamentParticipant[]
+  events        EventParticipant[]
+  cards         ActivityCard[]
+}
+
+// KULLANICI İLGİ ALANLARI (Kategori + Alt Dal)
+model UserInterest {
+  id           String       @id @default(uuid())
+  userId       String
+  category     CategoryType
+  subCategory  String       // futbol, basketbol, resim, müzik, fps, rpg vb.
+  level        String       @default("BEGINNER")
+  totalPoints  Int          @default(0)
+  wins         Int          @default(0)
+  losses       Int          @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills       Skill[]
+
+  @@unique([userId, category, subCategory])
+}
+
+// YETENEK
+model Skill {
+  id         String   @id @default(uuid())
+  interestId String
+  name       String
+  value      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  interest   UserInterest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+}
+
+// AKTİVİTE KARTI (Her kategori için ayrı kart)
+model ActivityCard {
+  id          String       @id @default(uuid())
+  userId      String
+  category    CategoryType
+  cardLevel   String       @default("BRONZE")
+  power       Int          @default(0)
+  creativity  Int          @default(0)
+  technique   Int          @default(0)
+  stamina     Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+}
+
+// GÖNDERI
+model Post {
+  id           String       @id @default(uuid())
+  userId       String
+  category     CategoryType
+  subCategory  String?
+  content      String
+  imageUrl     String?
+  videoUrl     String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments     Comment[]
+  likes        Like[]
+}
+
+// YORUM
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+// BEĞENİ
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+// TAKİP
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower    User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+}
+
+// AKTİVİTE İSTEĞİ (Rakip, partner, takım arkadaşı)
+model ActivityRequest {
+  id           String       @id @default(uuid())
+  senderId     String
+  receiverId   String
+  category     CategoryType
+  subCategory  String
+  message      String?
+  status       String       @default("PENDING")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  sender       User @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver     User @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+// TURNUVA/ETKİNLİK
+model Tournament {
+  id           String       @id @default(uuid())
+  name         String
+  category     CategoryType
+  subCategory  String
+  description  String?
+  maxPlayers   Int
+  startDate    DateTime
+  endDate      DateTime?
+  status       String       @default("UPCOMING")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  participants TournamentParticipant[]
+}
+
+// TURNUVA KATILIMCI
+model TournamentParticipant {
+  id           String   @id @default(uuid())
+  tournamentId String
+  userId       String
+  status       String   @default("REGISTERED")
+  createdAt    DateTime @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+}
+
+// ETKİNLİK (Konser, sergi, oyun turnuvası vb.)
+model Event {
+  id           String       @id @default(uuid())
+  name         String
+  category     CategoryType
+  subCategory  String
+  description  String?
+  location     String?
+  isOnline     Boolean      @default(false)
+  maxAttendees Int?
+  startDate    DateTime
+  endDate      DateTime?
+  status       String       @default("UPCOMING")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  participants EventParticipant[]
+}
+
+// ETKİNLİK KATILIMCI
+model EventParticipant {
+  id        String   @id @default(uuid())
+  eventId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+}
