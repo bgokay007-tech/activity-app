@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { CLIENT_URL } from './config/env.js';
 import authRoutes from './routes/auth.routes.js';
+import interestRoutes from './routes/interest.routes.js';
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
+app.use('/api/interests', interestRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });
