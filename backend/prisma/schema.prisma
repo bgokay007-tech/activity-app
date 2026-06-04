@@ -147,16 +147,18 @@ model Follow {
 model ActivityRequest {
   id           String       @id @default(uuid())
   senderId     String
-  receiverId   String
+  receiverId   String?
   category     CategoryType
   subCategory  String
   message      String?
-  status       String       @default("PENDING")
+  level        String?
+  location     String?
+  status       String       @default("OPEN")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   sender       User @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver     User @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiver     User? @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
 }
 
 // TURNUVA/ETKİNLİK
