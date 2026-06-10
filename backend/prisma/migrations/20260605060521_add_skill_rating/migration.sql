@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "UserInterest" ADD COLUMN     "skillRating" DOUBLE PRECISION NOT NULL DEFAULT 0;

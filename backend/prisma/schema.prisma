@@ -10,34 +10,66 @@ datasource db {
 // KATEGORİ TÜRÜ
 enum CategoryType {
   SPORTS
+  SOCIAL
   ARTS
   GAMES
 }
 
 // KULLANICI
 model User {
-  id          String   @id @default(uuid())
-  email       String   @unique
-  username    String   @unique
+  id          String    @id @default(uuid())
+  email       String?   @unique
+  phone       String?   @unique
+  username    String    @unique
   password    String
   fullName    String?
   avatar      String?
   bio         String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  birthDate   DateTime?
+  country     String?
+  city        String?
+  isPublic    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // İlişkiler
-  interests     UserInterest[]
-  posts         Post[]
-  comments      Comment[]
-  likes         Like[]
-  followers     Follow[]  @relation("following")
-  following     Follow[]  @relation("follower")
+  interests        UserInterest[]
+  posts            Post[]
+  comments         Comment[]
+  likes            Like[]
+  followers        Follow[]  @relation("following")
+  following        Follow[]  @relation("follower")
   sentRequests     ActivityRequest[] @relation("sender")
   receivedRequests ActivityRequest[] @relation("receiver")
-  tournaments   TournamentParticipant[]
-  events        EventParticipant[]
-  cards         ActivityCard[]
+  tournaments      TournamentParticipant[]
+  createdTournaments Tournament[] @relation("tournamentCreator")
+  events           EventParticipant[]
+  cards            ActivityCard[]
+  courts           Court[]
+  gender           String?  // MALE | FEMALE | OTHER
+  profilePrivacy   String   @default("PUBLIC")  // PUBLIC | FRIENDS | FRIENDS_EXCEPT
+  profileExclude   Json     @default("[]")        // [userId, ...]
+  fullNamePrivacy  String   @default("PUBLIC")
+  fullNameExclude  Json     @default("[]")
+  cityPrivacy      String   @default("PUBLIC")
+  genderPrivacy    String   @default("PUBLIC")
+  birthDatePrivacy String   @default("PUBLIC")
+  cityExclude      Json     @default("[]")
+  genderExclude    Json     @default("[]")
+  birthDateExclude Json     @default("[]")
+  isAdmin          Boolean  @default(false)
+  rivalJoinReqs    RivalJoinRequest[]
+  notifications    Notification[]
+  sentFriendReqs   Friendship[] @relation("friendshipSender")
+  receivedFriendReqs Friendship[] @relation("friendshipReceiver")
+  blockedUsers     Block[] @relation("blocker")
+  blockedBy        Block[] @relation("blocked")
+  sentMessages     Message[]
+  conversations1   Conversation[] @relation("convUser1")
+  conversations2   Conversation[] @relation("convUser2")
+  storyViews       StoryView[]
+  assessmentVotesCast AssessmentVote[]
+  coachListings       CoachListing[]
 }
 
 // KULLANICI İLGİ ALANLARI (Kategori + Alt Dal)
@@ -47,16 +79,35 @@ model UserInterest {
   category     CategoryType
   subCategory  String       // futbol, basketbol, resim, müzik, fps, rpg vb.
   level        String       @default("BEGINNER")
+  skillRating  Float        @default(0)   // 0.00 – 5.00, from assessment
   totalPoints  Int          @default(0)
   wins         Int          @default(0)
   losses       Int          @default(0)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skills       Skill[]
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills            Skill[]
+  assessmentVotes   AssessmentVote[] @relation("VoteTarget")
+
+  digimonVotingEnabled Boolean @default(false)
 
   @@unique([userId, category, subCategory])
+}
+
+// ASSESSMENT OYLAMA (digimon kart oy sistemi)
+model AssessmentVote {
+  id               String       @id @default(uuid())
+  voterId          String
+  targetInterestId String
+  questionId       String
+  optionIndex      Int
+  createdAt        DateTime     @default(now())
+
+  voter            User         @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  targetInterest   UserInterest @relation("VoteTarget", fields: [targetInterestId], references: [id], onDelete: Cascade)
+
+  @@unique([voterId, targetInterestId, questionId])
 }
 
 // YETENEK
@@ -68,6 +119,39 @@ model Skill {
   createdAt  DateTime @default(now())
 
   interest   UserInterest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+}
+
+// ANTRENÖR İLANI
+model CoachListing {
+  id              String   @id @default(uuid())
+  userId          String
+  category        String   // SPORTS / ARTS / GAMES
+  subCategory     String   // tennis, padel, etc.
+
+  // Kimlik / Belge
+  credentialLevel String   // CERTIFIED | LICENSED | CLUB_COACH | INDEPENDENT | AMATEUR
+  certName        String?  // "ITF Level 2", "PTR Professional" vb.
+  experience      Int      @default(0) // years
+
+  // Ders tipleri
+  individual      Boolean  @default(true)
+  group           Boolean  @default(false)
+  priceIndividual Int      @default(0)   // per hour, local currency
+  priceGroup      Int      @default(0)   // per person per session
+  maxGroupSize    Int      @default(4)
+
+  // Yer / Zaman
+  location        String
+  city            String?
+  days            Json     @default("[]") // ["MON","TUE",...]
+  timeFrom        String   @default("09:00")
+  timeTo          String   @default("21:00")
+
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // AKTİVİTE KARTI (Her kategori için ayrı kart)
@@ -97,12 +181,35 @@ model Post {
   content      String
   imageUrl     String?
   videoUrl     String?
+  type         String       @default("POST")  // POST | REEL | STORY
+  targets      Json?                          // [{category, subCategory}, ...]
+  hidden       Boolean      @default(false)   // hidden from branches, visible only on own profile
+  expiresAt    DateTime?                      // set for STORY type: createdAt + 24h
+  muteVideo      Boolean      @default(false)   // mute original video audio
+  musicUrl       String?                        // deezer 30s preview mp3
+  musicName      String?                        // track title
+  musicArtist    String?                        // artist name
+  musicCoverUrl  String?                        // album cover image url
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   comments     Comment[]
   likes        Like[]
+  storyViews   StoryView[]
+}
+
+// HİKAYE GÖRÜNTÜLEMESİ
+model StoryView {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
 }
 
 // YORUM
@@ -145,45 +252,98 @@ model Follow {
 
 // AKTİVİTE İSTEĞİ (Rakip, partner, takım arkadaşı)
 model ActivityRequest {
-  id           String       @id @default(uuid())
-  senderId     String
-  receiverId   String?
-  category     CategoryType
-  subCategory  String
-  message      String?
-  level        String?
-  location     String?
-  status       String       @default("OPEN")
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              String       @id @default(uuid())
+  senderId        String
+  receiverId      String?
+  category        CategoryType
+  subCategory     String
+  message         String?
+  level           String?
+  location        String?
+  courtName       String?
+  courtAddress    String?
+  courtLat        Float?
+  courtLng        Float?
+  isCourtReserved    Boolean      @default(false)
+  flexibleSchedule   Boolean      @default(false)
+  matchDate          DateTime?
+  matchTime       String?
+  levelDetail     String?
+  matchType       String       @default("SINGLE") // SINGLE | DOUBLE
+  matchMode       String       @default("PRACTICE") // PRACTICE | COMPETITIVE
+  surface         String?                           // for volleyball: BEACH | GRASS | INDOOR
+  teamSize        Int          @default(1)          // players per side (1–6 for volleyball)
+  duration        Int?                              // match duration in minutes
+  participants    Json         @default("[]")     // [{id, username, fullName}]
+  senderTeam      Json         @default("[]")     // COMPETITIVE team: creator's additional teammates [{id,username,fullName,skillRating}]
+  positions       Json         @default("[]")     // e.g. ['REFEREE'] | ['REFEREE_OFFER'] | ['GOALKEEPER']
+  refereePayment  String?                         // fee offered or rate per match
+  status          String       @default("OPEN")   // OPEN | MATCHED | CANCELLED | COMPLETED
+  score           Json?                           // {sets:[{sender:6,opponent:3},...], winner:"sender"|"opponent"}
+  scoreStatus     String       @default("NONE")   // NONE | PENDING | CONFIRMED | DISPUTED
+  scoreEnteredBy  String?
+  completedAt     DateTime?
+  archived        Boolean      @default(false)
+  expiresAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  sender       User @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver     User? @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender          User @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver        User? @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  joinRequests    RivalJoinRequest[]
+}
+
+model RivalJoinRequest {
+  id          String   @id @default(uuid())
+  rivalId     String
+  userId      String
+  status      String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  joiningTeam Json     @default("[]")      // COMPETITIVE team: challenger's full team [{id,username,fullName,skillRating}]
+  createdAt   DateTime @default(now())
+
+  rival      ActivityRequest @relation(fields: [rivalId],  references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId],   references: [id], onDelete: Cascade)
+
+  @@unique([rivalId, userId])
 }
 
 // TURNUVA/ETKİNLİK
 model Tournament {
-  id           String       @id @default(uuid())
-  name         String
-  category     CategoryType
-  subCategory  String
-  description  String?
-  maxPlayers   Int
-  startDate    DateTime
-  endDate      DateTime?
-  status       String       @default("UPCOMING")
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id             String       @id @default(uuid())
+  name           String
+  type           String       @default("mix_double") // mix_double | singles | team
+  category       CategoryType
+  subCategory    String
+  description    String?
+  maxPlayers     Int          @default(32)
+  location       String?
+  city           String?      // parsed city for filtering
+  surface        String?      // clay | hard | grass | carpet | sand | artificial
+  isIndoor       Boolean      @default(false)
+  eventDate      DateTime?
+  startTime      String?      // e.g. "14:00"
+  endTime        String?      // e.g. "18:00"
+  startDate      DateTime?
+  endDate        DateTime?
+  status         String       @default("OPEN")  // OPEN | CLOSED | COMPLETED
+  creatorId      String
+  bracketData    Json?        // full bracket snapshot (teams, matches, final, winner)
+  ratingSnapshot Json?        // {userId: {username, fullName, totalPoints, skillRating}}
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
+  creator      User         @relation("tournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   participants TournamentParticipant[]
 }
 
-// TURNUVA KATILIMCI
+// TURNUVA KATILIMCI / JOIN REQUEST
 model TournamentParticipant {
   id           String   @id @default(uuid())
   tournamentId String
   userId       String
-  status       String   @default("REGISTERED")
+  status       String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  note         String?
   createdAt    DateTime @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
@@ -222,4 +382,98 @@ model EventParticipant {
   user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
+}
+model Court {
+  id          String   @id @default(uuid())
+  name        String
+  address     String?
+  city        String
+  country     String?
+  lat         Float?
+  lng         Float?
+  sport       String   @default("tennis")
+  surface     String?
+  indoor      Boolean  @default(false)
+  fee         Boolean  @default(false)
+  feeAmount   String?
+  lights      Boolean  @default(false)
+  description String?
+  addedBy     String
+  verified      Boolean  @default(false)
+  pending       Boolean  @default(true)   // true until admin reviews
+  rejectedReason String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [addedBy], references: [id], onDelete: Cascade)
+}
+
+// ARKADAŞLIK
+model Friendship {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  status     String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sender     User @relation("friendshipSender",   fields: [senderId],   references: [id], onDelete: Cascade)
+  receiver   User @relation("friendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+}
+
+// ENGELLEME
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker   User @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+}
+
+// KONUŞMA (DM)
+model Conversation {
+  id        String   @id @default(uuid())
+  user1Id   String
+  user2Id   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user1     User      @relation("convUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2     User      @relation("convUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@unique([user1Id, user2Id])
+}
+
+// BİLDİRİM
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // JOIN_REQUEST | MATCH_CONFIRMED | MATCH_CANCELLED | FRIEND_REQUEST | MESSAGE
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  data      Json?    // {rivalId, requestId, fromUserId, ...}
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// MESAJ
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 }

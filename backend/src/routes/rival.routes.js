@@ -1,17 +1,31 @@
 import { Router } from 'express';
 import {
-    createRivalRequest,
-    getRivalRequests,
-    respondToRival,
-    getMyRequests,
+    createRivalRequest, getRivalRequests,
+    sendJoinRequest, respondToJoin,
+    getUpcomingMatches, getMyRequests,
+    cancelRequest, enterScore, confirmScore, disputeScore, reportDispute,
+    archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
+    extendScoreDeadline, getCountsBySubCategory,
 } from '../controllers/rival.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-router.get('/', authenticate, getRivalRequests);
-router.post('/', authenticate, createRivalRequest);
-router.post('/:id/respond', authenticate, respondToRival);
-router.get('/my', authenticate, getMyRequests);
+router.get('/',                      authenticate, getRivalRequests);
+router.get('/counts',                authenticate, getCountsBySubCategory);
+router.post('/',                     authenticate, createRivalRequest);
+router.get('/upcoming',              authenticate, getUpcomingMatches);
+router.get('/completed',             authenticate, getCompletedMatches);
+router.get('/archived',              authenticate, getArchivedMatchesBySport);
+router.get('/my',                    authenticate, getMyRequests);
+router.post('/:id/respond',          authenticate, sendJoinRequest);
+router.patch('/join/:requestId',     authenticate, respondToJoin);
+router.patch('/:id/cancel',          authenticate, cancelRequest);
+router.patch('/:id/score',           authenticate, enterScore);
+router.patch('/:id/confirm-score',   authenticate, confirmScore);
+router.patch('/:id/dispute-score',   authenticate, disputeScore);
+router.post('/:id/report-dispute',   authenticate, reportDispute);
+router.patch('/:id/archive',         authenticate, archiveMatch);
+router.patch('/:id/extend-score',    authenticate, extendScoreDeadline);
 
 export default router;

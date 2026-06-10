@@ -1,0 +1,17 @@
+export default {
+    bg: '#030712',
+    surface: '#111827',
+    surface2: '#1f2937',
+    border: '#374151',
+    borderLight: '#4b5563',
+    text: '#f9fafb',
+    textSecondary: '#9ca3af',
+    textMuted: '#6b7280',
+    purple: '#9333ea',
+    purpleLight: '#a855f7',
+    green: '#16a34a',
+    greenLight: '#22c55e',
+    yellow: '#eab308',
+    red: '#dc2626',
+    blue: '#2563eb',
+};

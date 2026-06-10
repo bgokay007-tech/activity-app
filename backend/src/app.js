@@ -3,15 +3,31 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { CLIENT_URL } from './config/env.js';
+import uploadRoutes from './routes/upload.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import interestRoutes from './routes/interest.routes.js';
 import postRoutes from './routes/post.routes.js';
 import rivalRoutes from './routes/rival.routes.js';
+import courtRoutes from './routes/court.routes.js';
+import newsRoutes from './routes/news.routes.js';
+import friendRoutes from './routes/friend.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
+import messageRoutes from './routes/message.routes.js';
+import userRoutes from './routes/user.routes.js';
+import demoRoutes from './routes/demo.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import tournamentRoutes from './routes/tournament.routes.js';
+import archiveRoutes from './routes/archive.routes.js';
+import coachRoutes from './routes/coach.routes.js';
 
 const app = express();
 
-app.use(helmet());
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(cors({
+  origin: (origin, cb) => cb(null, true),
+  credentials: true,
+}));
+app.use('/uploads', express.static('uploads'));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -19,6 +35,18 @@ app.use('/api/auth', authRoutes);
 app.use('/api/interests', interestRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/rivals', rivalRoutes);
+app.use('/api/courts', courtRoutes);
+app.use('/api/news', newsRoutes);
+app.use('/api/friends', friendRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/demo', demoRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/archive', archiveRoutes);
+app.use('/api/coaches', coachRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });

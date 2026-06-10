@@ -5,6 +5,11 @@ import {
     addInterest,
     removeInterest,
     getUsersByCategory,
+    getAssessmentQuestions,
+    saveAssessment,
+    toggleVoting,
+    getVotes,
+    submitVote,
 } from '../controllers/interest.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -15,5 +20,10 @@ router.get('/my', authenticate, getUserInterests);
 router.post('/add', authenticate, addInterest);
 router.delete('/:id', authenticate, removeInterest);
 router.get('/users', authenticate, getUsersByCategory);
+router.get('/assessment/:subCategory', authenticate, getAssessmentQuestions);
+router.patch('/:id/assess', authenticate, saveAssessment);
+router.patch('/:id/voting', authenticate, toggleVoting);
+router.get('/:id/votes', authenticate, getVotes);
+router.post('/:id/vote', authenticate, submitVote);
 
 export default router;
