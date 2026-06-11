@@ -1400,7 +1400,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const today = new Date();
-    const filteredRivals = rivals.filter(item => {
+    const applyFilter = (item) => {
         if (filterCity.trim()) {
             const loc = (item.location || '').toLowerCase();
             const court = (item.courtName || '').toLowerCase();
@@ -1418,7 +1418,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             }
         }
         return true;
-    });
+    };
+    const filteredRivals = rivals.filter(applyFilter);
+    const filteredMatchedUpcoming = matchedUpcoming.filter(applyFilter);
 
     return (
         <View style={[s.container, { paddingTop: Platform.OS==='ios' ? 56 : 40 }]}>
@@ -1496,23 +1498,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </View>
                             </View>
 
-                            {/* Upcoming matches — only fully matched (MATCHED status) */}
-                            {matchedUpcoming.length > 0 && (
-                                <>
-                                    <Text style={s.sectionTitle}>{t.upcomingMatchesTitle}</Text>
-                                    {matchedUpcoming.map(m => (
-                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched />
-                                    ))}
-                                    <Text style={s.sectionTitle}>{t.allListingsTitle}</Text>
-                                </>
-                            )}
-
                             {filteredRivals.length === 0
                                 ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
                                 : filteredRivals.map(item => (
                                     <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} />
                                 ))
                             }
+
+                            {/* Yaklaşan Maçlar — tüm ilanların altında, filtreye tabi */}
+                            {filteredMatchedUpcoming.length > 0 && (
+                                <>
+                                    <Text style={s.sectionTitle}>{t.upcomingMatchesTitle}</Text>
+                                    {filteredMatchedUpcoming.map(m => (
+                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched />
+                                    ))}
+                                </>
+                            )}
                         </>
                     )}
 
