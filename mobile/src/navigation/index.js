@@ -13,13 +13,17 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import api from '../services/api';
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-    }),
-});
+const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
+
+if (!isExpoGo) {
+    Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+        }),
+    });
+}
 
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
@@ -107,22 +111,17 @@ function AppTabs() {
                 const notifCount = notifsRes.data.unreadCount || 0;
                 const msgCount = (convRes.data || []).reduce((s, c) => s + (c.unreadCount || 0), 0);
 
-                // Show OS-level local notification for new unread items
-                if (notifCount > prevNotifCountRef.current) {
+                // Show OS-level local notification for new unread items (not in Expo Go)
+                if (!isExpoGo && notifCount > prevNotifCountRef.current) {
                     const newOnes = (notifsRes.data.notifications || []).filter(
                         n => !n.read && !shownNotifIdsRef.current.has(n.id)
                     );
                     for (const notif of newOnes.slice(0, 1)) {
                         shownNotifIdsRef.current.add(notif.id);
                         await Notifications.scheduleNotificationAsync({
-                            content: {
-                                title: notif.title,
-                                body: notif.body,
-                                sound: true,
-                                data: notif.data || {},
-                            },
+                            content: { title: notif.title, body: notif.body, sound: 'default', data: notif.data || {} },
                             trigger: null,
-                        });
+                        }).catch(() => {});
                     }
                 }
 
@@ -133,7 +132,7 @@ function AppTabs() {
         };
 
         fetchCounts();
-        pollRef.current = setInterval(fetchCounts, 15000);
+        pollRef.current = setInterval(fetchCounts, 60000);
         return () => clearInterval(pollRef.current);
     }, []);
 
@@ -206,13 +205,11 @@ export default function Navigation() {
     }, []);
 
     useEffect(() => {
-        if (!token) return;
+        if (!token || isExpoGo) return;
         (async () => {
             try {
-                // Ask OS for notification permission (works in Expo Go)
                 const { status } = await Notifications.requestPermissionsAsync();
                 if (status !== 'granted') return;
-                // Push token registration requires EAS projectId (not available in Expo Go)
                 const projectId =
                     Constants.expoConfig?.extra?.eas?.projectId ??
                     Constants.easConfig?.projectId;
