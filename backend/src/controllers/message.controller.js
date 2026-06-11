@@ -1,6 +1,5 @@
 import prisma from '../config/prisma.js';
 import axios from 'axios';
-import { createNotification } from './notification.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -108,12 +107,17 @@ export const sendMessage = async (req, res, next) => {
         const notifBody = content.trim().slice(0, 100);
         const senderUsername = sender?.username;
 
-        await createNotification(
-            receiverId, 'MESSAGE', `@${senderUsername}`, notifBody,
-            { senderId: req.userId, senderUsername, conversationId: conv.id }
-        );
-
         res.status(201).json({ message, conversationId: conv.id });
+
+        prisma.notification.create({
+            data: {
+                userId: receiverId,
+                type: 'MESSAGE',
+                title: `@${senderUsername}`,
+                body: notifBody,
+                data: { senderId: req.userId, senderUsername, conversationId: conv.id },
+            },
+        }).catch(e => console.warn('Notification create error:', e?.message));
 
         if (receiver?.pushToken) {
             sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody);
