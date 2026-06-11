@@ -412,9 +412,8 @@ export const respondToRival = sendJoinRequest;
 export const getUpcomingMatches = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
-        const myId = req.userId;
 
-        const allMatched = await prisma.activityRequest.findMany({
+        const matches = await prisma.activityRequest.findMany({
             where: {
                 status: 'MATCHED',
                 ...(category    && { category }),
@@ -424,13 +423,7 @@ export const getUpcomingMatches = async (req, res, next) => {
             orderBy: { matchDate: 'asc' },
         });
 
-        const participating = allMatched.filter(r => {
-            if (r.senderId === myId || r.receiverId === myId) return true;
-            const parts = Array.isArray(r.participants) ? r.participants : [];
-            return parts.some(p => p.id === myId);
-        });
-
-        res.json(participating);
+        res.json(matches);
     } catch (error) {
         next(error);
     }
