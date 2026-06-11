@@ -90,18 +90,50 @@ function AppTabs() {
     const insets = useSafeAreaInsets();
     const tabBarHeight = 56 + insets.bottom;
     const t = useT();
-    const [unreadCount, setUnreadCount] = useState(0);
+    const [unreadNotifs, setUnreadNotifs] = useState(0);
+    const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
+    const prevNotifCountRef = useRef(0);
+    const shownNotifIdsRef = useRef(new Set());
 
     useEffect(() => {
-        const fetchUnread = async () => {
+        const fetchCounts = async () => {
             try {
-                const { data } = await api.get('/notifications');
-                setUnreadCount(data.unreadCount || 0);
+                const [notifsRes, convRes] = await Promise.all([
+                    api.get('/notifications'),
+                    api.get('/messages/conversations'),
+                ]);
+
+                const notifCount = notifsRes.data.unreadCount || 0;
+                const msgCount = (convRes.data || []).reduce((s, c) => s + (c.unreadCount || 0), 0);
+
+                // Show OS-level local notification for new unread items
+                if (notifCount > prevNotifCountRef.current) {
+                    const newOnes = (notifsRes.data.notifications || []).filter(
+                        n => !n.read && !shownNotifIdsRef.current.has(n.id)
+                    );
+                    for (const notif of newOnes.slice(0, 1)) {
+                        shownNotifIdsRef.current.add(notif.id);
+                        await Notifications.scheduleNotificationAsync({
+                            content: {
+                                title: notif.title,
+                                body: notif.body,
+                                sound: true,
+                                data: notif.data || {},
+                            },
+                            trigger: null,
+                        });
+                    }
+                }
+
+                prevNotifCountRef.current = notifCount;
+                setUnreadNotifs(notifCount);
+                setUnreadMessages(msgCount);
             } catch { /* silent */ }
         };
-        fetchUnread();
-        pollRef.current = setInterval(fetchUnread, 30000);
+
+        fetchCounts();
+        pollRef.current = setInterval(fetchCounts, 15000);
         return () => clearInterval(pollRef.current);
     }, []);
 
@@ -130,16 +162,22 @@ function AppTabs() {
             <Tab.Screen
                 name="MessagesTab"
                 component={MessagesStackNav}
-                options={{ tabBarLabel: t.messages, tabBarIcon: ({ focused }) => <TabIcon label="Messages" active={focused} /> }}
+                listeners={{ tabPress: () => setUnreadMessages(0) }}
+                options={{
+                    tabBarLabel: t.messages,
+                    tabBarIcon: ({ focused }) => <TabIcon label="Messages" active={focused} />,
+                    tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
+                    tabBarBadgeStyle: { backgroundColor: colors.purple, color: '#fff', fontSize: 10 },
+                }}
             />
             <Tab.Screen
                 name="NotificationsTab"
                 component={NotificationsScreen}
-                listeners={{ tabPress: () => setUnreadCount(0) }}
+                listeners={{ tabPress: () => setUnreadNotifs(0) }}
                 options={{
                     tabBarLabel: t.alerts,
                     tabBarIcon: ({ focused }) => <TabIcon label="Notifications" active={focused} />,
-                    tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+                    tabBarBadge: unreadNotifs > 0 ? unreadNotifs : undefined,
                     tabBarBadgeStyle: { backgroundColor: colors.purple, color: '#fff', fontSize: 10 },
                 }}
             />
@@ -171,10 +209,10 @@ export default function Navigation() {
         if (!token) return;
         (async () => {
             try {
-                // Push notifications removed from Expo Go in SDK 53+, requires a dev/prod build
-                if (Constants.appOwnership === 'expo') return;
+                // Ask OS for notification permission (works in Expo Go)
                 const { status } = await Notifications.requestPermissionsAsync();
                 if (status !== 'granted') return;
+                // Push token registration requires EAS projectId (not available in Expo Go)
                 const projectId =
                     Constants.expoConfig?.extra?.eas?.projectId ??
                     Constants.easConfig?.projectId;
