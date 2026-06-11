@@ -1,5 +1,15 @@
 import prisma from '../config/prisma.js';
 import { emitToUser } from '../config/socket.js';
+import axios from 'axios';
+
+async function sendPush(pushToken, title, body, data = {}) {
+    if (!pushToken?.startsWith('ExponentPushToken')) return;
+    try {
+        await axios.post('https://exp.host/--/api/v2/push/send', {
+            to: pushToken, title, body, sound: 'default', data,
+        }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
+    } catch { /* push failure is non-critical */ }
+}
 
 export const getNotifications = async (req, res, next) => {
     try {
@@ -36,9 +46,12 @@ export const markOneRead = async (req, res, next) => {
 // Helper — called from other controllers
 export async function createNotification(userId, type, title, body, data = {}) {
     try {
-        const notif = await prisma.notification.create({ data: { userId, type, title, body, data } });
-        // Real-time push via Socket.io
+        const [notif, user] = await Promise.all([
+            prisma.notification.create({ data: { userId, type, title, body, data } }),
+            prisma.user.findUnique({ where: { id: userId }, select: { pushToken: true } }),
+        ]);
         emitToUser(userId, 'notification', notif);
+        if (user?.pushToken) sendPush(user.pushToken, title, body, data);
         return notif;
     } catch { /* non-critical */ }
 }
