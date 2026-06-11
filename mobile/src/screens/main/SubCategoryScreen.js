@@ -244,7 +244,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
             onRefresh();
         } catch (e) {
             const msg = e?.response?.data?.message || '';
-            if (msg.toLowerCase().includes('already')) { onRefresh(); return; }
+            if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('no longer')) {
+                onRefresh();
+                if (msg.toLowerCase().includes('no longer')) Alert.alert(t.error, t.requestNoLongerOpen || 'Bu ilan artık açık değil.');
+                return;
+            }
             Alert.alert(t.error, msg || t.requestFailed);
         }
     };
@@ -261,7 +265,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
 
     const handleRespondJoin = async (jrId, action) => {
         try {
-            await api.patch(`/rivals/${item.id}/join-requests/${jrId}`, { action });
+            await api.patch(`/rivals/join/${jrId}`, { action });
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); }
     };
@@ -273,12 +277,14 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                 <TouchableOpacity onPress={() => onUserPress?.(item.sender?.id)} activeOpacity={0.7} style={{ flexDirection:'row', alignItems:'flex-start', gap:10, flex:1 }}>
                     <Avatar name={item.sender?.username} size={42} color={cfg.color} />
                     <View style={{ flex:1 }}>
-                        <Text style={s.cardName}>@{item.sender?.username}</Text>
-                        {item.sender?.interests?.[0]?.skillRating > 0 && (
-                            <Text style={[s.ratingText, { color: cfg.color }]}>
-                                {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
-                            </Text>
-                        )}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                            <Text style={s.cardName}>@{item.sender?.username}</Text>
+                            {item.sender?.interests?.[0]?.skillRating > 0 && (
+                                <Text style={[s.ratingText, { color: cfg.color }]}>
+                                    {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
+                                </Text>
+                            )}
+                        </View>
                     </View>
                 </TouchableOpacity>
                 <View style={{ alignItems:'flex-end', gap:4 }}>
@@ -347,6 +353,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                                 <View key={jr.id} style={s.joinRequestRow}>
                                     <Avatar name={jr.user?.username} size={30} color={cfg.color} />
                                     <Text style={s.joinRequestName} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
+                                    <TouchableOpacity style={[s.declineBtn, { backgroundColor:'#2563eb40', borderColor:'#2563eb60' }]} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:jr.user, conversation:{ id:null, _userId:jr.user?.id }, rival:{ id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule } } })}>
+                                        <Text style={{ color:'#60a5fa', fontSize:12, fontWeight:'700' }}>💬</Text>
+                                    </TouchableOpacity>
                                     <TouchableOpacity style={s.acceptBtn} onPress={() => handleRespondJoin(jr.id,'accept')}>
                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✓</Text>
                                     </TouchableOpacity>
@@ -358,7 +367,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                         </View>
                     )}
                     <View style={s.ownerBtnRow}>
-                        <TouchableOpacity style={s.msgBtn} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId } } })}>
+                        <TouchableOpacity style={s.msgBtn} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival:{ id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule } } })}>
                             <Text style={s.msgBtnText}>{t.msgBtn}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={s.cancelBtn} onPress={handleCancel}>
@@ -367,17 +376,27 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                     </View>
                 </View>
             ) : mySentReq ? (
-                <View style={s.waitingBox}>
-                    <Text style={s.waitingText}>{t.waitingReq}</Text>
+                <View style={{ gap: 8 }}>
+                    <View style={s.waitingBox}>
+                        <Text style={s.waitingText}>{t.waitingReq}</Text>
+                    </View>
+                    <TouchableOpacity style={s.msgBtn} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival:{ id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule } } })}>
+                        <Text style={s.msgBtnText}>{t.msgBtn}</Text>
+                    </TouchableOpacity>
                 </View>
             ) : item.flexibleSchedule ? (
-                <TouchableOpacity style={s.msgBtn} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId } } })}>
+                <TouchableOpacity style={s.msgBtn} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival:{ id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule } } })}>
                     <Text style={s.msgBtnText}>{t.msgAtBtn}</Text>
                 </TouchableOpacity>
             ) : (
-                <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color }]} onPress={handleJoin}>
-                    <Text style={s.joinBtnText}>{t.joinBtn}</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection:'row', gap:8 }}>
+                    <TouchableOpacity style={[s.msgBtn, { flex:1 }]} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival:{ id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule } } })}>
+                        <Text style={s.msgBtnText}>{t.msgBtn}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color, flex:2 }]} onPress={handleJoin}>
+                        <Text style={s.joinBtnText}>{t.joinBtn}</Text>
+                    </TouchableOpacity>
+                </View>
             )}
         </View>
     );
@@ -1173,7 +1192,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const allPosts = Array.isArray(postsRes.data) ? postsRes.data : [];
             setTextPosts(allPosts.filter(p => p.type === 'POST' && !p.imageUrl && !p.videoUrl));
             setMediaPosts(Array.isArray(mediaRes.data) ? mediaRes.data : []);
-        } catch(e) { console.error(e); }
+        } catch(e) { console.warn(e?.message); }
         finally { setLoading(false); setRefreshing(false); }
     }, [category, sub, myId]);
 
@@ -1475,7 +1494,7 @@ const s = StyleSheet.create({
     avatarText:       { fontWeight:'800' },
     cardName:         { color:'#fff', fontWeight:'700', fontSize:14 },
     cardSub:          { color: colors.textMuted, fontSize:11 },
-    ratingText:       { fontSize:11, fontWeight:'900', marginTop:2 },
+    ratingText:       { fontSize:11, fontWeight:'900' },
 
     modeBadge:        { borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, alignSelf:'flex-start' },
     modeBadgeText:    { fontSize:10, fontWeight:'700' },
