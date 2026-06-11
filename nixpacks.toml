@@ -8,4 +8,4 @@ cmds = ["cd backend && npm ci"]
 cmds = ["cd backend && npm run build"]
 
 [start]
-cmd = "cd backend && node src/server.js"
+cmd = "cd backend && npx prisma migrate deploy && node src/server.js"
