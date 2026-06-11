@@ -240,9 +240,17 @@ const det = StyleSheet.create({
 });
 
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin }) {
+    const [localParticipants, setLocalParticipants] = useState(null);
+    const [localJoinRequests, setLocalJoinRequests] = useState(null);
+
+    useEffect(() => {
+        setLocalParticipants(null);
+        setLocalJoinRequests(null);
+    }, [item]);
+
     const isOwner = item.senderId === myId;
-    const participants = Array.isArray(item.participants) ? item.participants : [];
-    const joinRequests = Array.isArray(item.joinRequests) ? item.joinRequests : [];
+    const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
+    const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
     const required = item.matchType === 'DOUBLE' ? 3 : (item.teamSize || 1);
     const filled = participants.length;
     const mySentReq = item._myJoinStatus;
@@ -256,6 +264,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             screen: 'Chat',
             params: { other, conversation: { id: null, _userId: other.id }, rival: { id: item.id, subCategory: item.subCategory, matchType: item.matchType, level: item.level, matchDate: item.matchDate, matchTime: item.matchTime, courtName: item.courtName } },
         });
+    };
+
+    const acceptLocal = (jrId) => {
+        const jr = joinRequests.find(r => r.id === jrId);
+        if (jr?.user) {
+            setLocalParticipants([...participants, { id: jr.user.id, username: jr.user.username, fullName: jr.user.fullName, avatar: jr.user.avatar }]);
+            setLocalJoinRequests(joinRequests.filter(r => r.id !== jrId));
+        }
+        handleRespondJoin(jrId, 'accept');
+    };
+
+    const rejectLocal = (jrId) => {
+        setLocalJoinRequests(joinRequests.filter(r => r.id !== jrId));
+        handleRespondJoin(jrId, 'reject');
     };
 
     return (
@@ -347,10 +369,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <View style={{ flexDirection:'row', gap:6 }}>
                                             {isOwner && (
                                                 <>
-                                                    <TouchableOpacity style={s.acceptBtn} onPress={() => handleRespondJoin(jr.id, 'accept')}>
+                                                    <TouchableOpacity style={s.acceptBtn} onPress={() => acceptLocal(jr.id)}>
                                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✓</Text>
                                                     </TouchableOpacity>
-                                                    <TouchableOpacity style={s.declineBtn} onPress={() => handleRespondJoin(jr.id, 'reject')}>
+                                                    <TouchableOpacity style={s.declineBtn} onPress={() => rejectLocal(jr.id)}>
                                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✕</Text>
                                                     </TouchableOpacity>
                                                 </>
@@ -442,8 +464,12 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
 
     const handleRespondJoin = async (jrId, action) => {
         try {
-            await api.patch(`/rivals/join/${jrId}`, { action });
-            onRefresh();
+            const res = await api.patch(`/rivals/join/${jrId}`, { action });
+            if (action === 'accept' && res.data?.matched) {
+                setTimeout(onRefresh, 1200);
+            } else {
+                onRefresh();
+            }
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); }
     };
 
@@ -454,7 +480,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
         <View style={[s.card, item.flexibleSchedule && { borderColor:'#eab30840' }]}>
 
             {/* ── Tappable info area → opens detail modal ── */}
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => { setDetailVisible(true); onRefresh(); }}>
 
                 {/* Header */}
                 <View style={s.cardHeader}>
@@ -562,7 +588,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
             navigation={navigation}
             handleJoin={() => { setDetailVisible(false); setTimeout(handleJoin, 300); }}
             handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
-            handleRespondJoin={async (jrId, action) => { await handleRespondJoin(jrId, action); onRefresh(); }}
+            handleRespondJoin={handleRespondJoin}
         />
         </>
     );
@@ -694,7 +720,7 @@ function TextPostCard({ post, cfg, onRefresh }) {
 
 // ─── Upcoming Match Card ────────────────────────────────────────────────────────
 
-function UpcomingCard({ match, myId, onRefresh }) {
+function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     const t = useT();
     const [showScore, setShowScore] = useState(false);
     const [myScore, setMyScore] = useState('');
@@ -730,7 +756,7 @@ function UpcomingCard({ match, myId, onRefresh }) {
         : match.sender;
 
     return (
-        <View style={[s.card, { borderColor:'#a855f740' }]}>
+        <View style={[s.card, isMatched ? { borderColor:'#16a34a60', backgroundColor:'#16a34a08' } : { borderColor:'#a855f740' }]}>
             <View style={s.cardHeader}>
                 <Avatar name={isOwner ? match.sender?.username : opponent?.username} size={38} />
                 <View style={{ flex:1 }}>
@@ -1316,7 +1342,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [activeTab, setActiveTab] = useState('rivals');
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
-    const [upcoming, setUpcoming] = useState([]);
+    const [matchedUpcoming, setMatchedUpcoming] = useState([]);
     const [textPosts, setTextPosts] = useState([]);
     const [mediaPosts, setMediaPosts] = useState([]);
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
@@ -1333,11 +1359,12 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const load = useCallback(async () => {
         try {
-            const [rvRes, pwRes, postsRes, mediaRes] = await Promise.all([
+            const [rvRes, pwRes, postsRes, mediaRes, upcomingRes] = await Promise.all([
                 api.get(`/rivals?category=${category}&subCategory=${sub}`),
                 api.get(`/rivals?category=${category}&subCategory=${sub}&matchType=PLAYER_WANTED`).catch(() => ({ data:[] })),
                 api.get(`/posts?category=${category}&subCategory=${sub}&communityOnly=true&limit=30`).catch(() => ({ data:[] })),
                 api.get(`/posts?category=${category}&subCategory=${sub}&mediaOnly=true&limit=50`).catch(() => ({ data:[] })),
+                api.get(`/rivals/upcoming?category=${category}&subCategory=${sub}`).catch(() => ({ data:[] })),
             ]);
 
             const allRivals = rvRes.data;
@@ -1346,14 +1373,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 !Array.isArray(p.positions) ||
                 (!p.positions.includes('REFEREE') && !p.positions.includes('REFEREE_OFFER'))
             ));
-
-            // upcoming: matches where user is owner or participant and match is accepted
-            const myUpcoming = allRivals.filter(r =>
-                r.matchType !== 'PLAYER_WANTED' &&
-                (r.senderId === myId || (Array.isArray(r.participants) && r.participants.some(p => p.id === myId))) &&
-                Array.isArray(r.participants) && r.participants.length > 0
-            );
-            setUpcoming(myUpcoming);
+            setMatchedUpcoming(Array.isArray(upcomingRes.data) ? upcomingRes.data : []);
 
             const allPosts = Array.isArray(postsRes.data) ? postsRes.data : [];
             setTextPosts(allPosts.filter(p => p.type === 'POST' && !p.imageUrl && !p.videoUrl));
@@ -1476,12 +1496,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </View>
                             </View>
 
-                            {/* Upcoming matches */}
-                            {upcoming.length > 0 && (
+                            {/* Upcoming matches — only fully matched (MATCHED status) */}
+                            {matchedUpcoming.length > 0 && (
                                 <>
                                     <Text style={s.sectionTitle}>{t.upcomingMatchesTitle}</Text>
-                                    {upcoming.map(m => (
-                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} />
+                                    {matchedUpcoming.map(m => (
+                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched />
                                     ))}
                                     <Text style={s.sectionTitle}>{t.allListingsTitle}</Text>
                                 </>

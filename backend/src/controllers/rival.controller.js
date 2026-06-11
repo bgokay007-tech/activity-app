@@ -411,36 +411,26 @@ export const respondToRival = sendJoinRequest;
 
 export const getUpcomingMatches = async (req, res, next) => {
     try {
-        // Fetch MATCHED requests where user is sender or in participants
-        const allMatched = await prisma.activityRequest.findMany({
-            where: { status: 'MATCHED' },
-            include: { sender: { select: SENDER_SELECT } },
-            orderBy: { matchDate: 'asc' },
-        });
-
-        // Also find by participants JSON (PostgreSQL path query)
-        // We do this in JS since Prisma JSON path filter is complex
-        const allOpen = await prisma.activityRequest.findMany({
-            where: { status: 'MATCHED' },
-            include: { sender: { select: SENDER_SELECT } },
-            orderBy: { matchDate: 'asc' },
-        });
-
+        const { category, subCategory } = req.query;
         const myId = req.userId;
-        const participating = allOpen.filter(r => {
+
+        const allMatched = await prisma.activityRequest.findMany({
+            where: {
+                status: 'MATCHED',
+                ...(category    && { category }),
+                ...(subCategory && { subCategory }),
+            },
+            include: { sender: { select: SENDER_SELECT } },
+            orderBy: { matchDate: 'asc' },
+        });
+
+        const participating = allMatched.filter(r => {
             if (r.senderId === myId || r.receiverId === myId) return true;
             const parts = Array.isArray(r.participants) ? r.participants : [];
             return parts.some(p => p.id === myId);
         });
 
-        // Deduplicate
-        const seen = new Set();
-        const result = [];
-        for (const r of [...allMatched, ...participating]) {
-            if (!seen.has(r.id)) { seen.add(r.id); result.push(r); }
-        }
-
-        res.json(result);
+        res.json(participating);
     } catch (error) {
         next(error);
     }
