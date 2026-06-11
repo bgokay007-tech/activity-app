@@ -106,9 +106,22 @@ export const sendMessage = async (req, res, next) => {
 
         res.status(201).json({ message, conversationId: conv.id });
 
-        // Send push notification after response
+        // Fire-and-forget: in-app notification + push notification
+        const notifBody = content.trim().slice(0, 100);
+        const senderUsername = sender?.username;
+
+        prisma.notification.create({
+            data: {
+                userId: receiverId,
+                type: 'MESSAGE',
+                title: `@${senderUsername}`,
+                body: notifBody,
+                data: { senderId: req.userId, senderUsername, conversationId: conv.id },
+            },
+        }).catch(() => {});
+
         if (receiver?.pushToken) {
-            sendPushNotification(receiver.pushToken, `@${sender?.username}`, content.trim().slice(0, 100));
+            sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody);
         }
     } catch (error) { next(error); }
 };

@@ -10,6 +10,7 @@ import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import api from '../services/api';
 
 Notifications.setNotificationHandler({
@@ -150,11 +151,17 @@ export default function Navigation() {
         if (!token) return;
         (async () => {
             try {
+                // Push notifications removed from Expo Go in SDK 53+, requires a dev/prod build
+                if (Constants.appOwnership === 'expo') return;
                 const { status } = await Notifications.requestPermissionsAsync();
                 if (status !== 'granted') return;
-                const { data: pushToken } = await Notifications.getExpoPushTokenAsync();
+                const projectId =
+                    Constants.expoConfig?.extra?.eas?.projectId ??
+                    Constants.easConfig?.projectId;
+                if (!projectId) return;
+                const { data: pushToken } = await Notifications.getExpoPushTokenAsync({ projectId });
                 await api.post('/auth/push-token', { token: pushToken });
-            } catch { /* push setup failure is non-critical */ }
+            } catch (e) { console.warn('Push setup error:', e?.message); }
         })();
     }, [token]);
 
