@@ -9,6 +9,16 @@ import { setLang } from '../store/slices/langSlice';
 import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
+import api from '../services/api';
+
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+    }),
+});
 
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
@@ -135,6 +145,18 @@ export default function Navigation() {
             if (lang) dispatch(setLang(lang));
         }).finally(() => setBootstrapping(false));
     }, []);
+
+    useEffect(() => {
+        if (!token) return;
+        (async () => {
+            try {
+                const { status } = await Notifications.requestPermissionsAsync();
+                if (status !== 'granted') return;
+                const { data: pushToken } = await Notifications.getExpoPushTokenAsync();
+                await api.post('/auth/push-token', { token: pushToken });
+            } catch { /* push setup failure is non-critical */ }
+        })();
+    }, [token]);
 
     if (bootstrapping) {
         return (

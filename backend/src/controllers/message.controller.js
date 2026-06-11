@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import axios from 'axios';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -65,6 +66,19 @@ export const getMessages = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+async function sendPushNotification(pushToken, title, body) {
+    if (!pushToken?.startsWith('ExponentPushToken')) return;
+    try {
+        await axios.post('https://exp.host/--/api/v2/push/send', {
+            to: pushToken,
+            title,
+            body,
+            sound: 'default',
+            data: { type: 'MESSAGE' },
+        }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
+    } catch { /* push failure is non-critical */ }
+}
+
 export const sendMessage = async (req, res, next) => {
     try {
         const { userId: receiverId } = req.params;
@@ -79,14 +93,23 @@ export const sendMessage = async (req, res, next) => {
 
         const conv = await getOrCreateConversation(req.userId, receiverId);
 
-        const message = await prisma.message.create({
-            data: { conversationId: conv.id, senderId: req.userId, content: content.trim() },
-            include: { sender: { select: USER_SELECT } },
-        });
+        const [message, sender, receiver] = await Promise.all([
+            prisma.message.create({
+                data: { conversationId: conv.id, senderId: req.userId, content: content.trim() },
+                include: { sender: { select: USER_SELECT } },
+            }),
+            prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }),
+            prisma.user.findUnique({ where: { id: receiverId }, select: { pushToken: true } }),
+        ]);
 
         await prisma.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } });
 
         res.status(201).json({ message, conversationId: conv.id });
+
+        // Send push notification after response
+        if (receiver?.pushToken) {
+            sendPushNotification(receiver.pushToken, `@${sender?.username}`, content.trim().slice(0, 100));
+        }
     } catch (error) { next(error); }
 };
 

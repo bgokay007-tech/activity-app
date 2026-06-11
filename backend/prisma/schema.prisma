@@ -58,6 +58,7 @@ model User {
   genderExclude    Json     @default("[]")
   birthDateExclude Json     @default("[]")
   isAdmin          Boolean  @default(false)
+  pushToken        String?
   rivalJoinReqs    RivalJoinRequest[]
   notifications    Notification[]
   sentFriendReqs   Friendship[] @relation("friendshipSender")
