@@ -1,9 +1,11 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import twilio from 'twilio';
 import prisma from '../config/prisma.js';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../config/env.js';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendSmsOtp = async (to, code) => {
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -14,20 +16,9 @@ const sendSmsOtp = async (to, code) => {
     });
 };
 
-const mailer = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-    },
-});
-
 const sendEmailOtp = async (to, code) => {
-    const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('SMTP timeout')), 8000)
-    );
-    const sendPromise = mailer.sendMail({
-        from: `"AcTiViTy" <${process.env.GMAIL_USER}>`,
+    const { error } = await resend.emails.send({
+        from: 'AcTiViTy <onboarding@resend.dev>',
         to,
         subject: 'AcTiViTy – Doğrulama Kodunuz',
         html: `
@@ -41,7 +32,7 @@ const sendEmailOtp = async (to, code) => {
           <p style="color:#6b7280;font-size:13px;">Bu kod <strong>10 dakika</strong> geçerlidir. Eğer bu isteği siz yapmadıysanız görmezden gelebilirsiniz.</p>
         </div>`,
     });
-    await Promise.race([sendPromise, timeout]);
+    if (error) throw new Error(error.message);
 };
 
 const generateToken = (userId) => jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -80,12 +71,11 @@ export const sendOtp = async (req, res, next) => {
 
         console.log(`[OTP] ${key} → ${code}`);
 
-        const gmailReady = process.env.GMAIL_APP_PASSWORD &&
-            process.env.GMAIL_APP_PASSWORD !== 'your_gmail_app_password_here';
+        const resendReady = !!process.env.RESEND_API_KEY;
 
         let emailSent = false;
         if (method === 'email') {
-            if (gmailReady) {
+            if (resendReady) {
                 try {
                     await sendEmailOtp(value, code);
                     emailSent = true;
