@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -90,6 +90,20 @@ function AppTabs() {
     const insets = useSafeAreaInsets();
     const tabBarHeight = 56 + insets.bottom;
     const t = useT();
+    const [unreadCount, setUnreadCount] = useState(0);
+    const pollRef = useRef(null);
+
+    useEffect(() => {
+        const fetchUnread = async () => {
+            try {
+                const { data } = await api.get('/notifications');
+                setUnreadCount(data.unreadCount || 0);
+            } catch { /* silent */ }
+        };
+        fetchUnread();
+        pollRef.current = setInterval(fetchUnread, 30000);
+        return () => clearInterval(pollRef.current);
+    }, []);
 
     return (
         <Tab.Navigator
@@ -121,7 +135,13 @@ function AppTabs() {
             <Tab.Screen
                 name="NotificationsTab"
                 component={NotificationsScreen}
-                options={{ tabBarLabel: t.alerts, tabBarIcon: ({ focused }) => <TabIcon label="Notifications" active={focused} /> }}
+                listeners={{ tabPress: () => setUnreadCount(0) }}
+                options={{
+                    tabBarLabel: t.alerts,
+                    tabBarIcon: ({ focused }) => <TabIcon label="Notifications" active={focused} />,
+                    tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+                    tabBarBadgeStyle: { backgroundColor: colors.purple, color: '#fff', fontSize: 10 },
+                }}
             />
             <Tab.Screen
                 name="ProfileTab"
