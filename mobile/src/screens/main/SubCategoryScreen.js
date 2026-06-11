@@ -235,6 +235,8 @@ const det = StyleSheet.create({
     playerName:   { color:'#fff', fontSize:13, fontWeight:'700' },
     playerSub:    { color: colors.textMuted, fontSize:11, marginTop:1 },
     emptyTxt:     { color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:8 },
+    chatBtn:      { backgroundColor:'#2563eb30', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#2563eb50' },
+    chatBtnTxt:   { fontSize:13 },
 });
 
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin }) {
@@ -245,6 +247,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const filled = participants.length;
     const mySentReq = item._myJoinStatus;
     const isFull = filled >= required;
+    const isParticipant = participants.some(p => p.id === myId);
+    const isInvolved = isOwner || isParticipant || (mySentReq !== null && mySentReq !== undefined);
+
+    const goToChat = (other) => {
+        onClose();
+        navigation.navigate('MessagesTab', {
+            screen: 'Chat',
+            params: { other, conversation: { id: null, _userId: other.id }, rival: { id: item.id, subCategory: item.subCategory, matchType: item.matchType, level: item.level, matchDate: item.matchDate, matchTime: item.matchTime, courtName: item.courtName } },
+        });
+    };
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -290,13 +302,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         {/* Oyuncular */}
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({1 + filled} / {1 + required})</Text>
+                            {/* Kurucu satırı */}
                             <View style={det.playerRow}>
                                 <Avatar name={item.sender?.username} size={32} color={cfg.color} />
                                 <View style={{ flex:1 }}>
                                     <Text style={det.playerName}>{item.sender?.fullName || item.sender?.username}</Text>
                                     <Text style={det.playerSub}>@{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                 </View>
+                                {isInvolved && !isOwner && (
+                                    <TouchableOpacity style={det.chatBtn} onPress={() => goToChat({ id: item.senderId, username: item.sender?.username, fullName: item.sender?.fullName, avatar: item.sender?.avatar })}>
+                                        <Text style={det.chatBtnTxt}>💬</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
+                            {/* Kabul edilen oyuncular */}
                             {participants.map((p, i) => (
                                 <View key={p.id || i} style={det.playerRow}>
                                     <Avatar name={p.username} size={32} color={cfg.color} />
@@ -304,6 +323,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <Text style={det.playerName}>{p.fullName || p.username}</Text>
                                         <Text style={det.playerSub}>@{p.username}</Text>
                                     </View>
+                                    {isInvolved && p.id !== myId && (
+                                        <TouchableOpacity style={det.chatBtn} onPress={() => goToChat({ id: p.id, username: p.username, fullName: p.fullName, avatar: p.avatar })}>
+                                            <Text style={det.chatBtnTxt}>💬</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             ))}
                             {filled === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
@@ -320,16 +344,23 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
                                             <Text style={det.playerSub}>@{jr.user?.username}</Text>
                                         </View>
-                                        {isOwner && (
-                                            <View style={{ flexDirection:'row', gap:6 }}>
-                                                <TouchableOpacity style={s.acceptBtn} onPress={() => handleRespondJoin(jr.id, 'accept')}>
-                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✓</Text>
+                                        <View style={{ flexDirection:'row', gap:6 }}>
+                                            {isOwner && (
+                                                <>
+                                                    <TouchableOpacity style={s.acceptBtn} onPress={() => handleRespondJoin(jr.id, 'accept')}>
+                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✓</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity style={s.declineBtn} onPress={() => handleRespondJoin(jr.id, 'reject')}>
+                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✕</Text>
+                                                    </TouchableOpacity>
+                                                </>
+                                            )}
+                                            {isInvolved && jr.user?.id !== myId && (
+                                                <TouchableOpacity style={det.chatBtn} onPress={() => goToChat({ id: jr.user?.id, username: jr.user?.username, fullName: jr.user?.fullName, avatar: jr.user?.avatar })}>
+                                                    <Text style={det.chatBtnTxt}>💬</Text>
                                                 </TouchableOpacity>
-                                                <TouchableOpacity style={s.declineBtn} onPress={() => handleRespondJoin(jr.id, 'reject')}>
-                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✕</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        )}
+                                            )}
+                                        </View>
                                     </View>
                                 ))}
                             </View>
