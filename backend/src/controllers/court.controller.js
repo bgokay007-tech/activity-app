@@ -59,7 +59,8 @@ export const getAllCourts = async (req, res, next) => {
 
 export const searchCourts = async (req, res, next) => {
     try {
-        const { city, name, sport, surface, indoor } = req.query;
+        const { city, sport, surface, indoor } = req.query;
+        const name = req.query.name || req.query.q;
 
         const courts = await prisma.court.findMany({
             where: {

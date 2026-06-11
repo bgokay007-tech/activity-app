@@ -23,7 +23,10 @@ const mailer = nodemailer.createTransport({
 });
 
 const sendEmailOtp = async (to, code) => {
-    await mailer.sendMail({
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMTP timeout')), 8000)
+    );
+    const sendPromise = mailer.sendMail({
         from: `"AcTiViTy" <${process.env.GMAIL_USER}>`,
         to,
         subject: 'AcTiViTy – Doğrulama Kodunuz',
@@ -38,6 +41,7 @@ const sendEmailOtp = async (to, code) => {
           <p style="color:#6b7280;font-size:13px;">Bu kod <strong>10 dakika</strong> geçerlidir. Eğer bu isteği siz yapmadıysanız görmezden gelebilirsiniz.</p>
         </div>`,
     });
+    await Promise.race([sendPromise, timeout]);
 };
 
 const generateToken = (userId) => jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -79,25 +83,27 @@ export const sendOtp = async (req, res, next) => {
         const gmailReady = process.env.GMAIL_APP_PASSWORD &&
             process.env.GMAIL_APP_PASSWORD !== 'your_gmail_app_password_here';
 
+        let emailSent = false;
         if (method === 'email') {
             if (gmailReady) {
                 try {
                     await sendEmailOtp(value, code);
+                    emailSent = true;
                 } catch (mailErr) {
                     console.error('[OTP Mail Error]', mailErr.message);
-                    return res.status(500).json({ message: 'E-posta gönderilemedi. Lütfen adresinizi kontrol edin.' });
+                    // SMTP bloke veya credential hatası — devCode moduna düş
                 }
-            } else {
-                // Gmail henüz ayarlı değil — dev modda kodu response'ta gönder
-                console.log(`[OTP DEV - Gmail kurulu değil] ${value} → ${code}`);
+            }
+            if (!emailSent) {
+                console.log(`[OTP DEV] ${value} → ${code}`);
             }
         } else if (method === 'phone') {
             return res.status(503).json({ message: 'SMS doğrulaması şu an aktif değil. Lütfen e-posta ile doğrulama yapın.' });
         }
 
         res.json({
-            message: gmailReady ? 'OTP gönderildi' : 'OTP oluşturuldu (geliştirici modu)',
-            ...(!gmailReady && { devCode: code }),
+            message: emailSent ? 'OTP gönderildi' : 'OTP oluşturuldu (geliştirici modu)',
+            ...(!emailSent && { devCode: code }),
         });
     } catch (error) {
         next(error);
