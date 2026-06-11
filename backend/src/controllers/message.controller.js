@@ -107,17 +107,21 @@ export const sendMessage = async (req, res, next) => {
         const notifBody = content.trim().slice(0, 100);
         const senderUsername = sender?.username;
 
-        res.status(201).json({ message, conversationId: conv.id });
+        try {
+            await prisma.notification.create({
+                data: {
+                    userId: receiverId,
+                    type: 'MESSAGE',
+                    title: `@${senderUsername}`,
+                    body: notifBody,
+                    data: { senderId: req.userId, senderUsername, conversationId: conv.id },
+                },
+            });
+        } catch (notifErr) {
+            console.log('NOTIF_CREATE_FAIL:', notifErr?.message);
+        }
 
-        prisma.notification.create({
-            data: {
-                userId: receiverId,
-                type: 'MESSAGE',
-                title: `@${senderUsername}`,
-                body: notifBody,
-                data: { senderId: req.userId, senderUsername, conversationId: conv.id },
-            },
-        }).catch(e => console.warn('Notification create error:', e?.message));
+        res.status(201).json({ message, conversationId: conv.id });
 
         if (receiver?.pushToken) {
             sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody);
