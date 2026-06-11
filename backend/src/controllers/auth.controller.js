@@ -1,11 +1,9 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Resend } from 'resend';
+import axios from 'axios';
 import twilio from 'twilio';
 import prisma from '../config/prisma.js';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../config/env.js';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendSmsOtp = async (to, code) => {
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -17,22 +15,26 @@ const sendSmsOtp = async (to, code) => {
 };
 
 const sendEmailOtp = async (to, code) => {
-    const { error } = await resend.emails.send({
-        from: 'AcTiViTy <onboarding@resend.dev>',
-        to,
-        subject: 'AcTiViTy – Doğrulama Kodunuz',
-        html: `
-        <div style="font-family:Arial,sans-serif;max-width:420px;margin:0 auto;background:#0f0f0f;padding:32px;border-radius:16px;">
-          <h1 style="color:#a855f7;font-size:28px;margin:0 0 8px;">AcTiViTy</h1>
-          <p style="color:#9ca3af;font-size:14px;margin:0 0 28px;">Sosyal Spor Platformu</p>
-          <p style="color:#e5e7eb;font-size:15px;margin:0 0 16px;">Hesabınızı doğrulamak için aşağıdaki kodu kullanın:</p>
-          <div style="background:#1f1f1f;border:2px solid #a855f7;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
-            <span style="font-size:42px;font-weight:900;letter-spacing:14px;color:#a855f7;">${code}</span>
-          </div>
-          <p style="color:#6b7280;font-size:13px;">Bu kod <strong>10 dakika</strong> geçerlidir. Eğer bu isteği siz yapmadıysanız görmezden gelebilirsiniz.</p>
-        </div>`,
-    });
-    if (error) throw new Error(error.message);
+    const res = await axios.post(
+        'https://api.brevo.com/v3/smtp/email',
+        {
+            sender: { name: 'AcTiViTy', email: process.env.BREVO_SENDER_EMAIL || 'b.gokay007@gmail.com' },
+            to: [{ email: to }],
+            subject: 'AcTiViTy – Doğrulama Kodunuz',
+            htmlContent: `
+            <div style="font-family:Arial,sans-serif;max-width:420px;margin:0 auto;background:#0f0f0f;padding:32px;border-radius:16px;">
+              <h1 style="color:#a855f7;font-size:28px;margin:0 0 8px;">AcTiViTy</h1>
+              <p style="color:#9ca3af;font-size:14px;margin:0 0 28px;">Sosyal Spor Platformu</p>
+              <p style="color:#e5e7eb;font-size:15px;margin:0 0 16px;">Hesabınızı doğrulamak için aşağıdaki kodu kullanın:</p>
+              <div style="background:#1f1f1f;border:2px solid #a855f7;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
+                <span style="font-size:42px;font-weight:900;letter-spacing:14px;color:#a855f7;">${code}</span>
+              </div>
+              <p style="color:#6b7280;font-size:13px;">Bu kod <strong>10 dakika</strong> geçerlidir. Eğer bu isteği siz yapmadıysanız görmezden gelebilirsiniz.</p>
+            </div>`,
+        },
+        { headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json' }, timeout: 10000 }
+    );
+    if (res.status >= 400) throw new Error(`Brevo error: ${res.status}`);
 };
 
 const generateToken = (userId) => jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -71,7 +73,7 @@ export const sendOtp = async (req, res, next) => {
 
         console.log(`[OTP] ${key} → ${code}`);
 
-        const resendReady = !!process.env.RESEND_API_KEY;
+        const resendReady = !!process.env.BREVO_API_KEY;
 
         let emailSent = false;
         if (method === 'email') {
