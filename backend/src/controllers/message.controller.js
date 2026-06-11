@@ -27,11 +27,6 @@ export const getConversations = async (req, res, next) => {
                     orderBy: { createdAt: 'desc' },
                     take: 1,
                 },
-                _count: {
-                    select: {
-                        messages: { where: { senderId: { not: req.userId }, read: false } },
-                    },
-                },
             },
             orderBy: { updatedAt: 'desc' },
         });
@@ -40,7 +35,7 @@ export const getConversations = async (req, res, next) => {
             ...c,
             other: c.user1Id === req.userId ? c.user2 : c.user1,
             lastMessage: c.messages[0] || null,
-            unreadCount: c._count?.messages ?? 0,
+            unreadCount: 0,
         }));
 
         res.json(result);

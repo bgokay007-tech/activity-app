@@ -103,17 +103,11 @@ function AppTabs() {
     useEffect(() => {
         const fetchCounts = async () => {
             try {
-                const [notifsRes, convRes] = await Promise.all([
-                    api.get('/notifications'),
-                    api.get('/messages/conversations'),
-                ]);
+                const { data } = await api.get('/notifications');
+                const notifCount = data.unreadCount || 0;
 
-                const notifCount = notifsRes.data.unreadCount || 0;
-                const msgCount = (convRes.data || []).reduce((s, c) => s + (c.unreadCount || 0), 0);
-
-                // Show OS-level local notification for new unread items (not in Expo Go)
                 if (!isExpoGo && notifCount > prevNotifCountRef.current) {
-                    const newOnes = (notifsRes.data.notifications || []).filter(
+                    const newOnes = (data.notifications || []).filter(
                         n => !n.read && !shownNotifIdsRef.current.has(n.id)
                     );
                     for (const notif of newOnes.slice(0, 1)) {
@@ -127,13 +121,12 @@ function AppTabs() {
 
                 prevNotifCountRef.current = notifCount;
                 setUnreadNotifs(notifCount);
-                setUnreadMessages(msgCount);
             } catch { /* silent */ }
         };
 
-        fetchCounts();
+        const t = setTimeout(fetchCounts, 5000);
         pollRef.current = setInterval(fetchCounts, 60000);
-        return () => clearInterval(pollRef.current);
+        return () => { clearTimeout(t); clearInterval(pollRef.current); };
     }, []);
 
     return (
