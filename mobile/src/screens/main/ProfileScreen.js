@@ -4,9 +4,6 @@ import {
     ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable,
     Dimensions,
 } from 'react-native';
-// expo-av removed — use safe stubs so app doesn't crash on SDK 54
-const Video = null;
-const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
 import { useSelector, useDispatch } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
 import { logout, setUser } from '../../store/slices/authSlice';

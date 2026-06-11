@@ -4,9 +4,7 @@ import {
     ScrollView, Image, Platform, Alert, ActivityIndicator, Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-// expo-av removed — SDK 54 Expo Go uyumsuzluğu
-const Video = null;
-const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
+// expo-av SDK 54 Expo Go'da çalışmıyor — null stub ile güvenli kullanım
 const Audio = null;
 import api from '../../services/api';
 import colors from '../../theme/colors';

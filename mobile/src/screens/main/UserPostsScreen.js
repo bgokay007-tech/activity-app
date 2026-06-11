@@ -3,9 +3,7 @@ import {
     View, Text, FlatList, TouchableOpacity, TouchableWithoutFeedback,
     StyleSheet, ActivityIndicator, Image, Platform, Dimensions,
 } from 'react-native';
-// expo-av removed — SDK 54 Expo Go uyumsuzluğu
-const Video = null;
-const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
+// expo-av SDK 54 Expo Go'da çalışmıyor — null stub ile güvenli kullanım
 const Audio = null;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
