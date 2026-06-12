@@ -493,19 +493,19 @@ export const getUpcomingMatches = async (req, res, next) => {
 
                 // Check existing no-show reports by this user
             const activeIds = active.map(m => m.id);
-            const [myNoShowReports, commentCounts] = await Promise.all([
-                active.length > 0 ? prisma.noShowReport.findMany({
-                    where: { reporterId: req.userId, rivalId: { in: activeIds }, status: 'PENDING' },
-                    select: { rivalId: true },
-                }) : Promise.resolve([]),
-                active.length > 0 ? prisma.matchComment.groupBy({
-                    by: ['rivalId'],
-                    where: { rivalId: { in: activeIds } },
-                    _count: { id: true },
-                }) : Promise.resolve([]),
-            ]);
-            const myNoShowSet = new Set(myNoShowReports.map(r => r.rivalId));
+
+            const commentCounts = activeIds.length > 0 ? await prisma.matchComment.groupBy({
+                by: ['rivalId'],
+                where: { rivalId: { in: activeIds } },
+                _count: { id: true },
+            }) : [];
             const commentCountMap = Object.fromEntries(commentCounts.map(c => [c.rivalId, c._count.id]));
+
+            const myNoShowReports = await prisma.noShowReport.findMany({
+                where: { reporterId: req.userId, rivalId: { in: activeIds }, status: 'PENDING' },
+                select: { rivalId: true },
+            }).catch(() => []);
+            const myNoShowSet = new Set(myNoShowReports.map(r => r.rivalId));
 
             const enriched = active.map(m => ({
                 ...m,
