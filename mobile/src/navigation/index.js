@@ -97,54 +97,43 @@ function AppTabs() {
     const [unreadNotifs, setUnreadNotifs] = useState(0);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
-    const prevNotifCountRef = useRef(0);
     const shownNotifIdsRef = useRef(new Set());
-    const isInitialPollRef = useRef(true);
+    const notifsClearedRef = useRef(false);
 
-    // Socket connection
+    // Socket connection + real-time notification badge
     useEffect(() => {
         if (!userId) return;
         connectSocket(userId);
-        const off = onSocket('notification', () => {
+        const off = onSocket('notification', (notif) => {
+            if (notifsClearedRef.current) {
+                notifsClearedRef.current = false;
+            }
             setUnreadNotifs(prev => prev + 1);
+            if (!isExpoGo && notif?.id && !shownNotifIdsRef.current.has(notif.id)) {
+                shownNotifIdsRef.current.add(notif.id);
+                Notifications.scheduleNotificationAsync({
+                    content: { title: notif.title, body: notif.body, sound: 'default', data: notif.data || {} },
+                    trigger: null,
+                }).catch(() => {});
+            }
         });
         return () => { off(); disconnectSocket(); };
     }, [userId]);
 
+    // Initial load only — set badge from backend unread count
     useEffect(() => {
-        const fetchCounts = async () => {
+        const init = async () => {
             try {
                 const { data } = await api.get('/notifications');
                 const notifCount = data.unreadCount || 0;
-
-                if (!isExpoGo && !isInitialPollRef.current && notifCount > prevNotifCountRef.current) {
-                    const newOnes = (data.notifications || []).filter(
-                        n => !n.read && !shownNotifIdsRef.current.has(n.id)
-                    );
-                    for (const notif of newOnes.slice(0, 1)) {
-                        shownNotifIdsRef.current.add(notif.id);
-                        await Notifications.scheduleNotificationAsync({
-                            content: { title: notif.title, body: notif.body, sound: 'default', data: notif.data || {} },
-                            trigger: null,
-                        }).catch(() => {});
-                    }
-                }
-
-                if (isInitialPollRef.current) {
-                    shownNotifIdsRef.current = new Set(
-                        (data.notifications || []).filter(n => !n.read).map(n => n.id)
-                    );
-                    isInitialPollRef.current = false;
-                }
-
-                prevNotifCountRef.current = notifCount;
+                shownNotifIdsRef.current = new Set(
+                    (data.notifications || []).filter(n => !n.read).map(n => n.id)
+                );
                 setUnreadNotifs(notifCount);
             } catch { /* silent */ }
         };
-
-        const t = setTimeout(fetchCounts, 5000);
-        pollRef.current = setInterval(fetchCounts, 60000);
-        return () => { clearTimeout(t); clearInterval(pollRef.current); };
+        const t = setTimeout(init, 3000);
+        return () => clearTimeout(t);
     }, []);
 
     return (
@@ -183,7 +172,7 @@ function AppTabs() {
             <Tab.Screen
                 name="NotificationsTab"
                 component={NotificationsScreen}
-                listeners={{ tabPress: () => setUnreadNotifs(0) }}
+                listeners={{ tabPress: () => { setUnreadNotifs(0); notifsClearedRef.current = true; } }}
                 options={{
                     tabBarLabel: t.alerts,
                     tabBarIcon: ({ focused }) => <TabIcon label="Notifications" active={focused} />,

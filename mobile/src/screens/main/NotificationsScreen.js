@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
@@ -37,6 +38,11 @@ export default function NotificationsScreen({ navigation }) {
     };
 
     useEffect(() => { load(); }, []);
+
+    useFocusEffect(useCallback(() => {
+        api.patch('/notifications/read-all').catch(() => {});
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    }, []));
 
     const onRefresh = () => { setRefreshing(true); load(); };
 
