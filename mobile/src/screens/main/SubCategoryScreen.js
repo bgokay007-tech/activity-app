@@ -764,7 +764,7 @@ const sc = StyleSheet.create({
     lockedTxt:    { color: colors.textMuted, fontSize:11, textAlign:'center', marginTop:6 },
 });
 
-function UpcomingCard({ match, myId, onRefresh, isMatched }) {
+function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
     const t = useT();
     const [showScore, setShowScore] = useState(false);
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
@@ -780,11 +780,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     const [abanSets, setAbanSets] = useState([{ my: '', opp: '' }]);
     const [showAbanDatePicker, setShowAbanDatePicker] = useState(false);
     const [showAbanTimePicker, setShowAbanTimePicker] = useState(false);
-    const [showComments, setShowComments] = useState(false);
-    const [comments, setComments] = useState([]);
-    const [commentText, setCommentText] = useState('');
-    const [loadingComments, setLoadingComments] = useState(false);
-    const [sendingComment, setSendingComment] = useState(false);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
@@ -932,27 +927,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
         finally { setCancelling(false); }
     };
 
-    const openComments = async () => {
-        setShowComments(true);
-        setLoadingComments(true);
-        try {
-            const res = await api.get(`/rivals/${match.id}/comments`);
-            setComments(res.data || []);
-        } catch(e) { /* silent */ }
-        finally { setLoadingComments(false); }
-    };
-
-    const sendComment = async () => {
-        if (!commentText.trim()) return;
-        setSendingComment(true);
-        try {
-            const res = await api.post(`/rivals/${match.id}/comments`, { content: commentText.trim() });
-            setComments(p => [...p, res.data]);
-            setCommentText('');
-        } catch(e) { Alert.alert(t.error, t.sendFailed); }
-        finally { setSendingComment(false); }
-    };
-
     // Parse existing score
     const existingSets = Array.isArray(match.score?.sets) ? match.score.sets : null;
     const existingWinner = match.score?.winner;
@@ -1009,7 +983,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                             <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity style={s.commentBtn} onPress={openComments}>
+                    <TouchableOpacity style={s.commentBtn} onPress={() => onOpenComments?.(match)}>
                         <Text style={s.commentBtnText}>{t.matchCommentsBtn}</Text>
                     </TouchableOpacity>
                 </View>
@@ -1250,86 +1224,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                 </View>
             </Modal>
 
-            {/* Yorumlar Modal */}
-            <Modal visible={showComments} animationType="slide" transparent onRequestClose={() => setShowComments(false)}>
-                <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-                    <View style={s.modalOverlay}>
-                        <View style={[s.modalBox, { maxHeight:'85%', paddingBottom:20 }]}>
-                            <View style={s.modalHeader}>
-                                <Text style={s.modalTitle}>{t.matchCommentsTitle}</Text>
-                                <TouchableOpacity onPress={() => setShowComments(false)}>
-                                    <Text style={s.modalClose}>✕</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* İlan detayları */}
-                            <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:12, borderWidth:1, borderColor: colors.border }}>
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:6 }}>
-                                    {allPlayers.map((p, idx) => (
-                                        <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                            {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
-                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>@{p.username}</Text>
-                                            {p.skillRating != null && (
-                                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
-                                            )}
-                                        </View>
-                                    ))}
-                                </View>
-                                <Text style={{ color: colors.textMuted, fontSize:12 }}>
-                                    {match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : ''}
-                                    {match.matchTime ? ` · ${match.matchTime}` : ''}
-                                    {match.duration  ? ` · ${match.duration} dk` : ''}
-                                </Text>
-                                {match.location && <Text style={{ color:'#60a5fa', fontSize:12, marginTop:2 }}>📍 {match.location}</Text>}
-                                {match.courtName && <Text style={{ color:'#60a5fa', fontSize:12, marginTop:2 }}>🏟️ {match.courtName}</Text>}
-                                {match.level && (
-                                    <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
-                                        {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
-                                    </Text>
-                                )}
-                            </View>
-
-                            {/* Yorumlar listesi */}
-                            <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
-                                {loadingComments ? (
-                                    <ActivityIndicator color={cfg.color} style={{ marginTop:20 }} />
-                                ) : comments.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.matchCommentEmpty}</Text>
-                                ) : (
-                                    comments.map(c => (
-                                        <View key={c.id} style={{ marginBottom:12, paddingBottom:12, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700', marginBottom:2 }}>@{c.user?.username}</Text>
-                                            <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>{new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</Text>
-                                        </View>
-                                    ))
-                                )}
-                            </ScrollView>
-
-                            {/* Yorum yazma alanı */}
-                            <View style={{ flexDirection:'row', gap:8, marginTop:12, borderTopWidth:1, borderTopColor: colors.border, paddingTop:12 }}>
-                                <TextInput
-                                    style={[s.fieldInput, { flex:1, height:40, marginBottom:0 }]}
-                                    placeholder={t.matchCommentPlaceholder}
-                                    placeholderTextColor={colors.textMuted}
-                                    value={commentText}
-                                    onChangeText={setCommentText}
-                                    multiline={false}
-                                    returnKeyType="send"
-                                    onSubmitEditing={sendComment}
-                                />
-                                <TouchableOpacity
-                                    style={[s.joinBtn, { paddingHorizontal:16, height:40, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}
-                                    onPress={sendComment}
-                                    disabled={sendingComment}
-                                >
-                                    <Text style={s.joinBtnText}>{t.matchCommentSend}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
         </View>
     );
 }
@@ -1887,6 +1781,35 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showCreatePW, setShowCreatePW] = useState(false);
     const [profileUserId, setProfileUserId] = useState(null);
 
+    // Comments modal — lifted out of UpcomingCard so it renders outside ScrollView
+    const [commentMatch, setCommentMatch] = useState(null);
+    const [comments, setComments] = useState([]);
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [commentText, setCommentText] = useState('');
+    const [sendingComment, setSendingComment] = useState(false);
+
+    const openComments = useCallback(async (match) => {
+        setCommentMatch(match);
+        setComments([]);
+        setLoadingComments(true);
+        try {
+            const res = await api.get(`/rivals/${match.id}/comments`);
+            setComments(res.data || []);
+        } catch(e) { /* silent */ }
+        finally { setLoadingComments(false); }
+    }, []);
+
+    const sendComment = useCallback(async () => {
+        if (!commentText.trim() || !commentMatch) return;
+        setSendingComment(true);
+        try {
+            const res = await api.post(`/rivals/${commentMatch.id}/comments`, { content: commentText.trim() });
+            setComments(p => [...p, res.data]);
+            setCommentText('');
+        } catch(e) { /* silent */ }
+        finally { setSendingComment(false); }
+    }, [commentText, commentMatch]);
+
     const load = useCallback(async () => {
         try {
             const [rvRes, pwRes, postsRes, mediaRes, upcomingRes] = await Promise.all([
@@ -2040,7 +1963,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <>
                                     <Text style={s.sectionTitle}>{t.upcomingMatchesTitle}</Text>
                                     {filteredMatchedUpcoming.map(m => (
-                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched />
+                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} />
                                     ))}
                                 </>
                             )}
@@ -2130,6 +2053,98 @@ export default function SubCategoryScreen({ route, navigation }) {
             <CreateRivalModal visible={showCreateRival} onClose={() => setShowCreateRival(false)} category={category} sub={sub} onCreated={load} />
             <CreatePlayerWantedModal visible={showCreatePW} onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />
             <UserProfileModal visible={!!profileUserId} userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />
+
+            {/* ── Yorumlar Modal (parent-level so it renders outside ScrollView) ── */}
+            {commentMatch && (() => {
+                const cfg2 = getConfig(commentMatch.subCategory);
+                const allP2 = [
+                    { ...commentMatch.sender, skillRating: commentMatch.senderSkillRating },
+                    ...(Array.isArray(commentMatch.participants) ? commentMatch.participants : []),
+                ].filter(Boolean);
+                return (
+                    <Modal visible={!!commentMatch} animationType="slide" transparent onRequestClose={() => setCommentMatch(null)}>
+                        <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                            <View style={s.modalOverlay}>
+                                <View style={[s.modalBox, { maxHeight:'85%', paddingBottom:20 }]}>
+                                    <View style={s.modalHeader}>
+                                        <Text style={s.modalTitle}>{t.matchCommentsTitle}</Text>
+                                        <TouchableOpacity onPress={() => setCommentMatch(null)}>
+                                            <Text style={s.modalClose}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {/* İlan detayları */}
+                                    <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:12, borderWidth:1, borderColor: colors.border }}>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:6 }}>
+                                            {allP2.map((p, idx) => (
+                                                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                    {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>@{p.username}</Text>
+                                                    {p.skillRating != null && (
+                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                                                    )}
+                                                </View>
+                                            ))}
+                                        </View>
+                                        <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                                            {commentMatch.matchDate ? new Date(commentMatch.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : ''}
+                                            {commentMatch.matchTime ? ` · ${commentMatch.matchTime}` : ''}
+                                            {commentMatch.duration  ? ` · ${commentMatch.duration} dk` : ''}
+                                        </Text>
+                                        {commentMatch.location  && <Text style={{ color:'#60a5fa', fontSize:12, marginTop:2 }}>📍 {commentMatch.location}</Text>}
+                                        {commentMatch.courtName && <Text style={{ color:'#60a5fa', fontSize:12, marginTop:2 }}>🏟️ {commentMatch.courtName}</Text>}
+                                        {commentMatch.level && (
+                                            <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
+                                                {LEVEL_EMOJI[commentMatch.level]} {t.levelTr?.[commentMatch.level] || commentMatch.level}
+                                            </Text>
+                                        )}
+                                    </View>
+
+                                    {/* Yorumlar */}
+                                    <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
+                                        {loadingComments ? (
+                                            <ActivityIndicator color={cfg2.color} style={{ marginTop:20 }} />
+                                        ) : comments.length === 0 ? (
+                                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.matchCommentEmpty}</Text>
+                                        ) : (
+                                            comments.map(c => (
+                                                <View key={c.id} style={{ marginBottom:12, paddingBottom:12, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                                    <Text style={{ color: cfg2.color, fontSize:12, fontWeight:'700', marginBottom:2 }}>@{c.user?.username}</Text>
+                                                    <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>
+                                                        {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
+                                                    </Text>
+                                                </View>
+                                            ))
+                                        )}
+                                    </ScrollView>
+
+                                    {/* Yorum yazma */}
+                                    <View style={{ flexDirection:'row', gap:8, marginTop:12, borderTopWidth:1, borderTopColor: colors.border, paddingTop:12 }}>
+                                        <TextInput
+                                            style={[s.fieldInput, { flex:1, height:40, marginBottom:0 }]}
+                                            placeholder={t.matchCommentPlaceholder}
+                                            placeholderTextColor={colors.textMuted}
+                                            value={commentText}
+                                            onChangeText={setCommentText}
+                                            multiline={false}
+                                            returnKeyType="send"
+                                            onSubmitEditing={sendComment}
+                                        />
+                                        <TouchableOpacity
+                                            style={[s.joinBtn, { paddingHorizontal:16, height:40, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}
+                                            onPress={sendComment}
+                                            disabled={sendingComment}
+                                        >
+                                            <Text style={s.joinBtnText}>{t.matchCommentSend}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
+                        </KeyboardAvoidingView>
+                    </Modal>
+                );
+            })()}
 
             {/* ── Media Viewer ── */}
             <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => setMediaViewIdx(null)}>
