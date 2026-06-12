@@ -799,7 +799,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
         if (!m.matchDate || !m.matchTime) return null;
         const [h, min] = m.matchTime.split(':').map(Number);
         const d = new Date(m.matchDate);
-        d.setUTCHours(h, min, 0, 0);
+        d.setHours(h, min, 0, 0);
         return d;
     };
     const matchStart = getMatchStart(match);
@@ -882,10 +882,27 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
         try {
             await api.patch(`/rivals/${match.id}/cancel-match`, { mutual: false });
             Alert.alert('', t.cancelMatchSuccess);
-            setShowCancelModal(false);
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.cancelMatchFailed); }
         finally { setCancelling(false); }
+    };
+
+    const handleCancelPress = () => {
+        const msg = withinPenaltyWindow
+            ? t.cancelMatchPenaltyWarning
+            : t.cancelMatchConfirmMsg;
+        Alert.alert(
+            t.cancelMatchTitle,
+            msg,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                    text: withinPenaltyWindow ? `${t.cancelMatchBtn} (-0.20)` : t.cancelMatchBtn,
+                    onPress: doCancel,
+                    style: 'destructive',
+                },
+            ]
+        );
     };
 
     const doMutualCancel = async () => {
@@ -1078,7 +1095,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                     {/* Solo cancel */}
                     <TouchableOpacity
                         style={[s.cancelBtn, { flex:1 }, cancelling && { opacity:0.6 }]}
-                        onPress={() => setShowCancelModal(true)}
+                        onPress={handleCancelPress}
                         disabled={cancelling}
                     >
                         <Text style={s.cancelBtnText}>{t.cancelMatchBtn}{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
@@ -1095,42 +1112,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                     <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.mutualCancelOtherRequested}</Text>
                 </TouchableOpacity>
             )}
-
-            {/* Solo cancel confirmation modal */}
-            <Modal visible={showCancelModal} animationType="slide" transparent onRequestClose={() => setShowCancelModal(false)}>
-                <View style={s.modalOverlay}>
-                    <View style={[s.modalBox, { paddingBottom:40 }]}>
-                        <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>{t.cancelMatchTitle}</Text>
-                            <TouchableOpacity onPress={() => setShowCancelModal(false)}>
-                                <Text style={s.modalClose}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {withinPenaltyWindow ? (
-                            <View style={[sc.warningText, { marginBottom:16 }]}>
-                                <Text style={{ color:'#facc15', fontSize:13, fontWeight:'700' }}>{t.cancelMatchPenaltyWarning}</Text>
-                            </View>
-                        ) : (
-                            <Text style={{ color: colors.textSecondary, fontSize:13, marginBottom:16 }}>{t.cancelMatchConfirmMsg}</Text>
-                        )}
-
-                        <TouchableOpacity
-                            style={[s.cancelBtn, { marginBottom:10 }, cancelling && { opacity:0.6 }]}
-                            onPress={doCancel}
-                            disabled={cancelling}
-                        >
-                            <Text style={s.cancelBtnText}>
-                                {cancelling ? t.sending : withinPenaltyWindow ? `${t.cancelMatchBtn} (-0.20)` : t.cancelMatchBtn}
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={s.waitingBox} onPress={() => setShowCancelModal(false)}>
-                            <Text style={s.waitingText}>Vazgeç</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
 
             {/* Lock message / Skor Giremiyoruz button */}
             {!hasScore && !scoreUnlocked && matchEnd && (
