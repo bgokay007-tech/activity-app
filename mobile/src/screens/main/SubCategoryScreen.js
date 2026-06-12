@@ -1058,32 +1058,45 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                 </View>
             )}
 
-            {/* Mutual cancel indicator */}
+            {/* Cancel buttons — always visible on card */}
+            {match.scoreStatus !== 'CONFIRMED' && (
+                <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
+                    {/* Mutual cancel */}
+                    {!iAlreadyRequestedMutual ? (
+                        <TouchableOpacity
+                            style={[s.msgBtn, { flex:1 }, cancelling && { opacity:0.6 }]}
+                            onPress={doMutualCancel}
+                            disabled={cancelling}
+                        >
+                            <Text style={s.msgBtnText}>🤝 {t.mutualCancelBtn}</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={[s.waitingBox, { flex:1, backgroundColor:'#2563eb15', borderColor:'#2563eb40' }]}>
+                            <Text style={[s.waitingText, { color:'#60a5fa', fontSize:11 }]}>⏳ Karşılıklı iptal istendi</Text>
+                        </View>
+                    )}
+                    {/* Solo cancel */}
+                    <TouchableOpacity
+                        style={[s.cancelBtn, { flex:1 }, cancelling && { opacity:0.6 }]}
+                        onPress={() => setShowCancelModal(true)}
+                        disabled={cancelling}
+                    >
+                        <Text style={s.cancelBtnText}>{t.cancelMatchBtn}{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Opponent requested mutual cancel — banner */}
             {otherRequestedMutual && !iAlreadyRequestedMutual && (
                 <TouchableOpacity
-                    style={{ backgroundColor:'#eab30820', borderRadius:10, padding:10, marginTop:8, borderWidth:1, borderColor:'#eab30840' }}
-                    onPress={() => setShowCancelModal(true)}
+                    style={{ backgroundColor:'#eab30820', borderRadius:10, padding:10, marginTop:6, borderWidth:1, borderColor:'#eab30840' }}
+                    onPress={doMutualCancel}
                 >
                     <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.mutualCancelOtherRequested}</Text>
                 </TouchableOpacity>
             )}
-            {iAlreadyRequestedMutual && (
-                <View style={{ backgroundColor:'#a855f720', borderRadius:10, padding:10, marginTop:8, borderWidth:1, borderColor:'#a855f740' }}>
-                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'600' }}>{t.mutualCancelSentMsg}</Text>
-                </View>
-            )}
 
-            {/* Cancel Match button */}
-            {match.scoreStatus !== 'CONFIRMED' && (
-                <TouchableOpacity
-                    style={[s.cancelBtn, { marginTop:8 }]}
-                    onPress={() => setShowCancelModal(true)}
-                >
-                    <Text style={s.cancelBtnText}>{t.cancelMatchBtn}</Text>
-                </TouchableOpacity>
-            )}
-
-            {/* Cancel Match Modal */}
+            {/* Solo cancel confirmation modal */}
             <Modal visible={showCancelModal} animationType="slide" transparent onRequestClose={() => setShowCancelModal(false)}>
                 <View style={s.modalOverlay}>
                     <View style={[s.modalBox, { paddingBottom:40 }]}>
@@ -1094,41 +1107,24 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                             </TouchableOpacity>
                         </View>
 
-                        {/* Penalty warning — only when within 5h */}
-                        {withinPenaltyWindow && (
-                            <View style={[sc.warningText, { marginBottom:14 }]}>
+                        {withinPenaltyWindow ? (
+                            <View style={[sc.warningText, { marginBottom:16 }]}>
                                 <Text style={{ color:'#facc15', fontSize:13, fontWeight:'700' }}>{t.cancelMatchPenaltyWarning}</Text>
                             </View>
+                        ) : (
+                            <Text style={{ color: colors.textSecondary, fontSize:13, marginBottom:16 }}>{t.cancelMatchConfirmMsg}</Text>
                         )}
 
-                        {/* Mutual cancel — always visible, no penalty regardless of timing */}
-                        {!iAlreadyRequestedMutual && (
-                            <TouchableOpacity
-                                style={[s.joinBtn, { backgroundColor:'#2563eb', marginBottom:10 }, cancelling && { opacity:0.6 }]}
-                                onPress={doMutualCancel}
-                                disabled={cancelling}
-                            >
-                                <Text style={s.joinBtnText}>{cancelling ? t.sending : t.mutualCancelBtn}</Text>
-                            </TouchableOpacity>
-                        )}
-                        {iAlreadyRequestedMutual && (
-                            <View style={[s.waitingBox, { backgroundColor:'#2563eb15', borderColor:'#2563eb40', marginBottom:10 }]}>
-                                <Text style={[s.waitingText, { color:'#60a5fa' }]}>{t.mutualCancelSentMsg}</Text>
-                            </View>
-                        )}
-
-                        {/* Solo cancel — penalty only if within 5h */}
                         <TouchableOpacity
                             style={[s.cancelBtn, { marginBottom:10 }, cancelling && { opacity:0.6 }]}
                             onPress={doCancel}
                             disabled={cancelling}
                         >
                             <Text style={s.cancelBtnText}>
-                                {withinPenaltyWindow ? `${t.cancelMatchBtn} (-0.20 ⚠️)` : t.cancelMatchBtn}
+                                {cancelling ? t.sending : withinPenaltyWindow ? `${t.cancelMatchBtn} (-0.20)` : t.cancelMatchBtn}
                             </Text>
                         </TouchableOpacity>
 
-                        {/* Vazgeç */}
                         <TouchableOpacity style={s.waitingBox} onPress={() => setShowCancelModal(false)}>
                             <Text style={s.waitingText}>Vazgeç</Text>
                         </TouchableOpacity>
