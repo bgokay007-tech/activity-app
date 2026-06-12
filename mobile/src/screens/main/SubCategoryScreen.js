@@ -807,7 +807,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
             <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
                 <Avatar name={opponent?.username} size={42} color={cfg.color} />
                 <View style={{ flex:1 }}>
-                    <Text style={s.cardName}>vs @{opponent?.username || 'Rakip'}</Text>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                        <Text style={s.cardName}>vs @{opponent?.username || 'Rakip'}</Text>
+                        <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
+                            <Text style={[s.modeBadgeText, { color: cfg.color }]}>
+                                {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
+                            </Text>
+                        </View>
+                    </View>
                     <Text style={s.cardSub}>
                         {match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
                         {match.matchTime ? ` · ${match.matchTime}` : ''}
@@ -816,20 +823,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                     {match.courtName && (
                         <Text style={[s.cardSub, { color:'#60a5fa' }]}>🏟️ {match.courtName}</Text>
                     )}
-                    <View style={{ flexDirection:'row', gap:5, marginTop:4, flexWrap:'wrap' }}>
-                        <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
-                            <Text style={[s.modeBadgeText, { color: cfg.color }]}>
-                                {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
-                            </Text>
-                        </View>
-                        {match.level && (
+                    {match.level && (
+                        <View style={{ flexDirection:'row', marginTop:4 }}>
                             <View style={[s.modeBadge, { backgroundColor:'#ffffff10', borderColor:'#ffffff20' }]}>
                                 <Text style={[s.modeBadgeText, { color: colors.textSecondary }]}>
                                     {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
                                 </Text>
                             </View>
-                        )}
-                    </View>
+                        </View>
+                    )}
                 </View>
                 {!hasScore && (
                     <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
