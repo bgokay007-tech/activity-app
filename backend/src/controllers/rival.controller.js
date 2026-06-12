@@ -243,6 +243,7 @@ export const getRivalRequests = async (req, res, next) => {
         if (expired.length > 0) {
             await prisma.activityRequest.deleteMany({ where: { id: { in: expired.map(e => e.id) } } });
             for (const e of expired) {
+                emitToUser(e.senderId, 'rivalDeleted', { rivalId: e.id, subCategory: e.subCategory });
                 createNotification(
                     e.senderId,
                     'MATCH_EXPIRED',
