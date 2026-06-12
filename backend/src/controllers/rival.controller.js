@@ -157,8 +157,8 @@ export const createRivalRequest = async (req, res, next) => {
                     if (matchDate && matchTime) {
                         const [h, m] = matchTime.split(':').map(Number);
                         const d = new Date(matchDate);
-                        d.setHours(h, m, 0, 0);
-                        return d;
+                        // matchTime is Turkey local (UTC+3) → subtract 3h to get UTC
+                        return new Date(d.getTime() + (h * 60 + m) * 60000 - 3 * 3600000);
                     }
                     return null;
                 })(),
@@ -236,9 +236,9 @@ export const getRivalRequests = async (req, res, next) => {
         const expired = expiryCandidates.filter(r => {
             if (!r.matchTime || !r.matchDate) return false;
             const [h, m] = r.matchTime.split(':').map(Number);
-            const d = new Date(r.matchDate);
-            d.setHours(h, m, 0, 0);
-            return now >= d;
+            // matchTime is Turkey local (UTC+3) → subtract 3h to compare in UTC
+            const matchUTC = new Date(new Date(r.matchDate).getTime() + (h * 60 + m) * 60000 - 3 * 3600000);
+            return now >= matchUTC;
         });
         if (expired.length > 0) {
             await prisma.activityRequest.deleteMany({ where: { id: { in: expired.map(e => e.id) } } });
