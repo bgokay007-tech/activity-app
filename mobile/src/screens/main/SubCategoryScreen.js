@@ -2546,7 +2546,7 @@ const s = StyleSheet.create({
     emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:20, paddingVertical:10 },
     emptyBtnText:     { color:'#fff', fontWeight:'700' },
 
-    card:             { backgroundColor: colors.surface, borderRadius:14, padding:8, borderWidth:1, borderColor: colors.border },
+    card:             { backgroundColor: colors.surface, borderRadius:14, padding:1, borderWidth:1, borderColor: colors.border },
     cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:8 },
     avatar:           { justifyContent:'center', alignItems:'center', borderWidth:1 },
     avatarText:       { fontWeight:'800' },
