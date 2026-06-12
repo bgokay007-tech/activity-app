@@ -7,6 +7,7 @@ import {
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
     extendScoreDeadline, getCountsBySubCategory, abandonMatch, cancelMatch,
     getMatchComments, addMatchComment,
+    getMyUpcomingMatches, getMyMatchHistory,
 } from '../controllers/rival.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -16,6 +17,8 @@ router.get('/',                      authenticate, getRivalRequests);
 router.get('/counts',                authenticate, getCountsBySubCategory);
 router.post('/',                     authenticate, createRivalRequest);
 router.get('/upcoming',              authenticate, getUpcomingMatches);
+router.get('/my-upcoming',           authenticate, getMyUpcomingMatches);
+router.get('/my-history',            authenticate, getMyMatchHistory);
 router.get('/completed',             authenticate, getCompletedMatches);
 router.get('/archived',              authenticate, getArchivedMatchesBySport);
 router.get('/my',                    authenticate, getMyRequests);

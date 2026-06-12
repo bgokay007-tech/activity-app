@@ -241,6 +241,14 @@ export default function ProfileScreen({ route, navigation }) {
     });
     const [savingInfo, setSavingInfo] = useState(false);
 
+    // Match modals
+    const [showMyUpcoming, setShowMyUpcoming] = useState(false);
+    const [showMyArchive, setShowMyArchive] = useState(false);
+    const [myUpcoming, setMyUpcoming] = useState([]);
+    const [myHistory, setMyHistory] = useState([]);
+    const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
     // Data saver
     const [dataSaver, setDataSaver] = useState(false);
 
@@ -249,6 +257,28 @@ export default function ProfileScreen({ route, navigation }) {
         setDataSaver(next);
         await AsyncStorage.setItem('activity_data_saver', String(next));
     }, [dataSaver]);
+
+    const openMyUpcoming = async () => {
+        setShowMyUpcoming(true);
+        if (myUpcoming.length > 0) return;
+        setLoadingUpcoming(true);
+        try {
+            const res = await api.get('/rivals/my-upcoming');
+            setMyUpcoming(res.data || []);
+        } catch(e) { /* silent */ }
+        finally { setLoadingUpcoming(false); }
+    };
+
+    const openMyArchive = async () => {
+        setShowMyArchive(true);
+        if (myHistory.length > 0) return;
+        setLoadingHistory(true);
+        try {
+            const res = await api.get('/rivals/my-history');
+            setMyHistory(res.data || []);
+        } catch(e) { /* silent */ }
+        finally { setLoadingHistory(false); }
+    };
 
     // Privacy picker
     const [privacyPickerField, setPrivacyPickerField] = useState(null); // 'city'|'gender'|'birthDate'
@@ -302,7 +332,7 @@ export default function ProfileScreen({ route, navigation }) {
                 }
                 if (isOwnProfile) dispatch(setUser(profileRes.data));
                 if (!isOwnProfile) setFriendStatus(profileRes.data?.friendStatus || 'NONE');
-            } catch (e) { console.error(e); }
+            } catch (e) { console.warn(e?.message); }
             finally { setLoading(false); }
         };
         load();
@@ -347,7 +377,7 @@ export default function ProfileScreen({ route, navigation }) {
                 await api.patch('/users/me', { avatar: serverUrl });
                 setProfile(p => ({ ...p, avatar: serverUrl }));
                 dispatch(setUser({ ...profile, avatar: serverUrl }));
-            } catch (e) { console.error(e); Alert.alert('Hata', 'Profil resmi yüklenemedi.'); }
+            } catch (e) { console.warn(e?.message); Alert.alert('Hata', 'Profil resmi yüklenemedi.'); }
         };
         Alert.alert(
             'Profil Resmi',
@@ -399,7 +429,7 @@ export default function ProfileScreen({ route, navigation }) {
             setStoryBranch(null);
             const { data } = await api.get(`/posts/user/${userId}?type=STORY`);
             setStories(data);
-        } catch (e) { console.error(e); }
+        } catch (e) { console.warn(e?.message); }
         finally { setPostingStory(false); }
     };
 
@@ -520,7 +550,7 @@ export default function ProfileScreen({ route, navigation }) {
                 await api.delete(`/friends/cancel/${userId}`);
                 setFriendStatus('NONE');
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { console.warn(e?.message); }
     };
 
     const sendMessage = async () => {
@@ -528,7 +558,7 @@ export default function ProfileScreen({ route, navigation }) {
             const { data: conv } = await api.get(`/messages/conversation/${userId}`);
             const enriched = { ...conv, other: conv.user1Id === myUser?.id ? conv.user2 : conv.user1 };
             navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other } });
-        } catch (e) { console.error(e); }
+        } catch (e) { console.warn(e?.message); }
     };
 
     const pickPrivacy = (field, value) => {
@@ -730,6 +760,24 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
+                {/* ── Yaklaşan Maçlarım / Maç Arşivi buttons ── */}
+                {isOwnProfile && (
+                    <View style={{ flexDirection:'row', gap:10, marginHorizontal:16, marginBottom:8 }}>
+                        <TouchableOpacity
+                            style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:14, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:'#16a34a40' }}
+                            onPress={openMyUpcoming}
+                        >
+                            <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:13 }}>{t.myUpcomingBtn}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={{ flex:1, backgroundColor:'#a855f720', borderRadius:14, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:'#a855f740' }}
+                            onPress={openMyArchive}
+                        >
+                            <Text style={{ color:'#c084fc', fontWeight:'800', fontSize:13 }}>{t.matchArchiveBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 {/* ── Activities / Interests ── */}
                 {interests.length > 0 && (
                     <View style={s.section}>
@@ -758,6 +806,99 @@ export default function ProfileScreen({ route, navigation }) {
                 )}
 
             </ScrollView>
+
+            {/* ── Yaklaşan Maçlarım Modal ── */}
+            <Modal visible={showMyUpcoming} animationType="slide" transparent onRequestClose={() => setShowMyUpcoming(false)}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { maxHeight:'85%' }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>{t.myUpcomingTitle}</Text>
+                            <TouchableOpacity onPress={() => setShowMyUpcoming(false)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {loadingUpcoming ? (
+                                <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                            ) : myUpcoming.length === 0 ? (
+                                <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.myUpcomingEmpty}</Text>
+                            ) : (
+                                myUpcoming.map(m => {
+                                    const allP = [
+                                        { ...m.sender, skillRating: m.senderSkillRating },
+                                        ...(Array.isArray(m.participants) ? m.participants : []),
+                                    ].filter(Boolean);
+                                    const names = allP.map(p => p.skillRating != null ? `@${p.username} (${p.skillRating})` : `@${p.username}`).join(' · ');
+                                    return (
+                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
+                                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700', marginBottom:4 }}>
+                                                {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
+                                            </Text>
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'600', marginBottom:4 }}>{names}</Text>
+                                            <Text style={{ color:colors.textMuted, fontSize:12 }}>
+                                                {m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', weekday:'short' }) : ''}
+                                                {m.matchTime ? ` · ${m.matchTime}` : ''}
+                                                {m.location ? ` · ${m.location}` : ''}
+                                            </Text>
+                                        </View>
+                                    );
+                                })
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Maç Arşivi Modal ── */}
+            <Modal visible={showMyArchive} animationType="slide" transparent onRequestClose={() => setShowMyArchive(false)}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { maxHeight:'85%' }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>{t.matchArchiveTitle}</Text>
+                            <TouchableOpacity onPress={() => setShowMyArchive(false)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {loadingHistory ? (
+                                <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                            ) : myHistory.length === 0 ? (
+                                <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.matchArchiveEmpty}</Text>
+                            ) : (
+                                myHistory.map(m => {
+                                    const myId2 = myUser?.id;
+                                    const isOwner = m.senderId === myId2;
+                                    const parts = Array.isArray(m.participants) ? m.participants : [];
+                                    const allP = [m.sender, ...parts].filter(Boolean);
+                                    const names = allP.map(p => `@${p.username}`).join(' · ');
+                                    const sets = m.score?.sets;
+                                    const winner = m.score?.winner;
+                                    const myResult = winner === 'draw' ? '🤝' : winner === (isOwner ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
+                                    return (
+                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
+                                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>
+                                                    {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
+                                                </Text>
+                                                {myResult ? <Text style={{ fontSize:16 }}>{myResult}</Text> : null}
+                                            </View>
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'600', marginBottom:4 }}>{names}</Text>
+                                            {sets && (
+                                                <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:2 }}>
+                                                    {sets.map((s2, i) => `Set ${i+1}: ${isOwner ? s2.sender : s2.opponent} - ${isOwner ? s2.opponent : s2.sender}`).join('  ·  ')}
+                                                </Text>
+                                            )}
+                                            <Text style={{ color:colors.textMuted, fontSize:11 }}>
+                                                {m.completedAt ? new Date(m.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' }) : ''}
+                                            </Text>
+                                        </View>
+                                    );
+                                })
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
 
             <ManageActivitiesModal
                 visible={manageOpen}

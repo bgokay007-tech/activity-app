@@ -1010,6 +1010,65 @@ export const cancelMatch = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const getMyUpcomingMatches = async (req, res, next) => {
+    try {
+        const all = await prisma.activityRequest.findMany({
+            where: { status: 'MATCHED' },
+            include: {
+                sender: {
+                    select: {
+                        ...SENDER_SELECT,
+                        interests: { select: { subCategory: true, skillRating: true } },
+                    },
+                },
+            },
+            orderBy: { matchDate: 'asc' },
+        });
+        const myId = req.userId;
+        const mine = all.filter(r => {
+            if (r.senderId === myId) return true;
+            return (Array.isArray(r.participants) ? r.participants : []).some(p => p.id === myId);
+        });
+
+        const participantIds = [...new Set(mine.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id).filter(Boolean)))];
+        const pInterests = participantIds.length > 0
+            ? await prisma.userInterest.findMany({
+                where: { userId: { in: participantIds } },
+                select: { userId: true, subCategory: true, skillRating: true },
+            }) : [];
+
+        const enriched = mine.map(m => {
+            const si = (m.sender?.interests || []).find(i => i.subCategory === m.subCategory);
+            return {
+                ...m,
+                senderSkillRating: si?.skillRating ?? null,
+                participants: (Array.isArray(m.participants) ? m.participants : []).map(p => {
+                    const pi = pInterests.find(i => i.userId === p.id && i.subCategory === m.subCategory);
+                    return { ...p, skillRating: pi?.skillRating ?? null };
+                }),
+            };
+        });
+        res.json(enriched);
+    } catch (error) { next(error); }
+};
+
+export const getMyMatchHistory = async (req, res, next) => {
+    try {
+        const all = await prisma.activityRequest.findMany({
+            where: { status: 'COMPLETED' },
+            include: { sender: { select: SENDER_SELECT } },
+            orderBy: { completedAt: 'desc' },
+            take: 100,
+        });
+        const myId = req.userId;
+        const mine = all.filter(r => {
+            if (r.senderId === myId || r.receiverId === myId) return true;
+            return (Array.isArray(r.participants) ? r.participants : []).some(p => p.id === myId);
+        });
+        res.json(mine);
+    } catch (error) { next(error); }
+};
+
 export const getMyRequests = async (req, res, next) => {
     try {
         const requests = await prisma.activityRequest.findMany({

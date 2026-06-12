@@ -1117,19 +1117,21 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
             {/* Cancel buttons — always visible on card */}
             {match.scoreStatus !== 'CONFIRMED' && (
                 <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
-                    {/* Mutual cancel */}
-                    {!iAlreadyRequestedMutual ? (
-                        <TouchableOpacity
-                            style={[s.msgBtn, { flex:1 }, cancelling && { opacity:0.6 }]}
-                            onPress={doMutualCancel}
-                            disabled={cancelling}
-                        >
-                            <Text style={s.msgBtnText}>🤝 {t.mutualCancelBtn}</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <View style={[s.waitingBox, { flex:1, backgroundColor:'#2563eb15', borderColor:'#2563eb40' }]}>
-                            <Text style={[s.waitingText, { color:'#60a5fa', fontSize:11 }]}>⏳ Karşılıklı iptal istendi</Text>
-                        </View>
+                    {/* Mutual cancel — only within 5h penalty window */}
+                    {withinPenaltyWindow && (
+                        !iAlreadyRequestedMutual ? (
+                            <TouchableOpacity
+                                style={[s.msgBtn, { flex:1 }, cancelling && { opacity:0.6 }]}
+                                onPress={doMutualCancel}
+                                disabled={cancelling}
+                            >
+                                <Text style={s.msgBtnText}>🤝 {t.mutualCancelBtn}</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={[s.waitingBox, { flex:1, backgroundColor:'#2563eb15', borderColor:'#2563eb40' }]}>
+                                <Text style={[s.waitingText, { color:'#60a5fa', fontSize:11 }]}>⏳ Karşılıklı iptal istendi</Text>
+                            </View>
+                        )
                     )}
                     {/* Solo cancel */}
                     <TouchableOpacity
@@ -1142,8 +1144,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                 </View>
             )}
 
-            {/* Opponent requested mutual cancel — banner */}
-            {otherRequestedMutual && !iAlreadyRequestedMutual && (
+            {/* Opponent requested mutual cancel — banner (only relevant within penalty window) */}
+            {withinPenaltyWindow && otherRequestedMutual && !iAlreadyRequestedMutual && (
                 <TouchableOpacity
                     style={{ backgroundColor:'#eab30820', borderRadius:10, padding:10, marginTop:6, borderWidth:1, borderColor:'#eab30840' }}
                     onPress={doMutualCancel}
