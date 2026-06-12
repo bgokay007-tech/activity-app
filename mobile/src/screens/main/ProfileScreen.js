@@ -779,9 +779,9 @@ export default function ProfileScreen({ route, navigation }) {
                 )}
 
                 {/* ── Activities / Interests ── */}
-                {interests.length > 0 && (
-                    <View style={s.section}>
-                        <Text style={s.sectionTitle}>{t.branchesSection}</Text>
+                <View style={s.section}>
+                    <Text style={s.sectionTitle}>{t.branchesSection}</Text>
+                    {interests.length > 0 ? (
                         <View style={s.interestGrid}>
                             {interests.map(i => (
                                 <View key={i.id} style={s.interestCard}>
@@ -802,8 +802,19 @@ export default function ProfileScreen({ route, navigation }) {
                                 </View>
                             ))}
                         </View>
-                    </View>
-                )}
+                    ) : (
+                        isOwnProfile ? (
+                            <TouchableOpacity
+                                onPress={() => setManageOpen(true)}
+                                style={{ backgroundColor: colors.surface2, borderRadius:12, paddingVertical:14, alignItems:'center', borderWidth:1, borderColor: colors.border, borderStyle:'dashed' }}
+                            >
+                                <Text style={{ color: colors.textMuted, fontSize:13 }}>+ {t.addSportBtn || 'Spor Ekle'}</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <Text style={{ color: colors.textMuted, fontSize:13 }}>{t.noSportsYet || 'Henüz spor eklenmemiş.'}</Text>
+                        )
+                    )}
+                </View>
 
             </ScrollView>
 

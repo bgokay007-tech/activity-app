@@ -330,7 +330,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
-                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:8, paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
                     <TouchableOpacity onPress={onClose} style={{ marginRight:14, padding:4 }}>
                         <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
@@ -342,7 +342,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 </View>
 
                 {/* Scrollable content */}
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:16, paddingTop:16, paddingBottom:8 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:8, paddingTop:16, paddingBottom:8 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
                     {/* Tarih / Saat / Süre — dikey, ortalı */}
                     <View style={{ alignItems:'center', marginBottom:12 }}>
@@ -599,12 +599,14 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                     </View>
                     <View style={{ alignItems:'flex-end', gap:4 }}>
                         <ModeBadge mode={item.matchMode} />
-                        <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
-                            <Text style={[s.modeBadgeText, { color: cfg.color }]}>
-                                {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
-                            </Text>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                            <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
+                                <Text style={[s.modeBadgeText, { color: cfg.color }]}>
+                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                </Text>
+                            </View>
+                            <Text style={s.joinedCount}>{t.joinedCount(filled, TEAM_SPORTS.has(sub) ? item.teamSize : required)}</Text>
                         </View>
-                        <Text style={s.joinedCount}>{t.joinedCount(filled, TEAM_SPORTS.has(sub) ? item.teamSize : required)}</Text>
                     </View>
                 </View>
 
@@ -2317,7 +2319,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <Modal visible animationType="slide" onRequestClose={() => setCommentMatch(null)}>
                         <View style={{ flex:1, backgroundColor: colors.bg }}>
                             {/* Header */}
-                            <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:8, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
                                 <TouchableOpacity onPress={() => setCommentMatch(null)} style={{ marginRight:14, padding:4 }}>
                                     <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
                                 </TouchableOpacity>
@@ -2332,7 +2334,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* ScrollView — match details + comments */}
                             <ScrollView
                                 style={{ flex:1 }}
-                                contentContainerStyle={{ padding:16, paddingBottom:16 }}
+                                contentContainerStyle={{ paddingHorizontal:8, paddingVertical:16, paddingBottom:16 }}
                                 showsVerticalScrollIndicator={false}
                                 keyboardShouldPersistTaps="handled"
                             >
@@ -2471,7 +2473,7 @@ const s = StyleSheet.create({
     tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
     tabTextActive:    { color:'#fff' },
 
-    list:             { paddingHorizontal:16, gap:12, paddingBottom:60 },
+    list:             { paddingHorizontal:8, gap:12, paddingBottom:60 },
     sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
 
     createBtn:        { backgroundColor: colors.surface, borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
@@ -2494,7 +2496,7 @@ const s = StyleSheet.create({
     emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:20, paddingVertical:10 },
     emptyBtnText:     { color:'#fff', fontWeight:'700' },
 
-    card:             { backgroundColor: colors.surface, borderRadius:18, padding:14, borderWidth:1, borderColor: colors.border },
+    card:             { backgroundColor: colors.surface, borderRadius:18, padding:10, borderWidth:1, borderColor: colors.border },
     cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:8 },
     avatar:           { justifyContent:'center', alignItems:'center', borderWidth:1 },
     avatarText:       { fontWeight:'800' },

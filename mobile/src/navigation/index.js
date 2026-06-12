@@ -15,15 +15,13 @@ import api from '../services/api';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 
-if (!isExpoGo) {
-    Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
-        }),
-    });
-}
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+    }),
+});
 
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
@@ -99,6 +97,7 @@ function AppTabs() {
     const pollRef = useRef(null);
     const prevNotifCountRef = useRef(0);
     const shownNotifIdsRef = useRef(new Set());
+    const isInitialPollRef = useRef(true);
 
     useEffect(() => {
         const fetchCounts = async () => {
@@ -106,7 +105,7 @@ function AppTabs() {
                 const { data } = await api.get('/notifications');
                 const notifCount = data.unreadCount || 0;
 
-                if (!isExpoGo && notifCount > prevNotifCountRef.current) {
+                if (!isExpoGo && !isInitialPollRef.current && notifCount > prevNotifCountRef.current) {
                     const newOnes = (data.notifications || []).filter(
                         n => !n.read && !shownNotifIdsRef.current.has(n.id)
                     );
@@ -117,6 +116,13 @@ function AppTabs() {
                             trigger: null,
                         }).catch(() => {});
                     }
+                }
+
+                if (isInitialPollRef.current) {
+                    shownNotifIdsRef.current = new Set(
+                        (data.notifications || []).filter(n => !n.read).map(n => n.id)
+                    );
+                    isInitialPollRef.current = false;
                 }
 
                 prevNotifCountRef.current = notifCount;
@@ -198,7 +204,7 @@ export default function Navigation() {
     }, []);
 
     useEffect(() => {
-        if (!token || isExpoGo) return;
+        if (!token) return;
         (async () => {
             try {
                 const { status } = await Notifications.requestPermissionsAsync();
