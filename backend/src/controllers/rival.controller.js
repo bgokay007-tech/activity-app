@@ -921,8 +921,8 @@ export const cancelMatch = async (req, res, next) => {
                 await prisma.userInterest.update({
                     where: { id: interest.id },
                     data: {
-                        skillRating: Math.max(0, parseFloat((interest.skillRating - 0.10).toFixed(2))),
-                        totalPoints: Math.max(0, interest.totalPoints - 2),
+                        skillRating: Math.max(0, parseFloat((interest.skillRating - 0.20).toFixed(2))),
+                        totalPoints: Math.max(0, interest.totalPoints - 4),
                         lateCancelCount: newCount,
                     },
                 });

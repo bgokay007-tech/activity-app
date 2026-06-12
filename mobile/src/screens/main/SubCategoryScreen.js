@@ -1093,18 +1093,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text style={{ color: colors.textSecondary, fontSize:13, marginBottom:16, lineHeight:20 }}>
-                                {t.cancelMatchConfirmMsg}
-                            </Text>
 
-                            {withinPenaltyWindow && (
-                                <View style={sc.warningText}>
-                                    <Text style={{ color:'#facc15', fontSize:12, fontWeight:'700' }}>{t.cancelMatchPenaltyWarning}</Text>
-                                </View>
-                            )}
+                        <Text style={{ color: colors.textSecondary, fontSize:13, marginBottom:14, lineHeight:20 }}>
+                            {t.cancelMatchConfirmMsg}
+                        </Text>
 
-                            {/* Mutual cancel (no penalty) */}
+                        {/* Penalty warning — only when within 5h */}
+                        {withinPenaltyWindow && (
+                            <View style={[sc.warningText, { marginBottom:14 }]}>
+                                <Text style={{ color:'#facc15', fontSize:12, fontWeight:'700' }}>{t.cancelMatchPenaltyWarning}</Text>
+                            </View>
+                        )}
+
+                        {/* Mutual cancel — only shown within 5h window */}
+                        {withinPenaltyWindow && !iAlreadyRequestedMutual && (
                             <TouchableOpacity
                                 style={[s.joinBtn, { backgroundColor:'#2563eb', marginBottom:10 }, cancelling && { opacity:0.6 }]}
                                 onPress={doMutualCancel}
@@ -1112,16 +1114,26 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                             >
                                 <Text style={s.joinBtnText}>{cancelling ? t.sending : t.mutualCancelBtn}</Text>
                             </TouchableOpacity>
+                        )}
 
-                            {/* Regular cancel (with potential penalty) */}
-                            <TouchableOpacity
-                                style={[s.cancelBtn, cancelling && { opacity:0.6 }]}
-                                onPress={doCancel}
-                                disabled={cancelling}
-                            >
-                                <Text style={s.cancelBtnText}>{withinPenaltyWindow ? `${t.cancelMatchBtn} (-0.10 ⚠️)` : t.cancelMatchBtn}</Text>
-                            </TouchableOpacity>
-                        </ScrollView>
+                        {/* Solo cancel */}
+                        <TouchableOpacity
+                            style={[s.cancelBtn, { marginBottom:10 }, cancelling && { opacity:0.6 }]}
+                            onPress={doCancel}
+                            disabled={cancelling}
+                        >
+                            <Text style={s.cancelBtnText}>
+                                {withinPenaltyWindow ? `${t.cancelMatchBtn} (-0.20 ⚠️)` : t.cancelMatchBtn}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* Go back */}
+                        <TouchableOpacity
+                            style={[s.waitingBox]}
+                            onPress={() => setShowCancelModal(false)}
+                        >
+                            <Text style={s.waitingText}>Vazgeç</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
