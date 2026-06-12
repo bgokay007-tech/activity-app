@@ -938,8 +938,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
 
     return (
         <View style={[s.card, { borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
-            {/* Header: all players in order — sender first, then accepted participants */}
-            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
+            {/* Header: tappable info area opens comments modal */}
+            <TouchableOpacity activeOpacity={0.75} onPress={() => onOpenComments?.(match)} style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
                 <View style={{ flex:1 }}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                         {allPlayers.map((p, idx) => (
@@ -976,18 +976,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                             </View>
                         </View>
                     )}
+                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>💬 {t.matchCommentsBtn}</Text>
                 </View>
-                <View style={{ gap:6, alignItems:'flex-end' }}>
-                    {!hasScore && scoreUnlocked && (
-                        <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
-                            <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
-                        </TouchableOpacity>
-                    )}
-                    <TouchableOpacity style={s.commentBtn} onPress={() => onOpenComments?.(match)}>
-                        <Text style={s.commentBtnText}>{t.matchCommentsBtn}</Text>
+                {!hasScore && scoreUnlocked && (
+                    <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
+                        <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
                     </TouchableOpacity>
-                </View>
-            </View>
+                )}
+            </TouchableOpacity>
 
             {/* Existing score display */}
             {hasScore && (
@@ -2079,22 +2075,30 @@ export default function SubCategoryScreen({ route, navigation }) {
                 const canDelete = (c) => c.user?.id === myId || matchParticipantIds.has(myId);
                 return (
                     <Modal visible animationType="slide" onRequestClose={() => setCommentMatch(null)}>
-                        <KeyboardAvoidingView style={{ flex:1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                        <View style={{ flex:1, backgroundColor: colors.background }}>
                             {/* Header */}
-                            <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingTop: Platform.OS === 'ios' ? 56 : 20, paddingBottom:12, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                <TouchableOpacity onPress={() => setCommentMatch(null)} style={{ marginRight:12 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                <TouchableOpacity onPress={() => setCommentMatch(null)} style={{ marginRight:14, padding:4 }}>
                                     <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
                                 </TouchableOpacity>
-                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.matchCommentsTitle}</Text>
-                                <View style={[s.modeBadge, { backgroundColor: cfg2.color+'20', borderColor: cfg2.color+'40' }]}>
-                                    <Text style={[s.modeBadgeText, { color: cfg2.color }]}>{SUB_EMOJI[commentMatch.subCategory] || '🏅'} {commentMatch.subCategory}</Text>
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{commentMatch.subCategory}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:12, marginTop:1 }}>
+                                        {allP2.map(p => '@'+p.username).join(' · ')}
+                                    </Text>
                                 </View>
                             </View>
 
-                            <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16 }} showsVerticalScrollIndicator={false}>
-                                {/* İlan detayları */}
+                            {/* ScrollView — match details + comments */}
+                            <ScrollView
+                                style={{ flex:1 }}
+                                contentContainerStyle={{ padding:16, paddingBottom:16 }}
+                                showsVerticalScrollIndicator={false}
+                                keyboardShouldPersistTaps="handled"
+                            >
+                                {/* Maç detayları */}
                                 <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:20, borderWidth:1, borderColor: colors.border }}>
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
                                         {allP2.map((p, idx) => (
                                             <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                                                 {idx > 0 && <Text style={{ color: colors.textMuted }}>·</Text>}
@@ -2119,28 +2123,28 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     )}
                                 </View>
 
-                                {/* Yorumlar */}
-                                <Text style={{ color: colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:12, letterSpacing:0.5 }}>
-                                    {t.matchCommentsTitle.toUpperCase()}
+                                {/* Yorumlar bölümü */}
+                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:14 }}>
+                                    💬 {t.matchCommentsTitle}
                                 </Text>
                                 {loadingComments ? (
                                     <ActivityIndicator color={cfg2.color} style={{ marginTop:20 }} />
                                 ) : comments.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.matchCommentEmpty}</Text>
+                                    <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:13 }}>{t.matchCommentEmpty}</Text>
                                 ) : (
                                     comments.map(c => (
-                                        <View key={c.id} style={{ marginBottom:16, paddingBottom:16, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                        <View key={c.id} style={{ marginBottom:14, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
                                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={{ color: cfg2.color, fontSize:13, fontWeight:'700', marginBottom:4 }}>@{c.user?.username}</Text>
-                                                    <Text style={{ color:'#fff', fontSize:14, lineHeight:20 }}>{c.content}</Text>
+                                                    <Text style={{ color: cfg2.color, fontSize:13, fontWeight:'700', marginBottom:3 }}>@{c.user?.username}</Text>
+                                                    <Text style={{ color:'#fff', fontSize:14, lineHeight:21 }}>{c.content}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
                                                         {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
                                                     </Text>
                                                 </View>
                                                 {canDelete(c) && (
-                                                    <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:6, marginLeft:8 }}>
-                                                        <Text style={{ color:'#f87171', fontSize:13 }}>✕</Text>
+                                                    <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:8, marginLeft:8 }}>
+                                                        <Text style={{ color:'#f87171', fontSize:14 }}>✕</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
@@ -2149,27 +2153,29 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 )}
                             </ScrollView>
 
-                            {/* Yorum yazma — fixed bottom */}
-                            <View style={{ flexDirection:'row', gap:10, padding:12, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.background }}>
-                                <TextInput
-                                    style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
-                                    placeholder={t.matchCommentPlaceholder}
-                                    placeholderTextColor={colors.textMuted}
-                                    value={commentText}
-                                    onChangeText={setCommentText}
-                                    multiline={false}
-                                    returnKeyType="send"
-                                    onSubmitEditing={sendComment}
-                                />
-                                <TouchableOpacity
-                                    style={[s.joinBtn, { paddingHorizontal:18, height:44, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}
-                                    onPress={sendComment}
-                                    disabled={sendingComment}
-                                >
-                                    <Text style={s.joinBtnText}>{t.matchCommentSend}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </KeyboardAvoidingView>
+                            {/* Yorum yaz — bottom input */}
+                            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
+                                <View style={{ flexDirection:'row', gap:10, paddingHorizontal:12, paddingVertical:10, paddingBottom: Platform.OS === 'ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.background }}>
+                                    <TextInput
+                                        style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
+                                        placeholder={t.matchCommentPlaceholder}
+                                        placeholderTextColor={colors.textMuted}
+                                        value={commentText}
+                                        onChangeText={setCommentText}
+                                        multiline={false}
+                                        returnKeyType="send"
+                                        onSubmitEditing={sendComment}
+                                    />
+                                    <TouchableOpacity
+                                        style={[s.joinBtn, { paddingHorizontal:18, height:44, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}
+                                        onPress={sendComment}
+                                        disabled={sendingComment}
+                                    >
+                                        <Text style={s.joinBtnText}>{t.matchCommentSend}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </KeyboardAvoidingView>
+                        </View>
                     </Modal>
                 );
             })()}
