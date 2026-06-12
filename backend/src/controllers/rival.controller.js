@@ -526,6 +526,24 @@ export const addMatchComment = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const deleteMatchComment = async (req, res, next) => {
+    try {
+        const { commentId } = req.params;
+        const comment = await prisma.matchComment.findUnique({
+            where: { id: commentId },
+            include: { rival: { select: { senderId: true, participants: true } } },
+        });
+        if (!comment) return res.status(404).json({ message: 'Not found' });
+        const myId = req.userId;
+        const parts = Array.isArray(comment.rival?.participants) ? comment.rival.participants : [];
+        const isAuthor = comment.userId === myId;
+        const isParticipant = comment.rival?.senderId === myId || parts.some(p => p.id === myId);
+        if (!isAuthor && !isParticipant) return res.status(403).json({ message: 'Forbidden' });
+        await prisma.matchComment.delete({ where: { id: commentId } });
+        res.json({ deleted: true });
+    } catch (error) { next(error); }
+};
+
 export const abandonMatch = async (req, res, next) => {
     try {
         const { id } = req.params;
