@@ -936,7 +936,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
         <View style={[s.card, { borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
             {/* Header: all players in order — sender first, then accepted participants */}
             <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
-                <Avatar name={match.sender?.username} size={42} color={cfg.color} />
                 <View style={{ flex:1 }}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                         <Text style={[s.cardName, { flexShrink:1 }]}>{playerNames || `@${match.sender?.username || '?'}`}</Text>
