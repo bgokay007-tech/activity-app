@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
+import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
@@ -2083,6 +2084,28 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     useEffect(() => { load(); }, [load]);
     const onRefresh = () => { setRefreshing(true); load(); };
+
+    // Real-time updates via socket
+    useEffect(() => {
+        const off = onSocket('rivalUpdate', (updated) => {
+            if (updated.category !== category || updated.subCategory !== sub) return;
+            setRivals(prev => {
+                const exists = prev.some(r => r.id === updated.id);
+                if (updated.status === 'MATCHED' || updated.status === 'CANCELLED') {
+                    return prev.filter(r => r.id !== updated.id);
+                }
+                if (exists) return prev.map(r => r.id === updated.id ? { ...r, ...updated } : r);
+                return [updated, ...prev];
+            });
+            setMatchedUpcoming(prev => {
+                if (updated.status !== 'MATCHED') return prev;
+                const exists = prev.some(r => r.id === updated.id);
+                if (exists) return prev.map(r => r.id === updated.id ? { ...r, ...updated } : r);
+                return [updated, ...prev];
+            });
+        });
+        return off;
+    }, [category, sub]);
 
     const handleNearMe = async () => {
         setLocationLoading(true);

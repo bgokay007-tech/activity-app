@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import api from '../services/api';
+import { connectSocket, disconnectSocket, onSocket } from '../services/socket';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 
@@ -92,12 +93,23 @@ function AppTabs() {
     const insets = useSafeAreaInsets();
     const tabBarHeight = 56 + insets.bottom;
     const t = useT();
+    const userId = useSelector(s => s.auth.user?.id);
     const [unreadNotifs, setUnreadNotifs] = useState(0);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
     const prevNotifCountRef = useRef(0);
     const shownNotifIdsRef = useRef(new Set());
     const isInitialPollRef = useRef(true);
+
+    // Socket connection
+    useEffect(() => {
+        if (!userId) return;
+        connectSocket(userId);
+        const off = onSocket('notification', () => {
+            setUnreadNotifs(prev => prev + 1);
+        });
+        return () => { off(); disconnectSocket(); };
+    }, [userId]);
 
     useEffect(() => {
         const fetchCounts = async () => {
