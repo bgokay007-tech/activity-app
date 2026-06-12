@@ -819,17 +819,135 @@ export const getArchivedMatchesBySport = async (req, res, next) => {
 export const cancelRequest = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const request = await prisma.activityRequest.findUnique({ where: { id } });
+        const request = await prisma.activityRequest.findUnique({
+            where: { id },
+            include: {
+                sender: { select: { id: true, username: true, fullName: true } },
+                joinRequests: { select: { userId: true } },
+            },
+        });
         if (!request) return res.status(404).json({ message: 'Not found' });
-
-        // Only the sender can cancel
         if (request.senderId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
 
-        await prisma.activityRequest.update({
-            where: { id },
-            data: { status: 'CANCELLED' },
-        });
+        await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+
+        // Notify all join requesters and accepted participants
+        const senderName = request.sender?.username || 'İlan sahibi';
+        const notifyIds = new Set(request.joinRequests.map(jr => jr.userId));
+        const parts = Array.isArray(request.participants) ? request.participants : [];
+        for (const p of parts) notifyIds.add(p.id);
+        notifyIds.delete(req.userId);
+
+        for (const uid of notifyIds) {
+            await createNotification(uid, 'MATCH_CANCELLED',
+                '❌ İlan İptal Edildi',
+                `${senderName} ilanı iptal etti.`,
+                { rivalId: id, subCategory: request.subCategory }
+            );
+        }
+
         res.json({ message: 'Cancelled' });
+    } catch (error) { next(error); }
+};
+
+export const cancelMatch = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { mutual = false } = req.body;
+
+        const request = await prisma.activityRequest.findUnique({
+            where: { id },
+            include: { sender: { select: { id: true, username: true, fullName: true } } },
+        });
+        if (!request) return res.status(404).json({ message: 'Not found' });
+        if (request.status !== 'MATCHED') return res.status(400).json({ message: 'Not a matched listing' });
+
+        const participants = Array.isArray(request.participants) ? request.participants : [];
+        const isInvolved = request.senderId === req.userId || participants.some(p => p.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+
+        const allPlayerIds = [request.senderId, ...participants.map(p => p.id)];
+        const otherPlayerIds = allPlayerIds.filter(uid => uid !== req.userId);
+
+        // Penalty window: 5 hours before match start
+        let withinPenaltyWindow = false;
+        if (request.matchDate && request.matchTime) {
+            const [h, m] = request.matchTime.split(':').map(Number);
+            const matchStart = new Date(request.matchDate);
+            matchStart.setUTCHours(h, m, 0, 0);
+            const hoursUntil = (matchStart - new Date()) / (1000 * 60 * 60);
+            withinPenaltyWindow = hoursUntil > 0 && hoursUntil <= 5;
+        }
+
+        if (mutual) {
+            const mutualReqs = Array.isArray(request.mutualCancelRequests) ? [...request.mutualCancelRequests] : [];
+            if (!mutualReqs.includes(req.userId)) mutualReqs.push(req.userId);
+
+            const bothAgreed = allPlayerIds.every(uid => mutualReqs.includes(uid));
+
+            if (bothAgreed) {
+                await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+                for (const uid of allPlayerIds) {
+                    await createNotification(uid, 'MATCH_CANCELLED',
+                        '🤝 Maç İptal Edildi',
+                        'Maç karşılıklı anlaşmayla cezasız iptal edildi.',
+                        { rivalId: id, subCategory: request.subCategory }
+                    );
+                }
+                return res.json({ cancelled: true, mutual: true });
+            }
+
+            await prisma.activityRequest.update({ where: { id }, data: { mutualCancelRequests: mutualReqs } });
+            const me = request.senderId === req.userId ? request.sender : (participants.find(p => p.id === req.userId) || { username: 'Rakip' });
+            for (const uid of otherPlayerIds) {
+                await createNotification(uid, 'MUTUAL_CANCEL_REQUEST',
+                    '⚠️ Karşılıklı İptal İsteği',
+                    `${me.username} maçı karşılıklı iptal etmek istiyor. Sen de onaylarsan cezasız iptal edilir.`,
+                    { rivalId: id, subCategory: request.subCategory }
+                );
+            }
+            return res.json({ cancelled: false, mutual: true, requested: true });
+        }
+
+        // Regular (unilateral) cancel
+        await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+
+        if (withinPenaltyWindow) {
+            const interest = await prisma.userInterest.findFirst({
+                where: { userId: req.userId, category: request.category, subCategory: request.subCategory },
+            });
+            if (interest) {
+                const newCount = interest.lateCancelCount + 1;
+                await prisma.userInterest.update({
+                    where: { id: interest.id },
+                    data: {
+                        skillRating: Math.max(0, parseFloat((interest.skillRating - 0.10).toFixed(2))),
+                        totalPoints: Math.max(0, interest.totalPoints - 2),
+                        lateCancelCount: newCount,
+                    },
+                });
+                if (newCount === 5) {
+                    await createNotification(req.userId, 'LATE_CANCEL_WARNING',
+                        '⚠️ Son Dakika İptal Uyarısı',
+                        `${request.subCategory} dalında 5 kez maçı son 5 saat içinde iptal ettiniz. Bu durum profilinizde görünür ve güvenilirliğinizi olumsuz etkiler.`,
+                        { subCategory: request.subCategory }
+                    );
+                }
+            }
+        }
+
+        const senderName = request.sender?.username || 'Rakip';
+        for (const uid of otherPlayerIds) {
+            await createNotification(uid, 'MATCH_CANCELLED',
+                '❌ Maç İptal Edildi',
+                withinPenaltyWindow
+                    ? `${senderName} maçı son 5 saat içinde iptal etti (ceza uygulandı).`
+                    : `${senderName} maçı iptal etti.`,
+                { rivalId: id, subCategory: request.subCategory }
+            );
+        }
+
+        res.json({ cancelled: true, penaltyApplied: withinPenaltyWindow });
     } catch (error) { next(error); }
 };
 

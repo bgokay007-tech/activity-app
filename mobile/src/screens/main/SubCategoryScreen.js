@@ -120,6 +120,16 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                             <View style={s.privateBox}>
                                 <Text style={s.privateText}>{t.privateAccount}</Text>
                             </View>
+                            {profile.interests?.some(i => i.lateCancelCount > 0) && (
+                                <View style={{ gap: 6, width: '100%' }}>
+                                    {profile.interests.filter(i => i.lateCancelCount > 0).map(i => (
+                                        <View key={i.id} style={{ backgroundColor:'#dc262615', borderRadius:10, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor:'#dc262640', flexDirection:'row', justifyContent:'space-between' }}>
+                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>{i.subCategory}</Text>
+                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'800' }}>{t.lateCancelLabel(i.lateCancelCount)}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
                         </View>
                     ) : (
                         <ScrollView showsVerticalScrollIndicator={false}>
@@ -163,6 +173,11 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                                         <Text style={[s.levelPillText, { color: LEVEL_COLORS[i.level] || colors.purple }]}>
                                                             {t.levelTr[i.level] || i.level}
                                                         </Text>
+                                                    </View>
+                                                )}
+                                                {i.lateCancelCount > 0 && (
+                                                    <View style={{ backgroundColor:'#dc262615', borderRadius:8, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#dc262640' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'800' }}>{t.lateCancelLabel(i.lateCancelCount)}</Text>
                                                     </View>
                                                 )}
                                             </View>
@@ -757,6 +772,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     const [showCantScore, setShowCantScore] = useState(false);
     const [abandonReason, setAbandonReason] = useState(null);
     const [abandoning, setAbandoning] = useState(false);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
     const [abanDate, setAbanDate] = useState(null);
     const [abanTime, setAbanTime] = useState('');
     const [abanLoc, setAbanLoc] = useState('');
@@ -776,6 +793,23 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     };
     const matchEnd = getMatchEnd(match);
     const scoreUnlocked = matchEnd ? new Date() >= matchEnd : false;
+
+    // Penalty window: < 5 hours before match start
+    const getMatchStart = (m) => {
+        if (!m.matchDate || !m.matchTime) return null;
+        const [h, min] = m.matchTime.split(':').map(Number);
+        const d = new Date(m.matchDate);
+        d.setUTCHours(h, min, 0, 0);
+        return d;
+    };
+    const matchStart = getMatchStart(match);
+    const hoursUntilMatch = matchStart ? (matchStart - new Date()) / (1000 * 60 * 60) : null;
+    const withinPenaltyWindow = hoursUntilMatch !== null && hoursUntilMatch > 0 && hoursUntilMatch <= 5;
+
+    // Mutual cancel state
+    const mutualReqs = Array.isArray(match.mutualCancelRequests) ? match.mutualCancelRequests : [];
+    const otherRequestedMutual = mutualReqs.includes(opponent?.id);
+    const iAlreadyRequestedMutual = mutualReqs.includes(myId);
 
     const addSet    = () => setSets(p => [...p, { my: '', opp: '' }]);
     const removeSet = (i) => { if (sets.length > 1) setSets(p => p.filter((_, idx) => idx !== i)); };
@@ -841,6 +875,33 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.abandonFailed); }
         finally { setAbandoning(false); }
+    };
+
+    const doCancel = async () => {
+        setCancelling(true);
+        try {
+            await api.patch(`/rivals/${match.id}/cancel-match`, { mutual: false });
+            Alert.alert('', t.cancelMatchSuccess);
+            setShowCancelModal(false);
+            onRefresh();
+        } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.cancelMatchFailed); }
+        finally { setCancelling(false); }
+    };
+
+    const doMutualCancel = async () => {
+        setCancelling(true);
+        try {
+            const res = await api.patch(`/rivals/${match.id}/cancel-match`, { mutual: true });
+            if (res.data?.cancelled) {
+                Alert.alert('', t.cancelMatchSuccess);
+                onRefresh();
+            } else {
+                Alert.alert('', t.mutualCancelSentMsg);
+                onRefresh();
+            }
+            setShowCancelModal(false);
+        } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.cancelMatchFailed); }
+        finally { setCancelling(false); }
     };
 
     // Parse existing score
@@ -996,6 +1057,74 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                     </TouchableOpacity>
                 </View>
             )}
+
+            {/* Mutual cancel indicator */}
+            {otherRequestedMutual && !iAlreadyRequestedMutual && (
+                <TouchableOpacity
+                    style={{ backgroundColor:'#eab30820', borderRadius:10, padding:10, marginTop:8, borderWidth:1, borderColor:'#eab30840' }}
+                    onPress={() => setShowCancelModal(true)}
+                >
+                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.mutualCancelOtherRequested}</Text>
+                </TouchableOpacity>
+            )}
+            {iAlreadyRequestedMutual && (
+                <View style={{ backgroundColor:'#a855f720', borderRadius:10, padding:10, marginTop:8, borderWidth:1, borderColor:'#a855f740' }}>
+                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'600' }}>{t.mutualCancelSentMsg}</Text>
+                </View>
+            )}
+
+            {/* Cancel Match button */}
+            {match.scoreStatus !== 'CONFIRMED' && (
+                <TouchableOpacity
+                    style={[s.cancelBtn, { marginTop:8 }]}
+                    onPress={() => setShowCancelModal(true)}
+                >
+                    <Text style={s.cancelBtnText}>{t.cancelMatchBtn}</Text>
+                </TouchableOpacity>
+            )}
+
+            {/* Cancel Match Modal */}
+            <Modal visible={showCancelModal} animationType="slide" transparent onRequestClose={() => setShowCancelModal(false)}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { paddingBottom:40 }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>{t.cancelMatchTitle}</Text>
+                            <TouchableOpacity onPress={() => setShowCancelModal(false)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <Text style={{ color: colors.textSecondary, fontSize:13, marginBottom:16, lineHeight:20 }}>
+                                {t.cancelMatchConfirmMsg}
+                            </Text>
+
+                            {withinPenaltyWindow && (
+                                <View style={sc.warningText}>
+                                    <Text style={{ color:'#facc15', fontSize:12, fontWeight:'700' }}>{t.cancelMatchPenaltyWarning}</Text>
+                                </View>
+                            )}
+
+                            {/* Mutual cancel (no penalty) */}
+                            <TouchableOpacity
+                                style={[s.joinBtn, { backgroundColor:'#2563eb', marginBottom:10 }, cancelling && { opacity:0.6 }]}
+                                onPress={doMutualCancel}
+                                disabled={cancelling}
+                            >
+                                <Text style={s.joinBtnText}>{cancelling ? t.sending : t.mutualCancelBtn}</Text>
+                            </TouchableOpacity>
+
+                            {/* Regular cancel (with potential penalty) */}
+                            <TouchableOpacity
+                                style={[s.cancelBtn, cancelling && { opacity:0.6 }]}
+                                onPress={doCancel}
+                                disabled={cancelling}
+                            >
+                                <Text style={s.cancelBtnText}>{withinPenaltyWindow ? `${t.cancelMatchBtn} (-0.10 ⚠️)` : t.cancelMatchBtn}</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
 
             {/* Lock message / Skor Giremiyoruz button */}
             {!hasScore && !scoreUnlocked && matchEnd && (

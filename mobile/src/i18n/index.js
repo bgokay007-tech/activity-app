@@ -184,6 +184,16 @@ const en = {
     abandonSuccess: '✅ Match has been rescheduled.',
     otherSuccess: '✅ Match counted as a draw.',
     abandonFailed: 'Could not update',
+    cancelMatchBtn: 'Cancel Match',
+    cancelMatchTitle: 'Cancel Match',
+    cancelMatchConfirmMsg: 'Are you sure you want to cancel this match?',
+    cancelMatchPenaltyWarning: '⚠️ Less than 5 hours until the match. Cancelling will apply a -0.10 rating penalty.',
+    mutualCancelBtn: 'Request Mutual Cancel',
+    mutualCancelSentMsg: '✅ Mutual cancel request sent. The match will be cancelled without penalty once your opponent also confirms.',
+    mutualCancelOtherRequested: '⚠️ Your opponent requested mutual cancel. Tap to confirm and cancel without penalty.',
+    cancelMatchSuccess: '✅ Match has been cancelled.',
+    cancelMatchFailed: 'Could not cancel',
+    lateCancelLabel: n => `⚠️ ${n}x late cancel`,
 
     // SubCategory — empty states
     emptyRivals: 'No rival listings yet', emptyTournaments: 'No tournaments yet',
@@ -492,6 +502,16 @@ const tr = {
     abandonSuccess: '✅ Maç yeniden planlandı.',
     otherSuccess: '✅ Maç berabere sayıldı.',
     abandonFailed: 'Güncellenemedi',
+    cancelMatchBtn: 'Maçı İptal Et',
+    cancelMatchTitle: 'Maçı İptal Et',
+    cancelMatchConfirmMsg: 'Bu maçı iptal etmek istediğinizden emin misiniz?',
+    cancelMatchPenaltyWarning: '⚠️ Maça 5 saatten az kaldı. İptal ederseniz -0.10 puan cezası uygulanır.',
+    mutualCancelBtn: 'Karşılıklı İptal İste',
+    mutualCancelSentMsg: '✅ Karşılıklı iptal isteği gönderildi. Rakibiniz de onaylarsa cezasız iptal edilir.',
+    mutualCancelOtherRequested: '⚠️ Rakibiniz karşılıklı iptal istedi. Onaylamak için tıklayın — cezasız iptal edilir.',
+    cancelMatchSuccess: '✅ Maç iptal edildi.',
+    cancelMatchFailed: 'İptal edilemedi',
+    lateCancelLabel: n => `⚠️ ${n}x son dk iptal`,
 
     // SubCategory — empty states
     emptyRivals: 'Henüz rakip ilanı yok', emptyTournaments: 'Henüz turnuva yok',

@@ -1,0 +1,1 @@
+ALTER TABLE "UserInterest" ADD COLUMN "lateCancelCount" INTEGER NOT NULL DEFAULT 0;

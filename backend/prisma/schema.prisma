@@ -82,8 +82,9 @@ model UserInterest {
   level        String       @default("BEGINNER")
   skillRating  Float        @default(0)   // 0.00 – 5.00, from assessment
   totalPoints  Int          @default(0)
-  wins         Int          @default(0)
-  losses       Int          @default(0)
+  wins             Int          @default(0)
+  losses           Int          @default(0)
+  lateCancelCount  Int          @default(0)  // unilateral cancels within 5h of match
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -285,7 +286,8 @@ model ActivityRequest {
   scoreEnteredBy  String?
   completedAt     DateTime?
   archived        Boolean      @default(false)
-  expiresAt       DateTime?
+  expiresAt            DateTime?
+  mutualCancelRequests Json     @default("[]") // [userId, ...] — tracks who requested mutual cancel
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

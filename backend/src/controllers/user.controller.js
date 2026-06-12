@@ -16,7 +16,7 @@ export const getProfile = async (req, res, next) => {
                 cityPrivacy: true, genderPrivacy: true, birthDatePrivacy: true,
                 cityExclude: true, genderExclude: true, birthDateExclude: true,
                 interests: {
-                    select: { id: true, category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true },
+                    select: { id: true, category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true },
                     orderBy: { totalPoints: 'desc' },
                 },
                 _count: {
