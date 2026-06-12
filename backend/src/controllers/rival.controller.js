@@ -152,7 +152,16 @@ export const createRivalRequest = async (req, res, next) => {
                 courtLng: courtLng ? Number(courtLng) : null,
                 isCourtReserved: isCourtReserved || false,
                 flexibleSchedule: flexibleSchedule || false,
-                expiresAt: flexibleSchedule ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
+                expiresAt: (() => {
+                    if (flexibleSchedule) return new Date(Date.now() + 24 * 60 * 60 * 1000);
+                    if (matchDate && matchTime) {
+                        const [h, m] = matchTime.split(':').map(Number);
+                        const d = new Date(matchDate);
+                        d.setHours(h, m, 0, 0);
+                        return d;
+                    }
+                    return null;
+                })(),
                 matchDate: matchDate ? new Date(matchDate) : null,
                 matchTime,
                 matchType: matchType.toUpperCase(),
@@ -218,28 +227,30 @@ export const getRivalRequests = async (req, res, next) => {
     try {
         const { category, subCategory, matchType } = req.query;
 
-        // Auto-cancel OPEN listings whose match time has already passed
+        // Auto-delete OPEN listings whose match time has already passed (not enough players)
         const now = new Date();
         const expiryCandidates = await prisma.activityRequest.findMany({
             where: { status: 'OPEN', matchDate: { lte: now }, matchTime: { not: null } },
-            select: { id: true, matchDate: true, matchTime: true },
+            select: { id: true, senderId: true, subCategory: true, matchDate: true, matchTime: true },
         });
-        const expiredOpenIds = expiryCandidates
-            .filter(r => {
-                if (!r.matchTime || !r.matchDate) return false;
-                const parts = r.matchTime.split(':');
-                if (parts.length < 2) return false;
-                const [h, m] = parts.map(Number);
-                const d = new Date(r.matchDate);
-                d.setUTCHours(h, m, 0, 0);
-                return now > d;
-            })
-            .map(r => r.id);
-        if (expiredOpenIds.length > 0) {
-            await prisma.activityRequest.updateMany({
-                where: { id: { in: expiredOpenIds } },
-                data: { status: 'CANCELLED' },
-            });
+        const expired = expiryCandidates.filter(r => {
+            if (!r.matchTime || !r.matchDate) return false;
+            const [h, m] = r.matchTime.split(':').map(Number);
+            const d = new Date(r.matchDate);
+            d.setHours(h, m, 0, 0);
+            return now >= d;
+        });
+        if (expired.length > 0) {
+            await prisma.activityRequest.deleteMany({ where: { id: { in: expired.map(e => e.id) } } });
+            for (const e of expired) {
+                createNotification(
+                    e.senderId,
+                    'MATCH_EXPIRED',
+                    '⏰ İlanınız Kaldırıldı',
+                    `${e.subCategory} ilanınız için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik kaldırıldı.`,
+                    {},
+                ).catch(() => {});
+            }
         }
 
         const requests = await prisma.activityRequest.findMany({
