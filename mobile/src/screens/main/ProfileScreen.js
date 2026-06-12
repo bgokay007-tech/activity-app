@@ -785,25 +785,59 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={s.section}>
                     <Text style={s.sectionTitle}>{t.branchesSection}</Text>
                     {interests.length > 0 ? (
-                        <View style={s.interestGrid}>
-                            {interests.map(i => (
-                                <View key={i.id} style={s.interestCard}>
-                                    <Text style={s.interestEmoji}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
-                                    <Text style={s.interestName}>{i.subCategory}</Text>
-                                    {i.skillRating > 0 && (
-                                        <Text style={[s.interestRating, { color: colors.purple }]}>
-                                            {Number(i.skillRating).toFixed(1)} ★
-                                        </Text>
-                                    )}
-                                    {i.level && (
-                                        <View style={[s.levelPill, { backgroundColor: (LEVEL_COLORS[i.level] || colors.purple) + '20' }]}>
-                                            <Text style={[s.levelPillText, { color: LEVEL_COLORS[i.level] || colors.purple }]}>
-                                                {t.levelTr[i.level] || i.level}
-                                            </Text>
+                        <View style={{ gap: 10 }}>
+                            {interests.map(i => {
+                                const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
+                                const levelColor = LEVEL_COLORS[i.level] || colors.purple;
+                                return (
+                                    <View key={i.id} style={{ backgroundColor: colors.surface2, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.border }}>
+                                        {/* Left: emoji + name + rating + level */}
+                                        <View style={{ flex: 1.1, alignItems: 'center' }}>
+                                            <Text style={{ fontSize: 28 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
+                                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center', marginTop: 4 }}>{i.subCategory}</Text>
+                                            {i.skillRating > 0 && (
+                                                <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '800', marginTop: 2 }}>{Number(i.skillRating).toFixed(2)} ★</Text>
+                                            )}
+                                            {i.level && (
+                                                <View style={{ backgroundColor: levelColor + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginTop: 4 }}>
+                                                    <Text style={{ color: levelColor, fontSize: 9, fontWeight: '700' }}>{t.levelTr?.[i.level] || i.level}</Text>
+                                                </View>
+                                            )}
                                         </View>
-                                    )}
-                                </View>
-                            ))}
+
+                                        {/* Middle: navigation buttons */}
+                                        <View style={{ flex: 2, gap: 6 }}>
+                                            <TouchableOpacity
+                                                onPress={() => navigation.navigate('HomeTab', { screen: 'SubCategory', params: { category: i.category, sub: i.subCategory, initialTab: 'rivals' } })}
+                                                style={{ backgroundColor: '#16a34a15', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#16a34a30' }}
+                                            >
+                                                <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '700' }}>
+                                                    ⏰ {t.myUpcomingBtn || 'Yaklaşan Maçlar'}{upcomingCount > 0 ? ` (${upcomingCount})` : ''}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => navigation.navigate('HomeTab', { screen: 'SubCategory', params: { category: i.category, sub: i.subCategory, initialTab: 'archive' } })}
+                                                style={{ backgroundColor: colors.purple + '15', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.purple + '30' }}
+                                            >
+                                                <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '700' }}>🗃️ {t.matchArchiveBtn || 'Maç Arşivi'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+
+                                        {/* Right: wins / losses */}
+                                        <View style={{ flex: 1, alignItems: 'center', gap: 8 }}>
+                                            <View style={{ alignItems: 'center' }}>
+                                                <Text style={{ color: '#4ade80', fontSize: 22, fontWeight: '900', lineHeight: 26 }}>{i.wins || 0}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700' }}>{lang === 'tr' ? 'GALİBİYET' : 'WINS'}</Text>
+                                            </View>
+                                            <View style={{ width: 32, height: 1, backgroundColor: colors.border }} />
+                                            <View style={{ alignItems: 'center' }}>
+                                                <Text style={{ color: '#f87171', fontSize: 22, fontWeight: '900', lineHeight: 26 }}>{i.losses || 0}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700' }}>{lang === 'tr' ? 'MAĞLUBİYET' : 'LOSSES'}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                );
+                            })}
                         </View>
                     ) : (
                         isOwnProfile ? (
