@@ -218,22 +218,28 @@ export const getRivalRequests = async (req, res, next) => {
     try {
         const { category, subCategory, matchType } = req.query;
 
-        // Auto-delete OPEN listings whose match time has already passed
+        // Auto-cancel OPEN listings whose match time has already passed
         const now = new Date();
         const expiryCandidates = await prisma.activityRequest.findMany({
-            where: { status: 'OPEN', flexibleSchedule: false, matchDate: { lte: now }, matchTime: { not: null } },
+            where: { status: 'OPEN', matchDate: { lte: now }, matchTime: { not: null } },
             select: { id: true, matchDate: true, matchTime: true },
         });
         const expiredOpenIds = expiryCandidates
             .filter(r => {
-                const [h, m] = r.matchTime.split(':').map(Number);
+                if (!r.matchTime || !r.matchDate) return false;
+                const parts = r.matchTime.split(':');
+                if (parts.length < 2) return false;
+                const [h, m] = parts.map(Number);
                 const d = new Date(r.matchDate);
-                d.setHours(h, m, 0, 0);
+                d.setUTCHours(h, m, 0, 0);
                 return now > d;
             })
             .map(r => r.id);
         if (expiredOpenIds.length > 0) {
-            await prisma.activityRequest.deleteMany({ where: { id: { in: expiredOpenIds } } });
+            await prisma.activityRequest.updateMany({
+                where: { id: { in: expiredOpenIds } },
+                data: { status: 'CANCELLED' },
+            });
         }
 
         const requests = await prisma.activityRequest.findMany({
