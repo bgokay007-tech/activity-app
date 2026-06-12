@@ -317,7 +317,7 @@ const en = {
     playerWantedMsgPh: 'Looking for a talented player for our team...',
     publishAdBtn: '📢 Post',
     timeNow: 'just now',
-    timeMinSuffix: 'm',
+    timeMinSuffix: 'min',
     timeHourSuffix: 'h',
     timeDaySuffix: 'd',
     dateFieldLabel: 'Date (YYYY-MM-DD)',

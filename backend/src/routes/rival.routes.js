@@ -9,6 +9,7 @@ import {
     getMatchComments, addMatchComment, deleteMatchComment,
     getMyUpcomingMatches, getMyMatchHistory,
 } from '../controllers/rival.controller.js';
+import { reportNoShow } from '../controllers/noshow.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
 const router = Router();
@@ -36,5 +37,6 @@ router.patch('/:id/cancel-match',    authenticate, cancelMatch);
 router.get('/:id/comments',          authenticate, getMatchComments);
 router.post('/:id/comments',         authenticate, addMatchComment);
 router.delete('/comments/:commentId', authenticate, deleteMatchComment);
+router.post('/:id/no-show',          authenticate, reportNoShow);
 
 export default router;

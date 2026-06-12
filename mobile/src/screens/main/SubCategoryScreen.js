@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
@@ -286,7 +287,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const isParticipant = participants.some(p => p.id === myId);
     const isInvolved = isOwner || isParticipant || (mySentReq !== null && mySentReq !== undefined);
     const participantIds = new Set([item.senderId, ...participants.map(p => p.id)]);
-    const canDeleteComment = (c) => c.user?.id === myId || participantIds.has(myId);
+    const canDeleteComment = (c) => {
+        const isAuthor = c.user?.id === myId;
+        const iAmParticipant = participantIds.has(myId);
+        const commenterIsParticipant = participantIds.has(c.user?.id);
+        return isAuthor || (iAmParticipant && !commenterIsParticipant);
+    };
 
     const acceptLocal = (jrId) => {
         const jr = joinRequests.find(r => r.id === jrId);
@@ -352,7 +358,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         )}
                         {item.duration && (
                             <Text style={{ color: colors.textMuted, fontSize:14, marginTop:4 }}>
-                                ⏱ {item.duration} dk
+                                ⏱ {item.duration} {t.timeMinSuffix}
                             </Text>
                         )}
                         {item.courtName && (
@@ -451,7 +457,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     </View>
 
                     {/* Yorumlar bölümü */}
-                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:14 }}>💬 {t.matchCommentsTitle}</Text>
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:14 }}>
+                        💬 {t.matchCommentsTitle}{comments.length > 0 ? ` (${comments.length})` : ''}
+                    </Text>
                     {loadingComments ? (
                         <ActivityIndicator color={cfg.color} style={{ marginTop:16 }} />
                     ) : comments.length === 0 ? (
@@ -567,12 +575,26 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                 {/* Header */}
                 <View style={s.cardHeader}>
                     <Avatar name={item.sender?.username} size={42} color={cfg.color} />
-                    <View style={{ flex:1 }}>
-                        <Text style={s.cardName}>@{item.sender?.username}</Text>
-                        {item.sender?.interests?.[0]?.skillRating > 0 && (
-                            <Text style={[s.ratingText, { color: cfg.color }]}>
-                                {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
+                    <View style={{ flex:1, flexDirection:'row', alignItems:'flex-start', gap:8 }}>
+                        <View style={{ flexShrink:1 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                <Text style={s.cardName}>@{item.sender?.username}</Text>
+                                {item.sender?.interests?.[0]?.skillRating > 0 && (
+                                    <Text style={[s.ratingText, { color: cfg.color }]}>
+                                        {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
+                                    </Text>
+                                )}
+                            </View>
+                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
+                                💬 Yorumlar {item.commentCount ?? 0}
                             </Text>
+                        </View>
+                        {!item.flexibleSchedule && (
+                            <View style={{ gap:2 }}>
+                                {item.matchDate && <Text style={s.metaItemText}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text>}
+                                {item.matchTime && <Text style={s.metaItemText}>🕐 {item.matchTime}</Text>}
+                                {item.duration && <Text style={s.metaItemText}>⏱ {item.duration} {t.timeMinSuffix}</Text>}
+                            </View>
                         )}
                     </View>
                     <View style={{ alignItems:'flex-end', gap:4 }}>
@@ -599,14 +621,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                     </View>
                 )}
                 {item.message && <Text style={s.cardMsg}>{item.message}</Text>}
-                {!item.flexibleSchedule && (
-                    <View style={s.cardMeta}>
-                        {item.matchDate && <View style={s.metaItem}><Text style={s.metaItemText}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text></View>}
-                        {item.matchTime && <View style={s.metaItem}><Text style={s.metaItemText}>🕐 {item.matchTime}</Text></View>}
-                        {item.duration && <View style={s.metaItem}><Text style={s.metaItemText}>⏱ {item.duration} dk</Text></View>}
-                        {item.courtName && <View style={s.metaItem}><Text style={[s.metaItemText,{color:'#60a5fa'}]}>🏟️ {item.courtName}</Text></View>}
-                    </View>
-                )}
                 {/* Kabul edilen oyuncular */}
                 {participants.length > 0 && (
                     <View style={s.participantsRow}>
@@ -835,6 +849,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
     const [abanSets, setAbanSets] = useState([{ my: '', opp: '' }]);
     const [showAbanDatePicker, setShowAbanDatePicker] = useState(false);
     const [showAbanTimePicker, setShowAbanTimePicker] = useState(false);
+    const [showNoShow, setShowNoShow] = useState(false);
+    const [noShowAbsent, setNoShowAbsent] = useState([]);
+    const [noShowPhoto, setNoShowPhoto] = useState(null);
+    const [noShowUploading, setNoShowUploading] = useState(false);
+    const [noShowSubmitting, setNoShowSubmitting] = useState(false);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
@@ -992,6 +1011,53 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
         ]);
     };
 
+    // ── No-show ────────────────────────────────────────────────────────────────
+    const otherPlayers = allPlayers.filter(p => p.id !== myId);
+    const matchStarted = matchStart ? new Date() >= matchStart : false;
+    const canReportNoShow = matchStarted && match.scoreStatus !== 'CONFIRMED' && !match._myNoShowPending;
+
+    const toggleAbsent = (id) => setNoShowAbsent(prev =>
+        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+
+    const pickNoShowPhoto = async () => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.7,
+        });
+        if (!result.canceled && result.assets?.[0]) {
+            setNoShowPhoto(result.assets[0]);
+        }
+    };
+
+    const submitNoShow = async () => {
+        if (noShowAbsent.length === 0) { Alert.alert('', 'En az bir oyuncu seçin'); return; }
+        setNoShowSubmitting(true);
+        try {
+            let courtPhotoUrl = null;
+            if (noShowPhoto) {
+                setNoShowUploading(true);
+                const form = new FormData();
+                form.append('file', { uri: noShowPhoto.uri, name: 'court.jpg', type: 'image/jpeg' });
+                const up = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+                courtPhotoUrl = up.data.url;
+                setNoShowUploading(false);
+            }
+            await api.post(`/rivals/${match.id}/no-show`, { absentUserIds: noShowAbsent, courtPhotoUrl });
+            Alert.alert('✅', 'Bildirim admin onayına gönderildi');
+            setShowNoShow(false);
+            setNoShowAbsent([]);
+            setNoShowPhoto(null);
+            onRefresh();
+        } catch(e) {
+            setNoShowUploading(false);
+            Alert.alert('Hata', e?.response?.data?.message || 'Gönderilemedi');
+        }
+        finally { setNoShowSubmitting(false); }
+    };
+
     // Parse existing score
     const existingSets = Array.isArray(match.score?.sets) ? match.score.sets : null;
     const existingWinner = match.score?.winner;
@@ -1028,7 +1094,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                     <Text style={s.cardSub}>
                         {match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
                         {match.matchTime ? ` · ${match.matchTime}` : ''}
-                        {match.duration  ? ` · ${match.duration} dk` : ''}
+                        {match.duration  ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
                     </Text>
                     {match.courtName && (
                         <TouchableOpacity onPress={() => {
@@ -1047,7 +1113,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                             <Text style={[s.cardSub, { color:'#60a5fa', textDecorationLine:'underline' }]}>🏟️ {match.courtName}</Text>
                         </TouchableOpacity>
                     )}
-                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>💬 {t.matchCommentsBtn}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
+                        💬 {t.matchCommentsBtn} {match.commentCount ?? 0}
+                    </Text>
                     {match.level && (
                         <View style={{ flexDirection:'row', marginTop:4 }}>
                             <View style={[s.modeBadge, { backgroundColor:'#ffffff10', borderColor:'#ffffff20' }]}>
@@ -1093,6 +1161,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                                 </Text>
                             </TouchableOpacity>
                         </>
+                    )}
+                    {canReportNoShow && (
+                        <TouchableOpacity
+                            style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#f9731640', backgroundColor:'#f9731618' }}
+                            onPress={() => { setNoShowAbsent([]); setNoShowPhoto(null); setShowNoShow(true); }}
+                        >
+                            <Text style={{ color:'#fb923c', fontSize:10, fontWeight:'700' }}>🚫 Gelmedi</Text>
+                        </TouchableOpacity>
+                    )}
+                    {match._myNoShowPending && (
+                        <View style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610' }}>
+                            <Text style={{ color:'#fb923c', fontSize:10 }}>⏳ Bildirildi</Text>
+                        </View>
                     )}
                 </View>
             </View>
@@ -1300,6 +1381,75 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                             )}
                         </ScrollView>
                     </View>
+                </View>
+            </Modal>
+
+            {/* ── No-Show Report Modal ── */}
+            <Modal visible={showNoShow} animationType="slide" transparent onRequestClose={() => setShowNoShow(false)}>
+                <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
+                    <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'}>
+                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingBottom:36 }}>
+                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🚫 Gelmeme Bildirimi</Text>
+                                <TouchableOpacity onPress={() => setShowNoShow(false)}>
+                                    <Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>
+                                Kortа gelmeyen oyuncu/oyuncuları seçin. Admin onayıyla 0.40 puan kesilir.
+                            </Text>
+
+                            {/* Player selection */}
+                            {otherPlayers.map(p => {
+                                const selected = noShowAbsent.includes(p.id);
+                                return (
+                                    <TouchableOpacity
+                                        key={p.id}
+                                        onPress={() => toggleAbsent(p.id)}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}
+                                    >
+                                        <View style={{ width:22, height:22, borderRadius:6, borderWidth:2, borderColor: selected ? '#fb923c' : colors.border, backgroundColor: selected ? '#fb923c30' : 'transparent', justifyContent:'center', alignItems:'center' }}>
+                                            {selected && <Text style={{ color:'#fb923c', fontSize:12, fontWeight:'900' }}>✓</Text>}
+                                        </View>
+                                        <Text style={{ color:'#fff', fontWeight:'700' }}>@{p.username}</Text>
+                                        {p.skillRating != null && (
+                                            <Text style={{ color:'#facc15', fontSize:11 }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
+
+                            {/* Photo picker */}
+                            <TouchableOpacity
+                                onPress={pickNoShowPhoto}
+                                style={{ marginTop:16, flexDirection:'row', alignItems:'center', gap:8, paddingVertical:10, paddingHorizontal:14, borderRadius:10, borderWidth:1, borderColor: noShowPhoto ? '#fb923c80' : colors.border, backgroundColor: noShowPhoto ? '#fb923c15' : colors.surface2 }}
+                            >
+                                <Text style={{ fontSize:18 }}>📷</Text>
+                                <Text style={{ color: noShowPhoto ? '#fb923c' : colors.textMuted, fontSize:13, fontWeight:'700', flex:1 }}>
+                                    {noShowPhoto ? 'Fotoğraf seçildi ✓' : 'Kort fotoğrafı ekle (opsiyonel)'}
+                                </Text>
+                                {noShowPhoto && (
+                                    <TouchableOpacity onPress={() => setNoShowPhoto(null)}>
+                                        <Text style={{ color: colors.textMuted, fontSize:16 }}>✕</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </TouchableOpacity>
+                            {noShowPhoto && (
+                                <Image source={{ uri: noShowPhoto.uri }} style={{ width:'100%', height:140, borderRadius:10, marginTop:8 }} resizeMode="cover" />
+                            )}
+
+                            <TouchableOpacity
+                                style={{ marginTop:18, backgroundColor: noShowSubmitting || noShowAbsent.length===0 ? colors.surface2 : '#ea580c', borderRadius:12, paddingVertical:13, alignItems:'center' }}
+                                onPress={submitNoShow}
+                                disabled={noShowSubmitting || noShowAbsent.length===0}
+                            >
+                                <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
+                                    {noShowUploading ? 'Fotoğraf yükleniyor...' : noShowSubmitting ? 'Gönderiliyor...' : 'Admin Onayına Gönder'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
 
@@ -1887,6 +2037,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             const res = await api.post(`/rivals/${commentMatch.id}/comments`, { content: commentText.trim() });
             setComments(p => [...p, res.data]);
             setCommentText('');
+            // Update local count on the card
+            setCommentMatch(prev => prev ? { ...prev, _count: { ...prev._count, matchComments: (prev._count?.matchComments ?? 0) + 1 } } : prev);
         } catch(e) {
             Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum gönderilemedi');
         }
@@ -2155,7 +2307,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                     ...(Array.isArray(commentMatch.participants) ? commentMatch.participants : []),
                 ].filter(Boolean);
                 const matchParticipantIds = new Set(allP2.map(p => p.id));
-                const canDelete = (c) => c.user?.id === myId || matchParticipantIds.has(myId);
+                const canDelete = (c) => {
+                    const isAuthor = c.user?.id === myId;
+                    const iAmParticipant = matchParticipantIds.has(myId);
+                    const commenterIsParticipant = matchParticipantIds.has(c.user?.id);
+                    return isAuthor || (iAmParticipant && !commenterIsParticipant);
+                };
                 return (
                     <Modal visible animationType="slide" onRequestClose={() => setCommentMatch(null)}>
                         <View style={{ flex:1, backgroundColor: colors.bg }}>
@@ -2195,7 +2352,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color: colors.textMuted, fontSize:13 }}>
                                         {commentMatch.matchDate ? new Date(commentMatch.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : ''}
                                         {commentMatch.matchTime ? ` · ${commentMatch.matchTime}` : ''}
-                                        {commentMatch.duration  ? ` · ${commentMatch.duration} dk` : ''}
+                                        {commentMatch.duration  ? ` · ${commentMatch.duration} ${t.timeMinSuffix}` : ''}
                                     </Text>
                                     {commentMatch.location  && <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>📍 {commentMatch.location}</Text>}
                                     {commentMatch.courtName && <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>🏟️ {commentMatch.courtName}</Text>}
@@ -2208,7 +2365,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                                 {/* Yorumlar bölümü */}
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:14 }}>
-                                    💬 {t.matchCommentsTitle}
+                                    💬 {t.matchCommentsTitle}{comments.length > 0 ? ` (${comments.length})` : ''}
                                 </Text>
                                 {loadingComments ? (
                                     <ActivityIndicator color={cfg2.color} style={{ marginTop:20 }} />

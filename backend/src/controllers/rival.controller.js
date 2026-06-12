@@ -288,15 +288,25 @@ export const getRivalRequests = async (req, res, next) => {
         });
 
         // Mark each rival with current user's own join request status
-        const myJoinReqs = await prisma.rivalJoinRequest.findMany({
-            where: { userId: req.userId, rivalId: { in: requests.map(r => r.id) } },
-            select: { rivalId: true, status: true },
-        });
+        const rivalIds = requests.map(r => r.id);
+        const [myJoinReqs, commentCounts] = await Promise.all([
+            prisma.rivalJoinRequest.findMany({
+                where: { userId: req.userId, rivalId: { in: rivalIds } },
+                select: { rivalId: true, status: true },
+            }),
+            prisma.matchComment.groupBy({
+                by: ['rivalId'],
+                where: { rivalId: { in: rivalIds } },
+                _count: { id: true },
+            }),
+        ]);
         const myJoinMap = Object.fromEntries(myJoinReqs.map(j => [j.rivalId, j.status]));
+        const commentCountMap = Object.fromEntries(commentCounts.map(c => [c.rivalId, c._count.id]));
 
         res.json(requests.map(r => ({
             ...r,
-            _myJoinStatus: myJoinMap[r.id] || null, // 'PENDING' | 'ACCEPTED' | 'REJECTED' | null
+            _myJoinStatus: myJoinMap[r.id] || null,
+            commentCount: commentCountMap[r.id] ?? 0,
         })));
     } catch (error) {
         next(error);
@@ -451,7 +461,7 @@ export const getUpcomingMatches = async (req, res, next) => {
                 ...(category    && { category }),
                 ...(subCategory && { subCategory }),
             },
-            include: { sender: { select: SENDER_SELECT } },
+            include: { sender: { select: SENDER_SELECT }, _count: { select: { matchComments: true } } },
             orderBy: { matchDate: 'asc' },
         });
 
@@ -481,6 +491,22 @@ export const getUpcomingMatches = async (req, res, next) => {
                 })
                 : [];
 
+                // Check existing no-show reports by this user
+            const activeIds = active.map(m => m.id);
+            const [myNoShowReports, commentCounts] = await Promise.all([
+                active.length > 0 ? prisma.noShowReport.findMany({
+                    where: { reporterId: req.userId, rivalId: { in: activeIds }, status: 'PENDING' },
+                    select: { rivalId: true },
+                }) : Promise.resolve([]),
+                active.length > 0 ? prisma.matchComment.groupBy({
+                    by: ['rivalId'],
+                    where: { rivalId: { in: activeIds } },
+                    _count: { id: true },
+                }) : Promise.resolve([]),
+            ]);
+            const myNoShowSet = new Set(myNoShowReports.map(r => r.rivalId));
+            const commentCountMap = Object.fromEntries(commentCounts.map(c => [c.rivalId, c._count.id]));
+
             const enriched = active.map(m => ({
                 ...m,
                 senderSkillRating: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.skillRating ?? null,
@@ -488,6 +514,8 @@ export const getUpcomingMatches = async (req, res, next) => {
                     ...p,
                     skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
                 })),
+                _myNoShowPending: myNoShowSet.has(m.id),
+                commentCount: commentCountMap[m.id] ?? 0,
             }));
 
             return res.json(enriched);
@@ -537,8 +565,13 @@ export const deleteMatchComment = async (req, res, next) => {
         const myId = req.userId;
         const parts = Array.isArray(comment.rival?.participants) ? comment.rival.participants : [];
         const isAuthor = comment.userId === myId;
-        const isParticipant = comment.rival?.senderId === myId || parts.some(p => p.id === myId);
-        if (!isAuthor && !isParticipant) return res.status(403).json({ message: 'Forbidden' });
+        const iAmParticipant = comment.rival?.senderId === myId || parts.some(p => p.id === myId);
+        const commenterIsParticipant = comment.rival?.senderId === comment.userId || parts.some(p => p.id === comment.userId);
+        // Own comment: always deletable.
+        // Outsider's comment: deletable by any match participant.
+        // Participant's comment: only deletable by themselves.
+        const canDelete = isAuthor || (iAmParticipant && !commenterIsParticipant);
+        if (!canDelete) return res.status(403).json({ message: 'Forbidden' });
         await prisma.matchComment.delete({ where: { id: commentId } });
         res.json({ deleted: true });
     } catch (error) { next(error); }

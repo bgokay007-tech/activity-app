@@ -72,6 +72,7 @@ model User {
   assessmentVotesCast AssessmentVote[]
   coachListings       CoachListing[]
   matchComments    MatchComment[]
+  noShowReports    NoShowReport[] @relation("noShowReporter")
 }
 
 // KULLANICI İLGİ ALANLARI (Kategori + Alt Dal)
@@ -296,6 +297,7 @@ model ActivityRequest {
   receiver        User? @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
   joinRequests    RivalJoinRequest[]
   matchComments   MatchComment[]
+  noShowReports   NoShowReport[]
 }
 
 model MatchComment {
@@ -307,6 +309,22 @@ model MatchComment {
 
   rival     ActivityRequest @relation(fields: [rivalId], references: [id], onDelete: Cascade)
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NoShowReport {
+  id            String   @id @default(uuid())
+  rivalId       String
+  reporterId    String
+  absentUserIds Json     @default("[]")  // [userId, ...]
+  courtPhotoUrl String?
+  status        String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  subCategory   String
+  category      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rival         ActivityRequest @relation(fields: [rivalId],    references: [id], onDelete: Cascade)
+  reporter      User            @relation("noShowReporter", fields: [reporterId], references: [id], onDelete: Cascade)
 }
 
 model RivalJoinRequest {
