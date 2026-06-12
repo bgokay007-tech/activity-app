@@ -2075,7 +2075,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 const canDelete = (c) => c.user?.id === myId || matchParticipantIds.has(myId);
                 return (
                     <Modal visible animationType="slide" onRequestClose={() => setCommentMatch(null)}>
-                        <View style={{ flex:1, backgroundColor: colors.background }}>
+                        <View style={{ flex:1, backgroundColor: colors.bg }}>
                             {/* Header */}
                             <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
                                 <TouchableOpacity onPress={() => setCommentMatch(null)} style={{ marginRight:14, padding:4 }}>
@@ -2155,7 +2155,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                             {/* Yorum yaz — bottom input */}
                             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
-                                <View style={{ flexDirection:'row', gap:10, paddingHorizontal:12, paddingVertical:10, paddingBottom: Platform.OS === 'ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.background }}>
+                                <View style={{ flexDirection:'row', gap:10, paddingHorizontal:12, paddingVertical:10, paddingBottom: Platform.OS === 'ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                                     <TextInput
                                         style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
                                         placeholder={t.matchCommentPlaceholder}
