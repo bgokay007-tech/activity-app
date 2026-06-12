@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
@@ -1077,8 +1078,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
     const existingSets = Array.isArray(match.score?.sets) ? match.score.sets : null;
     const existingWinner = match.score?.winner;
     const hasScore = !!existingSets;
-    const dispMyTotal  = hasScore ? existingSets.reduce((s, r) => s + (isOwner ? r.sender : r.opponent), 0) : 0;
-    const dispOppTotal = hasScore ? existingSets.reduce((s, r) => s + (isOwner ? r.opponent : r.sender), 0) : 0;
+    const dispMyTotal  = hasScore ? existingSets.filter(r => (isOwner ? r.sender : r.opponent) > (isOwner ? r.opponent : r.sender)).length : 0;
+    const dispOppTotal = hasScore ? existingSets.filter(r => (isOwner ? r.opponent : r.sender) > (isOwner ? r.sender : r.opponent)).length : 0;
     const dispIWin = existingWinner === (isOwner ? 'sender' : 'opponent');
     const dispDraw = existingWinner === 'draw';
 
@@ -2002,13 +2003,13 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
-    const { category, sub } = route.params;
+    const { category, sub, initialTab } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const t = useT();
     const cfg = getConfig(sub);
     const tabs = getTabs(sub);
 
-    const [activeTab, setActiveTab] = useState('rivals');
+    const [activeTab, setActiveTab] = useState(initialTab && tabs.includes(initialTab) ? initialTab : 'rivals');
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
     const [matchedUpcoming, setMatchedUpcoming] = useState([]);
@@ -2112,6 +2113,13 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     useEffect(() => { load(); }, [load]);
     const onRefresh = () => { setRefreshing(true); load(); };
+
+    // Refresh data whenever screen comes into focus (e.g. navigating back from notification)
+    const isMounted = useRef(false);
+    useFocusEffect(useCallback(() => {
+        if (!isMounted.current) { isMounted.current = true; return; }
+        load();
+    }, [load]));
 
     useEffect(() => {
         if (activeTab !== 'archive') return;

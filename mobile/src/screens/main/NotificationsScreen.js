@@ -57,29 +57,17 @@ export default function NotificationsScreen({ navigation }) {
     const handlePress = (item) => {
         markRead(item.id);
         const data = item.data || {};
+        const type = item.type;
 
-        if (data.rivalId && data.category && data.subCategory) {
-            // Rival-related → go to SubCategory screen
+        const goToSub = (tab = 'rivals') => {
+            if (!data.category || !data.subCategory) return;
             navigation.navigate('HomeTab', {
                 screen: 'SubCategory',
-                params: { category: data.category, sub: data.subCategory },
+                params: { category: data.category, sub: data.subCategory, initialTab: tab },
             });
-        } else if (data.rivalId) {
-            // Fallback: old notification without routing data
-            navigation.navigate('HomeTab', {
-                screen: 'SubCategory',
-                params: { category: 'SPORTS', sub: 'football' },
-            });
-        } else if (item.type === 'FRIEND_REQUEST' || item.type === 'FRIEND_ACCEPTED') {
-            if (data.senderId) {
-                navigation.navigate('HomeTab', {
-                    screen: 'Profile',
-                    params: { userId: data.senderId },
-                });
-            } else {
-                navigation.navigate('ProfileTab');
-            }
-        } else if (item.type === 'MESSAGE') {
+        };
+
+        if (type === 'MESSAGE') {
             if (data.senderId) {
                 navigation.navigate('MessagesTab', {
                     screen: 'Chat',
@@ -91,13 +79,28 @@ export default function NotificationsScreen({ navigation }) {
             } else {
                 navigation.navigate('MessagesTab');
             }
-        } else if (item.type === 'SCORE_SUBMITTED' || item.type === 'SCORE_CONFIRMED' || item.type === 'MATCH_COMPLETED') {
-            if (data.category && data.subCategory) {
+        } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED') {
+            if (data.senderId) {
                 navigation.navigate('HomeTab', {
-                    screen: 'SubCategory',
-                    params: { category: data.category, sub: data.subCategory },
+                    screen: 'Profile',
+                    params: { userId: data.senderId },
                 });
+            } else {
+                navigation.navigate('ProfileTab');
             }
+        } else if (type === 'SCORE_SUBMITTED') {
+            // Opponent submitted score — go to rivals tab (pending score section)
+            goToSub('rivals');
+        } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') {
+            // Score confirmed → match is now in archive
+            goToSub('archive');
+        } else if (type === 'SCORE_DISPUTED') {
+            goToSub('rivals');
+        } else if (type === 'MATCH_COMMENT') {
+            goToSub('rivals');
+        } else if (data.category && data.subCategory) {
+            // All other rival/join notifications → rivals tab
+            goToSub('rivals');
         }
     };
 
