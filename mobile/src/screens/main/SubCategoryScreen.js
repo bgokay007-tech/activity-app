@@ -789,13 +789,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
 
-    // Build player list with points: sender first, then participants in order
-    const senderPts = match.sender?.interests?.find(i => i.subCategory === match.subCategory)?.totalPoints ?? 0;
+    // Build player list with skill rating: sender first, then participants in order
     const allPlayers = [
-        { ...match.sender, totalPoints: senderPts },
+        { ...match.sender, skillRating: match.senderSkillRating },
         ...(Array.isArray(match.participants) ? match.participants : []),
     ].filter(Boolean);
-    const playerNames = allPlayers.map(p => `@${p.username} (${p.totalPoints ?? 0})`).join(' · ');
+    const playerNames = allPlayers.map(p =>
+        p.skillRating != null ? `@${p.username} (${p.skillRating})` : `@${p.username}`
+    ).join(' · ');
 
     const getMatchEnd = (m) => {
         if (!m.matchDate || !m.matchTime) return null;

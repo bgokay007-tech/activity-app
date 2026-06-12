@@ -485,14 +485,17 @@ export const getUpcomingMatches = async (req, res, next) => {
             })
             : [];
 
-        const enriched = active.map(m => ({
-            ...m,
-            participants: (Array.isArray(m.participants) ? m.participants : []).map(p => ({
-                ...p,
-                totalPoints: participantInterests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.totalPoints ?? 0,
-                skillRating: participantInterests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? 1000,
-            })),
-        }));
+        const enriched = active.map(m => {
+            const senderInterest = (m.sender?.interests || []).find(i => i.subCategory === m.subCategory);
+            return {
+                ...m,
+                senderSkillRating: senderInterest?.skillRating ?? null,
+                participants: (Array.isArray(m.participants) ? m.participants : []).map(p => {
+                    const pi = participantInterests.find(i => i.userId === p.id && i.subCategory === m.subCategory);
+                    return { ...p, skillRating: pi?.skillRating ?? null };
+                }),
+            };
+        });
 
         res.json(enriched);
     } catch (error) {
