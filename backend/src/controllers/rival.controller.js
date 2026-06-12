@@ -555,13 +555,30 @@ export const addMatchComment = async (req, res, next) => {
         const { id } = req.params;
         const { content } = req.body;
         if (!content?.trim()) return res.status(400).json({ message: 'Content required' });
-        const match = await prisma.activityRequest.findUnique({ where: { id }, select: { id: true } });
+        const match = await prisma.activityRequest.findUnique({
+            where: { id },
+            select: { id: true, senderId: true, participants: true, subCategory: true, category: true },
+        });
         if (!match) return res.status(404).json({ message: 'Match not found' });
         const comment = await prisma.matchComment.create({
             data: { rivalId: id, userId: req.userId, content: content.trim() },
             include: { user: { select: { id: true, username: true, avatar: true } } },
         });
         res.status(201).json(comment);
+
+        // Notify owner + participants (except commenter)
+        const parts = Array.isArray(match.participants) ? match.participants : [];
+        const allIds = [...new Set([match.senderId, ...parts.map(p => p.id)])].filter(uid => uid !== req.userId);
+        const commenterUsername = comment.user?.username || 'Biri';
+        for (const uid of allIds) {
+            emitToUser(uid, 'newComment', { rivalId: id, comment });
+            createNotification(
+                uid, 'MATCH_COMMENT',
+                '💬 Yeni Yorum',
+                `@${commenterUsername}: ${content.trim().slice(0, 60)}`,
+                { rivalId: id, category: match.category?.toLowerCase(), subCategory: match.subCategory }
+            ).catch(() => {});
+        }
     } catch (error) { next(error); }
 };
 

@@ -278,6 +278,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         }
     }, [item?.id, visible]);
 
+    useEffect(() => {
+        if (!visible || !item?.id) return;
+        const off = onSocket('newComment', ({ rivalId, comment }) => {
+            if (rivalId !== item.id) return;
+            setComments(prev => prev.some(c => c.id === comment.id) ? prev : [...prev, comment]);
+        });
+        return off;
+    }, [visible, item?.id]);
+
     const isOwner = item.senderId === myId;
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
@@ -2056,6 +2065,16 @@ export default function SubCategoryScreen({ route, navigation }) {
             Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum silinemedi');
         }
     }, []);
+
+    // Real-time new comment for upcoming match modal
+    useEffect(() => {
+        if (!commentMatch?.id) return;
+        const off = onSocket('newComment', ({ rivalId, comment }) => {
+            if (rivalId !== commentMatch.id) return;
+            setComments(prev => prev.some(c => c.id === comment.id) ? prev : [...prev, comment]);
+        });
+        return off;
+    }, [commentMatch?.id]);
 
     const load = useCallback(async () => {
         try {
