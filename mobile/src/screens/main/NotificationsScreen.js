@@ -32,7 +32,7 @@ export default function NotificationsScreen({ navigation }) {
         try {
             const { data } = await api.get('/notifications');
             setNotifications(data.notifications || []);
-        } catch (e) { console.error(e); }
+        } catch (e) { console.warn(e?.message); }
         finally { setLoading(false); setRefreshing(false); }
     };
 
@@ -44,14 +44,14 @@ export default function NotificationsScreen({ navigation }) {
         try {
             await api.patch(`/notifications/${id}/read`);
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-        } catch (e) { console.error(e); }
+        } catch (e) { console.warn(e?.message); }
     };
 
     const markAllRead = async () => {
         try {
             await api.patch('/notifications/read-all');
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-        } catch (e) { console.error(e); }
+        } catch (e) { console.warn(e?.message); }
     };
 
     const handlePress = (item) => {

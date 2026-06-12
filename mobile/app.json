@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Activity",
+    "slug": "activity-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6efad865-a6d7-4da4-b5e8-43c9c4de1cba",
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
+    },
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.activity.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#0A0A0A"
+      },
+      "package": "com.activity.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [],
+    "extra": {
+      "eas": {
+        "projectId": "6efad865-a6d7-4da4-b5e8-43c9c4de1cba"
+      }
+    },
+    "owner": "burobro"
+  }
+}

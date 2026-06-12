@@ -201,7 +201,7 @@ export default function CreatePostScreen({ navigation }) {
 
             navigation.goBack();
         } catch (e) {
-            console.error(e);
+            console.warn(e?.message);
             Alert.alert('Hata', 'Gönderi paylaşılamadı.');
         } finally {
             setPosting(false);

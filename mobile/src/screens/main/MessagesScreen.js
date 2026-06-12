@@ -24,7 +24,7 @@ export default function MessagesScreen({ navigation }) {
     useEffect(() => {
         api.get('/messages/conversations')
             .then(r => setConversations(r.data))
-            .catch(console.error)
+            .catch(e => console.warn(e?.message))
             .finally(() => setLoading(false));
     }, []);
 

@@ -53,7 +53,7 @@ export default function CategoryScreen({ route, navigation }) {
     useEffect(() => {
         api.get(`/rivals/counts?category=${category}`)
             .then(r => setCounts(r.data))
-            .catch(console.error)
+            .catch(e => console.warn(e?.message))
             .finally(() => setLoading(false));
     }, [category]);
 

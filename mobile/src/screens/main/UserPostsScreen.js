@@ -283,7 +283,7 @@ export default function UserPostsScreen({ route, navigation }) {
                 setPosts(list);
                 setLikedIds(new Set(list.filter(p => p.isLiked).map(p => p.id)));
             })
-            .catch(console.error)
+            .catch(e => console.warn(e?.message))
             .finally(() => setLoading(false));
 
         return () => { stopSound(); };

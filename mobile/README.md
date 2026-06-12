@@ -1,1 +1,0 @@
-# AcTiViTy Mobile

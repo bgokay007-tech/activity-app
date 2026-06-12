@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import colors from '../../theme/colors';
@@ -16,7 +16,7 @@ function Avatar({ user, size = 36 }) {
 }
 
 export default function ChatScreen({ route, navigation }) {
-    const { conversation: convParam, other: otherProp } = route.params;
+    const { conversation: convParam, other: otherProp, rival } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const t = useT();
     const [messages, setMessages] = useState([]);
@@ -25,27 +25,44 @@ export default function ChatScreen({ route, navigation }) {
     const [sending, setSending] = useState(false);
     const [convId, setConvId] = useState(convParam?.id || null);
     const flatRef = useRef(null);
+    const convIdRef = useRef(convParam?.id || null);
+    const pollRef = useRef(null);
 
     const other = otherProp || convParam?.other;
+
+    const fetchMessages = useCallback(async (id) => {
+        if (!id) return;
+        try {
+            const { data } = await api.get(`/messages/conversation/${id}/messages`);
+            setMessages(data);
+        } catch { /* silent — network may be slow */ }
+    }, []);
 
     useEffect(() => {
         const init = async () => {
             try {
-                let id = convId;
+                let id = convIdRef.current;
                 if (!id && other?.id) {
                     const { data } = await api.get(`/messages/conversation/${other.id}`);
                     id = data.id;
                     setConvId(id);
+                    convIdRef.current = id;
                 }
                 if (id) {
-                    const { data } = await api.get(`/messages/conversation/${id}/messages`);
-                    setMessages(data);
+                    await fetchMessages(id);
                     setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { console.warn('ChatScreen init error:', e?.message); }
             finally { setLoading(false); }
         };
         init();
+
+        // Poll every 3 seconds for new messages
+        pollRef.current = setInterval(() => {
+            fetchMessages(convIdRef.current);
+        }, 3000);
+
+        return () => clearInterval(pollRef.current);
     }, []);
 
     const send = async () => {
@@ -57,7 +74,10 @@ export default function ChatScreen({ route, navigation }) {
             const { data } = await api.post(`/messages/send/${other?.id}`, { content: text });
             setMessages(prev => [...prev, data.message]);
             setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.warn(e?.message);
+            Alert.alert('Hata', e?.response?.data?.message || 'Mesaj gönderilemedi');
+        }
         finally { setSending(false); }
     };
 
@@ -89,6 +109,24 @@ export default function ChatScreen({ route, navigation }) {
                     <Text style={styles.headerSub}>@{other?.username}</Text>
                 </View>
             </View>
+
+            {/* Activity Context Banner */}
+            {rival && (
+                <View style={styles.rivalBanner}>
+                    <Text style={styles.rivalBannerLabel}>📋 İlan Detayı</Text>
+                    <View style={styles.rivalBannerRow}>
+                        <Text style={styles.rivalBannerChip}>🏅 {rival.subCategory}{rival.matchType && rival.matchType !== 'PLAYER_WANTED' ? ` · ${rival.matchType === 'DOUBLE' ? '2v2' : '1v1'}` : ''}{rival.level ? ` · ${rival.level}` : ''}</Text>
+                        {rival.flexibleSchedule ? (
+                            <Text style={styles.rivalBannerChip}>📅 Esnek tarih</Text>
+                        ) : rival.matchDate ? (
+                            <Text style={styles.rivalBannerChip}>📅 {new Date(rival.matchDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}{rival.matchTime ? ` · ${rival.matchTime}` : ''}</Text>
+                        ) : null}
+                        {(rival.courtName || rival.location) && (
+                            <Text style={styles.rivalBannerChip}>📍 {rival.courtName || rival.location}</Text>
+                        )}
+                    </View>
+                </View>
+            )}
 
             {/* Messages */}
             {loading ? (
@@ -140,6 +178,10 @@ const styles = StyleSheet.create({
     headerInfo: { flex: 1 },
     headerName: { color: '#fff', fontWeight: '700', fontSize: 14 },
     headerSub: { color: colors.textMuted, fontSize: 11 },
+    rivalBanner: { backgroundColor: '#7c3aed18', borderBottomWidth: 1, borderBottomColor: '#7c3aed40', paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
+    rivalBannerLabel: { color: '#a78bfa', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    rivalBannerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    rivalBannerChip: { color: '#c4b5fd', fontSize: 12, fontWeight: '600', backgroundColor: '#7c3aed25', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, overflow: 'hidden' },
     list: { paddingHorizontal: 16, paddingVertical: 16, gap: 10 },
     msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
     msgRowMe: { justifyContent: 'flex-end' },

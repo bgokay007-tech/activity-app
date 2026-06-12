@@ -51,7 +51,7 @@ export default function HomeScreen({ navigation }) {
                 dispatch(setUser(meRes.data));
                 setInterests(intRes.data);
             } catch (e) {
-                console.error(e);
+                console.warn('HomeScreen load error:', e?.message);
             } finally {
                 setLoading(false);
             }
