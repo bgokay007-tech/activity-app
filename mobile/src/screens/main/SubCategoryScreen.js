@@ -1250,11 +1250,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                 </View>
             </Modal>
 
-            {/* Match Comments Modal */}
+            {/* Yorumlar Modal */}
             <Modal visible={showComments} animationType="slide" transparent onRequestClose={() => setShowComments(false)}>
                 <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
                     <View style={s.modalOverlay}>
-                        <View style={[s.modalBox, { maxHeight:'80%', paddingBottom:20 }]}>
+                        <View style={[s.modalBox, { maxHeight:'85%', paddingBottom:20 }]}>
                             <View style={s.modalHeader}>
                                 <Text style={s.modalTitle}>{t.matchCommentsTitle}</Text>
                                 <TouchableOpacity onPress={() => setShowComments(false)}>
@@ -1262,13 +1262,34 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                                 </TouchableOpacity>
                             </View>
 
-                            {/* Match info */}
-                            <Text style={{ color: colors.textSecondary, fontSize:12, marginBottom:10 }}>
-                                {allPlayers.map(p => `@${p.username}`).join(' · ')}
-                                {match.matchDate ? `  ·  ${new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' })}` : ''}
-                                {match.matchTime ? ` ${match.matchTime}` : ''}
-                            </Text>
+                            {/* İlan detayları */}
+                            <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:12, borderWidth:1, borderColor: colors.border }}>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:6 }}>
+                                    {allPlayers.map((p, idx) => (
+                                        <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                            {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>@{p.username}</Text>
+                                            {p.skillRating != null && (
+                                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                                            )}
+                                        </View>
+                                    ))}
+                                </View>
+                                <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                                    {match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : ''}
+                                    {match.matchTime ? ` · ${match.matchTime}` : ''}
+                                    {match.duration  ? ` · ${match.duration} dk` : ''}
+                                </Text>
+                                {match.location && <Text style={{ color:'#60a5fa', fontSize:12, marginTop:2 }}>📍 {match.location}</Text>}
+                                {match.courtName && <Text style={{ color:'#60a5fa', fontSize:12, marginTop:2 }}>🏟️ {match.courtName}</Text>}
+                                {match.level && (
+                                    <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
+                                        {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
+                                    </Text>
+                                )}
+                            </View>
 
+                            {/* Yorumlar listesi */}
                             <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
                                 {loadingComments ? (
                                     <ActivityIndicator color={cfg.color} style={{ marginTop:20 }} />
@@ -1276,7 +1297,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                                     <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.matchCommentEmpty}</Text>
                                 ) : (
                                     comments.map(c => (
-                                        <View key={c.id} style={{ marginBottom:12 }}>
+                                        <View key={c.id} style={{ marginBottom:12, paddingBottom:12, borderBottomWidth:1, borderBottomColor: colors.border }}>
                                             <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700', marginBottom:2 }}>@{c.user?.username}</Text>
                                             <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
                                             <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>{new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</Text>
@@ -1285,7 +1306,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                                 )}
                             </ScrollView>
 
-                            {/* Comment input */}
+                            {/* Yorum yazma alanı */}
                             <View style={{ flexDirection:'row', gap:8, marginTop:12, borderTopWidth:1, borderTopColor: colors.border, paddingTop:12 }}>
                                 <TextInput
                                     style={[s.fieldInput, { flex:1, height:40, marginBottom:0 }]}
@@ -2237,7 +2258,7 @@ const s = StyleSheet.create({
     scoreBtn:         { backgroundColor:'#a855f720', borderRadius:10, paddingHorizontal:12, paddingVertical:6, borderWidth:1, borderColor:'#a855f750' },
     scoreBtnText:     { color:'#c084fc', fontSize:12, fontWeight:'700' },
     commentBtn:       { backgroundColor:'#0ea5e920', borderRadius:10, paddingHorizontal:12, paddingVertical:6, borderWidth:1, borderColor:'#0ea5e950' },
-    commentBtnText:   { fontSize:16 },
+    commentBtnText:   { color:'#38bdf8', fontSize:12, fontWeight:'700' },
     confirmBtn:       { backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:10, paddingVertical:4, marginTop:4, borderWidth:1, borderColor:'#16a34a60' },
     confirmBtnText:   { color:'#4ade80', fontSize:11, fontWeight:'700' },
     scoreForm:        { marginTop:10 },
