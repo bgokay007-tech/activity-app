@@ -783,6 +783,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
+    const allPlayers = [match.sender, ...(Array.isArray(match.participants) ? match.participants : [])].filter(Boolean);
+    const playerNames = allPlayers.map(p => `@${p.username}`).join(' · ');
 
     const getMatchEnd = (m) => {
         if (!m.matchDate || !m.matchTime) return null;
@@ -932,12 +934,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
 
     return (
         <View style={[s.card, { borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
-            {/* Header: opponent info + match details */}
+            {/* Header: all players in order — sender first, then accepted participants */}
             <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
-                <Avatar name={opponent?.username} size={42} color={cfg.color} />
+                <Avatar name={match.sender?.username} size={42} color={cfg.color} />
                 <View style={{ flex:1 }}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                        <Text style={s.cardName}>vs @{opponent?.username || 'Rakip'}</Text>
+                        <Text style={[s.cardName, { flexShrink:1 }]}>{playerNames || `@${match.sender?.username || '?'}`}</Text>
                         <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
                             <Text style={[s.modeBadgeText, { color: cfg.color }]}>
                                 {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
