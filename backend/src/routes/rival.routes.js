@@ -6,6 +6,7 @@ import {
     cancelRequest, enterScore, confirmScore, disputeScore, reportDispute,
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
     extendScoreDeadline, getCountsBySubCategory, abandonMatch, cancelMatch,
+    getMatchComments, addMatchComment,
 } from '../controllers/rival.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -29,5 +30,7 @@ router.patch('/:id/archive',         authenticate, archiveMatch);
 router.patch('/:id/extend-score',    authenticate, extendScoreDeadline);
 router.patch('/:id/abandon',         authenticate, abandonMatch);
 router.patch('/:id/cancel-match',    authenticate, cancelMatch);
+router.get('/:id/comments',          authenticate, getMatchComments);
+router.post('/:id/comments',         authenticate, addMatchComment);
 
 export default router;

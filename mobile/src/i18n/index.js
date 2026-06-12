@@ -194,6 +194,11 @@ const en = {
     cancelMatchSuccess: '✅ Match has been cancelled.',
     cancelMatchFailed: 'Could not cancel',
     lateCancelLabel: n => `⚠️ ${n}x late cancel`,
+    matchCommentsBtn: '💬',
+    matchCommentsTitle: 'Match Comments',
+    matchCommentPlaceholder: 'Write a comment...',
+    matchCommentSend: 'Send',
+    matchCommentEmpty: 'No comments yet.',
 
     // SubCategory — empty states
     emptyRivals: 'No rival listings yet', emptyTournaments: 'No tournaments yet',
@@ -512,6 +517,11 @@ const tr = {
     cancelMatchSuccess: '✅ Maç iptal edildi.',
     cancelMatchFailed: 'İptal edilemedi',
     lateCancelLabel: n => `⚠️ ${n}x son dk iptal`,
+    matchCommentsBtn: '💬',
+    matchCommentsTitle: 'Maç Yorumları',
+    matchCommentPlaceholder: 'Yorum yaz...',
+    matchCommentSend: 'Gönder',
+    matchCommentEmpty: 'Henüz yorum yok.',
 
     // SubCategory — empty states
     emptyRivals: 'Henüz rakip ilanı yok', emptyTournaments: 'Henüz turnuva yok',

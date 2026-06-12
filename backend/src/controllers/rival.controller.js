@@ -451,7 +451,14 @@ export const getUpcomingMatches = async (req, res, next) => {
                 ...(category    && { category }),
                 ...(subCategory && { subCategory }),
             },
-            include: { sender: { select: SENDER_SELECT } },
+            include: {
+                sender: {
+                    select: {
+                        ...SENDER_SELECT,
+                        interests: { select: { subCategory: true, totalPoints: true, skillRating: true } },
+                    },
+                },
+            },
             orderBy: { matchDate: 'asc' },
         });
 
@@ -465,10 +472,59 @@ export const getUpcomingMatches = async (req, res, next) => {
             await prisma.activityRequest.deleteMany({ where: { id: { in: expired.map(m => m.id) } } });
         }
 
-        res.json(matches.filter(m => !expired.find(e => e.id === m.id)));
+        const active = matches.filter(m => !expired.find(e => e.id === m.id));
+
+        // Enrich participant objects with points
+        const participantIds = [...new Set(
+            active.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id).filter(Boolean))
+        )];
+        const participantInterests = participantIds.length > 0
+            ? await prisma.userInterest.findMany({
+                where: { userId: { in: participantIds } },
+                select: { userId: true, subCategory: true, totalPoints: true, skillRating: true },
+            })
+            : [];
+
+        const enriched = active.map(m => ({
+            ...m,
+            participants: (Array.isArray(m.participants) ? m.participants : []).map(p => ({
+                ...p,
+                totalPoints: participantInterests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.totalPoints ?? 0,
+                skillRating: participantInterests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? 1000,
+            })),
+        }));
+
+        res.json(enriched);
     } catch (error) {
         next(error);
     }
+};
+
+export const getMatchComments = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const comments = await prisma.matchComment.findMany({
+            where: { rivalId: id },
+            include: { user: { select: { id: true, username: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json(comments);
+    } catch (error) { next(error); }
+};
+
+export const addMatchComment = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { content } = req.body;
+        if (!content?.trim()) return res.status(400).json({ message: 'Content required' });
+        const match = await prisma.activityRequest.findUnique({ where: { id }, select: { id: true } });
+        if (!match) return res.status(404).json({ message: 'Match not found' });
+        const comment = await prisma.matchComment.create({
+            data: { rivalId: id, userId: req.userId, content: content.trim() },
+            include: { user: { select: { id: true, username: true, avatar: true } } },
+        });
+        res.status(201).json(comment);
+    } catch (error) { next(error); }
 };
 
 export const abandonMatch = async (req, res, next) => {

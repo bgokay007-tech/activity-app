@@ -780,11 +780,22 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     const [abanSets, setAbanSets] = useState([{ my: '', opp: '' }]);
     const [showAbanDatePicker, setShowAbanDatePicker] = useState(false);
     const [showAbanTimePicker, setShowAbanTimePicker] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+    const [comments, setComments] = useState([]);
+    const [commentText, setCommentText] = useState('');
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [sendingComment, setSendingComment] = useState(false);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
-    const allPlayers = [match.sender, ...(Array.isArray(match.participants) ? match.participants : [])].filter(Boolean);
-    const playerNames = allPlayers.map(p => `@${p.username}`).join(' · ');
+
+    // Build player list with points: sender first, then participants in order
+    const senderPts = match.sender?.interests?.find(i => i.subCategory === match.subCategory)?.totalPoints ?? 0;
+    const allPlayers = [
+        { ...match.sender, totalPoints: senderPts },
+        ...(Array.isArray(match.participants) ? match.participants : []),
+    ].filter(Boolean);
+    const playerNames = allPlayers.map(p => `@${p.username} (${p.totalPoints ?? 0})`).join(' · ');
 
     const getMatchEnd = (m) => {
         if (!m.matchDate || !m.matchTime) return null;
@@ -923,6 +934,27 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
         finally { setCancelling(false); }
     };
 
+    const openComments = async () => {
+        setShowComments(true);
+        setLoadingComments(true);
+        try {
+            const res = await api.get(`/rivals/${match.id}/comments`);
+            setComments(res.data || []);
+        } catch(e) { /* silent */ }
+        finally { setLoadingComments(false); }
+    };
+
+    const sendComment = async () => {
+        if (!commentText.trim()) return;
+        setSendingComment(true);
+        try {
+            const res = await api.post(`/rivals/${match.id}/comments`, { content: commentText.trim() });
+            setComments(p => [...p, res.data]);
+            setCommentText('');
+        } catch(e) { Alert.alert(t.error, t.sendFailed); }
+        finally { setSendingComment(false); }
+    };
+
     // Parse existing score
     const existingSets = Array.isArray(match.score?.sets) ? match.score.sets : null;
     const existingWinner = match.score?.winner;
@@ -963,11 +995,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                         </View>
                     )}
                 </View>
-                {!hasScore && scoreUnlocked && (
-                    <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
-                        <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
+                <View style={{ gap:6, alignItems:'flex-end' }}>
+                    {!hasScore && scoreUnlocked && (
+                        <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
+                            <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
+                        </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={s.commentBtn} onPress={openComments}>
+                        <Text style={s.commentBtnText}>{t.matchCommentsBtn}</Text>
                     </TouchableOpacity>
-                )}
+                </View>
             </View>
 
             {/* Existing score display */}
@@ -1201,6 +1238,66 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                         </ScrollView>
                     </View>
                 </View>
+            </Modal>
+
+            {/* Match Comments Modal */}
+            <Modal visible={showComments} animationType="slide" transparent onRequestClose={() => setShowComments(false)}>
+                <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                    <View style={s.modalOverlay}>
+                        <View style={[s.modalBox, { maxHeight:'80%', paddingBottom:20 }]}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>{t.matchCommentsTitle}</Text>
+                                <TouchableOpacity onPress={() => setShowComments(false)}>
+                                    <Text style={s.modalClose}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Match info */}
+                            <Text style={{ color: colors.textSecondary, fontSize:12, marginBottom:10 }}>
+                                {playerNames}
+                                {match.matchDate ? `  ·  ${new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' })}` : ''}
+                                {match.matchTime ? ` ${match.matchTime}` : ''}
+                            </Text>
+
+                            <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
+                                {loadingComments ? (
+                                    <ActivityIndicator color={cfg.color} style={{ marginTop:20 }} />
+                                ) : comments.length === 0 ? (
+                                    <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.matchCommentEmpty}</Text>
+                                ) : (
+                                    comments.map(c => (
+                                        <View key={c.id} style={{ marginBottom:12 }}>
+                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700', marginBottom:2 }}>@{c.user?.username}</Text>
+                                            <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>{new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</Text>
+                                        </View>
+                                    ))
+                                )}
+                            </ScrollView>
+
+                            {/* Comment input */}
+                            <View style={{ flexDirection:'row', gap:8, marginTop:12, borderTopWidth:1, borderTopColor: colors.border, paddingTop:12 }}>
+                                <TextInput
+                                    style={[s.fieldInput, { flex:1, height:40, marginBottom:0 }]}
+                                    placeholder={t.matchCommentPlaceholder}
+                                    placeholderTextColor={colors.textMuted}
+                                    value={commentText}
+                                    onChangeText={setCommentText}
+                                    multiline={false}
+                                    returnKeyType="send"
+                                    onSubmitEditing={sendComment}
+                                />
+                                <TouchableOpacity
+                                    style={[s.joinBtn, { paddingHorizontal:16, height:40, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}
+                                    onPress={sendComment}
+                                    disabled={sendingComment}
+                                >
+                                    <Text style={s.joinBtnText}>{t.matchCommentSend}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
             </Modal>
         </View>
     );
@@ -2129,6 +2226,8 @@ const s = StyleSheet.create({
     scoreText:        { color:'#fff', fontSize:16, fontWeight:'900' },
     scoreBtn:         { backgroundColor:'#a855f720', borderRadius:10, paddingHorizontal:12, paddingVertical:6, borderWidth:1, borderColor:'#a855f750' },
     scoreBtnText:     { color:'#c084fc', fontSize:12, fontWeight:'700' },
+    commentBtn:       { backgroundColor:'#0ea5e920', borderRadius:10, paddingHorizontal:12, paddingVertical:6, borderWidth:1, borderColor:'#0ea5e950' },
+    commentBtnText:   { fontSize:16 },
     confirmBtn:       { backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:10, paddingVertical:4, marginTop:4, borderWidth:1, borderColor:'#16a34a60' },
     confirmBtnText:   { color:'#4ade80', fontSize:11, fontWeight:'700' },
     scoreForm:        { marginTop:10 },

@@ -71,6 +71,7 @@ model User {
   storyViews       StoryView[]
   assessmentVotesCast AssessmentVote[]
   coachListings       CoachListing[]
+  matchComments    MatchComment[]
 }
 
 // KULLANICI İLGİ ALANLARI (Kategori + Alt Dal)
@@ -294,6 +295,18 @@ model ActivityRequest {
   sender          User @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
   receiver        User? @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
   joinRequests    RivalJoinRequest[]
+  matchComments   MatchComment[]
+}
+
+model MatchComment {
+  id        String   @id @default(uuid())
+  rivalId   String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  rival     ActivityRequest @relation(fields: [rivalId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model RivalJoinRequest {
