@@ -938,9 +938,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
 
     return (
         <View style={[s.card, { borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
-            {/* Header: tappable info area opens comments modal */}
-            <TouchableOpacity activeOpacity={0.75} onPress={() => onOpenComments?.(match)} style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
-                <View style={{ flex:1 }}>
+            {/* Header: left=tappable info, right=small action buttons */}
+            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:8 }}>
+                {/* Left: tappable — opens comments modal */}
+                <TouchableOpacity style={{ flex:1 }} activeOpacity={0.75} onPress={() => onOpenComments?.(match)}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                         {allPlayers.map((p, idx) => (
                             <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
@@ -965,7 +966,21 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                         {match.duration  ? ` · ${match.duration} dk` : ''}
                     </Text>
                     {match.courtName && (
-                        <Text style={[s.cardSub, { color:'#60a5fa' }]}>🏟️ {match.courtName}</Text>
+                        <TouchableOpacity onPress={() => {
+                            if (match.courtLat && match.courtLng) {
+                                const url = Platform.OS === 'ios'
+                                    ? `maps://?ll=${match.courtLat},${match.courtLng}&q=${encodeURIComponent(match.courtName)}`
+                                    : `geo:${match.courtLat},${match.courtLng}?q=${encodeURIComponent(match.courtName)}`;
+                                Linking.openURL(url).catch(() => {
+                                    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${match.courtLat},${match.courtLng}`);
+                                });
+                            } else if (match.courtAddress || match.courtName) {
+                                const q = encodeURIComponent(match.courtAddress || match.courtName);
+                                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`);
+                            }
+                        }}>
+                            <Text style={[s.cardSub, { color:'#60a5fa', textDecorationLine:'underline' }]}>🏟️ {match.courtName}</Text>
+                        </TouchableOpacity>
                     )}
                     {match.level && (
                         <View style={{ flexDirection:'row', marginTop:4 }}>
@@ -977,13 +992,45 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                         </View>
                     )}
                     <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>💬 {t.matchCommentsBtn}</Text>
+                </TouchableOpacity>
+
+                {/* Right: small stacked action buttons */}
+                <View style={{ gap:5, alignItems:'flex-end' }}>
+                    {!hasScore && scoreUnlocked && (
+                        <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
+                            <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
+                        </TouchableOpacity>
+                    )}
+                    {match.scoreStatus !== 'CONFIRMED' && (
+                        <>
+                            {withinPenaltyWindow && (
+                                !iAlreadyRequestedMutual ? (
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#2563eb40', backgroundColor:'#2563eb18' }}
+                                        onPress={doMutualCancel}
+                                        disabled={cancelling}
+                                    >
+                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>🤝 Karşılıklı</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <View style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#2563eb30', backgroundColor:'#2563eb10' }}>
+                                        <Text style={{ color:'#60a5fa', fontSize:10 }}>⏳ İstendi</Text>
+                                    </View>
+                                )
+                            )}
+                            <TouchableOpacity
+                                style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262618' }}
+                                onPress={handleCancelPress}
+                                disabled={cancelling}
+                            >
+                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>
+                                    ✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}
+                                </Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </View>
-                {!hasScore && scoreUnlocked && (
-                    <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
-                        <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
-                    </TouchableOpacity>
-                )}
-            </TouchableOpacity>
+            </View>
 
             {/* Existing score display */}
             {hasScore && (
@@ -1091,35 +1138,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                 </View>
             )}
 
-            {/* Cancel buttons — always visible on card */}
-            {match.scoreStatus !== 'CONFIRMED' && (
-                <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
-                    {/* Mutual cancel — only within 5h penalty window */}
-                    {withinPenaltyWindow && (
-                        !iAlreadyRequestedMutual ? (
-                            <TouchableOpacity
-                                style={[s.msgBtn, { flex:1 }, cancelling && { opacity:0.6 }]}
-                                onPress={doMutualCancel}
-                                disabled={cancelling}
-                            >
-                                <Text style={s.msgBtnText}>🤝 {t.mutualCancelBtn}</Text>
-                            </TouchableOpacity>
-                        ) : (
-                            <View style={[s.waitingBox, { flex:1, backgroundColor:'#2563eb15', borderColor:'#2563eb40' }]}>
-                                <Text style={[s.waitingText, { color:'#60a5fa', fontSize:11 }]}>⏳ Karşılıklı iptal istendi</Text>
-                            </View>
-                        )
-                    )}
-                    {/* Solo cancel */}
-                    <TouchableOpacity
-                        style={[s.cancelBtn, { flex:1 }, cancelling && { opacity:0.6 }]}
-                        onPress={handleCancelPress}
-                        disabled={cancelling}
-                    >
-                        <Text style={s.cancelBtnText}>{t.cancelMatchBtn}{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
 
             {/* Opponent requested mutual cancel — banner (only relevant within penalty window) */}
             {withinPenaltyWindow && otherRequestedMutual && !iAlreadyRequestedMutual && (
