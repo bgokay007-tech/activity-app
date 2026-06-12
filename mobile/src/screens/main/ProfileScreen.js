@@ -725,23 +725,6 @@ export default function ProfileScreen({ route, navigation }) {
                         <StatCard emoji="🏃" label={t.activitiesLabel}  count={interests.length} onAdd={isOwnProfile ? () => setManageOpen(true) : null} />
                     </View>
 
-                    {/* Match stats */}
-                    {(wins > 0 || losses > 0) && (
-                        <View style={s.matchStats}>
-                            <View style={s.matchStatItem}>
-                                <Text style={[s.matchStatVal, { color:'#4ade80' }]}>{wins}</Text>
-                                <Text style={s.matchStatLbl}>{t.wins}</Text>
-                            </View>
-                            <View style={s.matchStatItem}>
-                                <Text style={[s.matchStatVal, { color:'#f87171' }]}>{losses}</Text>
-                                <Text style={s.matchStatLbl}>{t.losses}</Text>
-                            </View>
-                            <View style={s.matchStatItem}>
-                                <Text style={[s.matchStatVal, { color:'#c084fc' }]}>{wins + losses}</Text>
-                                <Text style={s.matchStatLbl}>{t.total}</Text>
-                            </View>
-                        </View>
-                    )}
 
                     {/* Action buttons */}
                     {!isOwnProfile && (
