@@ -927,6 +927,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
         finally { setCancelling(false); }
     };
 
+    const handleMutualCancelPress = (isConfirming) => {
+        const msg = isConfirming
+            ? t.mutualCancelConfirmOther
+            : t.mutualCancelConfirmSelf;
+        Alert.alert('🤝 Karşılıklı İptal', msg, [
+            { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+            { text: t.confirmBtn || 'Onayla', onPress: doMutualCancel },
+        ]);
+    };
+
     // Parse existing score
     const existingSets = Array.isArray(match.score?.sets) ? match.score.sets : null;
     const existingWinner = match.score?.winner;
@@ -1007,7 +1017,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                                 !iAlreadyRequestedMutual ? (
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#2563eb40', backgroundColor:'#2563eb18' }}
-                                        onPress={doMutualCancel}
+                                        onPress={() => handleMutualCancelPress(false)}
                                         disabled={cancelling}
                                     >
                                         <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>🤝 Karşılıklı</Text>
@@ -1143,7 +1153,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
             {withinPenaltyWindow && otherRequestedMutual && !iAlreadyRequestedMutual && (
                 <TouchableOpacity
                     style={{ backgroundColor:'#eab30820', borderRadius:10, padding:10, marginTop:6, borderWidth:1, borderColor:'#eab30840' }}
-                    onPress={doMutualCancel}
+                    onPress={() => handleMutualCancelPress(true)}
                 >
                     <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.mutualCancelOtherRequested}</Text>
                 </TouchableOpacity>
