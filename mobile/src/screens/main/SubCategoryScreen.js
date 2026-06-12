@@ -1035,6 +1035,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                             <Text style={[s.cardSub, { color:'#60a5fa', textDecorationLine:'underline' }]}>🏟️ {match.courtName}</Text>
                         </TouchableOpacity>
                     )}
+                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>💬 {t.matchCommentsBtn}</Text>
                     {match.level && (
                         <View style={{ flexDirection:'row', marginTop:4 }}>
                             <View style={[s.modeBadge, { backgroundColor:'#ffffff10', borderColor:'#ffffff20' }]}>
@@ -1044,7 +1045,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                             </View>
                         </View>
                     )}
-                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>💬 {t.matchCommentsBtn}</Text>
                 </TouchableOpacity>
 
                 {/* Right: small stacked action buttons */}
