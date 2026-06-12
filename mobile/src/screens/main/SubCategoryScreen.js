@@ -369,10 +369,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {/* Gönderen */}
                     <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:item.message ? 8 : 12, paddingBottom:12, borderBottomWidth:1, borderBottomColor: colors.border }}>
                         <Avatar name={item.sender?.username} size={34} color={cfg.color} />
-                        <View style={{ flex:1 }}>
+                        <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
                             <Text style={s.cardName}>@{item.sender?.username}</Text>
                             {item.sender?.interests?.[0]?.skillRating > 0 && (
-                                <Text style={[s.ratingText, { color:cfg.color }]}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
+                                <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
                             )}
                         </View>
                         <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40' }]}>
