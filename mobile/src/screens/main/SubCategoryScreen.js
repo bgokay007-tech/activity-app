@@ -1795,7 +1795,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         try {
             const res = await api.get(`/rivals/${match.id}/comments`);
             setComments(res.data || []);
-        } catch(e) { /* silent */ }
+        } catch(e) {
+            Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorumlar yüklenemedi');
+        }
         finally { setLoadingComments(false); }
     }, []);
 
@@ -1806,7 +1808,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             const res = await api.post(`/rivals/${commentMatch.id}/comments`, { content: commentText.trim() });
             setComments(p => [...p, res.data]);
             setCommentText('');
-        } catch(e) { /* silent */ }
+        } catch(e) {
+            Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum gönderilemedi');
+        }
         finally { setSendingComment(false); }
     }, [commentText, commentMatch]);
 
@@ -1814,7 +1818,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         try {
             await api.delete(`/rivals/comments/${commentId}`);
             setComments(p => p.filter(c => c.id !== commentId));
-        } catch(e) { /* silent */ }
+        } catch(e) {
+            Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum silinemedi');
+        }
     }, []);
 
     const load = useCallback(async () => {
