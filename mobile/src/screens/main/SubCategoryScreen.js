@@ -598,6 +598,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                             <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
                                 💬 Yorumlar {item.commentCount ?? 0}
                             </Text>
+                            <Text style={{ fontSize:11, marginTop:2, color: item.isCourtReserved ? '#4ade80' : '#f87171' }}>
+                                {item.isCourtReserved ? `✅ ${t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
+                            </Text>
                         </View>
                         {!item.flexibleSchedule && (
                             <View style={{ gap:2 }}>
