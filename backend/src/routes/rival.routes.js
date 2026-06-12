@@ -5,7 +5,7 @@ import {
     getUpcomingMatches, getMyRequests,
     cancelRequest, enterScore, confirmScore, disputeScore, reportDispute,
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
-    extendScoreDeadline, getCountsBySubCategory,
+    extendScoreDeadline, getCountsBySubCategory, abandonMatch,
 } from '../controllers/rival.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -27,5 +27,6 @@ router.patch('/:id/dispute-score',   authenticate, disputeScore);
 router.post('/:id/report-dispute',   authenticate, reportDispute);
 router.patch('/:id/archive',         authenticate, archiveMatch);
 router.patch('/:id/extend-score',    authenticate, extendScoreDeadline);
+router.patch('/:id/abandon',         authenticate, abandonMatch);
 
 export default router;

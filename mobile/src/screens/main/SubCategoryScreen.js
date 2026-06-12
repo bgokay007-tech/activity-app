@@ -740,6 +740,13 @@ const sc = StyleSheet.create({
     addBtnTxt:    { color: colors.purple, fontSize:13, fontWeight:'700' },
     removeBtn:    { padding:6, marginLeft:2 },
     removeTxt:    { color: colors.textMuted, fontSize:13 },
+    radioRow:     { flexDirection:'row', alignItems:'center', gap:10, padding:12, borderRadius:12, borderWidth:1, borderColor: colors.border, marginBottom:8 },
+    radioActive:  { borderColor: colors.purple },
+    radio:        { width:18, height:18, borderRadius:9, borderWidth:2, borderColor: colors.border },
+    radioChecked: { borderColor: colors.purple, backgroundColor: colors.purple },
+    radioLabel:   { color:'#fff', fontSize:14, fontWeight:'700', flex:1 },
+    warningText:  { color:'#facc15', fontSize:12, fontWeight:'600', backgroundColor:'#facc1510', borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor:'#facc1540' },
+    lockedTxt:    { color: colors.textMuted, fontSize:11, textAlign:'center', marginTop:6 },
 });
 
 function UpcomingCard({ match, myId, onRefresh, isMatched }) {
@@ -747,9 +754,28 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     const [showScore, setShowScore] = useState(false);
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
     const [submitting, setSubmitting] = useState(false);
+    const [showCantScore, setShowCantScore] = useState(false);
+    const [abandonReason, setAbandonReason] = useState(null);
+    const [abandoning, setAbandoning] = useState(false);
+    const [abanDate, setAbanDate] = useState(null);
+    const [abanTime, setAbanTime] = useState('');
+    const [abanLoc, setAbanLoc] = useState('');
+    const [abanSets, setAbanSets] = useState([{ my: '', opp: '' }]);
+    const [showAbanDatePicker, setShowAbanDatePicker] = useState(false);
+    const [showAbanTimePicker, setShowAbanTimePicker] = useState(false);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
+
+    const getMatchEnd = (m) => {
+        if (!m.matchDate || !m.matchTime) return null;
+        const [h, min] = m.matchTime.split(':').map(Number);
+        const d = new Date(m.matchDate);
+        d.setHours(h, min, 0, 0);
+        return new Date(d.getTime() + (m.duration || 90) * 60 * 1000);
+    };
+    const matchEnd = getMatchEnd(match);
+    const scoreUnlocked = matchEnd ? new Date() >= matchEnd : false;
 
     const addSet    = () => setSets(p => [...p, { my: '', opp: '' }]);
     const removeSet = (i) => { if (sets.length > 1) setSets(p => p.filter((_, idx) => idx !== i)); };
@@ -790,6 +816,31 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
             Alert.alert('', t.scoreConfirmed);
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.confirmFailed); }
+    };
+
+    const submitAbandon = async () => {
+        setAbandoning(true);
+        try {
+            const body = { reason: abandonReason };
+            if (abandonReason === 'abandoned') {
+                if (abanDate) body.newDate = `${abanDate.getFullYear()}-${String(abanDate.getMonth()+1).padStart(2,'0')}-${String(abanDate.getDate()).padStart(2,'0')}`;
+                if (abanTime) body.newTime = abanTime;
+                if (abanLoc.trim()) body.newLocation = abanLoc.trim();
+                const validSets = abanSets.filter(r => r.my !== '' || r.opp !== '');
+                if (validSets.length > 0) {
+                    body.partialSets = validSets.map(r => ({
+                        sender:   isOwner ? (parseInt(r.my)||0) : (parseInt(r.opp)||0),
+                        opponent: isOwner ? (parseInt(r.opp)||0) : (parseInt(r.my)||0),
+                    }));
+                }
+            }
+            await api.patch(`/rivals/${match.id}/abandon`, body);
+            Alert.alert('', abandonReason === 'other' ? t.otherSuccess : t.abandonSuccess);
+            setShowCantScore(false);
+            setAbandonReason(null);
+            onRefresh();
+        } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.abandonFailed); }
+        finally { setAbandoning(false); }
     };
 
     // Parse existing score
@@ -833,7 +884,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                         </View>
                     )}
                 </View>
-                {!hasScore && (
+                {!hasScore && scoreUnlocked && (
                     <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
                         <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
                     </TouchableOpacity>
@@ -945,6 +996,95 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
                     </TouchableOpacity>
                 </View>
             )}
+
+            {/* Lock message / Skor Giremiyoruz button */}
+            {!hasScore && !scoreUnlocked && matchEnd && (
+                <Text style={sc.lockedTxt}>{t.matchNotStarted}</Text>
+            )}
+            {!hasScore && scoreUnlocked && (
+                <TouchableOpacity
+                    style={[s.cancelBtn, { marginTop:6 }]}
+                    onPress={() => setShowCantScore(true)}
+                >
+                    <Text style={s.cancelBtnText}>{t.cantScoreBtn}</Text>
+                </TouchableOpacity>
+            )}
+
+            {/* Skor Giremiyoruz Modal */}
+            <Modal visible={showCantScore} animationType="slide" transparent onRequestClose={() => { setShowCantScore(false); setAbandonReason(null); }}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { paddingBottom:40 }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>{t.cantScoreTitle}</Text>
+                            <TouchableOpacity onPress={() => { setShowCantScore(false); setAbandonReason(null); }}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <TouchableOpacity style={[sc.radioRow, abandonReason === 'abandoned' && sc.radioActive]} onPress={() => setAbandonReason('abandoned')}>
+                                <View style={[sc.radio, abandonReason === 'abandoned' && sc.radioChecked]} />
+                                <Text style={sc.radioLabel}>{t.matchAbandoned}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[sc.radioRow, abandonReason === 'other' && sc.radioActive]} onPress={() => setAbandonReason('other')}>
+                                <View style={[sc.radio, abandonReason === 'other' && sc.radioChecked]} />
+                                <Text style={sc.radioLabel}>{t.otherReasons}</Text>
+                            </TouchableOpacity>
+
+                            {abandonReason === 'other' && (
+                                <Text style={sc.warningText}>{t.otherReasonsWarning}</Text>
+                            )}
+
+                            {abandonReason === 'abandoned' && (
+                                <>
+                                    <Text style={[s.fieldLabel, { marginTop:12 }]}>{t.newDate}</Text>
+                                    <TouchableOpacity style={[s.fieldInput, { justifyContent:'center' }]} onPress={() => setShowAbanDatePicker(true)}>
+                                        <Text style={{ color: abanDate ? '#fff' : colors.textMuted }}>
+                                            {abanDate ? `${String(abanDate.getDate()).padStart(2,'0')}/${String(abanDate.getMonth()+1).padStart(2,'0')}/${abanDate.getFullYear()}` : '—'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <CustomCalendarPicker visible={showAbanDatePicker} value={abanDate} onSelect={(d) => { setAbanDate(d); setShowAbanDatePicker(false); }} onClose={() => setShowAbanDatePicker(false)} />
+
+                                    <Text style={s.fieldLabel}>{t.newTime}</Text>
+                                    <TouchableOpacity style={[s.fieldInput, { justifyContent:'center' }]} onPress={() => setShowAbanTimePicker(true)}>
+                                        <Text style={{ color: abanTime ? '#fff' : colors.textMuted }}>{abanTime || '—'}</Text>
+                                    </TouchableOpacity>
+                                    <OptionPickerModal visible={showAbanTimePicker} title={t.selectTime} options={TIME_OPTS.filter(o => o.value)} value={abanTime} onSelect={setAbanTime} onClose={() => setShowAbanTimePicker(false)} />
+
+                                    <Text style={s.fieldLabel}>{t.newLocation}</Text>
+                                    <TextInput style={s.fieldInput} value={abanLoc} onChangeText={setAbanLoc} placeholder="İstanbul / Kadıköy" placeholderTextColor={colors.textMuted} />
+
+                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.currentScore}</Text>
+                                    {abanSets.map((row, i) => (
+                                        <View key={i} style={sc.setInputRow}>
+                                            <TextInput style={sc.setInput} value={row.my} onChangeText={v => setAbanSets(p => p.map((r, idx) => idx === i ? { ...r, my: v } : r))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
+                                            <Text style={sc.colLabel}>Set {i + 1}</Text>
+                                            <TextInput style={sc.setInput} value={row.opp} onChangeText={v => setAbanSets(p => p.map((r, idx) => idx === i ? { ...r, opp: v } : r))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
+                                            {abanSets.length > 1 && (
+                                                <TouchableOpacity style={sc.removeBtn} onPress={() => setAbanSets(p => p.filter((_, idx) => idx !== i))}>
+                                                    <Text style={sc.removeTxt}>✕</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    ))}
+                                    <TouchableOpacity style={sc.addBtn} onPress={() => setAbanSets(p => [...p, { my: '', opp: '' }])}>
+                                        <Text style={sc.addBtnTxt}>+ {t.addSet}</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
+
+                            {abandonReason && (
+                                <TouchableOpacity
+                                    style={[s.joinBtn, { marginTop:12 }, abandoning && { opacity:0.6 }]}
+                                    onPress={submitAbandon}
+                                    disabled={abandoning}
+                                >
+                                    <Text style={s.joinBtnText}>{abandoning ? t.sending : abandonReason === 'other' ? t.saveDraw : t.reschedule}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }

@@ -409,6 +409,14 @@ export const respondToJoin = async (req, res, next) => {
 // Kept for backward compat — now just an alias for sendJoinRequest
 export const respondToRival = sendJoinRequest;
 
+const getMatchDeadline = (match) => {
+    if (!match.matchDate || !match.matchTime) return null;
+    const [h, m] = match.matchTime.split(':').map(Number);
+    const d = new Date(match.matchDate);
+    d.setHours(h, m, 0, 0);
+    return new Date(d.getTime() + ((match.duration || 90) + 24 * 60) * 60 * 1000);
+};
+
 export const getUpcomingMatches = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
@@ -423,10 +431,63 @@ export const getUpcomingMatches = async (req, res, next) => {
             orderBy: { matchDate: 'asc' },
         });
 
-        res.json(matches);
+        // Auto-void: delete unscored matches whose 24h window has passed
+        const now = new Date();
+        const expired = matches.filter(m => {
+            const dl = getMatchDeadline(m);
+            return dl && now > dl && !m.score;
+        });
+        if (expired.length > 0) {
+            await prisma.activityRequest.deleteMany({ where: { id: { in: expired.map(m => m.id) } } });
+        }
+
+        res.json(matches.filter(m => !expired.find(e => e.id === m.id)));
     } catch (error) {
         next(error);
     }
+};
+
+export const abandonMatch = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { reason, newDate, newTime, newLocation, partialSets } = req.body;
+
+        const request = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!request) return res.status(404).json({ message: 'Not found' });
+
+        const parts = Array.isArray(request.participants) ? request.participants : [];
+        const isInvolved = request.senderId === req.userId || parts.some(p => p.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+
+        if (reason === 'other') {
+            await prisma.activityRequest.update({
+                where: { id },
+                data: {
+                    score: { sets: [], winner: 'draw' },
+                    status: 'COMPLETED',
+                    scoreStatus: 'CONFIRMED',
+                    scoreEnteredBy: req.userId,
+                    completedAt: new Date(),
+                    archived: true,
+                },
+            });
+            return res.json({ message: 'Maç berabere sayıldı.' });
+        }
+
+        // reason === 'abandoned' → reschedule + optional partial score
+        await prisma.activityRequest.update({
+            where: { id },
+            data: {
+                ...(newDate     && { matchDate: new Date(newDate) }),
+                ...(newTime     && { matchTime: newTime }),
+                ...(newLocation && { location: newLocation }),
+                ...(Array.isArray(partialSets) && partialSets.length > 0 && {
+                    score: { sets: partialSets, winner: null, partial: true },
+                }),
+            },
+        });
+        res.json({ message: 'Maç yeniden planlandı.' });
+    } catch (error) { next(error); }
 };
 
 export const enterScore = async (req, res, next) => {
