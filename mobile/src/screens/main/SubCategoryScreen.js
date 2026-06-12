@@ -720,24 +720,65 @@ function TextPostCard({ post, cfg, onRefresh }) {
 
 // ─── Upcoming Match Card ────────────────────────────────────────────────────────
 
+const sc = StyleSheet.create({
+    box:          { backgroundColor: colors.surface2, borderRadius:12, padding:12, marginTop:8, borderWidth:1, borderColor: colors.border },
+    headerRow:    { flexDirection:'row', alignItems:'center', marginBottom:6 },
+    colMe:        { flex:1, color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
+    colLabel:     { width:64, color: colors.textMuted, fontSize:11, fontWeight:'700', textAlign:'center' },
+    colOpp:       { flex:1, color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
+    setRow:       { flexDirection:'row', alignItems:'center', paddingVertical:5 },
+    setScore:     { flex:1, fontSize:22, fontWeight:'900', textAlign:'center' },
+    setInputRow:  { flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 },
+    setInput:     { flex:1, backgroundColor:'#ffffff0d', borderRadius:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:22, fontWeight:'900', textAlign:'center', paddingVertical:10 },
+    divider:      { height:1, backgroundColor: colors.border, marginVertical:6 },
+    totalRow:     { flexDirection:'row', alignItems:'center', paddingVertical:4 },
+    totalScore:   { flex:1, fontSize:18, fontWeight:'900', color:'#fff', textAlign:'center' },
+    totalLabel:   { width:64, color: colors.textMuted, fontSize:11, fontWeight:'800', textAlign:'center' },
+    winnerRow:    { alignItems:'center', paddingTop:6 },
+    winnerText:   { fontSize:13, fontWeight:'800' },
+    addBtn:       { flexDirection:'row', justifyContent:'center', alignItems:'center', paddingVertical:8, borderRadius:8, borderWidth:1, borderColor: colors.border, borderStyle:'dashed', marginBottom:4 },
+    addBtnTxt:    { color: colors.purple, fontSize:13, fontWeight:'700' },
+    removeBtn:    { padding:6, marginLeft:2 },
+    removeTxt:    { color: colors.textMuted, fontSize:13 },
+});
+
 function UpcomingCard({ match, myId, onRefresh, isMatched }) {
     const t = useT();
     const [showScore, setShowScore] = useState(false);
-    const [myScore, setMyScore] = useState('');
-    const [oppScore, setOppScore] = useState('');
+    const [sets, setSets] = useState([{ my: '', opp: '' }]);
     const [submitting, setSubmitting] = useState(false);
     const isOwner = match.senderId === myId;
+    const cfg = getConfig(match.subCategory);
+    const opponent = isOwner ? match.participants?.[0] : match.sender;
+
+    const addSet    = () => setSets(p => [...p, { my: '', opp: '' }]);
+    const removeSet = (i) => { if (sets.length > 1) setSets(p => p.filter((_, idx) => idx !== i)); };
+    const updateSet = (i, field, val) => setSets(p => p.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
+
+    const totalMy  = sets.reduce((s, r) => s + (parseInt(r.my)  || 0), 0);
+    const totalOpp = sets.reduce((s, r) => s + (parseInt(r.opp) || 0), 0);
+    const mySetWins  = sets.filter(r => parseInt(r.my)  > parseInt(r.opp)).length;
+    const oppSetWins = sets.filter(r => parseInt(r.opp) > parseInt(r.my)).length;
+    const hasAnyInput = sets.some(r => r.my !== '' || r.opp !== '');
+    const autoWinner = mySetWins === oppSetWins && totalMy === totalOpp
+        ? 'draw'
+        : (mySetWins > oppSetWins || (mySetWins === oppSetWins && totalMy > totalOpp))
+            ? (isOwner ? 'sender' : 'opponent')
+            : (isOwner ? 'opponent' : 'sender');
+    const iWin = autoWinner === (isOwner ? 'sender' : 'opponent');
 
     const submitScore = async () => {
-        if (myScore === '' || oppScore === '') { Alert.alert('', t.missingScore); return; }
+        if (!hasAnyInput) { Alert.alert('', t.missingScore); return; }
         setSubmitting(true);
         try {
-            const score = isOwner
-                ? { senderScore: parseInt(myScore), opponentScore: parseInt(oppScore) }
-                : { senderScore: parseInt(oppScore), opponentScore: parseInt(myScore) };
-            await api.post(`/rivals/${match.id}/score`, score);
+            const apiSets = sets.map(r => ({
+                sender:   isOwner ? (parseInt(r.my) || 0) : (parseInt(r.opp) || 0),
+                opponent: isOwner ? (parseInt(r.opp) || 0) : (parseInt(r.my) || 0),
+            }));
+            await api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: autoWinner });
             Alert.alert('', t.scoreSent);
             setShowScore(false);
+            setSets([{ my: '', opp: '' }]);
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.sendFailed); }
         finally { setSubmitting(false); }
@@ -745,57 +786,159 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
 
     const confirmScore = async () => {
         try {
-            await api.post(`/rivals/${match.id}/confirm-score`, {});
+            await api.patch(`/rivals/${match.id}/confirm-score`, {});
             Alert.alert('', t.scoreConfirmed);
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.confirmFailed); }
     };
 
-    const opponent = isOwner
-        ? match.participants?.[0]
-        : match.sender;
+    // Parse existing score
+    const existingSets = Array.isArray(match.score?.sets) ? match.score.sets : null;
+    const existingWinner = match.score?.winner;
+    const hasScore = !!existingSets;
+    const dispMyTotal  = hasScore ? existingSets.reduce((s, r) => s + (isOwner ? r.sender : r.opponent), 0) : 0;
+    const dispOppTotal = hasScore ? existingSets.reduce((s, r) => s + (isOwner ? r.opponent : r.sender), 0) : 0;
+    const dispIWin = existingWinner === (isOwner ? 'sender' : 'opponent');
+    const dispDraw = existingWinner === 'draw';
 
     return (
-        <View style={[s.card, isMatched ? { borderColor:'#16a34a60', backgroundColor:'#16a34a08' } : { borderColor:'#a855f740' }]}>
-            <View style={s.cardHeader}>
-                <Avatar name={isOwner ? match.sender?.username : opponent?.username} size={38} />
+        <View style={[s.card, { borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
+            {/* Header: opponent info + match details */}
+            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
+                <Avatar name={opponent?.username} size={42} color={cfg.color} />
                 <View style={{ flex:1 }}>
-                    <Text style={s.cardName}>{opponent?.fullName || opponent?.username || 'Rakip'}</Text>
+                    <Text style={s.cardName}>vs @{opponent?.username || 'Rakip'}</Text>
                     <Text style={s.cardSub}>
-                        {match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'}) : t.unknownDate}
+                        {match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
                         {match.matchTime ? ` · ${match.matchTime}` : ''}
+                        {match.duration  ? ` · ${match.duration} dk` : ''}
                     </Text>
-                </View>
-                {match.senderScore != null ? (
-                    <View style={{ alignItems:'center' }}>
-                        <Text style={s.scoreText}>
-                            {isOwner ? match.senderScore : match.opponentScore} - {isOwner ? match.opponentScore : match.senderScore}
-                        </Text>
-                        {match.scoreConfirmed ? (
-                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>{t.confirmedScore}</Text>
-                        ) : !isOwner && (
-                            <TouchableOpacity style={s.confirmBtn} onPress={confirmScore}>
-                                <Text style={s.confirmBtnText}>{t.confirmScoreBtn}</Text>
-                            </TouchableOpacity>
+                    {match.courtName && (
+                        <Text style={[s.cardSub, { color:'#60a5fa' }]}>🏟️ {match.courtName}</Text>
+                    )}
+                    <View style={{ flexDirection:'row', gap:5, marginTop:4, flexWrap:'wrap' }}>
+                        <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
+                            <Text style={[s.modeBadgeText, { color: cfg.color }]}>
+                                {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
+                            </Text>
+                        </View>
+                        {match.level && (
+                            <View style={[s.modeBadge, { backgroundColor:'#ffffff10', borderColor:'#ffffff20' }]}>
+                                <Text style={[s.modeBadgeText, { color: colors.textSecondary }]}>
+                                    {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
+                                </Text>
+                            </View>
                         )}
                     </View>
-                ) : (
-                    <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v=>!v)}>
-                        <Text style={s.scoreBtnText}>{t.enterScore}</Text>
+                </View>
+                {!hasScore && (
+                    <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
+                        <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
                     </TouchableOpacity>
                 )}
             </View>
 
-            {showScore && (
-                <View style={s.scoreForm}>
-                    <View style={s.scoreInputRow}>
-                        <TextInput style={s.scoreInput} value={myScore} onChangeText={setMyScore}
-                            keyboardType="numeric" placeholder={t.myScorePh} placeholderTextColor={colors.textMuted} maxLength={2} />
-                        <Text style={{ color:colors.textSecondary, fontSize:16, fontWeight:'900' }}> - </Text>
-                        <TextInput style={s.scoreInput} value={oppScore} onChangeText={setOppScore}
-                            keyboardType="numeric" placeholder={t.oppScorePh} placeholderTextColor={colors.textMuted} maxLength={2} />
+            {/* Existing score display */}
+            {hasScore && (
+                <View style={sc.box}>
+                    <View style={sc.headerRow}>
+                        <Text style={sc.colMe}>Sen</Text>
+                        <Text style={sc.colLabel}></Text>
+                        <Text style={sc.colOpp}>Rakip</Text>
                     </View>
-                    <TouchableOpacity style={[s.joinBtn, { marginTop:8 }, submitting && { opacity:0.6 }]} onPress={submitScore} disabled={submitting}>
+                    {existingSets.map((row, i) => {
+                        const mySc  = isOwner ? row.sender : row.opponent;
+                        const oppSc = isOwner ? row.opponent : row.sender;
+                        return (
+                            <View key={i} style={sc.setRow}>
+                                <Text style={[sc.setScore, { color: mySc > oppSc ? '#4ade80' : mySc < oppSc ? '#f87171' : '#fff' }]}>{mySc}</Text>
+                                <Text style={sc.colLabel}>Set {i + 1}</Text>
+                                <Text style={[sc.setScore, { color: oppSc > mySc ? '#4ade80' : oppSc < mySc ? '#f87171' : '#fff' }]}>{oppSc}</Text>
+                            </View>
+                        );
+                    })}
+                    <View style={sc.divider} />
+                    <View style={sc.totalRow}>
+                        <Text style={sc.totalScore}>{dispMyTotal}</Text>
+                        <Text style={sc.totalLabel}>{t.totalScore}</Text>
+                        <Text style={sc.totalScore}>{dispOppTotal}</Text>
+                    </View>
+                    <View style={sc.winnerRow}>
+                        <Text style={[sc.winnerText, { color: dispDraw ? '#facc15' : dispIWin ? '#4ade80' : '#f87171' }]}>
+                            {dispDraw ? t.drawResult : dispIWin ? t.winnerMe : t.winnerOpp}
+                        </Text>
+                    </View>
+                    {match.scoreStatus === 'CONFIRMED' ? (
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', textAlign:'center', marginTop:8 }}>{t.confirmedScore}</Text>
+                    ) : match.scoreEnteredBy !== myId ? (
+                        <TouchableOpacity style={[s.joinBtn, { marginTop:8 }]} onPress={confirmScore}>
+                            <Text style={s.joinBtnText}>{t.confirmScoreBtn}</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <Text style={{ color: colors.textMuted, fontSize:11, textAlign:'center', marginTop:8 }}>{t.waitingConfirm}</Text>
+                    )}
+                </View>
+            )}
+
+            {/* Score entry form */}
+            {showScore && !hasScore && (
+                <View style={sc.box}>
+                    <View style={sc.headerRow}>
+                        <Text style={sc.colMe}>Sen</Text>
+                        <Text style={sc.colLabel}></Text>
+                        <Text style={sc.colOpp}>Rakip</Text>
+                    </View>
+                    {sets.map((row, i) => (
+                        <View key={i} style={sc.setInputRow}>
+                            <TextInput
+                                style={sc.setInput}
+                                value={row.my}
+                                onChangeText={v => updateSet(i, 'my', v)}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor={colors.textMuted}
+                                maxLength={2}
+                            />
+                            <Text style={sc.colLabel}>Set {i + 1}</Text>
+                            <TextInput
+                                style={sc.setInput}
+                                value={row.opp}
+                                onChangeText={v => updateSet(i, 'opp', v)}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor={colors.textMuted}
+                                maxLength={2}
+                            />
+                            {sets.length > 1 && (
+                                <TouchableOpacity style={sc.removeBtn} onPress={() => removeSet(i)}>
+                                    <Text style={sc.removeTxt}>✕</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    ))}
+                    <TouchableOpacity style={sc.addBtn} onPress={addSet}>
+                        <Text style={sc.addBtnTxt}>+ {t.addSet}</Text>
+                    </TouchableOpacity>
+                    {hasAnyInput && (
+                        <>
+                            <View style={sc.divider} />
+                            <View style={sc.totalRow}>
+                                <Text style={sc.totalScore}>{totalMy}</Text>
+                                <Text style={sc.totalLabel}>{t.totalScore}</Text>
+                                <Text style={sc.totalScore}>{totalOpp}</Text>
+                            </View>
+                            <View style={sc.winnerRow}>
+                                <Text style={[sc.winnerText, { color: autoWinner === 'draw' ? '#facc15' : iWin ? '#4ade80' : '#f87171' }]}>
+                                    {autoWinner === 'draw' ? t.drawResult : iWin ? t.winnerMe : t.winnerOpp}
+                                </Text>
+                            </View>
+                        </>
+                    )}
+                    <TouchableOpacity
+                        style={[s.joinBtn, { marginTop:10 }, submitting && { opacity:0.6 }]}
+                        onPress={submitScore}
+                        disabled={submitting}
+                    >
                         <Text style={s.joinBtnText}>{submitting ? t.sending : t.sendScore}</Text>
                     </TouchableOpacity>
                 </View>
