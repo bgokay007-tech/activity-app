@@ -2107,7 +2107,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Real-time updates via socket
     useEffect(() => {
         const offUpdate = onSocket('rivalUpdate', (updated) => {
-            if (updated.category !== category || updated.subCategory !== sub) return;
+            if (updated.category?.toUpperCase() !== category?.toUpperCase() || updated.subCategory !== sub) return;
             setRivals(prev => {
                 const exists = prev.some(r => r.id === updated.id);
                 if (updated.status === 'MATCHED' || updated.status === 'CANCELLED') {
@@ -2123,7 +2123,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 return [updated, ...prev];
             });
         });
-        const offDeleted = onSocket('rivalDeleted', ({ rivalId }) => {
+        const offDeleted = onSocket('rivalDeleted', ({ rivalId, subCategory }) => {
+            if (subCategory && subCategory !== sub) return;
             setRivals(prev => prev.filter(r => r.id !== rivalId));
             setPlayerWanted(prev => prev.filter(r => r.id !== rivalId));
         });

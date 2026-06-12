@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setCredentials } from '../store/slices/authSlice';
+import { setCredentials, setUser } from '../store/slices/authSlice';
 import { setLang } from '../store/slices/langSlice';
 import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform } from 'react-native';
@@ -198,9 +198,15 @@ export default function Navigation() {
         Promise.all([
             AsyncStorage.getItem('activity_token'),
             AsyncStorage.getItem('activity_lang'),
-        ]).then(([token, lang]) => {
-            if (token) dispatch(setCredentials({ token, user: null }));
+        ]).then(async ([token, lang]) => {
             if (lang) dispatch(setLang(lang));
+            if (token) {
+                dispatch(setCredentials({ token, user: null }));
+                try {
+                    const { data } = await api.get('/auth/me');
+                    dispatch(setUser(data));
+                } catch { /* token may be expired — user will be prompted to login */ }
+            }
         }).finally(() => setBootstrapping(false));
     }, []);
 
