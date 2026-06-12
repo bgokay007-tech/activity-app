@@ -260,7 +260,6 @@ export default function ProfileScreen({ route, navigation }) {
 
     const openMyUpcoming = async () => {
         setShowMyUpcoming(true);
-        if (myUpcoming.length > 0) return;
         setLoadingUpcoming(true);
         try {
             const res = await api.get('/rivals/my-upcoming');
@@ -291,12 +290,13 @@ export default function ProfileScreen({ route, navigation }) {
     useEffect(() => {
         const load = async () => {
             try {
-                const [profileRes, intRes, storiesRes, reelsRes, postsRes] = await Promise.all([
+                const [profileRes, intRes, storiesRes, reelsRes, postsRes, upcomingRes] = await Promise.all([
                     api.get(isOwnProfile ? '/auth/me' : `/users/${userId}`),
                     api.get(isOwnProfile ? '/interests/my' : `/interests/user/${userId}`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=STORY`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=REEL`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=POST`).catch(() => ({ data: [] })),
+                    isOwnProfile ? api.get('/rivals/my-upcoming').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                 ]);
                 setProfile(profileRes.data);
                 setInterests(intRes.data);
@@ -330,6 +330,7 @@ export default function ProfileScreen({ route, navigation }) {
                         birthDateExclude: p?.birthDateExclude || [],
                     });
                 }
+                if (isOwnProfile && Array.isArray(upcomingRes.data)) setMyUpcoming(upcomingRes.data);
                 if (isOwnProfile) dispatch(setUser(profileRes.data));
                 if (!isOwnProfile) setFriendStatus(profileRes.data?.friendStatus || 'NONE');
             } catch (e) { console.warn(e?.message); }
@@ -767,7 +768,9 @@ export default function ProfileScreen({ route, navigation }) {
                             style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:14, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:'#16a34a40' }}
                             onPress={openMyUpcoming}
                         >
-                            <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:13 }}>{t.myUpcomingBtn}</Text>
+                            <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:13 }}>
+                                {t.myUpcomingBtn}{myUpcoming.length > 0 ? ` (${myUpcoming.length})` : ''}
+                            </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={{ flex:1, backgroundColor:'#a855f720', borderRadius:14, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:'#a855f740' }}
@@ -839,18 +842,52 @@ export default function ProfileScreen({ route, navigation }) {
                                         { ...m.sender, skillRating: m.senderSkillRating },
                                         ...(Array.isArray(m.participants) ? m.participants : []),
                                     ].filter(Boolean);
-                                    const names = allP.map(p => p.skillRating != null ? `@${p.username} (${p.skillRating})` : `@${p.username}`).join(' · ');
+                                    const isTeam = m.matchMode === 'team';
+                                    const modeBadge = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                     return (
-                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
-                                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700', marginBottom:4 }}>
-                                                {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
+                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:14 }}>
+                                            {/* Sport + mode */}
+                                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+                                                <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'800' }}>
+                                                    {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
+                                                </Text>
+                                                <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
+                                                    <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{modeBadge}</Text>
+                                                </View>
+                                            </View>
+                                            {/* Players */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                                {allP.map(p => (
+                                                    <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
+                                                        {p.skillRating != null && p.skillRating > 0 && (
+                                                            <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                                                        )}
+                                                    </View>
+                                                ))}
+                                            </View>
+                                            {/* Date / Time / Location */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginBottom:6 }}>
+                                                {m.flexibleSchedule ? (
+                                                    <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 Esnek Program</Text>
+                                                ) : (
+                                                    <>
+                                                        {m.matchDate ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 {new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', weekday:'short' })}</Text> : null}
+                                                        {m.matchTime ? <Text style={{ color:colors.textMuted, fontSize:12 }}>🕐 {m.matchTime}</Text> : null}
+                                                    </>
+                                                )}
+                                                {m.location ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📍 {m.location}</Text> : null}
+                                            </View>
+                                            {/* Court reserved */}
+                                            <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize:12, marginBottom: m.message ? 4 : 0 }}>
+                                                {m.isCourtReserved ? '✅ Kort Rezerve Edildi' : '❌ Kort Rezerve Edilmedi'}
                                             </Text>
-                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'600', marginBottom:4 }}>{names}</Text>
-                                            <Text style={{ color:colors.textMuted, fontSize:12 }}>
-                                                {m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', weekday:'short' }) : ''}
-                                                {m.matchTime ? ` · ${m.matchTime}` : ''}
-                                                {m.location ? ` · ${m.location}` : ''}
-                                            </Text>
+                                            {/* Note */}
+                                            {m.message ? (
+                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontStyle:'italic', marginTop:2 }}>
+                                                    💬 {m.message}
+                                                </Text>
+                                            ) : null}
                                         </View>
                                     );
                                 })
@@ -881,25 +918,77 @@ export default function ProfileScreen({ route, navigation }) {
                                     const isOwner = m.senderId === myId2;
                                     const parts = Array.isArray(m.participants) ? m.participants : [];
                                     const allP = [m.sender, ...parts].filter(Boolean);
-                                    const names = allP.map(p => `@${p.username}`).join(' · ');
+                                    const snapshot = m.score?.ratingSnapshot || {};
                                     const sets = m.score?.sets;
                                     const winner = m.score?.winner;
                                     const myResult = winner === 'draw' ? '🤝' : winner === (isOwner ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
+                                    const isTeam = m.matchMode === 'team';
+                                    const modeBadge = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                     return (
-                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
-                                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-                                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>
+                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:14 }}>
+                                            {/* Sport + mode + result */}
+                                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                                                <Text style={{ color:'#c084fc', fontSize:14, fontWeight:'800' }}>
                                                     {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
                                                 </Text>
-                                                {myResult ? <Text style={{ fontSize:16 }}>{myResult}</Text> : null}
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
+                                                        <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{modeBadge}</Text>
+                                                    </View>
+                                                    {myResult ? <Text style={{ fontSize:18 }}>{myResult}</Text> : null}
+                                                </View>
                                             </View>
-                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'600', marginBottom:4 }}>{names}</Text>
+                                            {/* Players with historical rating */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                                {allP.map(p => {
+                                                    const hist = snapshot[p.id];
+                                                    const ratingBefore = hist?.skillRating_before;
+                                                    const pts = hist?.change ?? null;
+                                                    return (
+                                                        <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
+                                                            {ratingBefore != null && ratingBefore > 0 && (
+                                                                <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(ratingBefore).toFixed(2)} ★</Text>
+                                                            )}
+                                                            {pts != null && pts !== 0 && (
+                                                                <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>
+                                                                    {pts > 0 ? '+' : ''}{pts}p
+                                                                </Text>
+                                                            )}
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                            {/* Score sets */}
                                             {sets && (
-                                                <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:2 }}>
+                                                <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:6 }}>
                                                     {sets.map((s2, i) => `Set ${i+1}: ${isOwner ? s2.sender : s2.opponent} - ${isOwner ? s2.opponent : s2.sender}`).join('  ·  ')}
                                                 </Text>
                                             )}
-                                            <Text style={{ color:colors.textMuted, fontSize:11 }}>
+                                            {/* Date / Time / Location */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginBottom:6 }}>
+                                                {m.flexibleSchedule ? (
+                                                    <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 Esnek Program</Text>
+                                                ) : (
+                                                    <>
+                                                        {m.matchDate ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 {new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', weekday:'short' })}</Text> : null}
+                                                        {m.matchTime ? <Text style={{ color:colors.textMuted, fontSize:12 }}>🕐 {m.matchTime}</Text> : null}
+                                                    </>
+                                                )}
+                                                {m.location ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📍 {m.location}</Text> : null}
+                                            </View>
+                                            {/* Court reserved */}
+                                            <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize:12, marginBottom: m.message ? 4 : 0 }}>
+                                                {m.isCourtReserved ? '✅ Kort Rezerve Edildi' : '❌ Kort Rezerve Edilmedi'}
+                                            </Text>
+                                            {/* Note */}
+                                            {m.message ? (
+                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontStyle:'italic', marginTop:2 }}>
+                                                    💬 {m.message}
+                                                </Text>
+                                            ) : null}
+                                            {/* Completed date */}
+                                            <Text style={{ color:colors.textMuted, fontSize:10, marginTop:6 }}>
                                                 {m.completedAt ? new Date(m.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' }) : ''}
                                             </Text>
                                         </View>

@@ -898,6 +898,10 @@ export const archiveMatch = async (req, res, next) => {
         if (!request) return res.status(404).json({ message: 'Not found' });
         if (request.senderId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
 
+        if (!request.scoreStatus) {
+            await prisma.activityRequest.delete({ where: { id } });
+            return res.json({ deleted: true });
+        }
         await prisma.activityRequest.update({ where: { id }, data: { archived: true } });
         res.json({ message: 'Archived' });
     } catch (error) { next(error); }
@@ -937,6 +941,7 @@ export const getArchivedMatchesBySport = async (req, res, next) => {
                 ...(subCategory && { subCategory }),
                 status: 'COMPLETED',
                 archived: true,
+                scoreStatus: 'CONFIRMED',
             },
             include: { sender: { select: SENDER_SELECT } },
             orderBy: { completedAt: 'desc' },
@@ -1127,7 +1132,7 @@ export const getMyUpcomingMatches = async (req, res, next) => {
 export const getMyMatchHistory = async (req, res, next) => {
     try {
         const all = await prisma.activityRequest.findMany({
-            where: { status: 'COMPLETED' },
+            where: { status: 'COMPLETED', scoreStatus: 'CONFIRMED' },
             include: { sender: { select: SENDER_SELECT } },
             orderBy: { completedAt: 'desc' },
             take: 100,

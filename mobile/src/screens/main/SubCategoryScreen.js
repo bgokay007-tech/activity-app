@@ -1883,14 +1883,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
                                     </TouchableOpacity>
 
-                                    {/* Açıklama */}
-                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
-                                    <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
-                                        value={f.message} onChangeText={v => set('message', v)}
-                                        placeholder={t.messagePh}
-                                        placeholderTextColor={colors.textMuted} multiline />
                                 </>
                             )}
+
+                            {/* Açıklama */}
+                            <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
+                            <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
+                                value={f.message} onChangeText={v => set('message', v)}
+                                placeholder={t.messagePh}
+                                placeholderTextColor={colors.textMuted} multiline />
 
                             <TouchableOpacity style={[s.submitBtn, { backgroundColor: cfg.color }, submitting && { opacity:0.6 }]}
                                 onPress={submit} disabled={submitting}>
@@ -2016,6 +2017,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [archiveRivals, setArchiveRivals] = useState([]);
+    const [loadingArchive, setLoadingArchive] = useState(false);
+    const [pendingScore, setPendingScore] = useState([]);
 
     const [filterCity, setFilterCity] = useState('');
     const [filterDate, setFilterDate] = useState('all');
@@ -2081,12 +2085,13 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const load = useCallback(async () => {
         try {
-            const [rvRes, pwRes, postsRes, mediaRes, upcomingRes] = await Promise.all([
+            const [rvRes, pwRes, postsRes, mediaRes, upcomingRes, pendingRes] = await Promise.all([
                 api.get(`/rivals?category=${category}&subCategory=${sub}`),
                 api.get(`/rivals?category=${category}&subCategory=${sub}&matchType=PLAYER_WANTED`).catch(() => ({ data:[] })),
                 api.get(`/posts?category=${category}&subCategory=${sub}&communityOnly=true&limit=30`).catch(() => ({ data:[] })),
                 api.get(`/posts?category=${category}&subCategory=${sub}&mediaOnly=true&limit=50`).catch(() => ({ data:[] })),
                 api.get(`/rivals/upcoming?category=${category}&subCategory=${sub}`).catch(() => ({ data:[] })),
+                api.get(`/rivals/completed?category=${category}&subCategory=${sub}`).catch(() => ({ data:[] })),
             ]);
 
             const allRivals = rvRes.data;
@@ -2096,6 +2101,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 (!p.positions.includes('REFEREE') && !p.positions.includes('REFEREE_OFFER'))
             ));
             setMatchedUpcoming(Array.isArray(upcomingRes.data) ? upcomingRes.data : []);
+            setPendingScore(Array.isArray(pendingRes.data) ? pendingRes.data : []);
 
             const allPosts = Array.isArray(postsRes.data) ? postsRes.data : [];
             setTextPosts(allPosts.filter(p => p.type === 'POST' && !p.imageUrl && !p.videoUrl));
@@ -2106,6 +2112,15 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     useEffect(() => { load(); }, [load]);
     const onRefresh = () => { setRefreshing(true); load(); };
+
+    useEffect(() => {
+        if (activeTab !== 'archive') return;
+        setLoadingArchive(true);
+        api.get(`/archive?category=${category}&subCategory=${sub}`)
+            .then(res => setArchiveRivals(res.data?.rivals || []))
+            .catch(() => {})
+            .finally(() => setLoadingArchive(false));
+    }, [activeTab, category, sub]);
 
     // Real-time updates via socket
     useEffect(() => {
@@ -2263,6 +2278,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     ))}
                                 </>
                             )}
+
+                            {/* Skor Bekleyen Maçlar */}
+                            {pendingScore.length > 0 && (
+                                <>
+                                    <Text style={[s.sectionTitle, { color: '#f97316' }]}>⏳ {t.pendingScoreTitle}</Text>
+                                    {pendingScore.map(m => (
+                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} />
+                                    ))}
+                                </>
+                            )}
                         </>
                     )}
 
@@ -2293,7 +2318,89 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── ARCHIVE ── */}
                     {activeTab === 'archive' && (
-                        <EmptyState emoji="🗃️" text={t.emptyArchive} />
+                        loadingArchive ? (
+                            <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
+                        ) : archiveRivals.length === 0 ? (
+                            <EmptyState emoji="🗃️" text={t.emptyArchive} />
+                        ) : (
+                            <View style={{ gap: 10, paddingVertical: 8 }}>
+                                {archiveRivals.map(m => {
+                                    const isOwner = m.senderId === myId;
+                                    const parts = Array.isArray(m.participants) ? m.participants : [];
+                                    const allP = [m.sender, ...parts].filter(Boolean);
+                                    const snapshot = m.score?.ratingSnapshot || {};
+                                    const sets = m.score?.sets;
+                                    const winner = m.score?.winner;
+                                    const myResult = winner === 'draw' ? '🤝' : winner === (isOwner ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
+                                    const isTeam = m.matchMode === 'team';
+                                    const modeBadge = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                    return (
+                                        <View key={m.id} style={[s.card, { padding: 14 }]}>
+                                            {/* Header: mode badge + result */}
+                                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 8 }}>
+                                                <View style={{ backgroundColor: cfg.color+'20', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: cfg.color+'40' }}>
+                                                    <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{modeBadge}</Text>
+                                                </View>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                    {myResult ? <Text style={{ fontSize: 18 }}>{myResult}</Text> : null}
+                                                    <Text style={{ color: colors.textMuted, fontSize: 10 }}>
+                                                        {m.completedAt ? new Date(m.completedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            {/* Players with historical rating */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap: 6, marginBottom: 8 }}>
+                                                {allP.map(p => {
+                                                    const hist = snapshot[p.id];
+                                                    const rBefore = hist?.skillRating_before;
+                                                    const pts = hist?.change ?? null;
+                                                    return (
+                                                        <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>@{p.username}</Text>
+                                                            {rBefore != null && rBefore > 0 && (
+                                                                <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '800' }}>{Number(rBefore).toFixed(2)} ★</Text>
+                                                            )}
+                                                            {pts != null && pts !== 0 && (
+                                                                <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize: 11, fontWeight: '800' }}>
+                                                                    {pts > 0 ? '+' : ''}{pts}p
+                                                                </Text>
+                                                            )}
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                            {/* Sets score */}
+                                            {sets && sets.length > 0 && (
+                                                <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 6 }}>
+                                                    {sets.map((s2, i) => `Set ${i+1}: ${isOwner ? s2.sender : s2.opponent} - ${isOwner ? s2.opponent : s2.sender}`).join('  ·  ')}
+                                                </Text>
+                                            )}
+                                            {/* Date / Time / Location */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap: 8, marginBottom: 6 }}>
+                                                {m.flexibleSchedule ? (
+                                                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>📅 Esnek Program</Text>
+                                                ) : (
+                                                    <>
+                                                        {m.matchDate ? <Text style={{ color: colors.textMuted, fontSize: 12 }}>📅 {new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', weekday:'short' })}</Text> : null}
+                                                        {m.matchTime ? <Text style={{ color: colors.textMuted, fontSize: 12 }}>🕐 {m.matchTime}</Text> : null}
+                                                    </>
+                                                )}
+                                                {m.location ? <Text style={{ color: colors.textMuted, fontSize: 12 }}>📍 {m.location}</Text> : null}
+                                            </View>
+                                            {/* Court + note */}
+                                            <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize: 12, marginBottom: m.message ? 4 : 0 }}>
+                                                {m.isCourtReserved ? '✅ Kort Rezerve Edildi' : '❌ Kort Rezerve Edilmedi'}
+                                            </Text>
+                                            {m.message ? (
+                                                <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic', marginTop: 2 }}>
+                                                    💬 {m.message}
+                                                </Text>
+                                            ) : null}
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        )
                     )}
 
                     {/* ── REFEREE ── */}

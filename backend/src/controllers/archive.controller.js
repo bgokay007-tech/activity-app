@@ -43,6 +43,7 @@ export const getArchive = async (req, res, next) => {
         const rWhere = {
             status: 'COMPLETED',
             archived: true,
+            scoreStatus: 'CONFIRMED',
             ...(category    && { category }),
             ...(subCategory && { subCategory }),
             ...(city  && { location: { contains: city, mode: 'insensitive' } }),

@@ -1,6 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
@@ -38,11 +37,6 @@ export default function NotificationsScreen({ navigation }) {
     };
 
     useEffect(() => { load(); }, []);
-
-    useFocusEffect(useCallback(() => {
-        api.patch('/notifications/read-all').catch(() => {});
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    }, []));
 
     const onRefresh = () => { setRefreshing(true); load(); };
 
@@ -136,11 +130,9 @@ export default function NotificationsScreen({ navigation }) {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.title}>{t.notificationsTitle}</Text>
-                {unreadCount > 0 && (
-                    <TouchableOpacity onPress={markAllRead} style={styles.markAllBtn}>
-                        <Text style={styles.markAllText}>{t.markAllReadBtn}</Text>
-                    </TouchableOpacity>
-                )}
+                <TouchableOpacity onPress={markAllRead} style={styles.markAllBtn}>
+                    <Text style={styles.markAllText}>{t.markAllReadBtn}</Text>
+                </TouchableOpacity>
             </View>
 
             {loading ? (
