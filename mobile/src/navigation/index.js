@@ -98,7 +98,6 @@ function AppTabs() {
     const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
     const shownNotifIdsRef = useRef(new Set());
-    const pollRef = useRef(null);
 
     // Fetch unread count from backend — source of truth
     const syncBadge = useCallback(async () => {
