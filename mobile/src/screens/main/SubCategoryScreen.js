@@ -794,9 +794,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
         { ...match.sender, skillRating: match.senderSkillRating },
         ...(Array.isArray(match.participants) ? match.participants : []),
     ].filter(Boolean);
-    const playerNames = allPlayers.map(p =>
-        p.skillRating != null ? `@${p.username} (${p.skillRating})` : `@${p.username}`
-    ).join(' · ');
 
     const getMatchEnd = (m) => {
         if (!m.matchDate || !m.matchTime) return null;
@@ -971,7 +968,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
             <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
                 <View style={{ flex:1 }}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                        <Text style={[s.cardName, { flexShrink:1 }]}>{playerNames || `@${match.sender?.username || '?'}`}</Text>
+                        {allPlayers.map((p, idx) => (
+                            <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
+                                <Text style={s.cardName}>@{p.username}</Text>
+                                {p.skillRating != null && (
+                                    <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>
+                                        {Number(p.skillRating).toFixed(2)} ★
+                                    </Text>
+                                )}
+                            </View>
+                        ))}
                         <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
                             <Text style={[s.modeBadgeText, { color: cfg.color }]}>
                                 {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
@@ -1257,7 +1264,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched }) {
 
                             {/* Match info */}
                             <Text style={{ color: colors.textSecondary, fontSize:12, marginBottom:10 }}>
-                                {playerNames}
+                                {allPlayers.map(p => `@${p.username}`).join(' · ')}
                                 {match.matchDate ? `  ·  ${new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' })}` : ''}
                                 {match.matchTime ? ` ${match.matchTime}` : ''}
                             </Text>
