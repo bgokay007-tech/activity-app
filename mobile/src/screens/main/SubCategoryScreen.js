@@ -336,40 +336,52 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 </View>
 
                 {/* Scrollable content */}
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:8 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:16, paddingTop:16, paddingBottom:8 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-                    {/* İlan detayları */}
-                    <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:16, borderWidth:1, borderColor: colors.border }}>
-                        <View style={[s.cardHeader, { marginBottom:8 }]}>
-                            <Avatar name={item.sender?.username} size={38} color={cfg.color} />
-                            <View style={{ flex:1 }}>
-                                <Text style={s.cardName}>@{item.sender?.username}</Text>
-                                {item.sender?.interests?.[0]?.skillRating > 0 && (
-                                    <Text style={[s.ratingText, { color:cfg.color }]}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
-                                )}
-                            </View>
-                            <View style={{ alignItems:'flex-end', gap:4 }}>
-                                <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40' }]}>
-                                    <Text style={[s.modeBadgeText, { color:cfg.color }]}>
-                                        {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
-                                    </Text>
-                                </View>
-                            </View>
-                        </View>
+                    {/* Tarih / Saat / Süre — dikey, ortalı */}
+                    <View style={{ alignItems:'center', marginBottom:12 }}>
+                        {item.matchDate && (
+                            <Text style={{ color:'#fff', fontSize:18, fontWeight:'800' }}>
+                                📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' })}
+                            </Text>
+                        )}
+                        {item.matchTime && (
+                            <Text style={{ color: cfg.color, fontSize:16, fontWeight:'700', marginTop:4 }}>
+                                🕐 {item.matchTime}
+                            </Text>
+                        )}
+                        {item.duration && (
+                            <Text style={{ color: colors.textMuted, fontSize:14, marginTop:4 }}>
+                                ⏱ {item.duration} dk
+                            </Text>
+                        )}
+                        {item.courtName && (
+                            <Text style={{ color:'#60a5fa', fontSize:13, marginTop:6 }}>🏟️ {item.courtName}</Text>
+                        )}
                         {item.level && (
-                            <View style={[s.levelRow, { marginBottom:6 }]}>
+                            <View style={[s.levelRow, { marginTop:6, justifyContent:'center' }]}>
                                 <Text style={s.levelBadge}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
                                 {item.levelDetail && <Text style={s.levelDetail}>{item.levelDetail}</Text>}
                             </View>
                         )}
-                        {item.message && <Text style={[s.cardMsg, { marginBottom:8 }]}>{item.message}</Text>}
-                        <View style={[s.cardMeta, { marginBottom:0 }]}>
-                            {item.matchDate && <View style={s.metaItem}><Text style={s.metaItemText}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text></View>}
-                            {item.matchTime && <View style={s.metaItem}><Text style={s.metaItemText}>🕐 {item.matchTime}</Text></View>}
-                            {item.duration && <View style={s.metaItem}><Text style={s.metaItemText}>⏱ {item.duration} dk</Text></View>}
-                            {item.courtName && <View style={s.metaItem}><Text style={[s.metaItemText,{color:'#60a5fa'}]}>🏟️ {item.courtName}</Text></View>}
+                    </View>
+
+                    {/* Gönderen */}
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:item.message ? 8 : 12, paddingBottom:12, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                        <Avatar name={item.sender?.username} size={34} color={cfg.color} />
+                        <View style={{ flex:1 }}>
+                            <Text style={s.cardName}>@{item.sender?.username}</Text>
+                            {item.sender?.interests?.[0]?.skillRating > 0 && (
+                                <Text style={[s.ratingText, { color:cfg.color }]}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
+                            )}
+                        </View>
+                        <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40' }]}>
+                            <Text style={[s.modeBadgeText, { color:cfg.color }]}>
+                                {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                            </Text>
                         </View>
                     </View>
+                    {item.message && <Text style={[s.cardMsg, { marginBottom:12 }]}>{item.message}</Text>}
 
                     {/* Oyuncular */}
                     <View style={det.section}>
