@@ -451,14 +451,7 @@ export const getUpcomingMatches = async (req, res, next) => {
                 ...(category    && { category }),
                 ...(subCategory && { subCategory }),
             },
-            include: {
-                sender: {
-                    select: {
-                        ...SENDER_SELECT,
-                        interests: { select: { subCategory: true, totalPoints: true, skillRating: true } },
-                    },
-                },
-            },
+            include: { sender: { select: SENDER_SELECT } },
             orderBy: { matchDate: 'asc' },
         });
 
@@ -474,30 +467,33 @@ export const getUpcomingMatches = async (req, res, next) => {
 
         const active = matches.filter(m => !expired.find(e => e.id === m.id));
 
-        // Enrich participant objects with points
-        const participantIds = [...new Set(
-            active.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id).filter(Boolean))
-        )];
-        const participantInterests = participantIds.length > 0
-            ? await prisma.userInterest.findMany({
-                where: { userId: { in: participantIds } },
-                select: { userId: true, subCategory: true, totalPoints: true, skillRating: true },
-            })
-            : [];
+        // Enrich with skill ratings — isolated so failure doesn't break the main response
+        try {
+            const allUserIds = [...new Set([
+                ...active.map(m => m.senderId),
+                ...active.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id)),
+            ].filter(Boolean))];
 
-        const enriched = active.map(m => {
-            const senderInterest = (m.sender?.interests || []).find(i => i.subCategory === m.subCategory);
-            return {
+            const interests = allUserIds.length > 0
+                ? await prisma.userInterest.findMany({
+                    where: { userId: { in: allUserIds } },
+                    select: { userId: true, subCategory: true, skillRating: true },
+                })
+                : [];
+
+            const enriched = active.map(m => ({
                 ...m,
-                senderSkillRating: senderInterest?.skillRating ?? null,
-                participants: (Array.isArray(m.participants) ? m.participants : []).map(p => {
-                    const pi = participantInterests.find(i => i.userId === p.id && i.subCategory === m.subCategory);
-                    return { ...p, skillRating: pi?.skillRating ?? null };
-                }),
-            };
-        });
+                senderSkillRating: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.skillRating ?? null,
+                participants: (Array.isArray(m.participants) ? m.participants : []).map(p => ({
+                    ...p,
+                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                })),
+            }));
 
-        res.json(enriched);
+            return res.json(enriched);
+        } catch (_) {
+            return res.json(active);
+        }
     } catch (error) {
         next(error);
     }
@@ -1014,14 +1010,7 @@ export const getMyUpcomingMatches = async (req, res, next) => {
     try {
         const all = await prisma.activityRequest.findMany({
             where: { status: 'MATCHED' },
-            include: {
-                sender: {
-                    select: {
-                        ...SENDER_SELECT,
-                        interests: { select: { subCategory: true, skillRating: true } },
-                    },
-                },
-            },
+            include: { sender: { select: SENDER_SELECT } },
             orderBy: { matchDate: 'asc' },
         });
         const myId = req.userId;
@@ -1030,25 +1019,28 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             return (Array.isArray(r.participants) ? r.participants : []).some(p => p.id === myId);
         });
 
-        const participantIds = [...new Set(mine.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id).filter(Boolean)))];
-        const pInterests = participantIds.length > 0
-            ? await prisma.userInterest.findMany({
-                where: { userId: { in: participantIds } },
-                select: { userId: true, subCategory: true, skillRating: true },
-            }) : [];
-
-        const enriched = mine.map(m => {
-            const si = (m.sender?.interests || []).find(i => i.subCategory === m.subCategory);
-            return {
+        try {
+            const allUserIds = [...new Set([
+                ...mine.map(m => m.senderId),
+                ...mine.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id)),
+            ].filter(Boolean))];
+            const interests = allUserIds.length > 0
+                ? await prisma.userInterest.findMany({
+                    where: { userId: { in: allUserIds } },
+                    select: { userId: true, subCategory: true, skillRating: true },
+                }) : [];
+            const enriched = mine.map(m => ({
                 ...m,
-                senderSkillRating: si?.skillRating ?? null,
-                participants: (Array.isArray(m.participants) ? m.participants : []).map(p => {
-                    const pi = pInterests.find(i => i.userId === p.id && i.subCategory === m.subCategory);
-                    return { ...p, skillRating: pi?.skillRating ?? null };
-                }),
-            };
-        });
-        res.json(enriched);
+                senderSkillRating: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.skillRating ?? null,
+                participants: (Array.isArray(m.participants) ? m.participants : []).map(p => ({
+                    ...p,
+                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                })),
+            }));
+            return res.json(enriched);
+        } catch (_) {
+            return res.json(mine);
+        }
     } catch (error) { next(error); }
 };
 
