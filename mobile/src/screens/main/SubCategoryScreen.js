@@ -456,7 +456,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
         Alert.alert(t.cancelConfirmTitle, t.cancelConfirmMsg, [
             { text: t.no },
             { text: t.yes, style: 'destructive', onPress: async () => {
-                try { await api.delete(`/rivals/${item.id}`); onRefresh(); }
+                try { await api.patch(`/rivals/${item.id}/cancel`, {}); onRefresh(); }
                 catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.deleteFailed); }
             }}
         ]);
