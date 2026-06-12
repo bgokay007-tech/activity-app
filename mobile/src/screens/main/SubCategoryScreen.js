@@ -257,11 +257,24 @@ const det = StyleSheet.create({
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin }) {
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
+    const [comments, setComments] = useState([]);
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [commentText, setCommentText] = useState('');
+    const [sendingComment, setSendingComment] = useState(false);
 
     useEffect(() => {
         setLocalParticipants(null);
         setLocalJoinRequests(null);
-    }, [item]);
+        setComments([]);
+        setCommentText('');
+        if (item?.id && visible) {
+            setLoadingComments(true);
+            api.get(`/rivals/${item.id}/comments`)
+                .then(res => setComments(res.data || []))
+                .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Yorumlar yüklenemedi'))
+                .finally(() => setLoadingComments(false));
+        }
+    }, [item?.id, visible]);
 
     const isOwner = item.senderId === myId;
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
@@ -272,14 +285,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const isFull = filled >= required;
     const isParticipant = participants.some(p => p.id === myId);
     const isInvolved = isOwner || isParticipant || (mySentReq !== null && mySentReq !== undefined);
-
-    const goToChat = (other) => {
-        onClose();
-        navigation.navigate('MessagesTab', {
-            screen: 'Chat',
-            params: { other, conversation: { id: null, _userId: other.id }, rival: { id: item.id, subCategory: item.subCategory, matchType: item.matchType, level: item.level, matchDate: item.matchDate, matchTime: item.matchTime, courtName: item.courtName } },
-        });
-    };
+    const participantIds = new Set([item.senderId, ...participants.map(p => p.id)]);
+    const canDeleteComment = (c) => c.user?.id === myId || participantIds.has(myId);
 
     const acceptLocal = (jrId) => {
         const jr = joinRequests.find(r => r.id === jrId);
@@ -295,18 +302,46 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         handleRespondJoin(jrId, 'reject');
     };
 
+    const sendComment = async () => {
+        if (!commentText.trim()) return;
+        setSendingComment(true);
+        try {
+            const res = await api.post(`/rivals/${item.id}/comments`, { content: commentText.trim() });
+            setComments(p => [...p, res.data]);
+            setCommentText('');
+        } catch(e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum gönderilemedi'); }
+        finally { setSendingComment(false); }
+    };
+
+    const deleteComment = async (commentId) => {
+        try {
+            await api.delete(`/rivals/comments/${commentId}`);
+            setComments(p => p.filter(c => c.id !== commentId));
+        } catch(e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum silinemedi'); }
+    };
+
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-            <View style={s.modalOverlay}>
-                <View style={[s.modalBox, { paddingBottom:24 }]}>
-                    <View style={s.modalHeader}>
-                        <Text style={s.modalTitle}>{t.ilanDetail || 'İlan Detayı'}</Text>
-                        <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <View style={{ flex:1, backgroundColor: colors.bg }}>
+                {/* Header */}
+                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                    <TouchableOpacity onPress={onClose} style={{ marginRight:14, padding:4 }}>
+                        <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
+                    </TouchableOpacity>
+                    <View style={{ flex:1 }}>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{item.subCategory}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:12, marginTop:1 }}>@{item.sender?.username}</Text>
                     </View>
-                    <ScrollView showsVerticalScrollIndicator={false}>
-                        {/* Sender */}
-                        <View style={[s.cardHeader, { marginBottom:10 }]}>
-                            <Avatar name={item.sender?.username} size={42} color={cfg.color} />
+                    <ModeBadge mode={item.matchMode} />
+                </View>
+
+                {/* Scrollable content */}
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:8 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+                    {/* İlan detayları */}
+                    <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:16, borderWidth:1, borderColor: colors.border }}>
+                        <View style={[s.cardHeader, { marginBottom:8 }]}>
+                            <Avatar name={item.sender?.username} size={38} color={cfg.color} />
                             <View style={{ flex:1 }}>
                                 <Text style={s.cardName}>@{item.sender?.username}</Text>
                                 {item.sender?.interests?.[0]?.skillRating > 0 && (
@@ -314,7 +349,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 )}
                             </View>
                             <View style={{ alignItems:'flex-end', gap:4 }}>
-                                <ModeBadge mode={item.matchMode} />
                                 <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40' }]}>
                                     <Text style={[s.modeBadgeText, { color:cfg.color }]}>
                                         {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
@@ -323,89 +357,68 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </View>
                         </View>
                         {item.level && (
-                            <View style={[s.levelRow, { marginBottom:10 }]}>
+                            <View style={[s.levelRow, { marginBottom:6 }]}>
                                 <Text style={s.levelBadge}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
                                 {item.levelDetail && <Text style={s.levelDetail}>{item.levelDetail}</Text>}
                             </View>
                         )}
-                        {item.message && <Text style={[s.cardMsg, { marginBottom:10 }]}>{item.message}</Text>}
-                        <View style={[s.cardMeta, { marginBottom:12 }]}>
+                        {item.message && <Text style={[s.cardMsg, { marginBottom:8 }]}>{item.message}</Text>}
+                        <View style={[s.cardMeta, { marginBottom:0 }]}>
                             {item.matchDate && <View style={s.metaItem}><Text style={s.metaItemText}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text></View>}
                             {item.matchTime && <View style={s.metaItem}><Text style={s.metaItemText}>🕐 {item.matchTime}</Text></View>}
                             {item.duration && <View style={s.metaItem}><Text style={s.metaItemText}>⏱ {item.duration} dk</Text></View>}
                             {item.courtName && <View style={s.metaItem}><Text style={[s.metaItemText,{color:'#60a5fa'}]}>🏟️ {item.courtName}</Text></View>}
                         </View>
+                    </View>
 
-                        {/* Oyuncular */}
-                        <View style={det.section}>
-                            <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({1 + filled} / {1 + required})</Text>
-                            {/* Kurucu satırı */}
-                            <View style={det.playerRow}>
-                                <Avatar name={item.sender?.username} size={32} color={cfg.color} />
-                                <View style={{ flex:1 }}>
-                                    <Text style={det.playerName}>{item.sender?.fullName || item.sender?.username}</Text>
-                                    <Text style={det.playerSub}>@{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
-                                </View>
-                                {isInvolved && !isOwner && (
-                                    <TouchableOpacity style={det.chatBtn} onPress={() => goToChat({ id: item.senderId, username: item.sender?.username, fullName: item.sender?.fullName, avatar: item.sender?.avatar })}>
-                                        <Text style={det.chatBtnTxt}>💬</Text>
-                                    </TouchableOpacity>
-                                )}
+                    {/* Oyuncular */}
+                    <View style={det.section}>
+                        <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({1 + filled} / {1 + required})</Text>
+                        <View style={det.playerRow}>
+                            <Avatar name={item.sender?.username} size={32} color={cfg.color} />
+                            <View style={{ flex:1 }}>
+                                <Text style={det.playerName}>{item.sender?.fullName || item.sender?.username}</Text>
+                                <Text style={det.playerSub}>@{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                             </View>
-                            {/* Kabul edilen oyuncular */}
-                            {participants.map((p, i) => (
-                                <View key={p.id || i} style={det.playerRow}>
-                                    <Avatar name={p.username} size={32} color={cfg.color} />
+                        </View>
+                        {participants.map((p, i) => (
+                            <View key={p.id || i} style={det.playerRow}>
+                                <Avatar name={p.username} size={32} color={cfg.color} />
+                                <View style={{ flex:1 }}>
+                                    <Text style={det.playerName}>{p.fullName || p.username}</Text>
+                                    <Text style={det.playerSub}>@{p.username}</Text>
+                                </View>
+                            </View>
+                        ))}
+                        {filled === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                    </View>
+
+                    {/* İstekler (sadece ilan sahibine) */}
+                    {isOwner && joinRequests.length > 0 && (
+                        <View style={det.section}>
+                            <Text style={det.sectionTitle}>📬 {t.requests || 'İstekler'} ({joinRequests.length})</Text>
+                            {joinRequests.map(jr => (
+                                <View key={jr.id} style={det.playerRow}>
+                                    <Avatar name={jr.user?.username} size={32} color={cfg.color} />
                                     <View style={{ flex:1 }}>
-                                        <Text style={det.playerName}>{p.fullName || p.username}</Text>
-                                        <Text style={det.playerSub}>@{p.username}</Text>
+                                        <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                        <Text style={det.playerSub}>@{jr.user?.username}</Text>
                                     </View>
-                                    {isInvolved && p.id !== myId && (
-                                        <TouchableOpacity style={det.chatBtn} onPress={() => goToChat({ id: p.id, username: p.username, fullName: p.fullName, avatar: p.avatar })}>
-                                            <Text style={det.chatBtnTxt}>💬</Text>
+                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                        <TouchableOpacity style={s.acceptBtn} onPress={() => acceptLocal(jr.id)}>
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✓</Text>
                                         </TouchableOpacity>
-                                    )}
+                                        <TouchableOpacity style={s.declineBtn} onPress={() => rejectLocal(jr.id)}>
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             ))}
-                            {filled === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                         </View>
+                    )}
 
-                        {/* İstekler */}
-                        {joinRequests.length > 0 && (
-                            <View style={det.section}>
-                                <Text style={det.sectionTitle}>📬 {t.requests || 'İstekler'} ({joinRequests.length})</Text>
-                                {joinRequests.map(jr => (
-                                    <View key={jr.id} style={det.playerRow}>
-                                        <Avatar name={jr.user?.username} size={32} color={cfg.color} />
-                                        <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                            <Text style={det.playerSub}>@{jr.user?.username}</Text>
-                                        </View>
-                                        <View style={{ flexDirection:'row', gap:6 }}>
-                                            {isOwner && (
-                                                <>
-                                                    <TouchableOpacity style={s.acceptBtn} onPress={() => acceptLocal(jr.id)}>
-                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✓</Text>
-                                                    </TouchableOpacity>
-                                                    <TouchableOpacity style={s.declineBtn} onPress={() => rejectLocal(jr.id)}>
-                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✕</Text>
-                                                    </TouchableOpacity>
-                                                </>
-                                            )}
-                                            {isInvolved && jr.user?.id !== myId && (
-                                                <TouchableOpacity style={det.chatBtn} onPress={() => goToChat({ id: jr.user?.id, username: jr.user?.username, fullName: jr.user?.fullName, avatar: jr.user?.avatar })}>
-                                                    <Text style={det.chatBtnTxt}>💬</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    </View>
-                                ))}
-                            </View>
-                        )}
-                    </ScrollView>
-
-                    {/* Aksiyonlar */}
-                    <View style={{ marginTop:12, gap:8 }}>
+                    {/* Katıl / İptal aksiyonu */}
+                    <View style={{ marginBottom:20 }}>
                         {isOwner ? (
                             <TouchableOpacity style={s.cancelBtn} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
                                 <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
@@ -418,22 +431,63 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </View>
                         ) : isFull ? (
                             <View style={s.waitingBox}><Text style={s.waitingText}>{t.ilanFull || 'İlan doldu'}</Text></View>
-                        ) : item.flexibleSchedule ? (
-                            <TouchableOpacity style={s.msgBtn} onPress={() => { onClose(); navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival:{ id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule } } }); }}>
-                                <Text style={s.msgBtnText}>{t.msgAtBtn}</Text>
-                            </TouchableOpacity>
                         ) : (
-                            <View style={{ flexDirection:'row', gap:8 }}>
-                                <TouchableOpacity style={[s.msgBtn,{flex:1}]} onPress={() => { onClose(); navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival:{ id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule } } }); }}>
-                                    <Text style={s.msgBtnText}>{t.msgBtn}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[s.joinBtn,{backgroundColor:cfg.color,flex:2}]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
-                                    <Text style={s.joinBtnText}>{t.joinBtn}</Text>
-                                </TouchableOpacity>
-                            </View>
+                            <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
+                                <Text style={s.joinBtnText}>{t.joinBtn}</Text>
+                            </TouchableOpacity>
                         )}
                     </View>
-                </View>
+
+                    {/* Yorumlar bölümü */}
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:14 }}>💬 {t.matchCommentsTitle}</Text>
+                    {loadingComments ? (
+                        <ActivityIndicator color={cfg.color} style={{ marginTop:16 }} />
+                    ) : comments.length === 0 ? (
+                        <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:13 }}>{t.matchCommentEmpty}</Text>
+                    ) : (
+                        comments.map(c => (
+                            <View key={c.id} style={{ marginBottom:14, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color: cfg.color, fontSize:13, fontWeight:'700', marginBottom:3 }}>@{c.user?.username}</Text>
+                                        <Text style={{ color:'#fff', fontSize:14, lineHeight:21 }}>{c.content}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
+                                            {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
+                                        </Text>
+                                    </View>
+                                    {canDeleteComment(c) && (
+                                        <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:8, marginLeft:8 }}>
+                                            <Text style={{ color:'#f87171', fontSize:14 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            </View>
+                        ))
+                    )}
+                </ScrollView>
+
+                {/* Yorum yaz — bottom */}
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
+                    <View style={{ flexDirection:'row', gap:10, paddingHorizontal:12, paddingVertical:10, paddingBottom: Platform.OS==='ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
+                        <TextInput
+                            style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
+                            placeholder={t.matchCommentPlaceholder}
+                            placeholderTextColor={colors.textMuted}
+                            value={commentText}
+                            onChangeText={setCommentText}
+                            multiline={false}
+                            returnKeyType="send"
+                            onSubmitEditing={sendComment}
+                        />
+                        <TouchableOpacity
+                            style={[s.joinBtn, { paddingHorizontal:18, height:44, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}
+                            onPress={sendComment}
+                            disabled={sendingComment}
+                        >
+                            <Text style={s.joinBtnText}>{t.matchCommentSend}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
     );
@@ -448,6 +502,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
     const participants = Array.isArray(item.participants) ? item.participants : [];
     const required = item.matchType === 'DOUBLE' ? 3 : (item.teamSize || 1);
     const filled = participants.length;
+    const isFull = filled >= required;
     const mySentReq = item._myJoinStatus;
     const [detailVisible, setDetailVisible] = useState(false);
 
@@ -558,36 +613,24 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                 )}
             </TouchableOpacity>
 
-            {/* ── Aksiyon butonları — tıklanabilir alandan BAĞIMSIZ ── */}
+            {/* ── Aksiyon butonları ── */}
             <View style={{ marginTop:10 }}>
                 {isOwner ? (
-                    <View style={s.ownerBtnRow}>
-                        <TouchableOpacity style={s.msgBtn} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival } })}>
-                            <Text style={s.msgBtnText}>{t.msgBtn}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.cancelBtn} onPress={handleCancel}>
-                            <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity style={s.cancelBtn} onPress={handleCancel}>
+                        <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
+                    </TouchableOpacity>
                 ) : mySentReq === 'PENDING' ? (
                     <View style={s.waitingBox}><Text style={s.waitingText}>{t.waitingReq}</Text></View>
                 ) : mySentReq === 'ACCEPTED' ? (
                     <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40' }]}>
                         <Text style={[s.waitingText, { color:'#4ade80' }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
                     </View>
-                ) : item.flexibleSchedule ? (
-                    <TouchableOpacity style={s.msgBtn} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival } })}>
-                        <Text style={s.msgBtnText}>{t.msgAtBtn}</Text>
-                    </TouchableOpacity>
+                ) : isFull ? (
+                    <View style={s.waitingBox}><Text style={s.waitingText}>{t.ilanFull || 'İlan doldu'}</Text></View>
                 ) : (
-                    <View style={{ flexDirection:'row', gap:8 }}>
-                        <TouchableOpacity style={[s.msgBtn, { flex:1 }]} onPress={() => navigation.navigate('MessagesTab', { screen:'Chat', params:{ other:item.sender, conversation:{ id:null, _userId:item.senderId }, rival } })}>
-                            <Text style={s.msgBtnText}>{t.msgBtn}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color, flex:2 }]} onPress={handleJoin}>
-                            <Text style={s.joinBtnText}>{t.joinBtn}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color }]} onPress={handleJoin}>
+                        <Text style={s.joinBtnText}>{t.joinBtn}</Text>
+                    </TouchableOpacity>
                 )}
             </View>
         </View>
