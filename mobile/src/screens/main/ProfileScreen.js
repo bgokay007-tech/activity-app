@@ -945,7 +945,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                     const ratingBefore = hist?.skillRating_before;
                                                     const pts = hist?.change ?? null;
                                                     return (
-                                                        <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                        <TouchableOpacity key={p.id || p.username} onPress={() => p.id && p.id !== myUser?.id && navigation.navigate('HomeTab', { screen: 'Profile', params: { userId: p.id } })} activeOpacity={p.id && p.id !== myUser?.id ? 0.7 : 1} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
                                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
                                                             {ratingBefore != null && ratingBefore > 0 && (
                                                                 <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(ratingBefore).toFixed(2)} ★</Text>
@@ -955,7 +955,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                                     {pts > 0 ? '+' : ''}{pts}p
                                                                 </Text>
                                                             )}
-                                                        </View>
+                                                        </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>

@@ -849,7 +849,7 @@ const sc = StyleSheet.create({
     lockedTxt:    { color: colors.textMuted, fontSize:11, textAlign:'center', marginTop:6 },
 });
 
-function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
+function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
     const t = useT();
     const [showScore, setShowScore] = useState(false);
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
@@ -1093,7 +1093,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments }) {
                         {allPlayers.map((p, idx) => (
                             <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                 {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
-                                <Text style={s.cardName}>@{p.username}</Text>
+                                <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7}>
+                                    <Text style={s.cardName}>@{p.username}</Text>
+                                </TouchableOpacity>
                                 {p.skillRating != null && (
                                     <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>
                                         {Number(p.skillRating).toFixed(2)} ★
@@ -2010,6 +2012,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     const tabs = getTabs(sub);
 
     const [activeTab, setActiveTab] = useState(initialTab && tabs.includes(initialTab) ? initialTab : 'rivals');
+
+    useEffect(() => {
+        if (route.params?.initialTab && tabs.includes(route.params.initialTab)) {
+            setActiveTab(route.params.initialTab);
+        }
+    }, [route.params?.initialTab]);
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
     const [matchedUpcoming, setMatchedUpcoming] = useState([]);
@@ -2282,7 +2290,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <>
                                     <Text style={s.sectionTitle}>{t.upcomingMatchesTitle}</Text>
                                     {filteredMatchedUpcoming.map(m => (
-                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} />
+                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                     ))}
                                 </>
                             )}
@@ -2292,7 +2300,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <>
                                     <Text style={[s.sectionTitle, { color: '#f97316' }]}>⏳ {t.pendingScoreTitle}</Text>
                                     {pendingScore.map(m => (
-                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} />
+                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                     ))}
                                 </>
                             )}
@@ -2363,7 +2371,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     const rBefore = hist?.skillRating_before;
                                                     const pts = hist?.change ?? null;
                                                     return (
-                                                        <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                        <TouchableOpacity key={p.id || p.username} onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                                             <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>@{p.username}</Text>
                                                             {rBefore != null && rBefore > 0 && (
                                                                 <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '800' }}>{Number(rBefore).toFixed(2)} ★</Text>
@@ -2373,7 +2381,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     {pts > 0 ? '+' : ''}{pts}p
                                                                 </Text>
                                                             )}
-                                                        </View>
+                                                        </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
