@@ -761,26 +761,6 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
-                {/* ── Yaklaşan Maçlarım / Maç Arşivi buttons ── */}
-                {isOwnProfile && (
-                    <View style={{ flexDirection:'row', gap:10, marginHorizontal:16, marginBottom:8 }}>
-                        <TouchableOpacity
-                            style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:14, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:'#16a34a40' }}
-                            onPress={openMyUpcoming}
-                        >
-                            <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:13 }}>
-                                {t.myUpcomingBtn}{myUpcoming.length > 0 ? ` (${myUpcoming.length})` : ''}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={{ flex:1, backgroundColor:'#a855f720', borderRadius:14, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:'#a855f740' }}
-                            onPress={openMyArchive}
-                        >
-                            <Text style={{ color:'#c084fc', fontWeight:'800', fontSize:13 }}>{t.matchArchiveBtn}</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
                 {/* ── Activities / Interests ── */}
                 <View style={s.section}>
                     <Text style={s.sectionTitle}>{t.branchesSection}</Text>
