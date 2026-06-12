@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -98,16 +98,32 @@ function AppTabs() {
     const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
     const shownNotifIdsRef = useRef(new Set());
-    const notifsClearedRef = useRef(false);
+    const pollRef = useRef(null);
 
-    // Socket connection + real-time notification badge
+    // Fetch unread count from backend — source of truth
+    const syncBadge = useCallback(async () => {
+        try {
+            const { data } = await api.get('/notifications');
+            const count = data.unreadCount || 0;
+            shownNotifIdsRef.current = new Set(
+                (data.notifications || []).filter(n => !n.read).map(n => n.id)
+            );
+            setUnreadNotifs(count);
+        } catch { /* silent */ }
+    }, []);
+
+    // Poll every 30s — keeps badge in sync with server after mark-all-read
+    useEffect(() => {
+        const t = setTimeout(syncBadge, 2000);
+        pollRef.current = setInterval(syncBadge, 30000);
+        return () => { clearTimeout(t); clearInterval(pollRef.current); };
+    }, [syncBadge]);
+
+    // Socket connection — instant badge increment on new notification
     useEffect(() => {
         if (!userId) return;
         connectSocket(userId);
         const off = onSocket('notification', (notif) => {
-            if (notifsClearedRef.current) {
-                notifsClearedRef.current = false;
-            }
             setUnreadNotifs(prev => prev + 1);
             if (!isExpoGo && notif?.id && !shownNotifIdsRef.current.has(notif.id)) {
                 shownNotifIdsRef.current.add(notif.id);
@@ -119,22 +135,6 @@ function AppTabs() {
         });
         return () => { off(); disconnectSocket(); };
     }, [userId]);
-
-    // Initial load only — set badge from backend unread count
-    useEffect(() => {
-        const init = async () => {
-            try {
-                const { data } = await api.get('/notifications');
-                const notifCount = data.unreadCount || 0;
-                shownNotifIdsRef.current = new Set(
-                    (data.notifications || []).filter(n => !n.read).map(n => n.id)
-                );
-                setUnreadNotifs(notifCount);
-            } catch { /* silent */ }
-        };
-        const t = setTimeout(init, 3000);
-        return () => clearTimeout(t);
-    }, []);
 
     return (
         <Tab.Navigator
@@ -172,7 +172,7 @@ function AppTabs() {
             <Tab.Screen
                 name="NotificationsTab"
                 component={NotificationsScreen}
-                listeners={{ tabPress: () => { setUnreadNotifs(0); notifsClearedRef.current = true; } }}
+                listeners={{ tabPress: () => setUnreadNotifs(0) }}
                 options={{
                     tabBarLabel: t.alerts,
                     tabBarIcon: ({ focused }) => <TabIcon label="Notifications" active={focused} />,

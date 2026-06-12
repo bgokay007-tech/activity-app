@@ -2523,7 +2523,7 @@ const s = StyleSheet.create({
     tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
     tabTextActive:    { color:'#fff' },
 
-    list:             { paddingHorizontal:8, gap:12, paddingBottom:60 },
+    list:             { paddingHorizontal:4, gap:10, paddingBottom:60 },
     sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
 
     createBtn:        { backgroundColor: colors.surface, borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
@@ -2546,7 +2546,7 @@ const s = StyleSheet.create({
     emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:20, paddingVertical:10 },
     emptyBtnText:     { color:'#fff', fontWeight:'700' },
 
-    card:             { backgroundColor: colors.surface, borderRadius:18, padding:10, borderWidth:1, borderColor: colors.border },
+    card:             { backgroundColor: colors.surface, borderRadius:14, padding:8, borderWidth:1, borderColor: colors.border },
     cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:8 },
     avatar:           { justifyContent:'center', alignItems:'center', borderWidth:1 },
     avatarText:       { fontWeight:'800' },
