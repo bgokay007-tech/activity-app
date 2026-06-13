@@ -2228,8 +2228,22 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                         {item.genderType ? ` · ${t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType}` : ''}
                     </Text>
                 </View>
-                <View style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor + '50' }}>
-                    <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{t.tournStatusOpen}</Text>
+                <View style={{ alignItems:'flex-end', gap:5 }}>
+                    <View style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor + '50' }}>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{t.tournStatusOpen}</Text>
+                    </View>
+                    {isCreator && myStatus === null && (
+                        <TouchableOpacity
+                            style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }}
+                            onPress={() => onJoin(item)}>
+                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
+                        </TouchableOpacity>
+                    )}
+                    {isCreator && myStatus === 'ACCEPTED' && (
+                        <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
+                            <Text style={{ color:'#4ade80', fontSize:10 }}>✓ Katıldın</Text>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -2407,7 +2421,7 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
 
             {/* Action buttons */}
             <View style={{ flexDirection:'row', gap:8, marginTop:10, flexWrap:'wrap' }}>
-                {myStatus === null && (
+                {!isCreator && myStatus === null && (
                     <TouchableOpacity style={[s.joinBtn, { borderColor: infoColor + '60', backgroundColor: infoColor + '15' }]} onPress={() => onJoin(item)}>
                         <Text style={[s.joinBtnText, { color: infoColor }]}>{t.tournJoinBtn}</Text>
                     </TouchableOpacity>
@@ -2422,7 +2436,7 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                         </TouchableOpacity>
                     </>
                 )}
-                {myStatus === 'ACCEPTED' && (
+                {!isCreator && myStatus === 'ACCEPTED' && (
                     <View style={[s.joinBtn, { backgroundColor:'#16a34a20', borderColor:'#16a34a50' }]}>
                         <Text style={[s.joinBtnText, { color:'#4ade80' }]}>{t.tournJoinAccepted}</Text>
                     </View>
@@ -2449,11 +2463,12 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[s.joinBtn, { backgroundColor:'#1e40af20', borderColor:'#1e40af50' }]}
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', flex:1, backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
                                 onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
-                                <Text style={[s.joinBtnText, { color:'#60a5fa' }]}>
+                                <Text style={{ color:'#60a5fa', fontSize:12, fontWeight:'600' }}>
                                     📋 Başvurular{requests.length > 0 ? ` (${requests.length})` : ''}
                                 </Text>
+                                <Text style={{ color:'#60a5fa', fontSize:18, fontWeight:'700' }}>{showRequests ? '▲' : '›'}</Text>
                             </TouchableOpacity>
                         </View>
                         {/* Join requests list */}
