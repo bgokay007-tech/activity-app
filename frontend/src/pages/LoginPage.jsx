@@ -31,8 +31,10 @@ function LoginPage() {
             <div className="w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <h1 className="text-5xl font-black text-white tracking-tight">
-                        Ac<span className="text-purple-500">Ti</span>Vi<span className="text-purple-500">Ty</span>
+                    <h1 className="text-5xl font-black tracking-tight">
+                        {'AcTiViTy'.split('').map((ch, i) => (
+                            <span key={i} className="logo-letter" style={{ animationDelay: `${-(7 - i) * 0.3}s` }}>{ch}</span>
+                        ))}
                     </h1>
                     <p className="text-gray-400 mt-2">Your world of activities</p>
                 </div>

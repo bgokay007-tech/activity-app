@@ -2100,6 +2100,953 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
     );
 }
 
+// ─── Tournament Card ──────────────────────────────────────────────────────────
+
+const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t.tournType3 });
+const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
+const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
+
+function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated }) {
+    const myPart = item.participants?.[0];
+    const myStatus = myPart?.status ?? null;
+    const isCreator = item.creatorId === myId;
+    const typeLabels = TOURN_TYPE_LABELS(t);
+    const [showRules, setShowRules] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [editMin, setEditMin] = useState(String(item.minPlayers || 2));
+    const [editMax, setEditMax] = useState(String(item.maxPlayers || 32));
+    const [editMatches, setEditMatches] = useState(String(item.matchesBeforePlayoff || ''));
+    const [editQualifiers, setEditQualifiers] = useState(String(item.playoffQualifiers || ''));
+    const [saving, setSaving] = useState(false);
+
+    // Join requests panel
+    const [showRequests, setShowRequests] = useState(false);
+    const [requests, setRequests] = useState([]);
+    const [loadingRequests, setLoadingRequests] = useState(false);
+
+    // Use accepted count from local requests list if loaded; otherwise fall back to server _count
+    const participantCount = requests.length > 0
+        ? requests.filter(r => r.status === 'ACCEPTED').length
+        : item._count?.participants || 0;
+
+    // Demo auto-join
+    const [demoRunning, setDemoRunning] = useState(false);
+    const [demoIdx, setDemoIdx] = useState(0);
+    const demoStop = useRef(false);
+
+    const fetchRequests = useCallback(async () => {
+        setLoadingRequests(true);
+        try {
+            const { data } = await api.get(`/tournaments/${item.id}/requests`);
+            setRequests(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingRequests(false); }
+    }, [item.id]);
+
+    // Auto-load requests for creator so participantCount is always accurate
+    useEffect(() => { if (isCreator) fetchRequests(); }, [isCreator, fetchRequests]);
+
+    const updateRequest = async (userId, status) => {
+        try {
+            await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status });
+            setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status } : r));
+            onUpdated?.(); // refresh card to get updated accepted count
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
+    const runDemo = useCallback(async (idx) => {
+        if (demoStop.current || idx >= 40) { setDemoRunning(false); return; }
+        try {
+            const { data } = await api.post('/demo/tournament-join', { tournamentId: item.id, playerIndex: idx });
+            setDemoIdx(idx + 1);
+            setRequests(prev => prev.some(r => r.userId === data.participant.userId) ? prev : [...prev, data.participant]);
+            if (demoStop.current) { setDemoRunning(false); return; }
+            const delay = 1000 + Math.random() * 1000;
+            setTimeout(() => runDemo(idx + 1), delay);
+        } catch (e) {
+            if (e?.response?.status === 409) {
+                // Already sent — skip to next
+                setTimeout(() => runDemo(idx + 1), 300);
+            } else {
+                setDemoRunning(false);
+            }
+        }
+    }, [item.id]);
+
+    const startDemo = () => {
+        demoStop.current = false;
+        setDemoRunning(true);
+        setShowRequests(true);
+        if (requests.length === 0) fetchRequests();
+        runDemo(demoIdx);
+    };
+
+    const stopDemo = () => {
+        demoStop.current = true;
+        setDemoRunning(false);
+    };
+
+    const saveEdit = async () => {
+        setSaving(true);
+        try {
+            await api.patch(`/tournaments/${item.id}`, {
+                minPlayers: parseInt(editMin) || item.minPlayers,
+                maxPlayers: parseInt(editMax) || item.maxPlayers,
+                matchesBeforePlayoff: editMatches ? parseInt(editMatches) : null,
+                playoffQualifiers: editQualifiers ? parseInt(editQualifiers) : null,
+            });
+            setEditing(false);
+            onUpdated?.();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSaving(false); }
+    };
+
+    const infoColor = cfg.color;
+
+    return (
+        <View style={[s.card, { marginBottom:10 }]}>
+            {/* Header */}
+            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <View style={{ flex:1, gap:2 }}>
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{item.name}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                        {SCOPE_EMOJI[item.scope] || '📍'} {item.city || ''}{item.city && ' · '}{typeLabels[item.type] || item.type}
+                        {item.genderType ? ` · ${t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType}` : ''}
+                    </Text>
+                </View>
+                <View style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor + '50' }}>
+                    <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{t.tournStatusOpen}</Text>
+                </View>
+            </View>
+
+            {/* Creator + contact */}
+            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>
+                👤 {item.creator?.fullName || item.creator?.username}
+                {item.contactPhone ? `  📞 ${item.contactPhone}` : ''}
+            </Text>
+
+            {/* Paid badge */}
+            {item.isPaid && (
+                <View style={{ backgroundColor:'#d9770620', borderRadius:6, paddingHorizontal:8, paddingVertical:2, borderWidth:1, borderColor:'#d9770650', alignSelf:'flex-start', marginTop:4 }}>
+                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>💰 Ücretli</Text>
+                </View>
+            )}
+
+            {/* Registration dates */}
+            {item.endDate && (
+                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
+                    📅 Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR')}{item.endTime ? ` ${item.endTime}` : ''}
+                </Text>
+            )}
+
+            {/* Players — normal or edit mode */}
+            {editing ? (
+                <View style={{ marginTop:8, gap:6 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Min:</Text>
+                        <TextInput
+                            style={{ backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: colors.border, fontSize:12, width:54, textAlign:'center' }}
+                            value={editMin} onChangeText={setEditMin} keyboardType="numeric" maxLength={3} />
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Max:</Text>
+                        <TextInput
+                            style={{ backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: colors.border, fontSize:12, width:54, textAlign:'center' }}
+                            value={editMax} onChangeText={setEditMax} keyboardType="numeric" maxLength={3} />
+                    </View>
+                    {item.type === '1' && (
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                            <Text style={{ color: colors.textMuted, fontSize:11 }}>P-O Öncesi Maç:</Text>
+                            <TextInput
+                                style={{ backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: colors.border, fontSize:12, width:54, textAlign:'center' }}
+                                value={editMatches} onChangeText={v => setEditMatches(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="—" placeholderTextColor={colors.textMuted} />
+                            <Text style={{ color: colors.textMuted, fontSize:11 }}>P-O Oyuncu:</Text>
+                            <TextInput
+                                style={{ backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: colors.border, fontSize:12, width:54, textAlign:'center' }}
+                                value={editQualifiers} onChangeText={v => setEditQualifiers(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="—" placeholderTextColor={colors.textMuted} />
+                        </View>
+                    )}
+                    <View style={{ flexDirection:'row', gap:8 }}>
+                        <TouchableOpacity style={{ backgroundColor: infoColor + '30', borderRadius:8, paddingHorizontal:12, paddingVertical:5, borderWidth:1, borderColor: infoColor + '60' }}
+                            onPress={saveEdit} disabled={saving}>
+                            <Text style={{ color: infoColor, fontSize:12, fontWeight:'800' }}>{saving ? '...' : t.tournSaveBtn}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setEditing(false)} style={{ paddingVertical:5, paddingHorizontal:8 }}>
+                            <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            ) : (
+                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
+                    👥 {t.tournParticipants(participantCount, item.maxPlayers)}
+                    {item.minPlayers > 2 ? `  (min ${item.minPlayers})` : ''}
+                </Text>
+            )}
+
+            {/* Court */}
+            {item.location
+                ? <Text style={{ color:'#60a5fa', fontSize:11, marginTop:4 }}>🏟️ {item.location}</Text>
+                : <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>🤝 {t.tournCourtPlayersDecide}</Text>
+            }
+            {item.surface && <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>⬜ {item.surface}</Text>}
+
+            {/* Tournament event dates */}
+            {item.eventDate && (
+                <View style={{ marginTop:4 }}>
+                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                        🗓️ {t.tournEventStartLabel}: {new Date(item.eventDate).toLocaleDateString('tr-TR')}{item.eventTime ? ` ${item.eventTime}` : ''}
+                    </Text>
+                    {item.eventEndDate && (
+                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>
+                            🏁 {t.tournEventEndLabel}: {new Date(item.eventEndDate).toLocaleDateString('tr-TR')}{item.eventEndTime ? ` ${item.eventEndTime}` : ''}
+                        </Text>
+                    )}
+                </View>
+            )}
+
+            {/* Type-1 config summary */}
+            {item.type === '1' && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
+                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                    {item.setsPerMatch && (
+                        <View style={{ backgroundColor: infoColor + '15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
+                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
+                                {item.setsPerMatch === 1 ? '1 Set' : `En İyi ${item.setsPerMatch}`}
+                            </Text>
+                        </View>
+                    )}
+                    {item.advantageScoring !== undefined && (
+                        <View style={{ backgroundColor: infoColor + '15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
+                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
+                                {item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
+                            </Text>
+                        </View>
+                    )}
+                    {item.matchesBeforePlayoff && (
+                        <View style={{ backgroundColor: infoColor + '15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
+                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>🔢 {item.matchesBeforePlayoff} {t.tournMatchesBeforePlayoff}</Text>
+                        </View>
+                    )}
+                    {item.playoffQualifiers && (
+                        <View style={{ backgroundColor: infoColor + '15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
+                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>🏆 {t.tournPlayoffQualifiers}: {item.playoffQualifiers}</Text>
+                        </View>
+                    )}
+                </View>
+            )}
+
+            {item.description && <Text style={{ color: colors.textSecondary, fontSize:12, marginTop:6 }}>{item.description}</Text>}
+
+            {/* Rules toggle */}
+            <TouchableOpacity onPress={() => setShowRules(v => !v)} style={{ marginTop:8 }}>
+                <Text style={{ color: infoColor, fontSize:11, fontWeight:'700' }}>
+                    {showRules ? '▲ ' : '▼ '}{t.tournRulesLabel}
+                </Text>
+            </TouchableOpacity>
+            {showRules && (
+                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:6, borderWidth:1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17 }}>{t['tournRules' + item.type]}</Text>
+                </View>
+            )}
+
+            {/* Action buttons */}
+            <View style={{ flexDirection:'row', gap:8, marginTop:10, flexWrap:'wrap' }}>
+                {myStatus === null && (
+                    <TouchableOpacity style={[s.joinBtn, { borderColor: infoColor + '60', backgroundColor: infoColor + '15' }]} onPress={() => onJoin(item)}>
+                        <Text style={[s.joinBtnText, { color: infoColor }]}>{t.tournJoinBtn}</Text>
+                    </TouchableOpacity>
+                )}
+                {!isCreator && myStatus === 'PENDING' && (
+                    <>
+                        <View style={[s.joinBtn, { backgroundColor:'#a855f720', borderColor:'#a855f750' }]}>
+                            <Text style={[s.joinBtnText, { color:'#c084fc' }]}>{t.tournJoinPending}</Text>
+                        </View>
+                        <TouchableOpacity style={[s.joinBtn, { backgroundColor:'#dc262620', borderColor:'#dc262650' }]} onPress={() => onCancelJoin(item.id)}>
+                            <Text style={[s.joinBtnText, { color:'#f87171' }]}>{t.tournCancelJoinBtn}</Text>
+                        </TouchableOpacity>
+                    </>
+                )}
+                {myStatus === 'ACCEPTED' && (
+                    <View style={[s.joinBtn, { backgroundColor:'#16a34a20', borderColor:'#16a34a50' }]}>
+                        <Text style={[s.joinBtnText, { color:'#4ade80' }]}>{t.tournJoinAccepted}</Text>
+                    </View>
+                )}
+                {isCreator && (
+                    <View style={{ gap:8, flex:1 }}>
+                        <View style={{ flexDirection:'row', gap:8 }}>
+                            {!editing && (
+                                <TouchableOpacity style={[s.joinBtn, { backgroundColor: infoColor + '20', borderColor: infoColor + '50' }]} onPress={() => setEditing(true)}>
+                                    <Text style={[s.joinBtnText, { color: infoColor }]}>{t.tournEditBtn}</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity style={[s.joinBtn, { backgroundColor:'#dc262620', borderColor:'#dc262650' }]} onPress={() => onDelete(item.id)}>
+                                <Text style={[s.joinBtnText, { color:'#f87171' }]}>{t.tournDeleteBtn}</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {/* Demo + Requests row */}
+                        <View style={{ flexDirection:'row', gap:8 }}>
+                            <TouchableOpacity
+                                style={[s.joinBtn, { backgroundColor: demoRunning ? '#dc262620' : '#7c3aed20', borderColor: demoRunning ? '#dc262650' : '#7c3aed50' }]}
+                                onPress={demoRunning ? stopDemo : startDemo}>
+                                <Text style={[s.joinBtnText, { color: demoRunning ? '#f87171' : '#a78bfa' }]}>
+                                    {demoRunning ? `⏸ Durdur (${demoIdx}/40)` : `🤖 Demo (${demoIdx}/40)`}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[s.joinBtn, { backgroundColor:'#1e40af20', borderColor:'#1e40af50' }]}
+                                onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
+                                <Text style={[s.joinBtnText, { color:'#60a5fa' }]}>
+                                    📋 Başvurular{requests.length > 0 ? ` (${requests.length})` : ''}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                        {/* Join requests list */}
+                        {showRequests && (
+                            <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, borderWidth:1, borderColor: colors.border }}>
+                                {loadingRequests ? (
+                                    <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:8 }} />
+                                ) : requests.length === 0 ? (
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz başvuru yok</Text>
+                                ) : requests.map((r, i) => (
+                                    <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                @{r.user?.username}
+                                                {r.user?.interests?.[0]?.skillRating != null
+                                                    ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}`
+                                                    : ''}
+                                            </Text>
+                                        </View>
+                                        <View style={{ alignItems:'flex-end', gap:4 }}>
+                                            <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2 }}>
+                                                <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
+                                                    {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : '⏳ Bekliyor'}
+                                                </Text>
+                                            </View>
+                                            {r.status === 'PENDING' && (
+                                                <View style={{ flexDirection:'row', gap:4 }}>
+                                                    <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity onPress={() => updateRequest(r.userId, 'REJECTED')} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+                )}
+            </View>
+        </View>
+    );
+}
+
+// ─── Create Tournament Modal ───────────────────────────────────────────────────
+const TIME_SLOTS = Array.from({ length: 48 }, (_, i) =>
+    `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`
+);
+
+const TOURN_TYPES   = ['1', '2', '3'];
+const TOURN_SCOPES  = ['YEREL', 'ULUSAL', 'ULUSLARARASI'];
+const TOURN_GENDERS = ['KADIN', 'ERKEK', 'MIX'];
+
+function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
+    const t = useT();
+    const cfg = getConfig(sub);
+
+    const INIT = {
+        name: '', scope: 'YEREL', scopeCity: '', scopeDistrict: '', scopeCountry: '',
+        type: '1', minPlayers: '', maxPlayers: '',
+        eventStartDate: null, eventStartTime: '',
+        eventEndDate:   null, eventEndTime:   '',
+        regEndDate: null, regEndTime: '',
+        courtDecidedByPlayers: false,
+        courtSearchText: '', courtResults: [], selectedCourt: null,
+        showManualCourt: false, manualCourtName: '', manualCourtCity: '',
+        isIndoor: false,
+        genderType: 'MIX',
+        surface: '', isPaid: false, prize1: '', prize2: '', prize3: '', contactPhone: '', description: '',
+        setsPerMatch: '3', advantageScoring: true,
+        matchesBeforePlayoff: '', playoffQualifiers: '',
+    };
+
+    const [f, setF] = useState(INIT);
+    const [searching, setSearching] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [showRules, setShowRules] = useState(false);
+    const [citySuggestions, setCitySuggestions] = useState([]);
+    const [districtSuggestions, setDistrictSuggestions] = useState([]);
+    const set = (key, val) => setF(p => ({ ...p, [key]: val }));
+
+    const searchCityProvince = async (text) => {
+        set('scopeCity', text);
+        set('scopeDistrict', '');
+        if (text.length < 1) { setCitySuggestions([]); return; }
+        try {
+            const { data } = await api.get('/cities', { params: { q: text } });
+            const provinces = [...new Set(data.map(c => c.province))];
+            setCitySuggestions(provinces);
+        } catch { setCitySuggestions([]); }
+    };
+
+    const searchDistrict = async (text) => {
+        set('scopeDistrict', text);
+        if (!f.scopeCity.trim() || text.length < 1) { setDistrictSuggestions([]); return; }
+        try {
+            const { data } = await api.get('/cities', { params: { province: f.scopeCity.trim(), q: text } });
+            setDistrictSuggestions(data.filter(c => c.district).map(c => c.district));
+        } catch { setDistrictSuggestions([]); }
+    };
+
+    // null | 'evStart' | 'evEnd' | 'start' | 'end'
+    const [dpField, setDpField] = useState(null);
+    const [timeField, setTimeField] = useState(null);
+
+    const fmtISO = (d) => d
+        ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+        : undefined;
+
+    // Compact input style for this modal
+    const ti = { paddingVertical:7, paddingHorizontal:10, fontSize:12, marginBottom:8 };
+
+    const searchCourts = async (text) => {
+        set('courtSearchText', text);
+        set('selectedCourt', null);
+        if (text.length < 2) { set('courtResults', []); return; }
+        setSearching(true);
+        try {
+            const { data } = await api.get('/courts/search', { params: { q: text, sport: sub } });
+            set('courtResults', Array.isArray(data) ? data : []);
+        } catch { set('courtResults', []); }
+        finally { setSearching(false); }
+    };
+
+    const selectCourt = (court) => {
+        setF(p => ({
+            ...p, selectedCourt: court, courtSearchText: court.name,
+            courtResults: [], showManualCourt: false,
+            manualCourtCity: court.city || '',
+            surface: court.surface || p.surface,
+        }));
+    };
+
+    const reset = () => setF(INIT);
+
+    const submit = async () => {
+        if (!f.name.trim()) { Alert.alert('', t.tournMissingName); return; }
+        if (f.scope === 'YEREL' && !f.scopeCity.trim()) { Alert.alert('', t.tournMissingCity); return; }
+        if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
+        if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
+
+if (f.isPaid && (!f.prize1.trim() || !f.prize2.trim() || !f.prize3.trim())) { Alert.alert('', t.tournMissingPrizes); return; }
+
+        const province = f.scopeCity.trim();
+        const district = f.scopeDistrict.trim();
+        const cityVal = f.scope === 'YEREL'
+            ? (district ? `${province} / ${district}` : province)
+            : f.scope === 'ULUSAL' ? f.scopeCountry.trim() : 'Dünya';
+
+        // Auto-submit city for approval (silent — don't block tournament creation)
+        if (f.scope === 'YEREL' && province) {
+            api.post('/cities', { province, district: district || undefined }).catch(() => {});
+        }
+
+        const courtName = f.courtDecidedByPlayers ? null
+            : f.selectedCourt?.name || (f.showManualCourt ? f.manualCourtName : null) || f.courtSearchText || null;
+
+        if (!f.courtDecidedByPlayers && f.showManualCourt && f.manualCourtName && !f.selectedCourt) {
+            try {
+                await api.post('/courts', {
+                    name: f.manualCourtName, city: f.manualCourtCity || cityVal || '',
+                    sport: sub, surface: f.surface || undefined,
+                });
+            } catch { /* silent */ }
+        }
+
+        setSubmitting(true);
+        try {
+            await api.post('/tournaments', {
+                name: f.name.trim(), type: f.type, category, subCategory: sub,
+                scope: f.scope, genderType: f.genderType, city: cityVal,
+                minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
+                maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
+                location: courtName || undefined,
+                surface: f.surface || undefined,
+                isIndoor: f.courtDecidedByPlayers ? undefined : f.isIndoor,
+                isPaid: f.isPaid,
+                prize1: f.prize1.trim() || undefined,
+                prize2: f.prize2.trim() || undefined,
+                prize3: f.prize3.trim() || undefined,
+                contactPhone: f.contactPhone.trim() || undefined,
+                ...(f.type === '1' && {
+                    setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : undefined,
+                    advantageScoring: f.advantageScoring,
+                    matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : undefined,
+                    playoffQualifiers: f.playoffQualifiers ? parseInt(f.playoffQualifiers) : undefined,
+                }),
+                eventDate: fmtISO(f.eventStartDate),
+                eventTime: f.eventStartTime || undefined,
+                eventEndDate: fmtISO(f.eventEndDate),
+                eventEndTime: f.eventEndTime || undefined,
+                endDate: fmtISO(f.regEndDate),
+                endTime: f.regEndTime || undefined,
+                description: f.description.trim() || undefined,
+            });
+            reset();
+            onClose();
+            onCreated();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSubmitting(false); }
+    };
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={s.modalOverlay}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1, justifyContent:'flex-end' }}>
+                    <View style={s.modalBox}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>{t.createTournamentTitle}</Text>
+                            <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+                            {/* Name */}
+                            <Text style={s.fieldLabel}>{t.tournNameLabel}</Text>
+                            <TextInput style={[s.fieldInput, ti]} value={f.name} onChangeText={v => set('name', v)}
+                                placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
+
+                            {/* Scope */}
+                            <Text style={s.fieldLabel}>{t.tournScopeLabel}</Text>
+                            <View style={[s.chipRow, { marginBottom:8 }]}>
+                                {TOURN_SCOPES.map(sc => (
+                                    <TouchableOpacity key={sc}
+                                        style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.scope === sc && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                        onPress={() => set('scope', sc)}>
+                                        <Text style={[s.chipText, f.scope === sc && { color: cfg.color, fontWeight:'800' }]}>
+                                            {t['tournScope' + sc.charAt(0) + sc.slice(1).toLowerCase()]}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            {f.scope === 'YEREL' && (
+                                <>
+                                    <Text style={s.fieldLabel}>{t.tournCityLabel}</Text>
+                                    <TextInput style={[s.fieldInput, ti]} value={f.scopeCity}
+                                        onChangeText={searchCityProvince}
+                                        placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
+                                    {citySuggestions.length > 0 && (
+                                        <View style={s.courtResultsBox}>
+                                            {citySuggestions.map(p => (
+                                                <TouchableOpacity key={p} style={s.courtResultRow}
+                                                    onPress={() => { set('scopeCity', p); setCitySuggestions([]); }}>
+                                                    <Text style={s.courtResultName}>📍 {p}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
+                                    <Text style={s.fieldLabel}>{t.tournDistrictLabel}</Text>
+                                    <TextInput style={[s.fieldInput, ti]} value={f.scopeDistrict}
+                                        onChangeText={searchDistrict}
+                                        placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
+                                    {districtSuggestions.length > 0 && (
+                                        <View style={s.courtResultsBox}>
+                                            {districtSuggestions.map(d => (
+                                                <TouchableOpacity key={d} style={s.courtResultRow}
+                                                    onPress={() => { set('scopeDistrict', d); setDistrictSuggestions([]); }}>
+                                                    <Text style={s.courtResultName}>🏘️ {d}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
+                                </>
+                            )}
+                            {f.scope === 'ULUSAL' && (
+                                <>
+                                    <Text style={s.fieldLabel}>{t.tournCountryLabel}</Text>
+                                    <TextInput style={[s.fieldInput, ti]} value={f.scopeCountry} onChangeText={v => set('scopeCountry', v)}
+                                        placeholder={t.tournCountryPh} placeholderTextColor={colors.textMuted} />
+                                </>
+                            )}
+                            {f.scope === 'ULUSLARARASI' && (
+                                <View style={{ backgroundColor: cfg.color + '15', borderRadius:8, padding:8, marginBottom:8, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>{t.tournWorldAuto}</Text>
+                                </View>
+                            )}
+
+                            {/* Court */}
+                            <Text style={s.fieldLabel}>{t.tournCourtLabel}</Text>
+                            <View style={[s.chipRow, { marginBottom:8 }]}>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                    onPress={() => set('courtDecidedByPlayers', false)}>
+                                    <Text style={[s.chipText, !f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>{t.tournCourtSpecific}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                    onPress={() => set('courtDecidedByPlayers', true)}>
+                                    <Text style={[s.chipText, f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>{t.tournCourtPlayersDecide}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {!f.courtDecidedByPlayers && (
+                                <>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:6 }}>
+                                        <TextInput style={[s.fieldInput, ti, { flex:1, marginBottom:0 }]} value={f.courtSearchText}
+                                            onChangeText={searchCourts} placeholder={t.courtSearchPlaceholder}
+                                            placeholderTextColor={colors.textMuted} />
+                                        {searching && <ActivityIndicator size="small" color={cfg.color} />}
+                                    </View>
+                                    {f.courtResults.length > 0 && !f.selectedCourt && (
+                                        <View style={s.courtResultsBox}>
+                                            {f.courtResults.map(c => (
+                                                <TouchableOpacity key={c.id} style={s.courtResultRow} onPress={() => selectCourt(c)}>
+                                                    <Text style={s.courtResultName}>{c.name}</Text>
+                                                    {c.city ? <Text style={s.courtResultCity}>{c.city}</Text> : null}
+                                                </TouchableOpacity>
+                                            ))}
+                                            {f.courtSearchText.length > 1 && (
+                                                <TouchableOpacity style={s.courtResultRow}
+                                                    onPress={() => { set('showManualCourt', true); set('courtResults', []); }}>
+                                                    <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>{t.useThisName(f.courtSearchText)}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    )}
+                                    {f.selectedCourt && (
+                                        <View style={s.selectedCourtBox}>
+                                            <Text style={s.selectedCourtText}>✅ {f.selectedCourt.name}</Text>
+                                            <TouchableOpacity onPress={() => { set('selectedCourt', null); set('courtSearchText', ''); set('courtResults', []); }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                    {f.showManualCourt && !f.selectedCourt && (
+                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                            <TextInput style={[s.fieldInput, ti]} value={f.manualCourtName}
+                                                onChangeText={v => set('manualCourtName', v)}
+                                                placeholder={t.manualCourtLabel} placeholderTextColor={colors.textMuted} />
+                                            <TextInput style={[s.fieldInput, ti]} value={f.manualCourtCity}
+                                                onChangeText={v => set('manualCourtCity', v)}
+                                                placeholder={t.manualCityLabel} placeholderTextColor={colors.textMuted} />
+                                            <TouchableOpacity onPress={() => set('showManualCourt', false)}>
+                                                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>{t.closeCourt}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                    {/* Surface (tennis) */}
+                                    {sub === 'tennis' && (
+                                        <>
+                                            <Text style={s.fieldLabel}>{t.tournSurfaceLabel}</Text>
+                                            <View style={[s.chipRow, { marginBottom:8 }]}>
+                                                {TENNIS_SURFACES.map(sf => (
+                                                    <TouchableOpacity key={sf.id}
+                                                        style={[s.chip, { paddingVertical:5, paddingHorizontal:8 }, f.surface === sf.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                        onPress={() => set('surface', f.surface === sf.id ? '' : sf.id)}>
+                                                        <Text style={[s.chipText, f.surface === sf.id && { color: cfg.color, fontWeight:'800' }]}>{sf.emoji} {sf.label}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        </>
+                                    )}
+                                    {/* Indoor / Outdoor */}
+                                    <Text style={s.fieldLabel}>{t.venueLabel}</Text>
+                                    <View style={[s.chipRow, { marginBottom:8 }]}>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.isIndoor && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('isIndoor', false)}>
+                                            <Text style={[s.chipText, !f.isIndoor && { color: cfg.color, fontWeight:'800' }]}>{t.outdoor}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.isIndoor && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('isIndoor', true)}>
+                                            <Text style={[s.chipText, f.isIndoor && { color: cfg.color, fontWeight:'800' }]}>{t.indoor}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            )}
+
+                            {/* Son Başvuru | Cinsiyet | Set — tek satır */}
+                            <View style={{ flexDirection:'row', gap:5, alignItems:'flex-end', marginBottom:8 }}>
+                                {/* Son Başvuru */}
+                                <View style={{ width:110 }}>
+                                    <Text style={s.fieldLabel}>{t.tournRegEndLabel} *</Text>
+                                    <View style={{ flexDirection:'row', gap:2 }}>
+                                        <TouchableOpacity
+                                            style={[s.triBtn, f.regEndDate && s.triBtnFilled, { flex:1, paddingVertical:6, paddingHorizontal:4 }]}
+                                            onPress={() => { setTimeField(null); setDpField('end'); }}>
+                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.dateLabel}</Text>
+                                            <Text style={[s.triValue, !f.regEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1}>
+                                                {f.regEndDate ? `${String(f.regEndDate.getDate()).padStart(2,'0')}/${String(f.regEndDate.getMonth()+1).padStart(2,'0')}` : '—'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.triBtn, f.regEndTime && s.triBtnFilled, { paddingVertical:6, paddingHorizontal:5 }]}
+                                            onPress={() => { setDpField(null); setTimeField('end'); }}>
+                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.timeLabel}</Text>
+                                            <Text style={[s.triValue, !f.regEndTime && s.triPlaceholder, { fontSize:10 }]}>{f.regEndTime || '—'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                                {/* Cinsiyet */}
+                                <View style={{ flex:1 }}>
+                                    <Text style={s.fieldLabel}>{t.tournGenderLabel}</Text>
+                                    <View style={{ flexDirection:'row', gap:2 }}>
+                                        {TOURN_GENDERS.map(g => (
+                                            <TouchableOpacity key={g}
+                                                style={[s.chip, { flex:1, paddingVertical:5, paddingHorizontal:2, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                onPress={() => set('genderType', g)}>
+                                                <Text style={[s.chipText, { fontSize:10, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]}>
+                                                    {t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()]}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                                {/* Set */}
+                                <View style={{ width:48 }}>
+                                    <Text style={s.fieldLabel}>{t.tournSetsLabel}</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti, { marginBottom:0, textAlign:'center', paddingHorizontal:4 }]}
+                                        value={f.setsPerMatch}
+                                        onChangeText={v => set('setsPerMatch', v.replace(/[^0-9]/g, '').slice(0, 1))}
+                                        placeholder="3"
+                                        placeholderTextColor={colors.textMuted}
+                                        keyboardType="numeric"
+                                        maxLength={1}
+                                    />
+                                </View>
+                            </View>
+                            <CustomCalendarPicker
+                                visible={dpField === 'end'}
+                                value={f.regEndDate}
+                                onSelect={(date) => { set('regEndDate', date); setDpField(null); }}
+                                onClose={() => setDpField(null)}
+                            />
+                            <OptionPickerModal
+                                visible={timeField === 'end'}
+                                title={t.tournRegEndLabel}
+                                options={TIME_SLOTS.map(s => ({ value: s, label: s }))}
+                                value={f.regEndTime}
+                                onSelect={(v) => { set('regEndTime', v); setTimeField(null); }}
+                                onClose={() => setTimeField(null)}
+                            />
+
+                            {/* Event start | end — side by side */}
+                            <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                {[
+                                    { field:'evStart', label: t.tournEventStartLabel, dateVal: f.eventStartDate, timeVal: f.eventStartTime },
+                                    { field:'evEnd',   label: t.tournEventEndLabel,   dateVal: f.eventEndDate,   timeVal: f.eventEndTime   },
+                                ].map(({ field, label, dateVal, timeVal }) => (
+                                    <View key={field} style={{ flex:1 }}>
+                                        <Text style={s.fieldLabel}>{label}</Text>
+                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                            <TouchableOpacity
+                                                style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:7, paddingHorizontal:6 }]}
+                                                onPress={() => { setTimeField(null); setDpField(field); }}>
+                                                <Text style={[s.triLabel, { fontSize:9 }]}>{t.dateLabel}</Text>
+                                                <Text style={[s.triValue, !dateVal && s.triPlaceholder, { fontSize:11 }]} numberOfLines={1}>
+                                                    {dateVal ? `${String(dateVal.getDate()).padStart(2,'0')}/${String(dateVal.getMonth()+1).padStart(2,'0')}/${dateVal.getFullYear()}` : '—'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[s.triBtn, timeVal && s.triBtnFilled, { paddingVertical:7, paddingHorizontal:8 }]}
+                                                onPress={() => { setDpField(null); setTimeField(field); }}>
+                                                <Text style={[s.triLabel, { fontSize:9 }]}>{t.timeLabel}</Text>
+                                                <Text style={[s.triValue, !timeVal && s.triPlaceholder, { fontSize:11 }]}>{timeVal || '—'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                            <CustomCalendarPicker
+                                visible={dpField === 'evStart' || dpField === 'evEnd'}
+                                value={dpField === 'evStart' ? f.eventStartDate : f.eventEndDate}
+                                onSelect={(date) => { set(dpField === 'evStart' ? 'eventStartDate' : 'eventEndDate', date); setDpField(null); }}
+                                onClose={() => setDpField(null)}
+                            />
+                            <OptionPickerModal
+                                visible={timeField === 'evStart' || timeField === 'evEnd'}
+                                title={timeField === 'evStart' ? t.tournEventStartLabel : t.tournEventEndLabel}
+                                options={TIME_SLOTS.map(s => ({ value: s, label: s }))}
+                                value={timeField === 'evStart' ? f.eventStartTime : f.eventEndTime}
+                                onSelect={(v) => { set(timeField === 'evStart' ? 'eventStartTime' : 'eventEndTime', v); setTimeField(null); }}
+                                onClose={() => setTimeField(null)}
+                            />
+
+                            {/* Entry fee */}
+                            <Text style={s.fieldLabel}>{t.tournFeeLabel}</Text>
+                            <View style={[s.chipRow, { marginBottom:6 }]}>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.isPaid && { backgroundColor: '#16a34a30', borderColor: '#16a34a' }]}
+                                    onPress={() => set('isPaid', false)}>
+                                    <Text style={[s.chipText, !f.isPaid && { color: '#4ade80', fontWeight:'800' }]}>{t.tournFreeOption}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.isPaid && { backgroundColor: '#d9770630', borderColor: '#d97706' }]}
+                                    onPress={() => set('isPaid', true)}>
+                                    <Text style={[s.chipText, f.isPaid && { color: '#fbbf24', fontWeight:'800' }]}>{t.tournPaidOption}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={{ backgroundColor: f.isPaid ? '#d9770615' : '#16a34a15', borderRadius:8, padding:8, marginBottom:8, borderWidth:1, borderColor: f.isPaid ? '#d9770640' : '#16a34a40' }}>
+                                <Text style={{ color: f.isPaid ? '#fbbf24' : '#4ade80', fontSize:11, lineHeight:17 }}>
+                                    {f.isPaid ? t.tournPaidNote : t.tournFreeNote}
+                                </Text>
+                            </View>
+                            {/* Prizes — required for paid, optional for free */}
+                            {[
+                                { key:'prize1', label: f.isPaid ? t.tournPrize1 : t.tournPrize1Opt },
+                                { key:'prize2', label: f.isPaid ? t.tournPrize2 : t.tournPrize2Opt },
+                                { key:'prize3', label: f.isPaid ? t.tournPrize3 : t.tournPrize3Opt },
+                            ].map(({ key, label }) => (
+                                <View key={key}>
+                                    <Text style={s.fieldLabel}>{label}</Text>
+                                    <TextInput style={[s.fieldInput, ti]} value={f[key]}
+                                        onChangeText={v => set(key, v)}
+                                        placeholder={t.tournPrizePh} placeholderTextColor={colors.textMuted} />
+                                </View>
+                            ))}
+
+
+                            {/* Tournament type */}
+                            <Text style={s.fieldLabel}>{t.tournTypeLabel}</Text>
+                            <View style={[s.chipRow, { marginBottom:8 }]}>
+                                {TOURN_TYPES.map(tp => (
+                                    <TouchableOpacity key={tp}
+                                        style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.type === tp && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                        onPress={() => set('type', tp)}>
+                                        <Text style={[s.chipText, f.type === tp && { color: cfg.color, fontWeight:'800' }]}>
+                                            {TOURN_TYPE_LABELS(t)[tp]}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Type rules — collapsible */}
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:10, borderWidth:1, borderColor: colors.border, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}
+                                onPress={() => setShowRules(v => !v)}
+                                activeOpacity={0.7}>
+                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'800' }}>📋 {t.tournRulesLabel} — {TOURN_TYPE_LABELS(t)[f.type]}</Text>
+                                <Text style={{ color: cfg.color, fontSize:12, fontWeight:'900' }}>{showRules ? '▲' : '▼'}</Text>
+                            </TouchableOpacity>
+                            {showRules && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:-10, marginBottom:10, borderWidth:1, borderColor: colors.border, borderTopWidth:0, borderTopLeftRadius:0, borderTopRightRadius:0 }}>
+                                    <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17 }}>{t['tournRules' + f.type]}</Text>
+                                </View>
+                            )}
+
+                            {/* Gender | Sets — side by side */}
+                            <View style={{ flexDirection:'row', gap:6, alignItems:'flex-end', marginBottom:8 }}>
+                                <View style={{ flex:1 }}>
+                                    <Text style={s.fieldLabel}>{t.tournGenderLabel}</Text>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                        {TOURN_GENDERS.map(g => (
+                                            <TouchableOpacity key={g}
+                                                style={[s.chip, { flex:1, paddingVertical:5, paddingHorizontal:4, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                onPress={() => set('genderType', g)}>
+                                                <Text style={[s.chipText, { fontSize:11, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]}>
+                                                    {t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()]}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                                <View style={{ width:72 }}>
+                                    <Text style={s.fieldLabel}>{t.tournSetsLabel}</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti, { marginBottom:0, textAlign:'center' }]}
+                                        value={f.setsPerMatch}
+                                        onChangeText={v => set('setsPerMatch', v.replace(/[^0-9]/g, '').slice(0, 1))}
+                                        placeholder="3"
+                                        placeholderTextColor={colors.textMuted}
+                                        keyboardType="numeric"
+                                        maxLength={1}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Type-1 specific config (scoring + matches/qualifiers) */}
+                            {f.type === '1' && (
+                                <>
+                                    <Text style={s.fieldLabel}>{t.tournScoringLabel}</Text>
+                                    <View style={[s.chipRow, { marginBottom:8 }]}>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.advantageScoring && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('advantageScoring', true)}>
+                                            <Text style={[s.chipText, f.advantageScoring && { color: cfg.color, fontWeight:'800' }]}>{t.tournAdvantage}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.advantageScoring && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('advantageScoring', false)}>
+                                            <Text style={[s.chipText, !f.advantageScoring && { color: cfg.color, fontWeight:'800' }]}>{t.tournDeciding}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={s.fieldLabel}>{t.tournMatchesBeforePlayoff}</Text>
+                                            <TextInput style={[s.fieldInput, ti]} value={f.matchesBeforePlayoff}
+                                                onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
+                                                placeholder={t.tournMatchesPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                        </View>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={s.fieldLabel}>{t.tournPlayoffQualifiers}</Text>
+                                            <TextInput style={[s.fieldInput, ti]} value={f.playoffQualifiers}
+                                                onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
+                                                placeholder={t.tournPlayoffPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                        </View>
+                                    </View>
+                                </>
+                            )}
+
+                            {/* Min / Max players */}
+                            <View style={{ flexDirection:'row', gap:6, marginBottom:0 }}>
+                                <View style={{ flex:1 }}>
+                                    <Text style={s.fieldLabel}>{t.tournMinPlayers}</Text>
+                                    <TextInput style={[s.fieldInput, ti]} value={f.minPlayers}
+                                        onChangeText={v => set('minPlayers', v.replace(/[^0-9]/g,''))}
+                                        placeholder="2" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                </View>
+                                <View style={{ flex:1 }}>
+                                    <Text style={s.fieldLabel}>{t.tournMaxPlayers}</Text>
+                                    <TextInput style={[s.fieldInput, ti]} value={f.maxPlayers}
+                                        onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
+                                        placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                </View>
+                            </View>
+
+                            {/* Contact phone */}
+                            <Text style={s.fieldLabel}>{t.tournContactPhoneLabel}</Text>
+                            <TextInput style={[s.fieldInput, ti]} value={f.contactPhone}
+                                onChangeText={v => set('contactPhone', v)}
+                                placeholder={t.tournContactPhonePh}
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="phone-pad" />
+
+                            {/* Description */}
+                            <Text style={s.fieldLabel}>{t.tournDescLabel}</Text>
+                            <TextInput style={[s.fieldInput, ti, { minHeight:55, textAlignVertical:'top' }]} value={f.description}
+                                onChangeText={v => set('description', v)} placeholder={t.tournDescPh}
+                                placeholderTextColor={colors.textMuted} multiline />
+
+                            <TouchableOpacity
+                                style={[s.submitBtn, { backgroundColor: cfg.color }, submitting && { opacity:0.6 }]}
+                                onPress={submit} disabled={submitting}>
+                                <Text style={s.submitBtnText}>{submitting ? t.submittingBtn : t.tournSubmitBtn}</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
+    );
+}
+
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
@@ -2137,6 +3084,9 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [showCreatePW, setShowCreatePW] = useState(false);
+    const [showCreateTournament, setShowCreateTournament] = useState(false);
+    const [tournaments, setTournaments] = useState([]);
+    const [loadingTournaments, setLoadingTournaments] = useState(false);
     const [profileUserId, setProfileUserId] = useState(null);
 
     // Comments modal — lifted out of UpcomingCard so it renders outside ScrollView
@@ -2244,6 +3194,51 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [activeTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
 
     useEffect(() => { loadArchive(); }, [loadArchive]);
+
+    const loadTournaments = useCallback(async () => {
+        if (activeTab !== 'tournaments') return;
+        setLoadingTournaments(true);
+        try {
+            const { data } = await api.get(`/tournaments?category=${category}&subCategory=${sub}`);
+            setTournaments(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingTournaments(false); }
+    }, [activeTab, category, sub]);
+
+    useEffect(() => { loadTournaments(); }, [loadTournaments]);
+
+    const handleJoinTournament = useCallback(async (item) => {
+        try {
+            await api.post(`/tournaments/${item.id}/join`);
+            Alert.alert('', t.tournJoinSent);
+            loadTournaments();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.tournJoinFailed);
+        }
+    }, [loadTournaments, t]);
+
+    const handleCancelJoinTournament = useCallback(async (id) => {
+        try {
+            await api.delete(`/tournaments/${id}/join`);
+            loadTournaments();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
+    }, [loadTournaments, t]);
+
+    const handleDeleteTournament = useCallback((id) => {
+        Alert.alert('', t.tournDeleteConfirm, [
+            { text: t.no, style: 'cancel' },
+            { text: t.yes, style: 'destructive', onPress: async () => {
+                try {
+                    await api.delete(`/tournaments/${id}`);
+                    loadTournaments();
+                } catch (e) {
+                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                }
+            }},
+        ]);
+    }, [loadTournaments, t]);
 
     // Real-time updates via socket
     useEffect(() => {
@@ -2445,7 +3440,29 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── TOURNAMENTS ── */}
                     {activeTab === 'tournaments' && (
-                        <EmptyState emoji="🏆" text={t.emptyTournaments} />
+                        <>
+                            <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color + '60' }]} onPress={() => setShowCreateTournament(true)}>
+                                <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
+                            </TouchableOpacity>
+                            {loadingTournaments
+                                ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
+                                : tournaments.length === 0
+                                    ? <EmptyState emoji="🏆" text={t.emptyTournaments} />
+                                    : tournaments.map(item => (
+                                        <TournamentCard
+                                            key={item.id}
+                                            item={item}
+                                            myId={myId}
+                                            t={t}
+                                            cfg={cfg}
+                                            onJoin={handleJoinTournament}
+                                            onCancelJoin={handleCancelJoinTournament}
+                                            onDelete={handleDeleteTournament}
+                                            onUpdated={loadTournaments}
+                                        />
+                                    ))
+                            }
+                        </>
                     )}
 
                     {/* ── COACHES ── */}
@@ -2618,6 +3635,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
             <CreateRivalModal visible={showCreateRival} onClose={() => setShowCreateRival(false)} category={category} sub={sub} onCreated={load} />
             <CreatePlayerWantedModal visible={showCreatePW} onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />
+            <CreateTournamentModal visible={showCreateTournament} onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />
             <UserProfileModal visible={!!profileUserId} userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />
 
             {/* ── Yorumlar — tam ekran modal ── */}
@@ -2877,7 +3895,7 @@ const s = StyleSheet.create({
     scoreInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:10, paddingHorizontal:12, paddingVertical:10, borderWidth:1, borderColor: colors.border, fontSize:18, fontWeight:'800', width:60, textAlign:'center' },
 
     modalOverlay:     { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    modalBox:         { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:24, paddingBottom:40, maxHeight:'92%' },
+    modalBox:         { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:24, paddingLeft:2, paddingRight:2, paddingBottom:40, maxHeight:'92%' },
     modalHeader:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20 },
     modalTitle:       { color:'#fff', fontSize:18, fontWeight:'900' },
     modalClose:       { color: colors.textMuted, fontSize:22 },
@@ -2940,4 +3958,7 @@ const s = StyleSheet.create({
     triPlaceholder:   { color: colors.textMuted, fontSize:18 },
 
     storyNavBtn:      { backgroundColor:'#ffffff20', borderRadius:12, paddingHorizontal:20, paddingVertical:10 },
+
+    chip:             { paddingHorizontal:12, paddingVertical:7, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    chipText:         { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
 });

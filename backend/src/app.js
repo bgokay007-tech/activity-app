@@ -19,6 +19,7 @@ import adminRoutes from './routes/admin.routes.js';
 import tournamentRoutes from './routes/tournament.routes.js';
 import archiveRoutes from './routes/archive.routes.js';
 import coachRoutes from './routes/coach.routes.js';
+import cityRoutes from './routes/city.routes.js';
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/archive', archiveRoutes);
 app.use('/api/coaches', coachRoutes);
+app.use('/api/cities', cityRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });

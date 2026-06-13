@@ -8,6 +8,7 @@ import {
     getAllPosts, deletePost,
 } from '../controllers/admin.controller.js';
 import { getNoShowReports, approveNoShow, rejectNoShow } from '../controllers/noshow.controller.js';
+import { adminGetCities, adminUpdateCity } from '../controllers/city.controller.js';
 
 const router = Router();
 router.use(authenticate, requireAdmin);
@@ -25,5 +26,7 @@ router.delete('/posts/:id',       deletePost);
 router.get('/no-show-reports',            getNoShowReports);
 router.patch('/no-show-reports/:id/approve', approveNoShow);
 router.patch('/no-show-reports/:id/reject',  rejectNoShow);
+router.get('/cities',        adminGetCities);
+router.patch('/cities/:id',  adminUpdateCity);
 
 export default router;

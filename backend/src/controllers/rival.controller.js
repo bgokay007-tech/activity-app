@@ -125,13 +125,23 @@ export const getCountsBySubCategory = async (req, res, next) => {
     try {
         const { category } = req.query;
         const where = { status: 'OPEN', ...(category && { category }) };
-        const rows = await prisma.activityRequest.groupBy({
-            by: ['subCategory'],
-            where,
-            _count: { id: true },
-        });
+
+        const [rivalRows, tournRows] = await Promise.all([
+            prisma.activityRequest.groupBy({
+                by: ['subCategory'],
+                where,
+                _count: { id: true },
+            }),
+            prisma.tournament.groupBy({
+                by: ['subCategory'],
+                where: { status: 'OPEN', ...(category && { category }) },
+                _count: { id: true },
+            }),
+        ]);
+
         const counts = {};
-        rows.forEach(r => { counts[r.subCategory] = r._count.id; });
+        rivalRows.forEach(r => { counts[r.subCategory] = r._count.id; });
+        tournRows.forEach(r => { counts[r.subCategory] = (counts[r.subCategory] || 0) + r._count.id; });
         res.json(counts);
     } catch (error) { next(error); }
 };

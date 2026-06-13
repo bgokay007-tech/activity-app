@@ -184,7 +184,17 @@ export const seedOneTournamentJoin = async (req, res, next) => {
 
         const participant = await prisma.tournamentParticipant.create({
             data: { tournamentId, userId: user.id, status: 'PENDING' },
-            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
+            include: {
+                user: {
+                    select: {
+                        id: true, username: true, fullName: true, avatar: true,
+                        interests: {
+                            where: { category: tournament.category, subCategory: tournament.subCategory },
+                            select: { skillRating: true, level: true },
+                        },
+                    },
+                },
+            },
         });
 
         // Notify tournament creator

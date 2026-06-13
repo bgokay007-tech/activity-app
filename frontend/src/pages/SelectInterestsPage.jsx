@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball']);
+
 function SelectInterestsPage() {
     const navigate = useNavigate();
     const [categories, setCategories] = useState([]);
@@ -103,22 +105,29 @@ function SelectInterestsPage() {
                 {/* Alt Kategoriler */}
                 {activeCategoryData && (
                     <div className="grid grid-cols-2 gap-3 mb-8">
-                        {activeCategoryData.subCategories.map(sub => (
-                            <button
-                                key={sub.id}
-                                onClick={() => toggleInterest(activeCategory, sub.id)}
-                                className={`p-4 rounded-xl border-2 transition flex items-center gap-3 ${isSelected(activeCategory, sub.id)
-                                    ? `border-purple-500 bg-purple-500/20 text-white`
-                                    : 'border-gray-700 bg-gray-800/50 text-gray-300 hover:border-gray-500'
-                                    }`}
-                            >
-                                <span className="text-2xl">{sub.emoji}</span>
-                                <span className="font-semibold">{sub.name}</span>
-                                {isSelected(activeCategory, sub.id) && (
-                                    <span className="ml-auto text-purple-400">✓</span>
-                                )}
-                            </button>
-                        ))}
+                        {activeCategoryData.subCategories.map(sub => {
+                            const enabled = ENABLED_SUBS.has(sub.id);
+                            return (
+                                <button
+                                    key={sub.id}
+                                    onClick={() => enabled && toggleInterest(activeCategory, sub.id)}
+                                    disabled={!enabled}
+                                    className={`p-4 rounded-xl border-2 transition flex items-center gap-3 ${!enabled
+                                        ? 'border-gray-800 bg-gray-800/30 text-gray-600 opacity-50 cursor-not-allowed'
+                                        : isSelected(activeCategory, sub.id)
+                                            ? 'border-purple-500 bg-purple-500/20 text-white'
+                                            : 'border-gray-700 bg-gray-800/50 text-gray-300 hover:border-gray-500'
+                                        }`}
+                                >
+                                    <span className="text-2xl">{sub.emoji}</span>
+                                    <span className="font-semibold">{sub.name}</span>
+                                    {!enabled
+                                        ? <span className="ml-auto text-gray-600 text-xs">🔧</span>
+                                        : isSelected(activeCategory, sub.id) && <span className="ml-auto text-purple-400">✓</span>
+                                    }
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
 

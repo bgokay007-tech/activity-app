@@ -341,6 +341,17 @@ model RivalJoinRequest {
   @@unique([rivalId, userId])
 }
 
+// ŞEHİR / İL / İLÇE
+model City {
+  id         String   @id @default(uuid())
+  province   String
+  district   String?
+  status     String   @default("PENDING")  // PENDING | APPROVED
+  createdAt  DateTime @default(now())
+
+  @@unique([province, district])
+}
+
 // TURNUVA/ETKİNLİK
 model Tournament {
   id             String       @id @default(uuid())
@@ -349,14 +360,29 @@ model Tournament {
   category       CategoryType
   subCategory    String
   description    String?
-  maxPlayers     Int          @default(32)
+  scope                String       @default("YEREL")  // YEREL | ULUSAL | ULUSLARARASI
+  genderType           String       @default("MIX")    // KADIN | ERKEK | MIX
+  isPaid               Boolean      @default(false)
+  prize1               String?
+  prize2               String?
+  prize3               String?
+  contactPhone         String?
+  minPlayers           Int          @default(2)
+  maxPlayers           Int          @default(32)
+  setsPerMatch         Int?         // 1 | 3 | 5
+  advantageScoring     Boolean      @default(true)   // true=avantajlı, false=karar puanı
+  matchesBeforePlayoff Int?         // play-off öncesi kaç maç
+  playoffQualifiers    Int?         // play-off'a kaç kişi kalır
   location       String?
-  city           String?      // parsed city for filtering
+  city           String?      // il (YEREL) | ülke (ULUSAL) | Dünya (ULUSLARARASI)
   surface        String?      // clay | hard | grass | carpet | sand | artificial
   isIndoor       Boolean      @default(false)
   eventDate      DateTime?
-  startTime      String?      // e.g. "14:00"
-  endTime        String?      // e.g. "18:00"
+  eventTime      String?      // tournament start time e.g. "10:00"
+  eventEndDate   DateTime?    // estimated tournament end date
+  eventEndTime   String?      // estimated tournament end time e.g. "18:00"
+  startTime      String?      // registration start time
+  endTime        String?      // registration end time
   startDate      DateTime?
   endDate        DateTime?
   status         String       @default("OPEN")  // OPEN | CLOSED | COMPLETED

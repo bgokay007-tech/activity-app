@@ -1,0 +1,3 @@
+ALTER TABLE "Tournament" ADD COLUMN IF NOT EXISTS "eventTime"    TEXT;
+ALTER TABLE "Tournament" ADD COLUMN IF NOT EXISTS "eventEndDate" TIMESTAMP(3);
+ALTER TABLE "Tournament" ADD COLUMN IF NOT EXISTS "eventEndTime" TEXT;

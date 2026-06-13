@@ -1,1 +1,18 @@
 @import "tailwindcss";
+
+@keyframes rainbow {
+  0%     { color: #FF0000; }
+  12.5%  { color: #FF6600; }
+  25%    { color: #FFD700; }
+  37.5%  { color: #00CC00; }
+  50%    { color: #00CED1; }
+  62.5%  { color: #0099FF; }
+  75%    { color: #7B00FF; }
+  87.5%  { color: #FFFFFF; }
+  100%   { color: #FF0000; }
+}
+
+.logo-letter {
+  display: inline-block;
+  animation: rainbow 2.4s linear infinite;
+}

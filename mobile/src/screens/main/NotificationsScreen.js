@@ -61,38 +61,27 @@ export default function NotificationsScreen({ navigation }) {
 
         const goToSub = (tab = 'rivals') => {
             if (!data.category || !data.subCategory) return;
-            navigation.navigate('HomeTab', {
-                screen: 'SubCategory',
-                params: { category: data.category, sub: data.subCategory, initialTab: tab },
-            });
+            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab });
         };
 
         if (type === 'MESSAGE') {
             if (data.senderId) {
-                navigation.navigate('MessagesTab', {
-                    screen: 'Chat',
-                    params: {
-                        other: { id: data.senderId, username: data.senderUsername },
-                        conversation: { id: data.conversationId || null },
-                    },
+                navigation.push('Chat', {
+                    other: { id: data.senderId, username: data.senderUsername },
+                    conversation: { id: data.conversationId || null },
                 });
             } else {
                 navigation.navigate('MessagesTab');
             }
         } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED') {
             if (data.senderId) {
-                navigation.navigate('HomeTab', {
-                    screen: 'Profile',
-                    params: { userId: data.senderId },
-                });
+                navigation.push('Profile', { userId: data.senderId });
             } else {
                 navigation.navigate('ProfileTab');
             }
         } else if (type === 'SCORE_SUBMITTED') {
-            // Opponent submitted score — go to rivals tab (pending score section)
             goToSub('rivals');
-        } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') {
-            // Score confirmed → match is now in archive
+        } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED' || type === 'MATCH_CONFIRMED') {
             goToSub('archive');
         } else if (type === 'SCORE_DISPUTED') {
             goToSub('rivals');
