@@ -2248,15 +2248,6 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournEditBtn}</Text>
                             </TouchableOpacity>
                         )}
-                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onDelete(item.id)}>
-                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournDeleteBtn}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#1e40af40' }}
-                            onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
-                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600' }}>📋{requests.length > 0 ? ` (${requests.length})` : ''}</Text>
-                            <Text style={{ color:'#60a5fa', fontSize:12 }}>{showRequests ? ' ▲' : ' ›'}</Text>
-                        </TouchableOpacity>
                     </>) : (<>
                         {myStatus === null && (
                             <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
@@ -2279,6 +2270,27 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                     </>)}
                 </View>
             </View>
+
+            {/* Creator Sil + Başvurular row */}
+            {isCreator && (
+                <View style={{ flexDirection:'row', gap:6, marginTop:6 }}>
+                    <TouchableOpacity
+                        style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:6, paddingVertical:4, borderWidth:1, borderColor:'#dc262650', alignItems:'center', width:44 }}
+                        onPress={() => onDelete(item.id)}>
+                        <Text style={{ color:'#f87171', fontSize:8, fontWeight:'700', textAlign:'center' }}>
+                            {t.tournDeleteBtn?.includes(' ') ? t.tournDeleteBtn.replace(' ', '\n') : t.tournDeleteBtn}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
+                        onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
+                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'600' }}>
+                            📋 Başvurular{requests.length > 0 ? ` (${requests.length})` : ''}
+                        </Text>
+                        <Text style={{ color:'#60a5fa', fontSize:16 }}>{showRequests ? '▲' : '›'}</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {/* Creator + contact */}
             <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>
