@@ -159,9 +159,43 @@ export const updateJoinRequest = async (req, res, next) => {
 export const cancelJoin = async (req, res, next) => {
     try {
         const { id } = req.params;
+
+        const existing = await prisma.tournamentParticipant.findUnique({
+            where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
+        });
+        if (!existing) return res.status(404).json({ message: 'Not registered' });
+
+        const wasAccepted = existing.status === 'ACCEPTED';
+
         await prisma.tournamentParticipant.delete({
             where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
         });
+
+        // Freed an accepted slot → promote first PENDING in queue
+        if (wasAccepted) {
+            const nextUp = await prisma.tournamentParticipant.findFirst({
+                where: { tournamentId: id, status: 'PENDING' },
+                orderBy: { createdAt: 'asc' },
+            });
+            if (nextUp) {
+                await prisma.tournamentParticipant.update({
+                    where: { tournamentId_userId: { tournamentId: id, userId: nextUp.userId } },
+                    data: { status: 'ACCEPTED' },
+                });
+                const tourn = await prisma.tournament.findUnique({
+                    where: { id },
+                    select: { name: true, category: true, subCategory: true },
+                });
+                await createNotification(
+                    nextUp.userId,
+                    'TOURNAMENT_JOIN_ACCEPTED',
+                    '🎉 Turnuvaya Kabul Edildiniz',
+                    `"${tourn.name}" turnuvasına yedek listesinden kabul edildiniz`,
+                    { tournamentId: id, category: tourn.category.toLowerCase(), subCategory: tourn.subCategory },
+                );
+            }
+        }
+
         res.json({ message: 'Registration cancelled' });
     } catch (e) { next(e); }
 };
