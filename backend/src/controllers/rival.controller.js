@@ -680,7 +680,7 @@ export const enterScore = async (req, res, next) => {
             : [{ id: request.senderId }];
         for (const opp of opponents) {
             await createNotification(
-                opp.id, 'JOIN_REQUEST',
+                opp.id, 'SCORE_SUBMITTED',
                 '📊 Score submitted — confirm?',
                 `${me.fullName || me.username} entered the match score. Please confirm or dispute.`,
                 { rivalId: request.id, fromUserId: req.userId, category: request.category.toLowerCase(), subCategory: request.subCategory }
@@ -772,12 +772,14 @@ export const confirmScore = async (req, res, next) => {
             ? ` Points have been updated based on match result.`
             : '';
         await createNotification(
-            request.scoreEnteredBy, 'MATCH_CONFIRMED',
+            request.scoreEnteredBy, 'SCORE_CONFIRMED',
             '✅ Score confirmed!',
             `${me.username} confirmed the match score.${eloMsg}`,
             { rivalId: id, pointChanges, category: request.category.toLowerCase(), subCategory: request.subCategory }
         );
-        emitToUser(request.scoreEnteredBy, 'rivalUpdate', updated);
+        // Emit to all players so their screens update in real-time
+        const allPlayerIds2 = [...new Set([request.senderId, ...(Array.isArray(request.participants) ? request.participants.map(p => p.id) : [])])];
+        for (const uid of allPlayerIds2) emitToUser(uid, 'rivalUpdate', updated);
 
         res.json(updated);
     } catch (error) { next(error); }
@@ -848,7 +850,7 @@ export const disputeScore = async (req, res, next) => {
 
         // Notify the scorer of the dispute
         await createNotification(
-            request.scoreEnteredBy, 'JOIN_REQUEST',
+            request.scoreEnteredBy, 'SCORE_DISPUTED',
             '⚠️ Score disputed!',
             `${me.username} disputed the score${reason ? `: ${reason}` : '.'}`,
             { rivalId: id, disputed: true, category: request.category.toLowerCase(), subCategory: request.subCategory }
