@@ -2117,7 +2117,14 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
     const [editMax, setEditMax] = useState(String(item.maxPlayers || 32));
     const [editMatches, setEditMatches] = useState(String(item.matchesBeforePlayoff || ''));
     const [editQualifiers, setEditQualifiers] = useState(String(item.playoffQualifiers || ''));
+    const [editEventDate, setEditEventDate] = useState(item.eventDate ? new Date(item.eventDate) : null);
+    const [editEventTime, setEditEventTime] = useState(item.eventTime || '');
+    const [editEventEndDate, setEditEventEndDate] = useState(item.eventEndDate ? new Date(item.eventEndDate) : null);
+    const [editEventEndTime, setEditEventEndTime] = useState(item.eventEndTime || '');
+    const [editDp, setEditDp] = useState(null);
+    const [editTf, setEditTf] = useState(null);
     const [saving, setSaving] = useState(false);
+    const fmtD = (d) => d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : undefined;
 
     // Join requests panel
     const [showRequests, setShowRequests] = useState(false);
@@ -2196,6 +2203,10 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                 maxPlayers: parseInt(editMax) || item.maxPlayers,
                 matchesBeforePlayoff: editMatches ? parseInt(editMatches) : null,
                 playoffQualifiers: editQualifiers ? parseInt(editQualifiers) : null,
+                eventDate: fmtD(editEventDate),
+                eventTime: editEventTime || undefined,
+                eventEndDate: fmtD(editEventEndDate),
+                eventEndTime: editEventEndTime || undefined,
             });
             setEditing(false);
             onUpdated?.();
@@ -2267,6 +2278,51 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                 value={editQualifiers} onChangeText={v => setEditQualifiers(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="—" placeholderTextColor={colors.textMuted} />
                         </View>
                     )}
+                    {/* Event date/time edit */}
+                    <View style={{ flexDirection:'row', gap:4, alignItems:'center', flexWrap:'wrap' }}>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>🗓️ Başlangıç:</Text>
+                        <TouchableOpacity
+                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: editEventDate ? infoColor + '60' : colors.border }}
+                            onPress={() => { setEditTf(null); setEditDp('evStart'); }}>
+                            <Text style={{ color: editEventDate ? '#fff' : colors.textMuted, fontSize:11 }}>
+                                {editEventDate ? `${String(editEventDate.getDate()).padStart(2,'0')}/${String(editEventDate.getMonth()+1).padStart(2,'0')}/${editEventDate.getFullYear()}` : 'Tarih'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: editEventTime ? infoColor + '60' : colors.border }}
+                            onPress={() => { setEditDp(null); setEditTf('evStart'); }}>
+                            <Text style={{ color: editEventTime ? '#fff' : colors.textMuted, fontSize:11 }}>{editEventTime || 'Saat'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={{ flexDirection:'row', gap:4, alignItems:'center', flexWrap:'wrap' }}>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>🏁 Tahmini Bitiş:</Text>
+                        <TouchableOpacity
+                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: editEventEndDate ? infoColor + '60' : colors.border }}
+                            onPress={() => { setEditTf(null); setEditDp('evEnd'); }}>
+                            <Text style={{ color: editEventEndDate ? '#fff' : colors.textMuted, fontSize:11 }}>
+                                {editEventEndDate ? `${String(editEventEndDate.getDate()).padStart(2,'0')}/${String(editEventEndDate.getMonth()+1).padStart(2,'0')}/${editEventEndDate.getFullYear()}` : 'Tarih'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: editEventEndTime ? infoColor + '60' : colors.border }}
+                            onPress={() => { setEditDp(null); setEditTf('evEnd'); }}>
+                            <Text style={{ color: editEventEndTime ? '#fff' : colors.textMuted, fontSize:11 }}>{editEventEndTime || 'Saat'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <CustomCalendarPicker
+                        visible={editDp === 'evStart' || editDp === 'evEnd'}
+                        value={editDp === 'evStart' ? editEventDate : editEventEndDate}
+                        onSelect={(date) => { if (editDp === 'evStart') setEditEventDate(date); else setEditEventEndDate(date); setEditDp(null); }}
+                        onClose={() => setEditDp(null)}
+                    />
+                    <OptionPickerModal
+                        visible={editTf === 'evStart' || editTf === 'evEnd'}
+                        title={editTf === 'evStart' ? t.tournEventStartLabel : t.tournEventEndLabel}
+                        options={TIME_SLOTS.map(ts => ({ value: ts, label: ts }))}
+                        value={editTf === 'evStart' ? editEventTime : editEventEndTime}
+                        onSelect={(v) => { if (editTf === 'evStart') setEditEventTime(v); else setEditEventEndTime(v); setEditTf(null); }}
+                        onClose={() => setEditTf(null)}
+                    />
                     <View style={{ flexDirection:'row', gap:8 }}>
                         <TouchableOpacity style={{ backgroundColor: infoColor + '30', borderRadius:8, paddingHorizontal:12, paddingVertical:5, borderWidth:1, borderColor: infoColor + '60' }}
                             onPress={saveEdit} disabled={saving}>

@@ -191,7 +191,8 @@ export const requestCancellation = async (req, res, next) => {
 export const updateTournament = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { minPlayers, maxPlayers, setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers } = req.body;
+        const { minPlayers, maxPlayers, setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers,
+                eventDate, eventTime, eventEndDate, eventEndTime } = req.body;
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not authorized' });
@@ -204,6 +205,10 @@ export const updateTournament = async (req, res, next) => {
                 ...(advantageScoring     !== undefined && { advantageScoring: advantageScoring === true }),
                 ...(matchesBeforePlayoff !== undefined && { matchesBeforePlayoff: matchesBeforePlayoff ? parseInt(matchesBeforePlayoff) : null }),
                 ...(playoffQualifiers    !== undefined && { playoffQualifiers: playoffQualifiers ? parseInt(playoffQualifiers) : null }),
+                ...(eventDate    !== undefined && { eventDate:    eventDate ? new Date(eventDate) : null }),
+                ...(eventTime    !== undefined && { eventTime:    eventTime || null }),
+                ...(eventEndDate !== undefined && { eventEndDate: eventEndDate ? new Date(eventEndDate) : null }),
+                ...(eventEndTime !== undefined && { eventEndTime: eventEndTime || null }),
             },
         });
         res.json(updated);
