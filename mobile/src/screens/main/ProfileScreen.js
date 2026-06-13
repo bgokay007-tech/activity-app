@@ -946,8 +946,6 @@ export default function ProfileScreen({ route, navigation }) {
                                     const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
                                     const sizeTxt2 = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                     const modeTxt2 = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '⚔️ Rekabetçi' : m.matchMode?.toUpperCase() === 'PRACTICE' ? '🏃 Antrenman' : '';
-                                    const myW2 = sets ? sets.filter(s2 => (isOwner ? s2.sender : s2.opponent) > (isOwner ? s2.opponent : s2.sender)).length : null;
-                                    const opW2 = sets ? sets.filter(s2 => (isOwner ? s2.opponent : s2.sender) > (isOwner ? s2.sender : s2.opponent)).length : null;
                                     return (
                                         <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
                                             {/* Row 1: sport · size · mode · date · result */}
@@ -995,12 +993,6 @@ export default function ProfileScreen({ route, navigation }) {
                                                     );
                                                 })}
                                             </View>
-                                            {/* Row 4: total */}
-                                            {myW2 != null && sets && sets.length > 0 && (
-                                                <Text style={{ color: myW2 > opW2 ? '#4ade80' : myW2 < opW2 ? '#f87171' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
-                                                    🎾 {myW2} - {opW2}
-                                                </Text>
-                                            )}
                                         </View>
                                     );
                                 });

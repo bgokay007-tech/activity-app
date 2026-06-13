@@ -2428,8 +2428,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
                                     const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                     const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
-                                    const myW = sets ? sets.filter(s2 => (isOwner ? s2.sender : s2.opponent) > (isOwner ? s2.opponent : s2.sender)).length : null;
-                                    const opW = sets ? sets.filter(s2 => (isOwner ? s2.opponent : s2.sender) > (isOwner ? s2.sender : s2.opponent)).length : null;
                                     return (
                                         <View key={m.id} style={[s.card, { padding: 12 }]}>
                                             {/* Row 1: size · mode · date time · result */}
@@ -2477,12 +2475,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     );
                                                 })}
                                             </View>
-                                            {/* Row 4: total */}
-                                            {myW != null && sets && sets.length > 0 && (
-                                                <Text style={{ color: myW > opW ? '#4ade80' : myW < opW ? '#f87171' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
-                                                    🎾 {myW} - {opW}
-                                                </Text>
-                                            )}
                                         </View>
                                     );
                                 })}
