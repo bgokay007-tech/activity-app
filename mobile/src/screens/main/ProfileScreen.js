@@ -969,37 +969,37 @@ export default function ProfileScreen({ route, navigation }) {
                                                     🏟️ {m.courtName || m.location}
                                                 </Text>
                                             ) : null}
-                                            {/* Row 3: players */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom: myW2 != null ? 6 : 0 }}>
+                                            {/* Row 3: players with per-set scores beneath each */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom: sets ? 4 : 0 }}>
                                                 {allP.map(p => {
+                                                    const isSender = p.id === m.senderId;
                                                     const hist = snapshot[p.id];
                                                     const ratingBefore = hist?.skillRating_before;
                                                     const pts = hist?.change ?? null;
+                                                    const pSets = sets ? sets.map(s2 => isSender ? s2.sender : s2.opponent) : null;
+                                                    const pWins = sets ? sets.filter(s2 => (isSender ? s2.sender : s2.opponent) > (isSender ? s2.opponent : s2.sender)).length : null;
                                                     return (
-                                                        <TouchableOpacity key={p.id || p.username} onPress={() => p.id && p.id !== myUser?.id && navigation.push('Profile', { userId: p.id })} activeOpacity={p.id && p.id !== myUser?.id ? 0.7 : 1} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
-                                                            {ratingBefore != null && ratingBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(ratingBefore).toFixed(2)} ★</Text>}
-                                                            {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
-                                                        </TouchableOpacity>
+                                                        <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:2 }}>
+                                                            <TouchableOpacity onPress={() => p.id && p.id !== myUser?.id && navigation.push('Profile', { userId: p.id })} activeOpacity={p.id && p.id !== myUser?.id ? 0.7 : 1} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
+                                                                {ratingBefore != null && ratingBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(ratingBefore).toFixed(2)} ★</Text>}
+                                                                {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
+                                                            </TouchableOpacity>
+                                                            {pSets && (
+                                                                <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:4 }}>
+                                                                    {pSets.join('  ')}
+                                                                    {'  '}<Text style={{ color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted, fontWeight:'800' }}>({pWins})</Text>
+                                                                </Text>
+                                                            )}
+                                                        </View>
                                                     );
                                                 })}
                                             </View>
-                                            {/* Row 4: set details + total */}
-                                            {sets && sets.length > 0 && (
-                                                <View style={{ marginTop:4 }}>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                                        {sets.map(s2 => {
-                                                            const my = isOwner ? s2.sender : s2.opponent;
-                                                            const op = isOwner ? s2.opponent : s2.sender;
-                                                            return `${my}-${op}`;
-                                                        }).join('  ')}
-                                                    </Text>
-                                                    {myW2 != null && (
-                                                        <Text style={{ color: myW2 > opW2 ? '#4ade80' : myW2 < opW2 ? '#f87171' : colors.textMuted, fontSize:12, fontWeight:'700', marginTop:2 }}>
-                                                            🎾 {myW2} - {opW2}
-                                                        </Text>
-                                                    )}
-                                                </View>
+                                            {/* Row 4: total */}
+                                            {myW2 != null && sets && sets.length > 0 && (
+                                                <Text style={{ color: myW2 > opW2 ? '#4ade80' : myW2 < opW2 ? '#f87171' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
+                                                    🎾 {myW2} - {opW2}
+                                                </Text>
                                             )}
                                         </View>
                                     );
