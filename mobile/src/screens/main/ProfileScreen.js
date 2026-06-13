@@ -244,6 +244,8 @@ export default function ProfileScreen({ route, navigation }) {
     // Match modals
     const [showMyUpcoming, setShowMyUpcoming] = useState(false);
     const [showMyArchive, setShowMyArchive] = useState(false);
+    const [upcomingSub, setUpcomingSub] = useState(null); // which sport's upcoming is open
+    const [archiveSub, setArchiveSub] = useState(null); // which sport's archive is open
     const [myUpcoming, setMyUpcoming] = useState([]);
     const [myHistory, setMyHistory] = useState([]);
     const [loadingUpcoming, setLoadingUpcoming] = useState(false);
@@ -258,17 +260,13 @@ export default function ProfileScreen({ route, navigation }) {
         await AsyncStorage.setItem('activity_data_saver', String(next));
     }, [dataSaver]);
 
-    const openMyUpcoming = async () => {
+    const openMyUpcoming = (subCategory = null) => {
+        setUpcomingSub(subCategory);
         setShowMyUpcoming(true);
-        setLoadingUpcoming(true);
-        try {
-            const res = await api.get('/rivals/my-upcoming');
-            setMyUpcoming(res.data || []);
-        } catch(e) { /* silent */ }
-        finally { setLoadingUpcoming(false); }
     };
 
-    const openMyArchive = async () => {
+    const openMyArchive = async (subCategory = null) => {
+        setArchiveSub(subCategory);
         setShowMyArchive(true);
         if (myHistory.length > 0) return;
         setLoadingHistory(true);
@@ -290,13 +288,14 @@ export default function ProfileScreen({ route, navigation }) {
     useEffect(() => {
         const load = async () => {
             try {
-                const [profileRes, intRes, storiesRes, reelsRes, postsRes, upcomingRes] = await Promise.all([
+                const [profileRes, intRes, storiesRes, reelsRes, postsRes, upcomingRes, historyRes] = await Promise.all([
                     api.get(isOwnProfile ? '/auth/me' : `/users/${userId}`),
                     api.get(isOwnProfile ? '/interests/my' : `/interests/user/${userId}`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=STORY`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=REEL`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=POST`).catch(() => ({ data: [] })),
                     isOwnProfile ? api.get('/rivals/my-upcoming').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    isOwnProfile ? api.get('/rivals/my-history').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                 ]);
                 setProfile(profileRes.data);
                 setInterests(intRes.data);
@@ -331,6 +330,7 @@ export default function ProfileScreen({ route, navigation }) {
                     });
                 }
                 if (isOwnProfile && Array.isArray(upcomingRes.data)) setMyUpcoming(upcomingRes.data);
+                if (isOwnProfile && Array.isArray(historyRes.data)) setMyHistory(historyRes.data);
                 if (isOwnProfile) dispatch(setUser(profileRes.data));
                 if (!isOwnProfile) setFriendStatus(profileRes.data?.friendStatus || 'NONE');
             } catch (e) { console.warn(e?.message); }
@@ -771,7 +771,7 @@ export default function ProfileScreen({ route, navigation }) {
                                         {/* Middle: navigation buttons */}
                                         <View style={{ flex: 2, gap: 6 }}>
                                             <TouchableOpacity
-                                                onPress={() => navigation.navigate('HomeTab', { screen: 'SubCategory', params: { category: i.category, sub: i.subCategory, initialTab: 'rivals' } })}
+                                                onPress={() => openMyUpcoming(i.subCategory)}
                                                 style={{ backgroundColor: '#16a34a15', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#16a34a30' }}
                                             >
                                                 <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '700' }}>
@@ -779,10 +779,13 @@ export default function ProfileScreen({ route, navigation }) {
                                                 </Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
-                                                onPress={() => navigation.navigate('HomeTab', { screen: 'SubCategory', params: { category: i.category, sub: i.subCategory, initialTab: 'archive' } })}
+                                                onPress={() => openMyArchive(i.subCategory)}
                                                 style={{ backgroundColor: colors.purple + '15', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.purple + '30' }}
                                             >
-                                                <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '700' }}>🗃️ {t.matchArchiveBtn || 'Maç Arşivi'}</Text>
+                                                <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '700' }}>
+                                                    🗃️ {t.matchArchiveBtn || 'Maç Arşivi'}
+                                                    {(() => { const cnt = myHistory.filter(m => m.subCategory === i.subCategory).length; return cnt > 0 ? ` (${cnt})` : ''; })()}
+                                                </Text>
                                             </TouchableOpacity>
                                         </View>
 
@@ -823,34 +826,53 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={s.modalOverlay}>
                     <View style={[s.modalBox, { maxHeight:'85%' }]}>
                         <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>{t.myUpcomingTitle}</Text>
+                            <Text style={s.modalTitle}>
+                                {upcomingSub ? `${SUB_EMOJI[upcomingSub] || '⏰'} ${upcomingSub} ${t.myUpcomingTitle || 'Yaklaşan Maçlar'}` : t.myUpcomingTitle}
+                            </Text>
                             <TouchableOpacity onPress={() => setShowMyUpcoming(false)}>
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            {loadingUpcoming ? (
-                                <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
-                            ) : myUpcoming.length === 0 ? (
-                                <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.myUpcomingEmpty}</Text>
-                            ) : (
-                                myUpcoming.map(m => {
+                            {(() => {
+                                const filtered = upcomingSub ? myUpcoming.filter(m => m.subCategory === upcomingSub) : myUpcoming;
+                                if (filtered.length === 0) return (
+                                    <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.myUpcomingEmpty}</Text>
+                                );
+                                return filtered.map(m => {
                                     const allP = [
                                         { ...m.sender, skillRating: m.senderSkillRating },
                                         ...(Array.isArray(m.participants) ? m.participants : []),
                                     ].filter(Boolean);
-                                    const isTeam = m.matchMode === 'team';
-                                    const modeBadge = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                    const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
+                                    const sizeBadge2 = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                     return (
                                         <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:14 }}>
-                                            {/* Sport + mode */}
-                                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+                                            {/* Sport + badges */}
+                                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                                                 <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'800' }}>
                                                     {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
                                                 </Text>
+                                            </View>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
                                                 <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
-                                                    <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{modeBadge}</Text>
+                                                    <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{sizeBadge2}</Text>
                                                 </View>
+                                                {m.matchMode?.toUpperCase() === 'COMPETITIVE' && (
+                                                    <View style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#ef444440' }}>
+                                                        <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>⚔️ Rekabetçi</Text>
+                                                    </View>
+                                                )}
+                                                {m.matchMode?.toUpperCase() === 'PRACTICE' && (
+                                                    <View style={{ backgroundColor:'#22c55e20', borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#22c55e40' }}>
+                                                        <Text style={{ color:'#22c55e', fontSize:11, fontWeight:'700' }}>🏃 Antrenman</Text>
+                                                    </View>
+                                                )}
+                                                {m.flexibleSchedule && (
+                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                        <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>📅 Esnek</Text>
+                                                    </View>
+                                                )}
                                             </View>
                                             {/* Players */}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
@@ -887,8 +909,8 @@ export default function ProfileScreen({ route, navigation }) {
                                             ) : null}
                                         </View>
                                     );
-                                })
-                            )}
+                                });
+                            })()}
                         </ScrollView>
                     </View>
                 </View>
@@ -899,7 +921,9 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={s.modalOverlay}>
                     <View style={[s.modalBox, { maxHeight:'85%' }]}>
                         <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>{t.matchArchiveTitle}</Text>
+                            <Text style={s.modalTitle}>
+                                {archiveSub ? `${SUB_EMOJI[archiveSub] || '🏅'} ${archiveSub} ${t.matchArchiveTitle || 'Maç Arşivi'}` : t.matchArchiveTitle}
+                            </Text>
                             <TouchableOpacity onPress={() => setShowMyArchive(false)}>
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
@@ -907,10 +931,10 @@ export default function ProfileScreen({ route, navigation }) {
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {loadingHistory ? (
                                 <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
-                            ) : myHistory.length === 0 ? (
-                                <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.matchArchiveEmpty}</Text>
-                            ) : (
-                                myHistory.map(m => {
+                            ) : (() => {
+                                const filtered = archiveSub ? myHistory.filter(m => m.subCategory === archiveSub) : myHistory;
+                                if (filtered.length === 0) return <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.matchArchiveEmpty}</Text>;
+                                return filtered.map(m => {
                                     const myId2 = myUser?.id;
                                     const isOwner = m.senderId === myId2;
                                     const parts = Array.isArray(m.participants) ? m.participants : [];
@@ -919,79 +943,68 @@ export default function ProfileScreen({ route, navigation }) {
                                     const sets = m.score?.sets;
                                     const winner = m.score?.winner;
                                     const myResult = winner === 'draw' ? '🤝' : winner === (isOwner ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
-                                    const isTeam = m.matchMode === 'team';
-                                    const modeBadge = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                    const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
+                                    const sizeTxt2 = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                    const modeTxt2 = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '⚔️ Rekabetçi' : m.matchMode?.toUpperCase() === 'PRACTICE' ? '🏃 Antrenman' : '';
+                                    const myW2 = sets ? sets.filter(s2 => (isOwner ? s2.sender : s2.opponent) > (isOwner ? s2.opponent : s2.sender)).length : null;
+                                    const opW2 = sets ? sets.filter(s2 => (isOwner ? s2.opponent : s2.sender) > (isOwner ? s2.sender : s2.opponent)).length : null;
                                     return (
-                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:14 }}>
-                                            {/* Sport + mode + result */}
-                                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                                                <Text style={{ color:'#c084fc', fontSize:14, fontWeight:'800' }}>
-                                                    {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
+                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
+                                            {/* Row 1: sport · size · mode · date · result */}
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6, flexWrap:'wrap' }}>
+                                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800' }}>{SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
+                                                <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{sizeTxt2}</Text>
+                                                {modeTxt2 ? <><Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text><Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt2}</Text></> : null}
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                    {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
+                                                    {!m.flexibleSchedule && m.matchTime ? ` ${m.matchTime}` : ''}
                                                 </Text>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-                                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
-                                                        <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{modeBadge}</Text>
-                                                    </View>
-                                                    {myResult ? <Text style={{ fontSize:18 }}>{myResult}</Text> : null}
-                                                </View>
+                                                {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
                                             </View>
-                                            {/* Players with historical rating */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                            {/* Row 2: court / location */}
+                                            {(m.courtName || m.location) ? (
+                                                <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:6 }}>
+                                                    🏟️ {m.courtName || m.location}
+                                                </Text>
+                                            ) : null}
+                                            {/* Row 3: players */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom: myW2 != null ? 6 : 0 }}>
                                                 {allP.map(p => {
                                                     const hist = snapshot[p.id];
                                                     const ratingBefore = hist?.skillRating_before;
                                                     const pts = hist?.change ?? null;
                                                     return (
-                                                        <TouchableOpacity key={p.id || p.username} onPress={() => p.id && p.id !== myUser?.id && navigation.navigate('HomeTab', { screen: 'Profile', params: { userId: p.id } })} activeOpacity={p.id && p.id !== myUser?.id ? 0.7 : 1} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                        <TouchableOpacity key={p.id || p.username} onPress={() => p.id && p.id !== myUser?.id && navigation.push('Profile', { userId: p.id })} activeOpacity={p.id && p.id !== myUser?.id ? 0.7 : 1} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
                                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
-                                                            {ratingBefore != null && ratingBefore > 0 && (
-                                                                <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(ratingBefore).toFixed(2)} ★</Text>
-                                                            )}
-                                                            {pts != null && pts !== 0 && (
-                                                                <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>
-                                                                    {pts > 0 ? '+' : ''}{pts}p
-                                                                </Text>
-                                                            )}
+                                                            {ratingBefore != null && ratingBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(ratingBefore).toFixed(2)} ★</Text>}
+                                                            {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                         </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
-                                            {/* Score sets */}
-                                            {sets && (
-                                                <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:6 }}>
-                                                    {sets.map((s2, i) => `Set ${i+1}: ${isOwner ? s2.sender : s2.opponent} - ${isOwner ? s2.opponent : s2.sender}`).join('  ·  ')}
-                                                </Text>
+                                            {/* Row 4: set details + total */}
+                                            {sets && sets.length > 0 && (
+                                                <View style={{ marginTop:4 }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                        {sets.map(s2 => {
+                                                            const my = isOwner ? s2.sender : s2.opponent;
+                                                            const op = isOwner ? s2.opponent : s2.sender;
+                                                            return `${my}-${op}`;
+                                                        }).join('  ')}
+                                                    </Text>
+                                                    {myW2 != null && (
+                                                        <Text style={{ color: myW2 > opW2 ? '#4ade80' : myW2 < opW2 ? '#f87171' : colors.textMuted, fontSize:12, fontWeight:'700', marginTop:2 }}>
+                                                            🎾 {myW2} - {opW2}
+                                                        </Text>
+                                                    )}
+                                                </View>
                                             )}
-                                            {/* Date / Time / Location */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginBottom:6 }}>
-                                                {m.flexibleSchedule ? (
-                                                    <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 Esnek Program</Text>
-                                                ) : (
-                                                    <>
-                                                        {m.matchDate ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 {new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', weekday:'short' })}</Text> : null}
-                                                        {m.matchTime ? <Text style={{ color:colors.textMuted, fontSize:12 }}>🕐 {m.matchTime}</Text> : null}
-                                                    </>
-                                                )}
-                                                {m.location ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📍 {m.location}</Text> : null}
-                                            </View>
-                                            {/* Court reserved */}
-                                            <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize:12, marginBottom: m.message ? 4 : 0 }}>
-                                                {m.isCourtReserved ? '✅ Kort Rezerve Edildi' : '❌ Kort Rezerve Edilmedi'}
-                                            </Text>
-                                            {/* Note */}
-                                            {m.message ? (
-                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontStyle:'italic', marginTop:2 }}>
-                                                    💬 {m.message}
-                                                </Text>
-                                            ) : null}
-                                            {/* Completed date */}
-                                            <Text style={{ color:colors.textMuted, fontSize:10, marginTop:6 }}>
-                                                {m.completedAt ? new Date(m.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' }) : ''}
-                                            </Text>
                                         </View>
                                     );
-                                })
-                            )}
+                                });
+                            })()}
                         </ScrollView>
                     </View>
                 </View>

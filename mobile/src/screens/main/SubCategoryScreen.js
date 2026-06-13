@@ -1108,10 +1108,25 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
                             </Text>
                         </View>
+                        {match.matchMode?.toUpperCase() === 'COMPETITIVE' && (
+                            <View style={[s.modeBadge, { backgroundColor:'#ef444420', borderColor:'#ef444440' }]}>
+                                <Text style={[s.modeBadgeText, { color:'#ef4444' }]}>{t.modeCompetitive}</Text>
+                            </View>
+                        )}
+                        {match.matchMode?.toUpperCase() === 'PRACTICE' && (
+                            <View style={[s.modeBadge, { backgroundColor:'#22c55e20', borderColor:'#22c55e40' }]}>
+                                <Text style={[s.modeBadgeText, { color:'#22c55e' }]}>{t.modePractice}</Text>
+                            </View>
+                        )}
+                        {match.flexibleSchedule && (
+                            <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
+                                <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>📅 Esnek</Text>
+                            </View>
+                        )}
                     </View>
                     <Text style={s.cardSub}>
-                        {match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
-                        {match.matchTime ? ` · ${match.matchTime}` : ''}
+                        {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
+                        {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
                         {match.duration  ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
                     </Text>
                     {match.courtName && (
@@ -1281,9 +1296,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <>
                             <View style={sc.divider} />
                             <View style={sc.totalRow}>
-                                <Text style={sc.totalScore}>{totalMy}</Text>
+                                <Text style={sc.totalScore}>{mySetWins}</Text>
                                 <Text style={sc.totalLabel}>{t.totalScore}</Text>
-                                <Text style={sc.totalScore}>{totalOpp}</Text>
+                                <Text style={sc.totalScore}>{oppSetWins}</Text>
                             </View>
                             <View style={sc.winnerRow}>
                                 <Text style={[sc.winnerText, { color: autoWinner === 'draw' ? '#facc15' : iWin ? '#4ade80' : '#f87171' }]}>
@@ -2029,6 +2044,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveRivals, setArchiveRivals] = useState([]);
     const [loadingArchive, setLoadingArchive] = useState(false);
     const [pendingScore, setPendingScore] = useState([]);
+    const [archiveCity, setArchiveCity] = useState('');
+    const [archiveDateFrom, setArchiveDateFrom] = useState('');
+    const [archiveDateTo, setArchiveDateTo] = useState('');
 
     const [filterCity, setFilterCity] = useState('');
     const [filterDate, setFilterDate] = useState('all');
@@ -2129,14 +2147,20 @@ export default function SubCategoryScreen({ route, navigation }) {
         load();
     }, [load]));
 
-    useEffect(() => {
+    const loadArchive = useCallback(() => {
         if (activeTab !== 'archive') return;
         setLoadingArchive(true);
-        api.get(`/archive?category=${category}&subCategory=${sub}`)
+        const params = new URLSearchParams({ category, subCategory: sub, scope: 'all' });
+        if (archiveCity) params.set('city', archiveCity);
+        if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
+        if (archiveDateTo) params.set('dateTo', archiveDateTo);
+        api.get(`/archive?${params.toString()}`)
             .then(res => setArchiveRivals(res.data?.rivals || []))
             .catch(() => {})
             .finally(() => setLoadingArchive(false));
-    }, [activeTab, category, sub]);
+    }, [activeTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
+
+    useEffect(() => { loadArchive(); }, [loadArchive]);
 
     // Real-time updates via socket
     useEffect(() => {
@@ -2156,6 +2180,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                 if (exists) return prev.map(r => r.id === updated.id ? { ...r, ...updated } : r);
                 return [updated, ...prev];
             });
+            // Score confirmed → move from pendingScore to archiveRivals
+            if (updated.scoreStatus === 'CONFIRMED') {
+                setPendingScore(prev => prev.filter(r => r.id !== updated.id));
+                setArchiveRivals(prev => {
+                    if (prev.some(r => r.id === updated.id)) return prev;
+                    return [updated, ...prev];
+                });
+            } else if (updated.scoreStatus === 'PENDING') {
+                // Score just submitted → add to pendingScore if it belongs there
+                setPendingScore(prev => {
+                    if (prev.some(r => r.id === updated.id)) return prev.map(r => r.id === updated.id ? { ...r, ...updated } : r);
+                    return [updated, ...prev];
+                });
+            }
         });
         const offDeleted = onSocket('rivalDeleted', ({ rivalId, subCategory }) => {
             if (subCategory && subCategory !== sub) return;
@@ -2334,7 +2372,46 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── ARCHIVE ── */}
                     {activeTab === 'archive' && (
-                        loadingArchive ? (
+                        <>
+                        {/* Filter bar */}
+                        <View style={{ flexDirection:'row', gap:6, marginBottom:8, alignItems:'center' }}>
+                            <TextInput
+                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:5, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
+                                placeholder="📍 Şehir"
+                                placeholderTextColor={colors.textMuted}
+                                value={archiveCity}
+                                onChangeText={setArchiveCity}
+                                onSubmitEditing={loadArchive}
+                                returnKeyType="search"
+                            />
+                            <TextInput
+                                style={{ width:80, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:5, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
+                                placeholder="📅 Başl."
+                                placeholderTextColor={colors.textMuted}
+                                value={archiveDateFrom}
+                                onChangeText={setArchiveDateFrom}
+                                onSubmitEditing={loadArchive}
+                                returnKeyType="search"
+                            />
+                            <TextInput
+                                style={{ width:70, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:5, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
+                                placeholder="Bitiş"
+                                placeholderTextColor={colors.textMuted}
+                                value={archiveDateTo}
+                                onChangeText={setArchiveDateTo}
+                                onSubmitEditing={loadArchive}
+                                returnKeyType="search"
+                            />
+                            <TouchableOpacity onPress={loadArchive} style={{ backgroundColor: cfg.color, borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
+                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>🔍</Text>
+                            </TouchableOpacity>
+                            {(archiveCity || archiveDateFrom || archiveDateTo) && (
+                                <TouchableOpacity onPress={() => { setArchiveCity(''); setArchiveDateFrom(''); setArchiveDateTo(''); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:colors.border }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>✕</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        {loadingArchive ? (
                             <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
                         ) : archiveRivals.length === 0 ? (
                             <EmptyState emoji="🗃️" text={t.emptyArchive} />
@@ -2348,75 +2425,70 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     const sets = m.score?.sets;
                                     const winner = m.score?.winner;
                                     const myResult = winner === 'draw' ? '🤝' : winner === (isOwner ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
-                                    const isTeam = m.matchMode === 'team';
-                                    const modeBadge = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                    const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
+                                    const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                    const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
+                                    const myW = sets ? sets.filter(s2 => (isOwner ? s2.sender : s2.opponent) > (isOwner ? s2.opponent : s2.sender)).length : null;
+                                    const opW = sets ? sets.filter(s2 => (isOwner ? s2.opponent : s2.sender) > (isOwner ? s2.sender : s2.opponent)).length : null;
                                     return (
-                                        <View key={m.id} style={[s.card, { padding: 14 }]}>
-                                            {/* Header: mode badge + result */}
-                                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 8 }}>
-                                                <View style={{ backgroundColor: cfg.color+'20', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: cfg.color+'40' }}>
-                                                    <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{modeBadge}</Text>
-                                                </View>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    {myResult ? <Text style={{ fontSize: 18 }}>{myResult}</Text> : null}
-                                                    <Text style={{ color: colors.textMuted, fontSize: 10 }}>
-                                                        {m.completedAt ? new Date(m.completedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
-                                                    </Text>
-                                                </View>
+                                        <View key={m.id} style={[s.card, { padding: 12 }]}>
+                                            {/* Row 1: size · mode · date time · result */}
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6, flexWrap:'wrap' }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
+                                                {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
+                                                {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                    {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
+                                                    {!m.flexibleSchedule && m.matchTime ? ` ${m.matchTime}` : ''}
+                                                </Text>
+                                                {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
                                             </View>
-                                            {/* Players with historical rating */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap: 6, marginBottom: 8 }}>
+                                            {/* Row 2: court / location */}
+                                            {(m.courtName || m.location) ? (
+                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>
+                                                    🏟️ {m.courtName || m.location}
+                                                    {m.courtName && m.location ? `  📍 ${m.location}` : ''}
+                                                </Text>
+                                            ) : null}
+                                            {/* Row 3: players */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom: sets ? 6 : 0 }}>
                                                 {allP.map(p => {
                                                     const hist = snapshot[p.id];
                                                     const rBefore = hist?.skillRating_before;
                                                     const pts = hist?.change ?? null;
                                                     return (
-                                                        <TouchableOpacity key={p.id || p.username} onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>@{p.username}</Text>
-                                                            {rBefore != null && rBefore > 0 && (
-                                                                <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '800' }}>{Number(rBefore).toFixed(2)} ★</Text>
-                                                            )}
-                                                            {pts != null && pts !== 0 && (
-                                                                <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize: 11, fontWeight: '800' }}>
-                                                                    {pts > 0 ? '+' : ''}{pts}p
-                                                                </Text>
-                                                            )}
+                                                        <TouchableOpacity key={p.id || p.username} onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
+                                                            {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(rBefore).toFixed(2)} ★</Text>}
+                                                            {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                         </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
-                                            {/* Sets score */}
+                                            {/* Row 4: set details + total */}
                                             {sets && sets.length > 0 && (
-                                                <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 6 }}>
-                                                    {sets.map((s2, i) => `Set ${i+1}: ${isOwner ? s2.sender : s2.opponent} - ${isOwner ? s2.opponent : s2.sender}`).join('  ·  ')}
-                                                </Text>
+                                                <View style={{ marginTop:4 }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                        {sets.map((s2, idx) => {
+                                                            const my = isOwner ? s2.sender : s2.opponent;
+                                                            const op = isOwner ? s2.opponent : s2.sender;
+                                                            return `${my}-${op}`;
+                                                        }).join('  ')}
+                                                    </Text>
+                                                    {myW != null && (
+                                                        <Text style={{ color: myW > opW ? '#4ade80' : myW < opW ? '#f87171' : colors.textMuted, fontSize:12, fontWeight:'700', marginTop:2 }}>
+                                                            🎾 {myW} - {opW}
+                                                        </Text>
+                                                    )}
+                                                </View>
                                             )}
-                                            {/* Date / Time / Location */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap: 8, marginBottom: 6 }}>
-                                                {m.flexibleSchedule ? (
-                                                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>📅 Esnek Program</Text>
-                                                ) : (
-                                                    <>
-                                                        {m.matchDate ? <Text style={{ color: colors.textMuted, fontSize: 12 }}>📅 {new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', weekday:'short' })}</Text> : null}
-                                                        {m.matchTime ? <Text style={{ color: colors.textMuted, fontSize: 12 }}>🕐 {m.matchTime}</Text> : null}
-                                                    </>
-                                                )}
-                                                {m.location ? <Text style={{ color: colors.textMuted, fontSize: 12 }}>📍 {m.location}</Text> : null}
-                                            </View>
-                                            {/* Court + note */}
-                                            <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize: 12, marginBottom: m.message ? 4 : 0 }}>
-                                                {m.isCourtReserved ? '✅ Kort Rezerve Edildi' : '❌ Kort Rezerve Edilmedi'}
-                                            </Text>
-                                            {m.message ? (
-                                                <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic', marginTop: 2 }}>
-                                                    💬 {m.message}
-                                                </Text>
-                                            ) : null}
                                         </View>
                                     );
                                 })}
                             </View>
-                        )
+                        )}
+                        </>
                     )}
 
                     {/* ── REFEREE ── */}

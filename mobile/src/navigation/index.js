@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, StackActions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSelector, useDispatch } from 'react-redux';
@@ -42,6 +42,7 @@ const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const MessagesStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
+const NotificationsStack = createNativeStackNavigator();
 
 function HomeStackNav() {
     return (
@@ -69,9 +70,22 @@ function ProfileStackNav() {
     return (
         <ProfileStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <ProfileStack.Screen name="MyProfile" component={ProfileScreen} />
+            <ProfileStack.Screen name="SubCategory" component={SubCategoryScreen} />
+            <ProfileStack.Screen name="Profile" component={ProfileScreen} />
             <ProfileStack.Screen name="UserPosts" component={UserPostsScreen} />
             <ProfileStack.Screen name="CreatePost" component={CreatePostScreen} />
         </ProfileStack.Navigator>
+    );
+}
+
+function NotificationsStackNav() {
+    return (
+        <NotificationsStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+            <NotificationsStack.Screen name="NotificationsList" component={NotificationsScreen} />
+            <NotificationsStack.Screen name="SubCategory" component={SubCategoryScreen} />
+            <NotificationsStack.Screen name="Profile" component={ProfileScreen} />
+            <NotificationsStack.Screen name="Chat" component={ChatScreen} />
+        </NotificationsStack.Navigator>
     );
 }
 
@@ -155,6 +169,12 @@ function AppTabs() {
             <Tab.Screen
                 name="HomeTab"
                 component={HomeStackNav}
+                listeners={({ navigation }) => ({
+                    tabPress: (e) => {
+                        e.preventDefault();
+                        navigation.navigate('HomeTab', { screen: 'Home' });
+                    },
+                })}
                 options={{ tabBarLabel: t.home, tabBarIcon: ({ focused }) => <TabIcon label="Home" active={focused} /> }}
             />
             <Tab.Screen
@@ -170,8 +190,14 @@ function AppTabs() {
             />
             <Tab.Screen
                 name="NotificationsTab"
-                component={NotificationsScreen}
-                listeners={{ tabPress: () => setUnreadNotifs(0) }}
+                component={NotificationsStackNav}
+                listeners={({ navigation }) => ({
+                    tabPress: (e) => {
+                        setUnreadNotifs(0);
+                        e.preventDefault();
+                        navigation.navigate('NotificationsTab', { screen: 'NotificationsList' });
+                    },
+                })}
                 options={{
                     tabBarLabel: t.alerts,
                     tabBarIcon: ({ focused }) => <TabIcon label="Notifications" active={focused} />,
