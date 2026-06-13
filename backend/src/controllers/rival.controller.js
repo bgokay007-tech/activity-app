@@ -56,9 +56,21 @@ async function applyCompetitivePoints(request, winnerUserId) {
     }
 
     const allIds = [...new Set([...winnerIds, ...loserIds])];
-    const interests = await prisma.userInterest.findMany({
+    const existing = await prisma.userInterest.findMany({
         where: { userId: { in: allIds }, category: request.category, subCategory: request.subCategory },
     });
+    const existingIds = new Set(existing.map(i => i.userId));
+
+    // Auto-create interest records for players who played but never added this sport to their profile
+    const missing = allIds.filter(id => !existingIds.has(id));
+    const created = missing.length > 0
+        ? await Promise.all(missing.map(userId =>
+            prisma.userInterest.create({
+                data: { userId, category: request.category, subCategory: request.subCategory, totalPoints: 0, wins: 0, losses: 0, skillRating: 0 },
+            })
+        ))
+        : [];
+    const interests = [...existing, ...created];
 
     const winnerInterests = interests.filter(i => winnerIds.includes(i.userId));
     const loserInterests  = interests.filter(i => loserIds.includes(i.userId));
