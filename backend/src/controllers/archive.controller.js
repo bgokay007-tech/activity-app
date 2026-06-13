@@ -4,8 +4,9 @@ const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
 export const getArchive = async (req, res, next) => {
     try {
-        const { category, subCategory, city, court, dateFrom, dateTo } = req.query;
+        const { category, subCategory, city, court, dateFrom, dateTo, scope } = req.query;
         const myId = req.userId;
+        const allUsers = scope === 'all';
 
         const dateFilter = {
             ...(dateFrom && { gte: new Date(dateFrom) }),
@@ -58,7 +59,7 @@ export const getArchive = async (req, res, next) => {
             take: 100,
         });
 
-        const rivals = allRivals.filter(r => {
+        const rivals = allUsers ? allRivals : allRivals.filter(r => {
             if (r.senderId === myId || r.receiverId === myId) return true;
             const parts = Array.isArray(r.participants) ? r.participants : [];
             return parts.some(p => p.id === myId);
