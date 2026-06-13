@@ -7,6 +7,7 @@ import {
     cancelJoin,
     requestCancellation,
     getJoinRequests,
+    getParticipants,
     updateJoinRequest,
     updateTournament,
     deleteTournament,
@@ -24,6 +25,7 @@ router.post('/:id/join',                     joinTournament);
 router.delete('/:id/join',                   cancelJoin);
 router.post('/:id/cancel-request',           requestCancellation);
 router.post('/:id/complete',                 completeTournament);
+router.get('/:id/participants',               getParticipants);
 router.get('/:id/requests',                  getJoinRequests);
 router.patch('/:id/requests/:userId',        updateJoinRequest);
 router.patch('/:id',                         updateTournament);

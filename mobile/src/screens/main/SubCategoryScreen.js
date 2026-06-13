@@ -2131,10 +2131,17 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
     const [requests, setRequests] = useState([]);
     const [loadingRequests, setLoadingRequests] = useState(false);
 
+    // Participants panel (non-creator view)
+    const [showParticipants, setShowParticipants] = useState(false);
+    const [participants, setParticipants] = useState([]);
+    const [loadingParticipants, setLoadingParticipants] = useState(false);
+
     // Use accepted count from local requests list if loaded; otherwise fall back to server _count
     const participantCount = requests.length > 0
         ? requests.filter(r => r.status === 'ACCEPTED').length
-        : item._count?.participants || 0;
+        : participants.length > 0
+            ? participants.length
+            : item._count?.participants || 0;
 
     // Demo auto-join
     const [demoRunning, setDemoRunning] = useState(false);
@@ -2148,6 +2155,15 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
             setRequests(Array.isArray(data) ? data : []);
         } catch { /* silent */ }
         finally { setLoadingRequests(false); }
+    }, [item.id]);
+
+    const fetchParticipants = useCallback(async () => {
+        setLoadingParticipants(true);
+        try {
+            const { data } = await api.get(`/tournaments/${item.id}/participants`);
+            setParticipants(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingParticipants(false); }
     }, [item.id]);
 
     // Auto-load requests for creator so participantCount is always accurate
@@ -2231,6 +2247,61 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                         👤 {item.creator?.fullName || item.creator?.username}
                         {item.contactPhone ? `  📞 ${item.contactPhone}` : ''}
                     </Text>
+                    {item.isPaid && <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>💰 Ücretli</Text>}
+                    {item.endDate && (
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                            📅 Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR')}{item.endTime ? ` ${item.endTime}` : ''}
+                        </Text>
+                    )}
+                    {!editing && (
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                            👥 {t.tournParticipants(participantCount, item.maxPlayers)}
+                            {item.minPlayers > 2 ? `  (min ${item.minPlayers})` : ''}
+                        </Text>
+                    )}
+                    {item.location
+                        ? <Text style={{ color:'#60a5fa', fontSize:11 }}>🏟️ {item.location}</Text>
+                        : <Text style={{ color: colors.textMuted, fontSize:11 }}>🤝 {t.tournCourtPlayersDecide}</Text>
+                    }
+                    {item.surface && <Text style={{ color: colors.textMuted, fontSize:11 }}>⬜ {item.surface}</Text>}
+                    {item.eventDate && (<>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                            🗓️ {t.tournEventStartLabel}: {new Date(item.eventDate).toLocaleDateString('tr-TR')}{item.eventTime ? ` ${item.eventTime}` : ''}
+                        </Text>
+                        {item.eventEndDate && (
+                            <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                🏁 {t.tournEventEndLabel}: {new Date(item.eventEndDate).toLocaleDateString('tr-TR')}{item.eventEndTime ? ` ${item.eventEndTime}` : ''}
+                            </Text>
+                        )}
+                    </>)}
+                    {item.type === '1' && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:2 }}>
+                            {item.setsPerMatch && (
+                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                                    <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>
+                                        {item.setsPerMatch === 1 ? '1 Set' : `En İyi ${item.setsPerMatch}`}
+                                    </Text>
+                                </View>
+                            )}
+                            {item.advantageScoring !== undefined && (
+                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                                    <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>
+                                        {item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
+                                    </Text>
+                                </View>
+                            )}
+                            {item.matchesBeforePlayoff && (
+                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                                    <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>🔢 {item.matchesBeforePlayoff} {t.tournMatchesBeforePlayoff}</Text>
+                                </View>
+                            )}
+                            {item.playoffQualifiers && (
+                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                                    <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>🏆 {t.tournPlayoffQualifiers}: {item.playoffQualifiers}</Text>
+                                </View>
+                            )}
+                        </View>
+                    )}
                 </View>
                 <View style={{ alignItems:'flex-end', gap:4 }}>
                     <View style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor + '50' }}>
@@ -2283,28 +2354,21 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                 <Text style={{ color:'#4ade80', fontSize:10 }}>{t.tournJoinAccepted}</Text>
                             </View>
                         )}
+                        <TouchableOpacity
+                            style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
+                            onPress={() => { setShowParticipants(v => { if (!v) fetchParticipants(); return !v; }); }}>
+                            {participantCount > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{participantCount}</Text>}
+                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
+                                {'Katılımcı'.split('').join('\n')}
+                            </Text>
+                            <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>{showParticipants ? '▲' : '›'}</Text>
+                        </TouchableOpacity>
                     </>)}
                 </View>
             </View>
 
-
-
-            {/* Paid badge */}
-            {item.isPaid && (
-                <View style={{ backgroundColor:'#d9770620', borderRadius:6, paddingHorizontal:8, paddingVertical:2, borderWidth:1, borderColor:'#d9770650', alignSelf:'flex-start', marginTop:4 }}>
-                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>💰 Ücretli</Text>
-                </View>
-            )}
-
-            {/* Registration dates */}
-            {item.endDate && (
-                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
-                    📅 Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR')}{item.endTime ? ` ${item.endTime}` : ''}
-                </Text>
-            )}
-
-            {/* Players — normal or edit mode */}
-            {editing ? (
+            {/* Players — edit mode */}
+            {editing && (
                 <View style={{ marginTop:8, gap:6 }}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                         <Text style={{ color: colors.textMuted, fontSize:11 }}>Min:</Text>
@@ -2383,11 +2447,6 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                         </TouchableOpacity>
                     </View>
                 </View>
-            ) : (
-                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
-                    👥 {t.tournParticipants(participantCount, item.maxPlayers)}
-                    {item.minPlayers > 2 ? `  (min ${item.minPlayers})` : ''}
-                </Text>
             )}
 
             {/* Requests list */}
@@ -2429,54 +2488,25 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                 </View>
             )}
 
-            {/* Court */}
-            {item.location
-                ? <Text style={{ color:'#60a5fa', fontSize:11, marginTop:4 }}>🏟️ {item.location}</Text>
-                : <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>🤝 {t.tournCourtPlayersDecide}</Text>
-            }
-            {item.surface && <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>⬜ {item.surface}</Text>}
-
-            {/* Tournament event dates */}
-            {item.eventDate && (
-                <View style={{ marginTop:4 }}>
-                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                        🗓️ {t.tournEventStartLabel}: {new Date(item.eventDate).toLocaleDateString('tr-TR')}{item.eventTime ? ` ${item.eventTime}` : ''}
-                    </Text>
-                    {item.eventEndDate && (
-                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>
-                            🏁 {t.tournEventEndLabel}: {new Date(item.eventEndDate).toLocaleDateString('tr-TR')}{item.eventEndTime ? ` ${item.eventEndTime}` : ''}
-                        </Text>
-                    )}
-                </View>
-            )}
-
-            {/* Type-1 config summary */}
-            {item.type === '1' && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
-                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:6 }}>
-                    {item.setsPerMatch && (
-                        <View style={{ backgroundColor: infoColor + '15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
-                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                                {item.setsPerMatch === 1 ? '1 Set' : `En İyi ${item.setsPerMatch}`}
-                            </Text>
+            {/* Participants list (non-creator view) */}
+            {!isCreator && showParticipants && (
+                <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, marginTop:8, borderWidth:1, borderColor: colors.border }}>
+                    {loadingParticipants ? (
+                        <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:8 }} />
+                    ) : participants.length === 0 ? (
+                        <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz katılımcı yok</Text>
+                    ) : participants.map((r, i) => (
+                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < participants.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}>
+                            <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
+                            <View style={{ flex:1 }}>
+                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                    @{r.user?.username}
+                                    {r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}
+                                </Text>
+                            </View>
                         </View>
-                    )}
-                    {item.advantageScoring !== undefined && (
-                        <View style={{ backgroundColor: infoColor + '15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
-                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                                {item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
-                            </Text>
-                        </View>
-                    )}
-                    {item.matchesBeforePlayoff && (
-                        <View style={{ backgroundColor: infoColor + '15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
-                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>🔢 {item.matchesBeforePlayoff} {t.tournMatchesBeforePlayoff}</Text>
-                        </View>
-                    )}
-                    {item.playoffQualifiers && (
-                        <View style={{ backgroundColor: infoColor + '15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
-                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>🏆 {t.tournPlayoffQualifiers}: {item.playoffQualifiers}</Text>
-                        </View>
-                    )}
+                    ))}
                 </View>
             )}
 

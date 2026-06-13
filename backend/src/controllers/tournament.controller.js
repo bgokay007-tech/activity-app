@@ -138,6 +138,30 @@ export const getJoinRequests = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+export const getParticipants = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+        const participants = await prisma.tournamentParticipant.findMany({
+            where: { tournamentId: id, status: 'ACCEPTED' },
+            include: {
+                user: {
+                    select: {
+                        id: true, username: true, fullName: true, avatar: true,
+                        interests: {
+                            where: { category: tournament.category, subCategory: tournament.subCategory },
+                            select: { skillRating: true, level: true },
+                        },
+                    },
+                },
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json(participants);
+    } catch (e) { next(e); }
+};
+
 export const updateJoinRequest = async (req, res, next) => {
     try {
         const { id, userId } = req.params;

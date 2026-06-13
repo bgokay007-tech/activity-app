@@ -21,8 +21,5 @@
         "buildType": "app-bundle"
       }
     }
-  },
-  "update": {
-    "server": "https://u.expo.dev/6efad865-a6d7-4da4-b5e8-43c9c4de1cba"
   }
 }
