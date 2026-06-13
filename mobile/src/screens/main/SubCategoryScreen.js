@@ -2228,22 +2228,55 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                         {item.genderType ? ` · ${t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType}` : ''}
                     </Text>
                 </View>
-                <View style={{ alignItems:'flex-end', gap:5 }}>
+                <View style={{ alignItems:'flex-end', gap:4 }}>
                     <View style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor + '50' }}>
                         <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{t.tournStatusOpen}</Text>
                     </View>
-                    {isCreator && myStatus === null && (
-                        <TouchableOpacity
-                            style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }}
-                            onPress={() => onJoin(item)}>
-                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
+                    {isCreator ? (<>
+                        {myStatus === null && (
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
+                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {myStatus === 'ACCEPTED' && (
+                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
+                                <Text style={{ color:'#4ade80', fontSize:10 }}>✓ Katıldın</Text>
+                            </View>
+                        )}
+                        {!editing && (
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setEditing(true)}>
+                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournEditBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onDelete(item.id)}>
+                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournDeleteBtn}</Text>
                         </TouchableOpacity>
-                    )}
-                    {isCreator && myStatus === 'ACCEPTED' && (
-                        <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
-                            <Text style={{ color:'#4ade80', fontSize:10 }}>✓ Katıldın</Text>
-                        </View>
-                    )}
+                        <TouchableOpacity
+                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#1e40af40' }}
+                            onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
+                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600' }}>📋{requests.length > 0 ? ` (${requests.length})` : ''}</Text>
+                            <Text style={{ color:'#60a5fa', fontSize:12 }}>{showRequests ? ' ▲' : ' ›'}</Text>
+                        </TouchableOpacity>
+                    </>) : (<>
+                        {myStatus === null && (
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
+                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournJoinBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {myStatus === 'PENDING' && (<>
+                            <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2, borderWidth:1, borderColor:'#a855f750' }}>
+                                <Text style={{ color:'#c084fc', fontSize:10 }}>{t.tournJoinPending}</Text>
+                            </View>
+                            <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onCancelJoin(item.id)}>
+                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournCancelJoinBtn}</Text>
+                            </TouchableOpacity>
+                        </>)}
+                        {myStatus === 'ACCEPTED' && (
+                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
+                                <Text style={{ color:'#4ade80', fontSize:10 }}>{t.tournJoinAccepted}</Text>
+                            </View>
+                        )}
+                    </>)}
                 </View>
             </View>
 
@@ -2354,6 +2387,45 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                 </Text>
             )}
 
+            {/* Requests list */}
+            {isCreator && showRequests && (
+                <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, marginTop:8, borderWidth:1, borderColor: colors.border }}>
+                    {loadingRequests ? (
+                        <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:8 }} />
+                    ) : requests.length === 0 ? (
+                        <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz başvuru yok</Text>
+                    ) : requests.map((r, i) => (
+                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}>
+                            <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
+                            <View style={{ flex:1 }}>
+                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                    @{r.user?.username}
+                                    {r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}
+                                </Text>
+                            </View>
+                            <View style={{ alignItems:'flex-end', gap:4 }}>
+                                <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2 }}>
+                                    <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
+                                        {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : '⏳ Bekliyor'}
+                                    </Text>
+                                </View>
+                                {r.status === 'PENDING' && (
+                                    <View style={{ flexDirection:'row', gap:4 }}>
+                                        <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => updateRequest(r.userId, 'REJECTED')} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+                    ))}
+                </View>
+            )}
+
             {/* Court */}
             {item.location
                 ? <Text style={{ color:'#60a5fa', fontSize:11, marginTop:4 }}>🏟️ {item.location}</Text>
@@ -2419,101 +2491,16 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                 </View>
             )}
 
-            {/* Action buttons */}
-            <View style={{ flexDirection:'row', gap:8, marginTop:10, flexWrap:'wrap' }}>
-                {!isCreator && myStatus === null && (
-                    <TouchableOpacity style={[s.joinBtn, { borderColor: infoColor + '60', backgroundColor: infoColor + '15' }]} onPress={() => onJoin(item)}>
-                        <Text style={[s.joinBtnText, { color: infoColor }]}>{t.tournJoinBtn}</Text>
-                    </TouchableOpacity>
-                )}
-                {!isCreator && myStatus === 'PENDING' && (
-                    <>
-                        <View style={[s.joinBtn, { backgroundColor:'#a855f720', borderColor:'#a855f750' }]}>
-                            <Text style={[s.joinBtnText, { color:'#c084fc' }]}>{t.tournJoinPending}</Text>
-                        </View>
-                        <TouchableOpacity style={[s.joinBtn, { backgroundColor:'#dc262620', borderColor:'#dc262650' }]} onPress={() => onCancelJoin(item.id)}>
-                            <Text style={[s.joinBtnText, { color:'#f87171' }]}>{t.tournCancelJoinBtn}</Text>
-                        </TouchableOpacity>
-                    </>
-                )}
-                {!isCreator && myStatus === 'ACCEPTED' && (
-                    <View style={[s.joinBtn, { backgroundColor:'#16a34a20', borderColor:'#16a34a50' }]}>
-                        <Text style={[s.joinBtnText, { color:'#4ade80' }]}>{t.tournJoinAccepted}</Text>
-                    </View>
-                )}
-                {isCreator && (
-                    <View style={{ gap:8, flex:1 }}>
-                        <View style={{ flexDirection:'row', gap:8 }}>
-                            {!editing && (
-                                <TouchableOpacity style={[s.joinBtn, { backgroundColor: infoColor + '20', borderColor: infoColor + '50' }]} onPress={() => setEditing(true)}>
-                                    <Text style={[s.joinBtnText, { color: infoColor }]}>{t.tournEditBtn}</Text>
-                                </TouchableOpacity>
-                            )}
-                            <TouchableOpacity style={[s.joinBtn, { backgroundColor:'#dc262620', borderColor:'#dc262650' }]} onPress={() => onDelete(item.id)}>
-                                <Text style={[s.joinBtnText, { color:'#f87171' }]}>{t.tournDeleteBtn}</Text>
-                            </TouchableOpacity>
-                        </View>
-                        {/* Demo + Requests row */}
-                        <View style={{ flexDirection:'row', gap:8 }}>
-                            <TouchableOpacity
-                                style={[s.joinBtn, { backgroundColor: demoRunning ? '#dc262620' : '#7c3aed20', borderColor: demoRunning ? '#dc262650' : '#7c3aed50' }]}
-                                onPress={demoRunning ? stopDemo : startDemo}>
-                                <Text style={[s.joinBtnText, { color: demoRunning ? '#f87171' : '#a78bfa' }]}>
-                                    {demoRunning ? `⏸ Durdur (${demoIdx}/40)` : `🤖 Demo (${demoIdx}/40)`}
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', flex:1, backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
-                                onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
-                                <Text style={{ color:'#60a5fa', fontSize:12, fontWeight:'600' }}>
-                                    📋 Başvurular{requests.length > 0 ? ` (${requests.length})` : ''}
-                                </Text>
-                                <Text style={{ color:'#60a5fa', fontSize:18, fontWeight:'700' }}>{showRequests ? '▲' : '›'}</Text>
-                            </TouchableOpacity>
-                        </View>
-                        {/* Join requests list */}
-                        {showRequests && (
-                            <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, borderWidth:1, borderColor: colors.border }}>
-                                {loadingRequests ? (
-                                    <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:8 }} />
-                                ) : requests.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz başvuru yok</Text>
-                                ) : requests.map((r, i) => (
-                                    <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                                @{r.user?.username}
-                                                {r.user?.interests?.[0]?.skillRating != null
-                                                    ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}`
-                                                    : ''}
-                                            </Text>
-                                        </View>
-                                        <View style={{ alignItems:'flex-end', gap:4 }}>
-                                            <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2 }}>
-                                                <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
-                                                    {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : '⏳ Bekliyor'}
-                                                </Text>
-                                            </View>
-                                            {r.status === 'PENDING' && (
-                                                <View style={{ flexDirection:'row', gap:4 }}>
-                                                    <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
-                                                    </TouchableOpacity>
-                                                    <TouchableOpacity onPress={() => updateRequest(r.userId, 'REJECTED')} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
-                                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
-                                                    </TouchableOpacity>
-                                                </View>
-                                            )}
-                                        </View>
-                                    </View>
-                                ))}
-                            </View>
-                        )}
-                    </View>
-                )}
-            </View>
+            {/* Demo button (creator only) */}
+            {isCreator && (
+                <TouchableOpacity
+                    style={[s.joinBtn, { marginTop:10, backgroundColor: demoRunning ? '#dc262620' : '#7c3aed20', borderColor: demoRunning ? '#dc262650' : '#7c3aed50' }]}
+                    onPress={demoRunning ? stopDemo : startDemo}>
+                    <Text style={[s.joinBtnText, { color: demoRunning ? '#f87171' : '#a78bfa' }]}>
+                        {demoRunning ? `⏸ Durdur (${demoIdx}/40)` : `🤖 Demo (${demoIdx}/40)`}
+                    </Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
