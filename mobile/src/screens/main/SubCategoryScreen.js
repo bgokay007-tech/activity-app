@@ -2249,7 +2249,7 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650', alignItems:'center' }} onPress={() => onDelete(item.id)}>
-                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', textAlign:'center' }}>Turnuvayı{'\n'}Sil</Text>
+                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', textAlign:'center' }}>Turnuvayı{'\n'}🗑️ Sil</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#1e40af40' }}
