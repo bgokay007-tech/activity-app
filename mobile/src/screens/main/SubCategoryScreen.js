@@ -2227,6 +2227,10 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                         {SCOPE_EMOJI[item.scope] || '📍'} {item.city || ''}{item.city && ' · '}{typeLabels[item.type] || item.type}
                         {item.genderType ? ` · ${t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType}` : ''}
                     </Text>
+                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
+                        👤 {item.creator?.fullName || item.creator?.username}
+                        {item.contactPhone ? `  📞 ${item.contactPhone}` : ''}
+                    </Text>
                 </View>
                 <View style={{ alignItems:'flex-end', gap:4 }}>
                     <View style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor + '50' }}>
@@ -2252,10 +2256,13 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                             <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', textAlign:'center' }}>Turnuvayı{'\n'}🗑️ Sil</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#1e40af40' }}
+                            style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
                             onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
-                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600' }}>📋{requests.length > 0 ? ` (${requests.length})` : ''}</Text>
-                            <Text style={{ color:'#60a5fa', fontSize:12 }}>{showRequests ? ' ▲' : ' ›'}</Text>
+                            {requests.length > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{requests.length}</Text>}
+                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
+                                {'Başvurular'.split('').join('\n')}
+                            </Text>
+                            <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>{showRequests ? '▲' : '›'}</Text>
                         </TouchableOpacity>
                     </>) : (<>
                         {myStatus === null && (
@@ -2280,11 +2287,7 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                 </View>
             </View>
 
-            {/* Creator + contact */}
-            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>
-                👤 {item.creator?.fullName || item.creator?.username}
-                {item.contactPhone ? `  📞 ${item.contactPhone}` : ''}
-            </Text>
+
 
             {/* Paid badge */}
             {item.isPaid && (
