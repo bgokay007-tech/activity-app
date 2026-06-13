@@ -621,7 +621,7 @@ export const deleteMatchComment = async (req, res, next) => {
 export const abandonMatch = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { reason, newDate, newTime, newLocation, partialSets } = req.body;
+        const { reason, newDate, newTime, newLocation, newCourtName, partialSets } = req.body;
 
         const request = await prisma.activityRequest.findUnique({ where: { id } });
         if (!request) return res.status(404).json({ message: 'Not found' });
@@ -649,9 +649,10 @@ export const abandonMatch = async (req, res, next) => {
         await prisma.activityRequest.update({
             where: { id },
             data: {
-                ...(newDate     && { matchDate: new Date(newDate) }),
-                ...(newTime     && { matchTime: newTime }),
-                ...(newLocation && { location: newLocation }),
+                ...(newDate      && { matchDate: new Date(newDate) }),
+                ...(newTime      && { matchTime: newTime }),
+                ...(newCourtName && { courtName: newCourtName }),
+                ...(newLocation  && { location: newLocation }),
                 ...(Array.isArray(partialSets) && partialSets.length > 0 && {
                     score: { sets: partialSets, winner: null, partial: true },
                 }),

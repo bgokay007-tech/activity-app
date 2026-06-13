@@ -861,10 +861,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [cancelling, setCancelling] = useState(false);
     const [abanDate, setAbanDate] = useState(null);
     const [abanTime, setAbanTime] = useState('');
-    const [abanLoc, setAbanLoc] = useState('');
     const [abanSets, setAbanSets] = useState([{ my: '', opp: '' }]);
     const [showAbanDatePicker, setShowAbanDatePicker] = useState(false);
     const [showAbanTimePicker, setShowAbanTimePicker] = useState(false);
+    const [abanCourtText, setAbanCourtText] = useState('');
+    const [abanCourtResults, setAbanCourtResults] = useState([]);
+    const [abanSelectedCourt, setAbanSelectedCourt] = useState(null);
+    const [abanShowManual, setAbanShowManual] = useState(false);
+    const [abanManualName, setAbanManualName] = useState('');
+    const [abanManualCity, setAbanManualCity] = useState('');
+    const [abanManualAddress, setAbanManualAddress] = useState('');
+    const [abanSearching, setAbanSearching] = useState(false);
     const [showNoShow, setShowNoShow] = useState(false);
     const [noShowAbsent, setNoShowAbsent] = useState([]);
     const [noShowPhoto, setNoShowPhoto] = useState(null);
@@ -948,6 +955,26 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.confirmFailed); }
     };
 
+    const searchAbanCourts = async (text) => {
+        setAbanCourtText(text);
+        setAbanSelectedCourt(null);
+        if (text.length < 2) { setAbanCourtResults([]); return; }
+        setAbanSearching(true);
+        try {
+            const { data } = await api.get('/courts/search', { params: { q: text, sport: match.subCategory } });
+            setAbanCourtResults(Array.isArray(data) ? data : []);
+        } catch { setAbanCourtResults([]); }
+        finally { setAbanSearching(false); }
+    };
+
+    const selectAbanCourt = (court) => {
+        setAbanSelectedCourt(court);
+        setAbanCourtText(court.name);
+        setAbanCourtResults([]);
+        setAbanShowManual(false);
+        setAbanManualCity(court.city || '');
+    };
+
     const submitAbandon = async () => {
         setAbandoning(true);
         try {
@@ -955,7 +982,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             if (abandonReason === 'abandoned') {
                 if (abanDate) body.newDate = `${abanDate.getFullYear()}-${String(abanDate.getMonth()+1).padStart(2,'0')}-${String(abanDate.getDate()).padStart(2,'0')}`;
                 if (abanTime) body.newTime = abanTime;
-                if (abanLoc.trim()) body.newLocation = abanLoc.trim();
+                const courtName = abanSelectedCourt?.name || (abanShowManual ? abanManualName : null) || abanCourtText || null;
+                const courtLoc  = abanSelectedCourt?.city || abanManualCity || null;
+                if (courtName) body.newCourtName = courtName;
+                if (courtLoc)  body.newLocation  = courtLoc;
                 const validSets = abanSets.filter(r => r.my !== '' || r.opp !== '');
                 if (validSets.length > 0) {
                     body.partialSets = validSets.map(r => ({
@@ -1381,8 +1411,61 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     </TouchableOpacity>
                                     <OptionPickerModal visible={showAbanTimePicker} title={t.selectTime} options={TIME_OPTS.filter(o => o.value)} value={abanTime} onSelect={setAbanTime} onClose={() => setShowAbanTimePicker(false)} />
 
-                                    <Text style={s.fieldLabel}>{t.newLocation}</Text>
-                                    <TextInput style={s.fieldInput} value={abanLoc} onChangeText={setAbanLoc} placeholder="İstanbul / Kadıköy" placeholderTextColor={colors.textMuted} />
+                                    <Text style={s.fieldLabel}>{t.courtLabel}</Text>
+                                    <View style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
+                                        <TextInput
+                                            style={[s.fieldInput, { flex:1, marginBottom:0 }]}
+                                            value={abanCourtText}
+                                            onChangeText={searchAbanCourts}
+                                            placeholder={t.courtSearchPlaceholder}
+                                            placeholderTextColor={colors.textMuted}
+                                        />
+                                        {abanSearching && <ActivityIndicator color={cfg.color} style={{ alignSelf:'center' }} />}
+                                    </View>
+
+                                    {abanCourtResults.length > 0 && !abanSelectedCourt && (
+                                        <View style={s.courtResultsBox}>
+                                            {abanCourtResults.map(c => (
+                                                <TouchableOpacity key={c.id} style={s.courtResultRow} onPress={() => selectAbanCourt(c)}>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={s.courtResultName}>{c.name}</Text>
+                                                        {c.city && <Text style={s.courtResultCity}>{c.city}</Text>}
+                                                    </View>
+                                                    {c.verified && <Text style={{ color:'#4ade80', fontSize:11 }}>{t.courtVerified}</Text>}
+                                                </TouchableOpacity>
+                                            ))}
+                                            <TouchableOpacity
+                                                style={[s.courtResultRow, { borderBottomWidth:0, backgroundColor:'#a855f710' }]}
+                                                onPress={() => { setAbanCourtResults([]); setAbanShowManual(true); setAbanManualName(abanCourtText); }}
+                                            >
+                                                <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'700' }}>{t.useThisName(abanCourtText)}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+
+                                    {abanSelectedCourt && (
+                                        <View style={s.selectedCourtBox}>
+                                            <Text style={s.selectedCourtText}>✅ {abanSelectedCourt.name}</Text>
+                                            <TouchableOpacity onPress={() => { setAbanSelectedCourt(null); setAbanCourtText(''); setAbanCourtResults([]); }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+
+                                    {!abanSelectedCourt && abanCourtText.length >= 2 && abanCourtResults.length === 0 && !abanSearching && (
+                                        <TouchableOpacity style={s.addCourtBtn} onPress={() => setAbanShowManual(v => !v)}>
+                                            <Text style={s.addCourtBtnText}>{abanShowManual ? t.closeCourt : t.addCityAddress(abanCourtText)}</Text>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    {!abanSelectedCourt && abanShowManual && (
+                                        <View style={s.manualCourtBox}>
+                                            <Text style={s.manualCourtNote}>{t.courtSubmitNote}</Text>
+                                            <TextInput style={s.fieldInput} value={abanManualName} onChangeText={setAbanManualName} placeholder={t.manualCourtLabel} placeholderTextColor={colors.textMuted} />
+                                            <TextInput style={s.fieldInput} value={abanManualCity} onChangeText={setAbanManualCity} placeholder={t.manualCityLabel} placeholderTextColor={colors.textMuted} />
+                                            <TextInput style={s.fieldInput} value={abanManualAddress} onChangeText={setAbanManualAddress} placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} />
+                                        </View>
+                                    )}
 
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.currentScore}</Text>
                                     {abanSets.map((row, i) => (

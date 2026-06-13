@@ -14,7 +14,7 @@ const SUB_MAP = {
         { id: 'football',    label: 'Football',         emoji: '⚽' },
         { id: 'basketball',  label: 'Basketball',       emoji: '🏀' },
         { id: 'running',     label: 'Running',          emoji: '🏃' },
-        { id: 'wellness',    label: 'Yoga / Pilates',   emoji: '🧘' },
+        { id: 'wellness',    label: 'Yoga / Pilates / Reformer', emoji: '🧘' },
     ],
     SOCIAL:  [
         { id: 'language',    label: 'Language Exchange', emoji: '🌍' },
@@ -43,7 +43,7 @@ const CAT_COLOR = {
 
 export default function CategoryScreen({ route, navigation }) {
     const { category } = route.params;
-    const subs = SUB_MAP[category] || [];
+    const subs = [...(SUB_MAP[category] || [])].sort((a, b) => a.label.localeCompare(b.label));
     const accentColor = CAT_COLOR[category] || colors.purple;
     const t = useT();
 
@@ -70,32 +70,34 @@ export default function CategoryScreen({ route, navigation }) {
                 <ActivityIndicator color={accentColor} style={{ marginTop: 40 }} />
             ) : (
                 <ScrollView contentContainerStyle={s.list}>
-                    {subs.map(sub => {
-                        const enabled = ENABLED_SUBS.has(sub.id);
-                        const count = counts[sub.id] || 0;
-                        return (
-                            <TouchableOpacity
-                                key={sub.id}
-                                style={[s.row, { borderColor: enabled ? accentColor + '40' : colors.border, opacity: enabled ? 1 : 0.5 }]}
-                                onPress={() => enabled && navigation.navigate('SubCategory', { category, sub: sub.id })}
-                                activeOpacity={enabled ? 0.75 : 1}
-                            >
-                                <Text style={s.emoji}>{sub.emoji}</Text>
-                                <Text style={s.rowLabel}>{sub.label}</Text>
-                                {enabled ? (
-                                    <View style={[s.countBadge, { backgroundColor: accentColor + '20', borderColor: accentColor + '60' }]}>
-                                        <Text style={[s.countText, { color: count > 0 ? accentColor : colors.textMuted }]}>
-                                            {count > 0 ? t.listings(count) : t.noListings}
-                                        </Text>
-                                    </View>
-                                ) : (
-                                    <View style={[s.countBadge, { backgroundColor: '#37415120', borderColor: '#37415160' }]}>
-                                        <Text style={[s.countText, { color: colors.textMuted }]}>{t.maintenance}</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-                        );
-                    })}
+                    <View style={s.grid}>
+                        {subs.map(sub => {
+                            const enabled = ENABLED_SUBS.has(sub.id);
+                            const count = counts[sub.id] || 0;
+                            return (
+                                <TouchableOpacity
+                                    key={sub.id}
+                                    style={[s.card, { borderColor: enabled ? accentColor + '40' : colors.border, opacity: enabled ? 1 : 0.5 }]}
+                                    onPress={() => enabled && navigation.navigate('SubCategory', { category, sub: sub.id })}
+                                    activeOpacity={enabled ? 0.75 : 1}
+                                >
+                                    <Text style={s.emoji}>{sub.emoji}</Text>
+                                    <Text style={s.cardLabel}>{sub.label}</Text>
+                                    {enabled ? (
+                                        <View style={[s.countBadge, { backgroundColor: accentColor + '20', borderColor: accentColor + '60' }]}>
+                                            <Text style={[s.countText, { color: count > 0 ? accentColor : colors.textMuted }]}>
+                                                {count > 0 ? t.listings(count) : t.noListings}
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <View style={[s.countBadge, { backgroundColor: '#37415120', borderColor: '#37415160' }]}>
+                                            <Text style={[s.countText, { color: colors.textMuted }]}>{t.maintenance}</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
                 </ScrollView>
             )}
         </View>
@@ -108,13 +110,15 @@ const s = StyleSheet.create({
     back:       {},
     backText:   { color: colors.purple, fontSize: 15, fontWeight: '700' },
     title:      { color: '#fff', fontSize: 20, fontWeight: '900' },
-    list:       { paddingHorizontal: 20, gap: 12, paddingBottom: 32 },
-    row:        {
-        backgroundColor: colors.surface, borderRadius: 16, padding: 16,
-        flexDirection: 'row', alignItems: 'center', borderWidth: 1, gap: 12,
+    list:       { paddingHorizontal: 1, paddingBottom: 32 },
+    grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+    card:       {
+        backgroundColor: colors.surface, borderRadius: 12, padding: 10,
+        flexDirection: 'column', alignItems: 'flex-start', borderWidth: 1, gap: 5,
+        alignSelf: 'flex-start', flexShrink: 0,
     },
-    emoji:      { fontSize: 28 },
-    rowLabel:   { color: '#fff', fontSize: 16, fontWeight: '700', flex: 1 },
-    countBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1 },
-    countText:  { fontSize: 12, fontWeight: '700' },
+    emoji:      { fontSize: 22 },
+    cardLabel:  { color: '#fff', fontSize: 13, fontWeight: '700', flexShrink: 0 },
+    countBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1 },
+    countText:  { fontSize: 10, fontWeight: '700' },
 });
