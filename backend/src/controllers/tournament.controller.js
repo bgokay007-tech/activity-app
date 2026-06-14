@@ -1,8 +1,8 @@
-import prisma from '../config/prisma.js';
+﻿import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 
-// ─── Tournament bracket helpers ───────────────────────────────────────────────
+// â”€â”€â”€ Tournament bracket helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
 
@@ -68,7 +68,7 @@ function eloBasedMatches(players, tournamentId, matchesPerPlayer) {
     });
 }
 
-/** Single-elimination bracket — all rounds pre-created with TBD slots */
+/** Single-elimination bracket â€” all rounds pre-created with TBD slots */
 function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYOFF') {
     const sorted = [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
     const size = nextPow2(sorted.length);
@@ -239,7 +239,7 @@ export const joinTournament = async (req, res, next) => {
         const userBan = await prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true } });
         if (userBan?.tournamentBanRemaining > 0) {
             await prisma.user.update({ where: { id: req.userId }, data: { tournamentBanRemaining: { decrement: 1 } } });
-            return res.status(403).json({ message: `Geç iptal cezası nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katılamazsınız.` });
+            return res.status(403).json({ message: `GeÃ§ iptal cezasÄ± nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katÄ±lamazsÄ±nÄ±z.` });
         }
 
         const existing = await prisma.tournamentParticipant.findUnique({
@@ -257,9 +257,9 @@ export const joinTournament = async (req, res, next) => {
             await createNotification(
                 tournament.creatorId,
                 'TOURNAMENT_JOIN',
-                '🎾 New Join Request',
+                'ğŸ¾ New Join Request',
                 `${participant.user.fullName || participant.user.username} wants to join "${tournament.name}"`,
-                { tournamentId: id, userId: req.userId, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory },
+                { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
             );
         }
 
@@ -369,7 +369,7 @@ export const cancelJoin = async (req, res, next) => {
         });
         if (!existing) return res.status(404).json({ message: 'Not registered' });
 
-        // Within 24h of event start → send cancel request to creator instead of direct cancel
+        // Within 24h of event start â†’ send cancel request to creator instead of direct cancel
         const now = new Date();
         const eventStart = tournament.eventDate ? new Date(tournament.eventDate) : null;
         const msUntilEvent = eventStart ? eventStart.getTime() - now.getTime() : Infinity;
@@ -411,9 +411,9 @@ export const cancelJoin = async (req, res, next) => {
             await createNotification(
                 tournament.creatorId,
                 'TOURNAMENT_CANCEL_REQUEST',
-                '⚠️ İptal Talebi',
-                `${updatedUser.fullName || updatedUser.username} "${tournament.name}" turnuvasından ayrılmak istiyor (etkinliğe 24 saat kaldı)`,
-                { tournamentId: id, userId: req.userId, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory },
+                'âš ï¸ Ä°ptal Talebi',
+                `${updatedUser.fullName || updatedUser.username} "${tournament.name}" turnuvasÄ±ndan ayrÄ±lmak istiyor (etkinliÄŸe 24 saat kaldÄ±)`,
+                { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
             );
             // Notify creator's open modal in real-time
             emitToUser(tournament.creatorId, 'tournament:cancel_requested', {
@@ -452,13 +452,13 @@ async function _promoteNextPending(tournamentId, tournament) {
     await createNotification(
         nextUp.userId,
         'TOURNAMENT_JOIN_ACCEPTED',
-        '🎉 Turnuvaya Kabul Edildiniz',
-        `"${tourn.name}" turnuvasına yedek listesinden kabul edildiniz`,
-        { tournamentId, category: tourn.category.toLowerCase(), subCategory: tourn.subCategory },
+        'ğŸ‰ Turnuvaya Kabul Edildiniz',
+        `"${tourn.name}" turnuvasÄ±na yedek listesinden kabul edildiniz`,
+        { tournamentId, category: tourn.category, subCategory: tourn.subCategory },
     );
 }
 
-// Helper: after an AS-list member cancels, promote the first YEDEK to AS, or PENDING→ACCEPTED if no YEDEK
+// Helper: after an AS-list member cancels, promote the first YEDEK to AS, or PENDINGâ†’ACCEPTED if no YEDEK
 async function _promoteOnCancel(tournamentId, tournament) {
     const maxP = tournament.maxPlayers;
     const tourn = tournament || await prisma.tournament.findUnique({ where: { id: tournamentId } });
@@ -471,17 +471,17 @@ async function _promoteOnCancel(tournamentId, tournament) {
         orderBy: [{ acceptedAt: 'asc' }, { createdAt: 'asc' }],
     });
     if (acceptedNow.length >= maxP) {
-        // Person now at index maxP-1 just moved from YEDEK to AS — notify them
+        // Person now at index maxP-1 just moved from YEDEK to AS â€” notify them
         const promoted = acceptedNow[maxP - 1];
         await createNotification(
             promoted.userId,
             'TOURNAMENT_JOIN_ACCEPTED',
-            '🎉 Ana Listeye Alındınız',
-            `"${tourn.name}" turnuvasında yedek listesinden AS LİSTE'ye geçtiniz!`,
-            { tournamentId, category: tourn.category.toLowerCase(), subCategory: tourn.subCategory },
+            'ğŸ‰ Ana Listeye AlÄ±ndÄ±nÄ±z',
+            `"${tourn.name}" turnuvasÄ±nda yedek listesinden AS LÄ°STE'ye geÃ§tiniz!`,
+            { tournamentId, category: tourn.category, subCategory: tourn.subCategory },
         );
     } else {
-        // No YEDEK available — promote first PENDING
+        // No YEDEK available â€” promote first PENDING
         await _promoteNextPending(tournamentId, tourn);
     }
 }
@@ -514,9 +514,9 @@ export const approveCancelRequest = async (req, res, next) => {
             await prisma.tournamentParticipant.delete({
                 where: { tournamentId_userId: { tournamentId: id, userId } },
             });
-            await createNotification(userId, 'TOURNAMENT_CANCEL_APPROVED', '✅ İptal Talebiniz Onaylandı',
-                `"${tournament.name}" turnuvasından ayrılma talebiniz onaylandı.`,
-                { tournamentId: id, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory });
+            await createNotification(userId, 'TOURNAMENT_CANCEL_APPROVED', 'âœ… Ä°ptal Talebiniz OnaylandÄ±',
+                `"${tournament.name}" turnuvasÄ±ndan ayrÄ±lma talebiniz onaylandÄ±.`,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
             if (wasAS) {
                 await _promoteOnCancel(id, tournament);
             }
@@ -525,9 +525,9 @@ export const approveCancelRequest = async (req, res, next) => {
                 where: { tournamentId_userId: { tournamentId: id, userId } },
                 data: { cancelRequested: false },
             });
-            await createNotification(userId, 'TOURNAMENT_CANCEL_REJECTED', '❌ İptal Talebiniz Reddedildi',
-                `"${tournament.name}" turnuvasından ayrılma talebiniz reddedildi.`,
-                { tournamentId: id, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory });
+            await createNotification(userId, 'TOURNAMENT_CANCEL_REJECTED', 'âŒ Ä°ptal Talebiniz Reddedildi',
+                `"${tournament.name}" turnuvasÄ±ndan ayrÄ±lma talebiniz reddedildi.`,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
         }
 
         res.json({ message: approve ? 'Participant removed' : 'Cancel request rejected' });
@@ -554,9 +554,9 @@ export const removeParticipant = async (req, res, next) => {
             where: { tournamentId_userId: { tournamentId: id, userId } },
         });
 
-        await createNotification(userId, 'TOURNAMENT_REMOVED', '❌ Turnuvadan Çıkarıldınız',
-            `"${tournament.name}" turnuvasından çıkarıldınız.`,
-            { tournamentId: id, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory });
+        await createNotification(userId, 'TOURNAMENT_REMOVED', 'âŒ Turnuvadan Ã‡Ä±karÄ±ldÄ±nÄ±z',
+            `"${tournament.name}" turnuvasÄ±ndan Ã§Ä±karÄ±ldÄ±nÄ±z.`,
+            { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
 
         if (wasAccepted) {
             await _promoteNextPending(id, tournament);
@@ -580,9 +580,9 @@ export const requestCancellation = async (req, res, next) => {
         await createNotification(
             tournament.creatorId,
             'CANCELLATION_REQUEST',
-            '⚠️ Late Cancellation Request',
+            'âš ï¸ Late Cancellation Request',
             `${user.fullName || user.username} wants to cancel their registration for "${tournament.name}" (less than 24h before start)`,
-            { tournamentId: id, userId: req.userId, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory },
+            { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
         );
         res.json({ message: 'Cancellation request sent to creator' });
     } catch (e) { next(e); }
@@ -722,7 +722,7 @@ export const startTournament = async (req, res, next) => {
 
         // Main list = first maxPlayers accepted (by acceptance order); waitlist = the rest
         if (!tournament.maxPlayers) {
-            return res.status(400).json({ message: 'Lütfen turnuva başlatmadan önce maksimum oyuncu sayısını (AS kadro) belirleyin.' });
+            return res.status(400).json({ message: 'LÃ¼tfen turnuva baÅŸlatmadan Ã¶nce maksimum oyuncu sayÄ±sÄ±nÄ± (AS kadro) belirleyin.' });
         }
         const mainList = rawParticipants.slice(0, tournament.maxPlayers);
 
@@ -768,9 +768,9 @@ export const startTournament = async (req, res, next) => {
         for (const p of players) {
             if (p.id !== req.userId) {
                 await createNotification(
-                    p.id, 'TOURNAMENT_STARTED', '🏆 Turnuva Başladı',
-                    `"${tournament.name}" turnuvası başladı! Eşleşmelerinizi kontrol edin.`,
-                    { tournamentId: id, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory },
+                    p.id, 'TOURNAMENT_STARTED', 'ğŸ† Turnuva BaÅŸladÄ±',
+                    `"${tournament.name}" turnuvasÄ± baÅŸladÄ±! EÅŸleÅŸmelerinizi kontrol edin.`,
+                    { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
                 );
             }
         }
@@ -949,3 +949,4 @@ export const getArchivedTournaments = async (req, res, next) => {
         res.json(all);
     } catch (e) { next(e); }
 };
+
