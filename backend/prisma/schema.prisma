@@ -57,8 +57,10 @@ model User {
   cityExclude      Json     @default("[]")
   genderExclude    Json     @default("[]")
   birthDateExclude Json     @default("[]")
-  isAdmin          Boolean  @default(false)
-  pushToken        String?
+  isAdmin                Boolean  @default(false)
+  lateCancelCount        Int      @default(0)
+  tournamentBanRemaining Int      @default(0)
+  pushToken              String?
   rivalJoinReqs    RivalJoinRequest[]
   notifications    Notification[]
   sentFriendReqs   Friendship[] @relation("friendshipSender")
@@ -432,6 +434,7 @@ model TournamentParticipant {
   status          String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
   note            String?
   cancelRequested Boolean   @default(false)
+  cancelReason    String?
   acceptedAt      DateTime?
   createdAt       DateTime  @default(now())
 
