@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
+import { emitToUser } from '../config/socket.js';
 
 // ─── Tournament bracket helpers ───────────────────────────────────────────────
 
@@ -338,8 +339,19 @@ export const updateJoinRequest = async (req, res, next) => {
         const updated = await prisma.tournamentParticipant.update({
             where: { tournamentId_userId: { tournamentId: id, userId } },
             data: { status, ...(status === 'ACCEPTED' && { acceptedAt: new Date() }) },
-            include: { user: { select: { id: true, username: true } } },
+            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
         });
+
+        // Notify all accepted participants so their open modals refresh in real-time
+        if (status === 'ACCEPTED') {
+            const accepted = await prisma.tournamentParticipant.findMany({
+                where: { tournamentId: id, status: 'ACCEPTED' },
+                select: { userId: true },
+            });
+            const payload = { tournamentId: id, participant: updated };
+            accepted.forEach(p => emitToUser(p.userId, 'tournament:participant_accepted', payload));
+        }
+
         res.json(updated);
     } catch (e) { next(e); }
 };
