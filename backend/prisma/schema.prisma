@@ -387,16 +387,36 @@ model Tournament {
   endTime        String?      // registration end time
   startDate      DateTime?
   endDate        DateTime?
-  status         String       @default("OPEN")  // OPEN | CLOSED | COMPLETED
+  status         String       @default("OPEN")  // OPEN | IN_PROGRESS | COMPLETED | CANCELLED
   creatorId      String
-  bracketData    Json?        // full bracket snapshot (teams, matches, final, winner)
+  bracketData    Json?        // standings + phase info
   ratingSnapshot Json?        // {userId: {username, fullName, totalPoints, skillRating}}
   completedAt    DateTime?
+  startedAt      DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  creator      User         @relation("tournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  participants TournamentParticipant[]
+  creator          User         @relation("tournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  participants     TournamentParticipant[]
+  tournamentMatches TournamentMatch[]
+}
+
+model TournamentMatch {
+  id           String   @id @default(uuid())
+  tournamentId String
+  round        Int
+  phase        String   @default("GROUP")   // GROUP | PLAYOFF
+  matchIndex   Int      @default(0)
+  p1Id         String?
+  p1Name       String?
+  p2Id         String?
+  p2Name       String?
+  score        Json?    // {sets:[{p1:X,p2:Y},...], winner:'p1'|'p2', p1Sets:N, p2Sets:N, p1Games:N, p2Games:N}
+  status       String   @default("PENDING") // PENDING | COMPLETED | BYE
+  winnerId     String?
+  createdAt    DateTime @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 }
 
 // TURNUVA KATILIMCI / JOIN REQUEST

@@ -2282,6 +2282,14 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
     const [demoRunning, setDemoRunning] = useState(false);
     const [demoIdx, setDemoIdx] = useState(0);
     const demoStop = useRef(false);
+    const [tournMatches, setTournMatches] = useState([]);
+    const [loadingMatches, setLoadingMatches] = useState(false);
+    const [showMatchesPanel, setShowMatchesPanel] = useState(false);
+    const [matchTab, setMatchTab] = useState('matches');
+    const [starting, setStarting] = useState(false);
+    const [scoreEntry, setScoreEntry] = useState(null);
+    const [scoreSets, setScoreSets] = useState([]);
+    const [submittingScore, setSubmittingScore] = useState(false);
 
     const fetchRequests = useCallback(async () => {
         setLoadingRequests(true);
@@ -2346,6 +2354,57 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
         setDemoRunning(false);
     };
 
+    const numSets = item.setsPerMatch || 3;
+
+    const fetchMatches = useCallback(async () => {
+        setLoadingMatches(true);
+        try {
+            const { data } = await api.get(`/tournaments/${item.id}/matches`);
+            setTournMatches(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingMatches(false); }
+    }, [item.id]);
+
+    const handleStartTournament = () => {
+        Alert.alert('Turnuvayı Başlat', 'Eşleşmeler otomatik oluşturulacak ve turnuva başlayacak. Onaylıyor musunuz?', [
+            { text: 'İptal', style: 'cancel' },
+            { text: 'Başlat', style: 'destructive', onPress: async () => {
+                setStarting(true);
+                try {
+                    await api.post(`/tournaments/${item.id}/start`);
+                    onUpdated?.();
+                } catch (e) {
+                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                } finally { setStarting(false); }
+            }},
+        ]);
+    };
+
+    const openScoreEntry = (match) => {
+        setScoreEntry({ matchId: match.id, p1Name: match.p1Name, p2Name: match.p2Name });
+        setScoreSets(Array.from({ length: numSets }, () => ({ p1: '', p2: '' })));
+    };
+
+    const submitScore = async () => {
+        if (!scoreEntry) return;
+        const sets = scoreSets.map(s => ({ p1: parseInt(s.p1) || 0, p2: parseInt(s.p2) || 0 }));
+        let p1Wins = 0, p2Wins = 0;
+        for (const s of sets) {
+            if (s.p1 > s.p2) p1Wins++; else if (s.p2 > s.p1) p2Wins++;
+        }
+        if (p1Wins === p2Wins) { Alert.alert('', 'Geçersiz sonuç: eşitlik kabul edilmiyor.'); return; }
+        const winner = p1Wins > p2Wins ? 'p1' : 'p2';
+        setSubmittingScore(true);
+        try {
+            const { data } = await api.patch(`/tournaments/${item.id}/matches/${scoreEntry.matchId}/score`, { sets, winner });
+            setTournMatches(Array.isArray(data) ? data : []);
+            setScoreEntry(null);
+            onUpdated?.();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSubmittingScore(false); }
+    };
+
     const saveEdit = async () => {
         setSaving(true);
         try {
@@ -2367,6 +2426,34 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
     };
 
     const infoColor = cfg.color;
+
+    const standings = (() => {
+        const stats = {};
+        for (const m of tournMatches) {
+            if (m.phase !== 'GROUP') continue;
+            if (m.p1Id && !stats[m.p1Id]) stats[m.p1Id] = { id:m.p1Id, name:m.p1Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+            if (m.p2Id && !stats[m.p2Id]) stats[m.p2Id] = { id:m.p2Id, name:m.p2Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+            if (m.status !== 'COMPLETED' || !m.score || !m.p2Id) continue;
+            const sc = m.score;
+            const s1 = stats[m.p1Id], s2 = stats[m.p2Id];
+            if (!s1 || !s2) continue;
+            s1.played++; s2.played++;
+            let p1s=0,p2s=0,p1g=0,p2g=0;
+            for (const set of (sc.sets||[])) {
+                p1g+=set.p1||0; p2g+=set.p2||0;
+                if ((set.p1||0)>(set.p2||0)) p1s++; else if ((set.p2||0)>(set.p1||0)) p2s++;
+            }
+            s1.setsWon+=p1s; s1.setsLost+=p2s; s1.gamesWon+=p1g; s1.gamesLost+=p2g;
+            s2.setsWon+=p2s; s2.setsLost+=p1s; s2.gamesWon+=p2g; s2.gamesLost+=p1g;
+            if (sc.winner==='p1') { s1.won++; s1.points+=3; s2.lost++; } else { s2.won++; s2.points+=3; s1.lost++; }
+        }
+        return Object.values(stats).sort((a,b) => {
+            if (b.points!==a.points) return b.points-a.points;
+            const sr=x=>x.setsWon/Math.max(1,x.setsWon+x.setsLost);
+            if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
+            return (b.gamesWon/Math.max(1,b.gamesWon+b.gamesLost))-(a.gamesWon/Math.max(1,a.gamesWon+a.gamesLost));
+        });
+    })();
 
     return (
         <View style={[s.card, { marginBottom:10 }]}>
@@ -2439,8 +2526,10 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                     )}
                 </View>
                 <View style={{ alignItems:'flex-end', gap:4 }}>
-                    <View style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor + '50' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{t.tournStatusOpen}</Text>
+                    <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : infoColor + '50' }}>
+                        <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : infoColor, fontSize:10, fontWeight:'800' }}>
+                            {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : t.tournStatusOpen}
+                        </Text>
                     </View>
                     {isCreator ? (<>
                         {myStatus === null && (
@@ -2461,6 +2550,16 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                         <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650', alignItems:'center' }} onPress={() => onDelete(item.id)}>
                             <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', textAlign:'center' }}>Turnuvayı{'\n'}🗑️ Sil</Text>
                         </TouchableOpacity>
+                        {item.status === 'OPEN' && participantCount >= (item.minPlayers || 2) && (
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}
+                                onPress={handleStartTournament}
+                                disabled={starting}>
+                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>
+                                    {starting ? '...' : '🏆 Başlat'}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity
                             style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
                             onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
@@ -2501,6 +2600,152 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                     </>)}
                 </View>
             </View>
+
+        {/* IN_PROGRESS: matches panel toggle */}
+        {item.status === 'IN_PROGRESS' && (
+            <TouchableOpacity
+                style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                onPress={() => { setShowMatchesPanel(v => { if (!v) fetchMatches(); return !v; }); }}>
+                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📋 Maçlar & Puan Tablosu</Text>
+                <Text style={{ color:'#4ade80', fontSize:12 }}>{showMatchesPanel ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+        )}
+
+        {/* IN_PROGRESS: matches & standings panel */}
+        {item.status === 'IN_PROGRESS' && showMatchesPanel && (
+            <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, marginTop:6, borderWidth:1, borderColor:'#16a34a40' }}>
+                {(item.type === '1' || item.type === '3') && (
+                    <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                        {['matches','standings'].map(tab => (
+                            <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
+                                style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
+                                <Text style={{ color: matchTab===tab ? '#4ade80' : colors.textMuted, fontSize:11, fontWeight:'700' }}>
+                                    {tab === 'matches' ? 'Maçlar' : 'Puan Tablosu'}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+                {loadingMatches ? (
+                    <ActivityIndicator size="small" color="#4ade80" style={{ marginVertical:8 }} />
+                ) : matchTab === 'standings' ? (
+                    standings.length === 0
+                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz maç sonucu yok</Text>
+                        : <View>
+                            <View style={{ flexDirection:'row', paddingVertical:4, borderBottomWidth:1, borderBottomColor: colors.border, marginBottom:2 }}>
+                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
+                                {['O','G','M','Set','P'].map(h => (
+                                    <Text key={h} style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
+                                ))}
+                            </View>
+                            {standings.map((row, i) => (
+                                <View key={row.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < standings.length-1 ? 1 : 0, borderBottomColor: colors.border+'30' }}>
+                                    <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row.name}</Text>
+                                    {[row.played, row.won, row.lost, `${row.setsWon}-${row.setsLost}`, row.points].map((v,j) => (
+                                        <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
+                                    ))}
+                                </View>
+                            ))}
+                          </View>
+                ) : (
+                    tournMatches.length === 0
+                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Maç yok</Text>
+                        : (() => {
+                            const playoffMs = tournMatches.filter(m => m.phase === 'PLAYOFF');
+                            const playoffMaxRound = playoffMs.length ? Math.max(...playoffMs.map(m => m.round)) : 0;
+                            const getRoundLabel = (round, phase) => {
+                                if (phase === 'GROUP') return `Grup - Tur ${round}`;
+                                const fromEnd = playoffMaxRound - round;
+                                if (fromEnd === 0) return 'Final';
+                                if (fromEnd === 1) return 'Yarı Final';
+                                if (fromEnd === 2) return 'Çeyrek Final';
+                                return `Playoff - Tur ${round}`;
+                            };
+                            const seen = new Set();
+                            const roundKeys = tournMatches
+                                .filter(m => { const k=`${m.phase}|${m.round}`; if (seen.has(k)) return false; seen.add(k); return true; })
+                                .map(m => ({ phase:m.phase, round:m.round }));
+                            return roundKeys.map(({ phase, round }) => {
+                                const rMatches = tournMatches.filter(m => m.phase === phase && m.round === round);
+                                return (
+                                    <View key={`${phase}|${round}`} style={{ marginBottom:8 }}>
+                                        <Text style={{ color: infoColor, fontSize:11, fontWeight:'800', marginBottom:4 }}>{getRoundLabel(round, phase)}</Text>
+                                        {rMatches.map(match => {
+                                            const isBye = match.status === 'BYE';
+                                            const isDone = match.status === 'COMPLETED';
+                                            const isReady = match.status === 'PENDING' && match.p1Id && match.p2Id;
+                                            const isTBD = match.status === 'PENDING' && (!match.p1Id || !match.p2Id);
+                                            const isEntering = scoreEntry?.matchId === match.id;
+                                            return (
+                                                <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
+                                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={{ color: isDone && match.winnerId === match.p1Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>
+                                                                {match.p1Name || 'TBD'}
+                                                            </Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:10 }}>vs</Text>
+                                                            <Text style={{ color: isDone && match.winnerId === match.p2Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>
+                                                                {match.p2Name || 'TBD'}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={{ alignItems:'flex-end', gap:3 }}>
+                                                            {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:10 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
+                                                            {isDone && match.score && (
+                                                                <Text style={{ color:'#94a3b8', fontSize:11 }}>
+                                                                    {(match.score.sets||[]).map(s=>`${s.p1}-${s.p2}`).join(', ')}
+                                                                </Text>
+                                                            )}
+                                                            {isReady && isCreator && !isEntering && (
+                                                                <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                                    style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
+                                                                    <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Skor Gir</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                    {isEntering && (
+                                                        <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:8 }}>
+                                                            <View style={{ flexDirection:'row', marginBottom:4 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize:10, width:54 }}>Set</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p1Name}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p2Name}</Text>
+                                                            </View>
+                                                            {scoreSets.map((set, si) => (
+                                                                <View key={si} style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
+                                                                    <Text style={{ color: colors.textMuted, fontSize:11, width:54 }}>{si+1}. Set</Text>
+                                                                    <TextInput
+                                                                        style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
+                                                                        value={set.p1}
+                                                                        onChangeText={v => setScoreSets(prev => prev.map((s,i2) => i2===si ? {...s, p1:v.replace(/[^0-9]/,'')} : s))}
+                                                                        keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                                                    <TextInput
+                                                                        style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
+                                                                        value={set.p2}
+                                                                        onChangeText={v => setScoreSets(prev => prev.map((s,i2) => i2===si ? {...s, p2:v.replace(/[^0-9]/,'')} : s))}
+                                                                        keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                                                </View>
+                                                            ))}
+                                                            <View style={{ flexDirection:'row', gap:8, marginTop:6 }}>
+                                                                <TouchableOpacity onPress={submitScore} disabled={submittingScore}
+                                                                    style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:14, paddingVertical:5, borderWidth:1, borderColor:'#16a34a60' }}>
+                                                                    <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : 'Kaydet'}</Text>
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:10, paddingVertical:5 }}>
+                                                                    <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
+                                );
+                            });
+                          })()
+                )}
+            </View>
+        )}
 
             {/* Players — edit mode */}
             {editing && (

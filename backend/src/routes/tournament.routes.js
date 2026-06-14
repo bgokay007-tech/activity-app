@@ -13,6 +13,9 @@ import {
     deleteTournament,
     completeTournament,
     getArchivedTournaments,
+    startTournament,
+    getTournamentMatches,
+    enterTournamentMatchScore,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -28,6 +31,9 @@ router.post('/:id/complete',                 completeTournament);
 router.get('/:id/participants',               getParticipants);
 router.get('/:id/requests',                  getJoinRequests);
 router.patch('/:id/requests/:userId',        updateJoinRequest);
+router.post('/:id/start',                    startTournament);
+router.get('/:id/matches',                   getTournamentMatches);
+router.patch('/:id/matches/:matchId/score',  enterTournamentMatchScore);
 router.patch('/:id',                         updateTournament);
 router.delete('/:id',                        deleteTournament);
 
