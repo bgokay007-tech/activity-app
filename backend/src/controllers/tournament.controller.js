@@ -217,7 +217,22 @@ export const joinTournament = async (req, res, next) => {
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        if (tournament.status !== 'OPEN') return res.status(400).json({ message: 'Tournament is not open for join requests' });
+
+        if (!['OPEN', 'IN_PROGRESS'].includes(tournament.status)) {
+            return res.status(400).json({ message: 'Bu turnuvaya katılım mümkün değil' });
+        }
+        if (tournament.status === 'IN_PROGRESS') {
+            // Allow join only until the event actually starts
+            const eventStart = tournament.eventDate ? new Date(tournament.eventDate) : null;
+            if (eventStart && tournament.eventTime) {
+                const [h, m] = tournament.eventTime.split(':').map(Number);
+                eventStart.setUTCHours(h, m, 0, 0);
+                eventStart.setTime(eventStart.getTime() - 3 * 60 * 60 * 1000); // Turkey UTC+3
+            }
+            if (eventStart && eventStart.getTime() <= Date.now()) {
+                return res.status(400).json({ message: 'Etkinlik başlamıştır, katılım süresi dolmuştur' });
+            }
+        }
 
         // Check tournament ban
         const userBan = await prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true } });
@@ -414,7 +429,7 @@ export const cancelJoin = async (req, res, next) => {
         });
 
         if (wasAccepted) {
-            await _promoteNextPending(id, tournament);
+            await _promoteOnCancel(id, tournament);
         }
 
         res.json({ message: 'Registration cancelled' });
