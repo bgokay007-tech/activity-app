@@ -2346,7 +2346,7 @@ const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
-function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated }) {
+function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated }) {
     const myPart = item.participants?.[0];
     const myStatus = myPart?.status ?? null;
     const isCreator = item.creatorId === myId;
@@ -2851,7 +2851,7 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                                                     {(match.score.sets||[]).map(s=>`${s.p1}-${s.p2}`).join(', ')}
                                                                 </Text>
                                                             )}
-                                                            {isReady && isCreator && !isEntering && (
+                                                            {isReady && (isCreator || myIsAdmin || match.p1Id === myId || match.p2Id === myId) && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
                                                                     <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Skor Gir</Text>
@@ -3015,10 +3015,20 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                 )}
                                 {r.cancelRequested && (
                                     <View style={{ flexDirection:'row', gap:4 }}>
-                                        <TouchableOpacity onPress={() => approveCancelRequest(r.userId, true)} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                        <TouchableOpacity
+                                            onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Onayla', style: 'destructive', onPress: () => approveCancelRequest(r.userId, true) },
+                                            ])}
+                                            style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => approveCancelRequest(r.userId, false)} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                        <TouchableOpacity
+                                            onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Reddet', style: 'destructive', onPress: () => approveCancelRequest(r.userId, false) },
+                                            ])}
+                                            style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
                                         </TouchableOpacity>
                                     </View>
@@ -3028,7 +3038,12 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                         <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => updateRequest(r.userId, 'REJECTED')} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                        <TouchableOpacity
+                                            onPress={() => Alert.alert('Başvuruyu Reddet', `${r.user?.fullName || r.user?.username} adlı oyuncunun başvurusunu reddetmek istediğinizden emin misiniz?`, [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Reddet', style: 'destructive', onPress: () => updateRequest(r.userId, 'REJECTED') },
+                                            ])}
+                                            style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
                                         </TouchableOpacity>
                                     </View>
@@ -3787,6 +3802,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
+    const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const t = useT();
     const cfg = getConfig(sub);
     const tabs = getTabs(sub);
@@ -4191,6 +4207,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             key={item.id}
                                             item={item}
                                             myId={myId}
+                                            myIsAdmin={myIsAdmin}
                                             t={t}
                                             cfg={cfg}
                                             onJoin={handleJoinTournament}

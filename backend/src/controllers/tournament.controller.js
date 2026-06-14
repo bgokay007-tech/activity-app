@@ -649,11 +649,17 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             },
         });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not authorized' });
         if (tournament.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Tournament not in progress' });
 
         const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
         if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Match not found' });
+
+        const isCreator = tournament.creatorId === req.userId;
+        const isPlayer = match.p1Id === req.userId || match.p2Id === req.userId;
+        if (!isCreator && !isPlayer) {
+            const requester = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+            if (!requester?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
+        }
 
         let p1Sets = 0, p2Sets = 0, p1Games = 0, p2Games = 0;
         for (const s of sets) {
