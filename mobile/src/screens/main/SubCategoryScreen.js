@@ -3400,29 +3400,24 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {f.isPaid && (<>
                                 <Text style={s.fieldLabel}>Ücret Türü</Text>
                                 {[
-                                    { key:'INCLUDED', label:'Oyuncu başına ücret', desc:'Kort ücreti dahil fiyattır' },
-                                    { key:'SHARED',   label:'Oyuncu başına ücret', desc:'Kort fiyatlarını oyuncular ortaklaşa karşılar' },
+                                    { key:'INCLUDED', desc:'Kort ücreti dahil fiyattır' },
+                                    { key:'SHARED',   desc:'Kort fiyatlarını oyuncular ortaklaşa karşılar' },
                                 ].map(opt => (
                                     <TouchableOpacity key={opt.key}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.feeType===opt.key ? '#d9770615' : colors.surface2, borderRadius:10, padding:10, marginBottom:6, borderWidth:1, borderColor: f.feeType===opt.key ? '#d97706' : colors.border }}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.feeType===opt.key ? '#d9770615' : colors.surface2, borderRadius:10, paddingVertical:10, paddingHorizontal:10, marginBottom:6, borderWidth:1, borderColor: f.feeType===opt.key ? '#d97706' : colors.border }}
                                         onPress={() => set('feeType', opt.key)}>
                                         <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.feeType===opt.key ? '#fbbf24' : colors.border, backgroundColor: f.feeType===opt.key ? '#fbbf24' : 'transparent', alignItems:'center', justifyContent:'center' }}>
                                             {f.feeType===opt.key && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#78350f' }} />}
                                         </View>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{opt.label}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>{opt.desc}</Text>
-                                        </View>
+                                        <Text style={{ color: f.feeType===opt.key ? '#fbbf24' : colors.textMuted, fontSize:11, flex:1 }}>{opt.desc}</Text>
+                                        <TextInput
+                                            style={{ backgroundColor:'#0f172a', color:'#fff', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor: f.feeType===opt.key ? '#d97706' : colors.border, fontSize:13, width:72, textAlign:'right' }}
+                                            value={f.playerFee}
+                                            onChangeText={v => { set('feeType', opt.key); set('playerFee', v.replace(/[^0-9.]/g,'')); }}
+                                            keyboardType="numeric" maxLength={8}
+                                            placeholder="₺" placeholderTextColor={colors.textMuted} />
                                     </TouchableOpacity>
                                 ))}
-
-                                <Text style={[s.fieldLabel, { marginTop:4 }]}>Oyuncu Başına Ücret (₺)</Text>
-                                <TextInput
-                                    style={[s.fieldInput, ti]}
-                                    value={f.playerFee}
-                                    onChangeText={v => set('playerFee', v.replace(/[^0-9.]/g,''))}
-                                    keyboardType="numeric" maxLength={8}
-                                    placeholder="0.00" placeholderTextColor={colors.textMuted} />
 
                                 <Text style={[s.fieldLabel, { marginTop:4 }]}>Ödeme Yöntemi</Text>
                                 {/* Online payment — disabled */}
