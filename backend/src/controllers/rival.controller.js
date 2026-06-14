@@ -429,6 +429,10 @@ export const respondToJoin = async (req, res, next) => {
                 participants: updatedParticipants,
                 status: isFull ? 'MATCHED' : 'OPEN',
                 receiverId: isFull ? u.id : rival.receiverId,
+                // Flexible matches get a 24h scheduling window after being matched
+                ...(isFull && rival.flexibleSchedule && {
+                    schedulingDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                }),
             },
             include: {
                 sender: { select: SENDER_SELECT },
@@ -505,11 +509,28 @@ export const getUpcomingMatches = async (req, res, next) => {
             const dl = getMatchDeadline(m);
             return dl && now > dl && !m.score;
         });
-        if (expired.length > 0) {
-            await prisma.activityRequest.deleteMany({ where: { id: { in: expired.map(m => m.id) } } });
+        // Auto-delete flexible MATCHED matches whose scheduling deadline passed without agreeing on date
+        const scheduleExpired = matches.filter(m =>
+            m.flexibleSchedule && m.schedulingDeadline && now > new Date(m.schedulingDeadline) && !m.matchDate
+        );
+        const allExpiredIds = [...new Set([...expired.map(m => m.id), ...scheduleExpired.map(m => m.id)])];
+        if (allExpiredIds.length > 0) {
+            await prisma.activityRequest.deleteMany({ where: { id: { in: allExpiredIds } } });
+        }
+        for (const m of scheduleExpired) {
+            const parts = Array.isArray(m.participants) ? m.participants : [];
+            const allIds = [m.senderId, ...parts.map(p => p.id)];
+            for (const uid of allIds) {
+                createNotification(uid, 'MATCH_EXPIRED',
+                    '⏰ Maç Silindi',
+                    `${m.subCategory} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
+                    { subCategory: m.subCategory }
+                ).catch(() => {});
+            }
         }
 
-        const active = matches.filter(m => !expired.find(e => e.id === m.id));
+        const allExpiredSet = new Set(allExpiredIds);
+        const active = matches.filter(m => !allExpiredSet.has(m.id));
 
         // Enrich with skill ratings — isolated so failure doesn't break the main response
         try {
@@ -1124,7 +1145,17 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             orderBy: { matchDate: 'asc' },
         });
         const myId = req.userId;
+        const now = new Date();
+        // Auto-delete flexible matches whose scheduling deadline passed
+        const schedExpired = all.filter(m =>
+            m.flexibleSchedule && m.schedulingDeadline && now > new Date(m.schedulingDeadline) && !m.matchDate
+        );
+        if (schedExpired.length > 0) {
+            await prisma.activityRequest.deleteMany({ where: { id: { in: schedExpired.map(m => m.id) } } });
+        }
+        const schedExpiredIds = new Set(schedExpired.map(m => m.id));
         const mine = all.filter(r => {
+            if (schedExpiredIds.has(r.id)) return false;
             if (r.senderId === myId) return true;
             return (Array.isArray(r.participants) ? r.participants : []).some(p => p.id === myId);
         });
@@ -1152,6 +1183,93 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             return res.json(mine);
         }
     } catch (error) { next(error); }
+};
+
+export const proposeSchedule = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { date, time, location, courtName } = req.body;
+        if (!date || !time) return res.status(400).json({ message: 'Tarih ve saat zorunlu' });
+
+        const match = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!match) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.status !== 'MATCHED') return res.status(400).json({ message: 'Maç eşleşmiş değil' });
+        if (!match.flexibleSchedule) return res.status(400).json({ message: 'Bu maç esnek programlı değil' });
+
+        const parts = Array.isArray(match.participants) ? match.participants : [];
+        const isInvolved = match.senderId === req.userId || parts.some(p => p.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+
+        if (match.schedulingDeadline && new Date() > new Date(match.schedulingDeadline)) {
+            return res.status(400).json({ message: '24 saatlik süre doldu' });
+        }
+
+        const proposal = { userId: req.userId, date, time, location: location || null, courtName: courtName || null, proposedAt: new Date().toISOString() };
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: { scheduleProposal: proposal },
+        });
+
+        // Notify the other player(s)
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+        const otherIds = [match.senderId, ...parts.map(p => p.id)].filter(uid => uid !== req.userId);
+        for (const uid of otherIds) {
+            emitToUser(uid, 'rivalUpdate', updated);
+            createNotification(uid, 'MATCH_CONFIRMED',
+                '📅 Tarih Önerisi',
+                `${me.fullName || me.username} esnek maç için ${date} ${time} önerdi. Kabul edebilir veya farklı önerebilirsin.`,
+                { rivalId: id, category: match.category?.toLowerCase(), subCategory: match.subCategory }
+            ).catch(() => {});
+        }
+
+        res.json(updated);
+    } catch (e) { next(e); }
+};
+
+export const acceptSchedule = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const match = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!match) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (!match.scheduleProposal) return res.status(400).json({ message: 'Bekleyen öneri yok' });
+
+        const proposal = match.scheduleProposal;
+        if (proposal.userId === req.userId) return res.status(400).json({ message: 'Kendi önerinizi kabul edemezsiniz' });
+
+        const parts = Array.isArray(match.participants) ? match.participants : [];
+        const isInvolved = match.senderId === req.userId || parts.some(p => p.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+
+        const matchDateObj = new Date(proposal.date);
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: {
+                matchDate: matchDateObj,
+                matchTime: proposal.time,
+                location: proposal.location || match.location,
+                courtName: proposal.courtName || match.courtName,
+                scheduleProposal: null,
+                schedulingDeadline: null,
+            },
+        });
+
+        // Notify proposer
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+        const allIds = [match.senderId, ...parts.map(p => p.id)];
+        for (const uid of allIds) {
+            emitToUser(uid, 'rivalUpdate', updated);
+            if (uid !== req.userId) {
+                createNotification(uid, 'MATCH_CONFIRMED',
+                    '✅ Tarih Onaylandı!',
+                    `${me.fullName || me.username} önerinizi kabul etti. Maç ${proposal.date} ${proposal.time} olarak ayarlandı.`,
+                    { rivalId: id, category: match.category?.toLowerCase(), subCategory: match.subCategory }
+                ).catch(() => {});
+            }
+        }
+
+        res.json(updated);
+    } catch (e) { next(e); }
 };
 
 export const getMyMatchHistory = async (req, res, next) => {

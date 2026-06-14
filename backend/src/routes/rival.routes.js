@@ -8,6 +8,7 @@ import {
     extendScoreDeadline, getCountsBySubCategory, abandonMatch, cancelMatch,
     getMatchComments, addMatchComment, deleteMatchComment,
     getMyUpcomingMatches, getMyMatchHistory,
+    proposeSchedule, acceptSchedule,
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -38,5 +39,7 @@ router.get('/:id/comments',          authenticate, getMatchComments);
 router.post('/:id/comments',         authenticate, addMatchComment);
 router.delete('/comments/:commentId', authenticate, deleteMatchComment);
 router.post('/:id/no-show',          authenticate, reportNoShow);
+router.post('/:id/propose-schedule', authenticate, proposeSchedule);
+router.post('/:id/accept-schedule',  authenticate, acceptSchedule);
 
 export default router;

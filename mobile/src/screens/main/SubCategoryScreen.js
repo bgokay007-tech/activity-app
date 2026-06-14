@@ -877,6 +877,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [noShowPhoto, setNoShowPhoto] = useState(null);
     const [noShowUploading, setNoShowUploading] = useState(false);
     const [noShowSubmitting, setNoShowSubmitting] = useState(false);
+    // Flexible schedule proposal
+    const [showScheduleForm, setShowScheduleForm] = useState(false);
+    const [propDate, setPropDate] = useState(null);
+    const [propTime, setPropTime] = useState('');
+    const [propLocation, setPropLocation] = useState('');
+    const [propSubmitting, setPropSubmitting] = useState(false);
+    const [propAccepting, setPropAccepting] = useState(false);
+    const [showPropDatePicker, setShowPropDatePicker] = useState(false);
+    const [showPropTimePicker, setShowPropTimePicker] = useState(false);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
@@ -1029,6 +1038,36 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 },
             ]
         );
+    };
+
+    const submitProposal = async () => {
+        if (!propDate || !propTime) { Alert.alert('', 'Tarih ve saat seçin'); return; }
+        setPropSubmitting(true);
+        try {
+            const dateStr = `${propDate.getFullYear()}-${String(propDate.getMonth()+1).padStart(2,'0')}-${String(propDate.getDate()).padStart(2,'0')}`;
+            await api.post(`/rivals/${match.id}/propose-schedule`, { date: dateStr, time: propTime, location: propLocation || undefined });
+            setShowScheduleForm(false);
+            onRefresh();
+        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Gönderilemedi'); }
+        finally { setPropSubmitting(false); }
+    };
+
+    const acceptProposal = async () => {
+        setPropAccepting(true);
+        try {
+            await api.post(`/rivals/${match.id}/accept-schedule`, {});
+            onRefresh();
+        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Kabul edilemedi'); }
+        finally { setPropAccepting(false); }
+    };
+
+    const getScheduleCountdown = () => {
+        if (!match.schedulingDeadline) return null;
+        const diff = new Date(match.schedulingDeadline) - new Date();
+        if (diff <= 0) return '⏰ Süre doldu';
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        return `${h}s ${m}dk kaldı`;
     };
 
     const doMutualCancel = async () => {
@@ -1240,6 +1279,102 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     )}
                 </View>
             </View>
+
+            {/* Flexible schedule proposal panel */}
+            {match.flexibleSchedule && !match.matchDate && (
+                <View style={{ backgroundColor:'#f59e0b10', borderRadius:10, padding:10, marginTop:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                    <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800' }}>📅 Tarih/Saat/Yer Belirle</Text>
+                        {match.schedulingDeadline && (
+                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{getScheduleCountdown()}</Text>
+                        )}
+                    </View>
+
+                    {match.scheduleProposal ? (
+                        match.scheduleProposal.userId === myId ? (
+                            <View>
+                                <Text style={{ color: colors.textMuted, fontSize:11 }}>Öneriniz bekleniyor:</Text>
+                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
+                                    {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
+                                </Text>
+                                <TouchableOpacity onPress={() => setShowScheduleForm(v => !v)} style={{ marginTop:6 }}>
+                                    <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>✏️ Değiştir</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <View>
+                                <Text style={{ color: colors.textMuted, fontSize:11 }}>Rakibinizin önerisi:</Text>
+                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
+                                    {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
+                                </Text>
+                                <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
+                                    <TouchableOpacity
+                                        style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50', alignItems:'center' }}
+                                        onPress={acceptProposal} disabled={propAccepting}>
+                                        <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{propAccepting ? '...' : '✅ Kabul Et'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={{ flex:1, backgroundColor:'#f59e0b15', borderRadius:8, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b40', alignItems:'center' }}
+                                        onPress={() => setShowScheduleForm(v => !v)}>
+                                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Farklı Öner</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )
+                    ) : (
+                        <TouchableOpacity
+                            style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:8, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}
+                            onPress={() => setShowScheduleForm(v => !v)}>
+                            <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Tarih/Saat/Yer Öner</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {showScheduleForm && (
+                        <View style={{ marginTop:10, gap:8 }}>
+                            <TouchableOpacity
+                                style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propDate ? '#f59e0b60' : colors.border }}
+                                onPress={() => setShowPropDatePicker(true)}>
+                                <Text style={{ color: propDate ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                    {propDate ? `📅 ${String(propDate.getDate()).padStart(2,'0')}/${String(propDate.getMonth()+1).padStart(2,'0')}/${propDate.getFullYear()}` : '📅 Tarih Seç'}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propTime ? '#f59e0b60' : colors.border }}
+                                onPress={() => setShowPropTimePicker(true)}>
+                                <Text style={{ color: propTime ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                    {propTime ? `🕐 ${propTime}` : '🕐 Saat Seç'}
+                                </Text>
+                            </TouchableOpacity>
+                            <TextInput
+                                style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
+                                placeholder="📍 Konum/Kort (isteğe bağlı)"
+                                placeholderTextColor={colors.textMuted}
+                                value={propLocation}
+                                onChangeText={setPropLocation}
+                            />
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#f59e0b30', borderRadius:8, paddingVertical:9, borderWidth:1, borderColor:'#f59e0b60', alignItems:'center' }}
+                                onPress={submitProposal} disabled={propSubmitting}>
+                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{propSubmitting ? '...' : '📤 Öneriyi Gönder'}</Text>
+                            </TouchableOpacity>
+                            <CustomCalendarPicker
+                                visible={showPropDatePicker}
+                                value={propDate}
+                                onSelect={(d) => { setPropDate(d); setShowPropDatePicker(false); }}
+                                onClose={() => setShowPropDatePicker(false)}
+                            />
+                            <OptionPickerModal
+                                visible={showPropTimePicker}
+                                title="Saat Seç"
+                                options={TIME_OPTS.filter(o => o.value)}
+                                value={propTime}
+                                onSelect={(v) => { setPropTime(v); setShowPropTimePicker(false); }}
+                                onClose={() => setShowPropTimePicker(false)}
+                            />
+                        </View>
+                    )}
+                </View>
+            )}
 
             {/* Existing score display */}
             {hasScore && (

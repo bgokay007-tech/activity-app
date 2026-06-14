@@ -290,6 +290,8 @@ model ActivityRequest {
   archived        Boolean      @default(false)
   expiresAt            DateTime?
   mutualCancelRequests Json     @default("[]") // [userId, ...] — tracks who requested mutual cancel
+  scheduleProposal    Json?                   // {userId, date, time, location, courtName, proposedAt}
+  schedulingDeadline  DateTime?               // 24h after MATCHED for flexible matches
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
