@@ -573,24 +573,42 @@ export const requestCancellation = async (req, res, next) => {
 export const updateTournament = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { minPlayers, maxPlayers, setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers,
-                eventDate, eventTime, eventEndDate, eventEndTime } = req.body;
+        const b = req.body;
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not authorized' });
         const updated = await prisma.tournament.update({
             where: { id },
             data: {
-                ...(minPlayers           !== undefined && { minPlayers: parseInt(minPlayers) }),
-                ...(maxPlayers           !== undefined && { maxPlayers: parseInt(maxPlayers) }),
-                ...(setsPerMatch         !== undefined && { setsPerMatch: setsPerMatch ? parseInt(setsPerMatch) : null }),
-                ...(advantageScoring     !== undefined && { advantageScoring: advantageScoring === true }),
-                ...(matchesBeforePlayoff !== undefined && { matchesBeforePlayoff: matchesBeforePlayoff ? parseInt(matchesBeforePlayoff) : null }),
-                ...(playoffQualifiers    !== undefined && { playoffQualifiers: playoffQualifiers ? parseInt(playoffQualifiers) : null }),
-                ...(eventDate    !== undefined && { eventDate:    eventDate ? new Date(eventDate) : null }),
-                ...(eventTime    !== undefined && { eventTime:    eventTime || null }),
-                ...(eventEndDate !== undefined && { eventEndDate: eventEndDate ? new Date(eventEndDate) : null }),
-                ...(eventEndTime !== undefined && { eventEndTime: eventEndTime || null }),
+                ...(b.name                !== undefined && { name: b.name }),
+                ...(b.description         !== undefined && { description: b.description || null }),
+                ...(b.contactPhone        !== undefined && { contactPhone: b.contactPhone || null }),
+                ...(b.scope               !== undefined && { scope: b.scope }),
+                ...(b.genderType          !== undefined && { genderType: b.genderType }),
+                ...(b.location            !== undefined && { location: b.location || null }),
+                ...(b.surface             !== undefined && { surface: b.surface || null }),
+                ...(b.isIndoor            !== undefined && { isIndoor: !!b.isIndoor }),
+                ...(b.isPaid              !== undefined && { isPaid: !!b.isPaid }),
+                ...(b.feeType             !== undefined && { feeType: b.feeType || null }),
+                ...(b.playerFee           !== undefined && { playerFee: b.playerFee ? parseFloat(b.playerFee) : null }),
+                ...(b.paymentMethod       !== undefined && { paymentMethod: b.paymentMethod || null }),
+                ...(b.ibanNumber          !== undefined && { ibanNumber: b.ibanNumber || null }),
+                ...(b.ibanHolder          !== undefined && { ibanHolder: b.ibanHolder || null }),
+                ...(b.prize1              !== undefined && { prize1: b.prize1 || null }),
+                ...(b.prize2              !== undefined && { prize2: b.prize2 || null }),
+                ...(b.prize3              !== undefined && { prize3: b.prize3 || null }),
+                ...(b.minPlayers          !== undefined && { minPlayers: parseInt(b.minPlayers) }),
+                ...(b.maxPlayers          !== undefined && { maxPlayers: parseInt(b.maxPlayers) }),
+                ...(b.setsPerMatch        !== undefined && { setsPerMatch: b.setsPerMatch ? parseInt(b.setsPerMatch) : null }),
+                ...(b.advantageScoring    !== undefined && { advantageScoring: b.advantageScoring === true }),
+                ...(b.matchesBeforePlayoff !== undefined && { matchesBeforePlayoff: b.matchesBeforePlayoff ? parseInt(b.matchesBeforePlayoff) : null }),
+                ...(b.playoffQualifiers   !== undefined && { playoffQualifiers: b.playoffQualifiers ? parseInt(b.playoffQualifiers) : null }),
+                ...(b.eventDate    !== undefined && { eventDate:    b.eventDate ? new Date(b.eventDate) : null }),
+                ...(b.eventTime    !== undefined && { eventTime:    b.eventTime || null }),
+                ...(b.eventEndDate !== undefined && { eventEndDate: b.eventEndDate ? new Date(b.eventEndDate) : null }),
+                ...(b.eventEndTime !== undefined && { eventEndTime: b.eventEndTime || null }),
+                ...(b.endDate      !== undefined && { endDate:      b.endDate ? new Date(b.endDate) : null }),
+                ...(b.endTime      !== undefined && { endTime:      b.endTime || null }),
             },
         });
         res.json(updated);
