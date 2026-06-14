@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { NavigationContainer, StackActions } from '@react-navigation/native';
+import { NavigationContainer, StackActions, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSelector, useDispatch } from 'react-redux';
@@ -15,6 +15,37 @@ import api from '../services/api';
 import { connectSocket, disconnectSocket, onSocket } from '../services/socket';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
+
+const navigationRef = createNavigationContainerRef();
+
+function navigateFromNotif(data) {
+    if (!navigationRef.isReady() || !data) return;
+    const type = data.type;
+    if (type === 'MESSAGE') {
+        if (data.senderId) {
+            navigationRef.navigate('MessagesTab', {
+                screen: 'Chat',
+                params: { other: { id: data.senderId, username: data.senderUsername }, conversation: { id: data.conversationId || null } },
+            });
+        } else {
+            navigationRef.navigate('MessagesTab');
+        }
+    } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED') {
+        if (data.senderId) {
+            navigationRef.navigate('HomeTab', { screen: 'Profile', params: { userId: data.senderId } });
+        } else {
+            navigationRef.navigate('ProfileTab');
+        }
+    } else if (data.category && data.subCategory) {
+        let initialTab = 'rivals';
+        if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') initialTab = 'tournaments';
+        else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED' || type === 'MATCH_CONFIRMED') initialTab = 'archive';
+        navigationRef.navigate('HomeTab', {
+            screen: 'SubCategory',
+            params: { category: data.category, sub: data.subCategory, initialTab },
+        });
+    }
+}
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -141,7 +172,7 @@ function AppTabs() {
             if (!isExpoGo && notif?.id && !shownNotifIdsRef.current.has(notif.id)) {
                 shownNotifIdsRef.current.add(notif.id);
                 Notifications.scheduleNotificationAsync({
-                    content: { title: notif.title, body: notif.body, sound: 'default', data: notif.data || {} },
+                    content: { title: notif.title, body: notif.body, sound: 'default', data: { ...(notif.data || {}), type: notif.type } },
                     trigger: null,
                 }).catch(() => {});
             }
@@ -218,6 +249,20 @@ export default function Navigation() {
     const dispatch = useDispatch();
     const token = useSelector(s => s.auth.token);
     const [bootstrapping, setBootstrapping] = useState(true);
+    const pendingNavRef = useRef(null);
+
+    useEffect(() => {
+        if (isExpoGo) return;
+        Notifications.getLastNotificationResponseAsync().then(response => {
+            if (response?.notification?.request?.content?.data) {
+                pendingNavRef.current = response.notification.request.content.data;
+            }
+        }).catch(() => {});
+        const sub = Notifications.addNotificationResponseReceivedListener(response => {
+            navigateFromNotif(response.notification.request.content.data || {});
+        });
+        return () => sub.remove();
+    }, []);
 
     useEffect(() => {
         Promise.all([
@@ -260,7 +305,12 @@ export default function Navigation() {
     }
 
     return (
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef} onReady={() => {
+            if (pendingNavRef.current) {
+                navigateFromNotif(pendingNavRef.current);
+                pendingNavRef.current = null;
+            }
+        }}>
             <Stack.Navigator screenOptions={{ headerShown: false }}>
                 {!token ? (
                     <>

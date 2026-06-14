@@ -51,7 +51,7 @@ export async function createNotification(userId, type, title, body, data = {}) {
             prisma.user.findUnique({ where: { id: userId }, select: { pushToken: true } }),
         ]);
         emitToUser(userId, 'notification', notif);
-        if (user?.pushToken) sendPush(user.pushToken, title, body, data);
+        if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type });
         return notif;
     } catch { /* non-critical */ }
 }

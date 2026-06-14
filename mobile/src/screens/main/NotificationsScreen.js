@@ -19,6 +19,14 @@ const TYPE_ICON = {
     SCORE_DISPUTED: '⚠️',
     MATCH_COMPLETED: '🏁',
     VENUE_SUBMISSION: '🏟️',
+    TOURNAMENT_JOIN: '🏆',
+    TOURNAMENT_JOIN_ACCEPTED: '🎉',
+    TOURNAMENT_STARTED: '🚀',
+    TOURNAMENT_CANCEL_REQUEST: '⚠️',
+    CANCELLATION_REQUEST: '⚠️',
+    TOURNAMENT_CANCEL_APPROVED: '✅',
+    TOURNAMENT_CANCEL_REJECTED: '❌',
+    TOURNAMENT_REMOVED: '🚫',
     default: '🔔',
 };
 
@@ -87,8 +95,9 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('rivals');
         } else if (type === 'MATCH_COMMENT') {
             goToSub('rivals');
+        } else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') {
+            goToSub('tournaments');
         } else if (data.category && data.subCategory) {
-            // All other rival/join notifications → rivals tab
             goToSub('rivals');
         }
     };
