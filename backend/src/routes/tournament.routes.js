@@ -16,6 +16,8 @@ import {
     startTournament,
     getTournamentMatches,
     enterTournamentMatchScore,
+    approveCancelRequest,
+    removeParticipant,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -30,8 +32,10 @@ router.post('/:id/cancel-request',           requestCancellation);
 router.post('/:id/complete',                 completeTournament);
 router.get('/:id/participants',               getParticipants);
 router.get('/:id/requests',                  getJoinRequests);
-router.patch('/:id/requests/:userId',        updateJoinRequest);
-router.post('/:id/start',                    startTournament);
+router.patch('/:id/requests/:userId',                    updateJoinRequest);
+router.post('/:id/participants/:userId/cancel-approve',  approveCancelRequest);
+router.delete('/:id/participants/:userId',               removeParticipant);
+router.post('/:id/start',                               startTournament);
 router.get('/:id/matches',                   getTournamentMatches);
 router.patch('/:id/matches/:matchId/score',  enterTournamentMatchScore);
 router.patch('/:id',                         updateTournament);

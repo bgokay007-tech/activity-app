@@ -426,12 +426,13 @@ model TournamentMatch {
 
 // TURNUVA KATILIMCI / JOIN REQUEST
 model TournamentParticipant {
-  id           String   @id @default(uuid())
-  tournamentId String
-  userId       String
-  status       String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
-  note         String?
-  createdAt    DateTime @default(now())
+  id              String   @id @default(uuid())
+  tournamentId    String
+  userId          String
+  status          String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  note            String?
+  cancelRequested Boolean  @default(false)
+  createdAt       DateTime @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -2421,10 +2421,39 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
         try {
             await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status });
             setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status } : r));
-            onUpdated?.(); // refresh card to get updated accepted count
+            onUpdated?.();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         }
+    };
+
+    const approveCancelRequest = async (userId, approve) => {
+        try {
+            await api.post(`/tournaments/${item.id}/participants/${userId}/cancel-approve`, { approve });
+            if (approve) {
+                setRequests(prev => prev.filter(r => r.userId !== userId));
+            } else {
+                setRequests(prev => prev.map(r => r.userId === userId ? { ...r, cancelRequested: false } : r));
+            }
+            onUpdated?.();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
+    const removeParticipant = async (userId) => {
+        Alert.alert('Oyuncuyu Çıkar', 'Bu oyuncuyu turnuvadan çıkarmak istediğinizden emin misiniz?', [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Çıkar', style: 'destructive', onPress: async () => {
+                try {
+                    await api.delete(`/tournaments/${item.id}/participants/${userId}`);
+                    setRequests(prev => prev.filter(r => r.userId !== userId));
+                    onUpdated?.();
+                } catch (e) {
+                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                }
+            }},
+        ]);
     };
 
     const runDemo = useCallback(async (idx) => {
@@ -2703,9 +2732,19 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                 <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournCancelJoinBtn}</Text>
                             </TouchableOpacity>
                         </>)}
-                        {myStatus === 'ACCEPTED' && (
-                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
-                                <Text style={{ color:'#4ade80', fontSize:10 }}>{t.tournJoinAccepted}</Text>
+                        {myStatus === 'ACCEPTED' && !myPart?.cancelRequested && (
+                            <View style={{ gap:4 }}>
+                                <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
+                                    <Text style={{ color:'#4ade80', fontSize:10 }}>{t.tournJoinAccepted}</Text>
+                                </View>
+                                <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }} onPress={() => onCancelJoin(item.id)}>
+                                    <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>İptal</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                        {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (
+                            <View style={{ backgroundColor:'#f59e0b15', borderRadius:6, paddingHorizontal:6, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ İptal onay bekliyor</Text>
                             </View>
                         )}
                         <TouchableOpacity
@@ -2957,7 +2996,7 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                     ) : requests.length === 0 ? (
                         <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz başvuru yok</Text>
                     ) : requests.map((r, i) => (
-                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}>
+                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
                             <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
                             <View style={{ flex:1 }}>
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
@@ -2965,14 +3004,29 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                     @{r.user?.username}
                                     {r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}
                                 </Text>
+                                {r.cancelRequested && (
+                                    <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti (24s kuralı)</Text>
+                                )}
                             </View>
                             <View style={{ alignItems:'flex-end', gap:4 }}>
-                                <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2 }}>
-                                    <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
-                                        {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : '⏳ Bekliyor'}
-                                    </Text>
-                                </View>
-                                {r.status === 'PENDING' && (
+                                {!r.cancelRequested && (
+                                    <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2 }}>
+                                        <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
+                                            {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : '⏳ Bekliyor'}
+                                        </Text>
+                                    </View>
+                                )}
+                                {r.cancelRequested && (
+                                    <View style={{ flexDirection:'row', gap:4 }}>
+                                        <TouchableOpacity onPress={() => approveCancelRequest(r.userId, true)} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => approveCancelRequest(r.userId, false)} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                                {r.status === 'PENDING' && !r.cancelRequested && (
                                     <View style={{ flexDirection:'row', gap:4 }}>
                                         <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
@@ -2981,6 +3035,11 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
                                         </TouchableOpacity>
                                     </View>
+                                )}
+                                {r.status === 'ACCEPTED' && !r.cancelRequested && (
+                                    <TouchableOpacity onPress={() => removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:6, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }}>
+                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                    </TouchableOpacity>
                                 )}
                             </View>
                         </View>
@@ -3898,7 +3957,10 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const handleCancelJoinTournament = useCallback(async (id) => {
         try {
-            await api.delete(`/tournaments/${id}/join`);
+            const { data } = await api.delete(`/tournaments/${id}/join`);
+            if (data?.cancelRequested) {
+                Alert.alert('⚠️ İptal Talebi', 'Turnuva başlangıcına 24 saat kaldığı için iptal talebiniz turnuva düzenleyicisine iletildi. Onaylaması bekleniyor.');
+            }
             loadTournaments();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);

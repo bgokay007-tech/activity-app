@@ -157,14 +157,14 @@ export const getTournaments = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
 
-        // Auto-delete expired OPEN tournaments
-        const now = new Date();
+        // Auto-delete expired OPEN tournaments (use yesterday as threshold to avoid timezone edge cases)
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
         await prisma.tournament.deleteMany({
             where: {
                 status: 'OPEN',
                 OR: [
-                    { endDate:   { lt: now } },
-                    { eventDate: { lt: now } },
+                    { endDate:   { lt: yesterday } },
+                    { eventDate: { lt: yesterday } },
                 ],
             },
         });
@@ -293,43 +293,138 @@ export const cancelJoin = async (req, res, next) => {
     try {
         const { id } = req.params;
 
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
         const existing = await prisma.tournamentParticipant.findUnique({
             where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
         });
         if (!existing) return res.status(404).json({ message: 'Not registered' });
 
-        const wasAccepted = existing.status === 'ACCEPTED';
+        // Within 24h of event start → send cancel request to creator instead of direct cancel
+        const now = new Date();
+        const eventStart = tournament.eventDate ? new Date(tournament.eventDate) : null;
+        const msUntilEvent = eventStart ? eventStart.getTime() - now.getTime() : Infinity;
+        const within24h = msUntilEvent > 0 && msUntilEvent < 24 * 60 * 60 * 1000;
 
+        if (within24h && existing.status === 'ACCEPTED') {
+            await prisma.tournamentParticipant.update({
+                where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
+                data: { cancelRequested: true },
+            });
+            const user = await prisma.user.findUnique({
+                where: { id: req.userId },
+                select: { fullName: true, username: true },
+            });
+            await createNotification(
+                tournament.creatorId,
+                'TOURNAMENT_CANCEL_REQUEST',
+                '⚠️ İptal Talebi',
+                `${user.fullName || user.username} "${tournament.name}" turnuvasından ayrılmak istiyor (etkinliğe 24 saat kaldı)`,
+                { tournamentId: id, userId: req.userId, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory },
+            );
+            return res.json({ message: 'Cancellation request sent to creator', cancelRequested: true });
+        }
+
+        const wasAccepted = existing.status === 'ACCEPTED';
         await prisma.tournamentParticipant.delete({
             where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
         });
 
-        // Freed an accepted slot → promote first PENDING in queue
         if (wasAccepted) {
-            const nextUp = await prisma.tournamentParticipant.findFirst({
-                where: { tournamentId: id, status: 'PENDING' },
-                orderBy: { createdAt: 'asc' },
-            });
-            if (nextUp) {
-                await prisma.tournamentParticipant.update({
-                    where: { tournamentId_userId: { tournamentId: id, userId: nextUp.userId } },
-                    data: { status: 'ACCEPTED' },
-                });
-                const tourn = await prisma.tournament.findUnique({
-                    where: { id },
-                    select: { name: true, category: true, subCategory: true },
-                });
-                await createNotification(
-                    nextUp.userId,
-                    'TOURNAMENT_JOIN_ACCEPTED',
-                    '🎉 Turnuvaya Kabul Edildiniz',
-                    `"${tourn.name}" turnuvasına yedek listesinden kabul edildiniz`,
-                    { tournamentId: id, category: tourn.category.toLowerCase(), subCategory: tourn.subCategory },
-                );
-            }
+            await _promoteNextPending(id, tournament);
         }
 
         res.json({ message: 'Registration cancelled' });
+    } catch (e) { next(e); }
+};
+
+// Helper: promote first PENDING participant to ACCEPTED
+async function _promoteNextPending(tournamentId, tournament) {
+    const nextUp = await prisma.tournamentParticipant.findFirst({
+        where: { tournamentId, status: 'PENDING' },
+        orderBy: { createdAt: 'asc' },
+    });
+    if (!nextUp) return;
+    await prisma.tournamentParticipant.update({
+        where: { tournamentId_userId: { tournamentId, userId: nextUp.userId } },
+        data: { status: 'ACCEPTED' },
+    });
+    const tourn = tournament || await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { name: true, category: true, subCategory: true } });
+    await createNotification(
+        nextUp.userId,
+        'TOURNAMENT_JOIN_ACCEPTED',
+        '🎉 Turnuvaya Kabul Edildiniz',
+        `"${tourn.name}" turnuvasına yedek listesinden kabul edildiniz`,
+        { tournamentId, category: tourn.category.toLowerCase(), subCategory: tourn.subCategory },
+    );
+}
+
+export const approveCancelRequest = async (req, res, next) => {
+    try {
+        const { id, userId } = req.params;
+        const { approve } = req.body; // true | false
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not authorized' });
+
+        const existing = await prisma.tournamentParticipant.findUnique({
+            where: { tournamentId_userId: { tournamentId: id, userId } },
+        });
+        if (!existing || !existing.cancelRequested) return res.status(404).json({ message: 'No cancel request found' });
+
+        if (approve) {
+            await prisma.tournamentParticipant.delete({
+                where: { tournamentId_userId: { tournamentId: id, userId } },
+            });
+            await createNotification(userId, 'TOURNAMENT_CANCEL_APPROVED', '✅ İptal Talebiniz Onaylandı',
+                `"${tournament.name}" turnuvasından ayrılma talebiniz onaylandı.`,
+                { tournamentId: id, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory });
+            await _promoteNextPending(id, tournament);
+        } else {
+            await prisma.tournamentParticipant.update({
+                where: { tournamentId_userId: { tournamentId: id, userId } },
+                data: { cancelRequested: false },
+            });
+            await createNotification(userId, 'TOURNAMENT_CANCEL_REJECTED', '❌ İptal Talebiniz Reddedildi',
+                `"${tournament.name}" turnuvasından ayrılma talebiniz reddedildi.`,
+                { tournamentId: id, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory });
+        }
+
+        res.json({ message: approve ? 'Participant removed' : 'Cancel request rejected' });
+    } catch (e) { next(e); }
+};
+
+export const removeParticipant = async (req, res, next) => {
+    try {
+        const { id, userId } = req.params;
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+        const requester = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+        if (tournament.creatorId !== req.userId && !requester?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
+
+        const existing = await prisma.tournamentParticipant.findUnique({
+            where: { tournamentId_userId: { tournamentId: id, userId } },
+        });
+        if (!existing) return res.status(404).json({ message: 'Participant not found' });
+
+        const wasAccepted = existing.status === 'ACCEPTED';
+        await prisma.tournamentParticipant.delete({
+            where: { tournamentId_userId: { tournamentId: id, userId } },
+        });
+
+        await createNotification(userId, 'TOURNAMENT_REMOVED', '❌ Turnuvadan Çıkarıldınız',
+            `"${tournament.name}" turnuvasından çıkarıldınız.`,
+            { tournamentId: id, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory });
+
+        if (wasAccepted) {
+            await _promoteNextPending(id, tournament);
+        }
+
+        res.json({ message: 'Participant removed' });
     } catch (e) { next(e); }
 };
 
