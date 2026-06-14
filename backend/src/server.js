@@ -5,6 +5,7 @@ import { PORT, CLIENT_URL } from './config/env.js';
 import { setIO } from './config/socket.js';
 import { startCleanupJob } from './jobs/cleanupRivals.js';
 import { startAutoCompleteJob } from './jobs/autoCompleteMatches.js';
+import { startTournamentCleanupJob } from './jobs/cleanupTournaments.js';
 
 const httpServer = createServer(app);
 
@@ -25,4 +26,5 @@ httpServer.listen(PORT, () => {
     console.log(`🎯 AcTiViTy API running on http://localhost:${PORT}`);
     startCleanupJob();
     startAutoCompleteJob();
+    startTournamentCleanupJob();
 });
