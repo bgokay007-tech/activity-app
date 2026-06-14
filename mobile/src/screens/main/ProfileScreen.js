@@ -246,10 +246,13 @@ export default function ProfileScreen({ route, navigation }) {
     const [showMyArchive, setShowMyArchive] = useState(false);
     const [upcomingSub, setUpcomingSub] = useState(null); // which sport's upcoming is open
     const [archiveSub, setArchiveSub] = useState(null); // which sport's archive is open
+    const [archiveSubTab, setArchiveSubTab] = useState('rivals');
     const [myUpcoming, setMyUpcoming] = useState([]);
     const [myHistory, setMyHistory] = useState([]);
+    const [myTournamentHistory, setMyTournamentHistory] = useState([]);
     const [loadingUpcoming, setLoadingUpcoming] = useState(false);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [loadingTournamentHistory, setLoadingTournamentHistory] = useState(false);
 
     // Data saver
     const [dataSaver, setDataSaver] = useState(false);
@@ -267,14 +270,30 @@ export default function ProfileScreen({ route, navigation }) {
 
     const openMyArchive = async (subCategory = null) => {
         setArchiveSub(subCategory);
+        setArchiveSubTab('rivals');
         setShowMyArchive(true);
-        if (myHistory.length > 0) return;
-        setLoadingHistory(true);
-        try {
-            const res = await api.get('/rivals/my-history');
-            setMyHistory(res.data || []);
-        } catch(e) { /* silent */ }
-        finally { setLoadingHistory(false); }
+        const loads = [];
+        if (myHistory.length === 0) {
+            setLoadingHistory(true);
+            loads.push(
+                api.get('/rivals/my-history')
+                    .then(res => setMyHistory(res.data || []))
+                    .catch(() => {})
+                    .finally(() => setLoadingHistory(false))
+            );
+        }
+        if (myTournamentHistory.length === 0) {
+            setLoadingTournamentHistory(true);
+            const params = new URLSearchParams({ participantId: userId });
+            if (subCategory) { params.set('subCategory', subCategory); }
+            loads.push(
+                api.get(`/tournaments/archived?${params.toString()}`)
+                    .then(res => setMyTournamentHistory(Array.isArray(res.data) ? res.data : []))
+                    .catch(() => {})
+                    .finally(() => setLoadingTournamentHistory(false))
+            );
+        }
+        await Promise.all(loads);
     };
 
     // Privacy picker
@@ -928,8 +947,19 @@ export default function ProfileScreen({ route, navigation }) {
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
+                        {/* Archive sub-tabs */}
+                        <View style={{ flexDirection:'row', gap:6, paddingHorizontal:16, paddingBottom:8 }}>
+                            {['rivals','tournaments'].map(st => (
+                                <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
+                                    style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? colors.purple : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? colors.purple : colors.border }}>
+                                    <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>
+                                        {st === 'rivals' ? '⚔️ Bireysel Maçlar' : '🏆 Turnuvalar'}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            {loadingHistory ? (
+                            {archiveSubTab === 'rivals' && (loadingHistory ? (
                                 <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
                             ) : (() => {
                                 const filtered = archiveSub ? myHistory.filter(m => m.subCategory === archiveSub) : myHistory;
@@ -948,7 +978,6 @@ export default function ProfileScreen({ route, navigation }) {
                                     const modeTxt2 = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '⚔️ Rekabetçi' : m.matchMode?.toUpperCase() === 'PRACTICE' ? '🏃 Antrenman' : '';
                                     return (
                                         <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
-                                            {/* Row 1: sport · size · mode · date · result */}
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6, flexWrap:'wrap' }}>
                                                 <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800' }}>{SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
@@ -961,14 +990,10 @@ export default function ProfileScreen({ route, navigation }) {
                                                 </Text>
                                                 {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
                                             </View>
-                                            {/* Row 2: court / location */}
                                             {(m.courtName || m.location) ? (
-                                                <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:6 }}>
-                                                    🏟️ {m.courtName || m.location}
-                                                </Text>
+                                                <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:6 }}>🏟️ {m.courtName || m.location}</Text>
                                             ) : null}
-                                            {/* Row 3: players with per-set scores beneath each */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom: sets ? 4 : 0 }}>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
                                                 {allP.map(p => {
                                                     const isSender = p.id === m.senderId;
                                                     const hist = snapshot[p.id];
@@ -996,7 +1021,35 @@ export default function ProfileScreen({ route, navigation }) {
                                         </View>
                                     );
                                 });
-                            })()}
+                            })())}
+                            {archiveSubTab === 'tournaments' && (loadingTournamentHistory ? (
+                                <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                            ) : (() => {
+                                const filtered = archiveSub ? myTournamentHistory.filter(tt => tt.subCategory === archiveSub) : myTournamentHistory;
+                                if (filtered.length === 0) return <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>Henüz tamamlanmış turnuva yok.</Text>;
+                                return filtered.map(tourn => (
+                                    <View key={tourn.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:2 }}>{tourn.name}</Text>
+                                                <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'700' }}>{SUB_EMOJI[tourn.subCategory] || '🏅'} {tourn.subCategory}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                    👤 {tourn.creator?.fullName || tourn.creator?.username}
+                                                    {tourn.city ? `  📍 ${tourn.city}` : ''}
+                                                </Text>
+                                                {tourn.completedAt && (
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                        🏁 {new Date(tourn.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>✅ Tamamlandı</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                ));
+                            })())}
                         </ScrollView>
                     </View>
                 </View>

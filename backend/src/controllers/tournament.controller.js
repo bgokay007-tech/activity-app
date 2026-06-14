@@ -5,28 +5,66 @@ import { createNotification } from './notification.controller.js';
 
 function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
 
-/** Round-robin schedule using circle method */
-function roundRobinMatches(players, tournamentId, phase = 'GROUP') {
-    const list = [...players];
-    if (list.length % 2 !== 0) list.push(null); // null = BYE
-    const n = list.length;
-    const matches = [];
-    for (let r = 0; r < n - 1; r++) {
-        for (let k = 0; k < n / 2; k++) {
-            const p1 = list[k], p2 = list[n - 1 - k];
-            const isBye = !p1 || !p2;
-            const real = p1 || p2;
-            matches.push({
-                tournamentId, round: r + 1, phase, matchIndex: k,
-                p1Id:   isBye ? null : p1?.id,   p1Name: isBye ? null : (p1?.fullName || p1?.username),
-                p2Id:   isBye ? null : p2?.id,   p2Name: isBye ? null : (p2?.fullName || p2?.username),
-                status:   isBye ? 'BYE' : 'PENDING',
-                winnerId: isBye ? real?.id : null,
-            });
+/**
+ * ELO-based group matches: each player plays `matchesPerPlayer` matches
+ * against their closest-skill opponents. Rounds are greedy-scheduled so
+ * no player appears twice in the same round.
+ */
+function eloBasedMatches(players, tournamentId, matchesPerPlayer) {
+    const k = Math.min(matchesPerPlayer, players.length - 1);
+    const sorted = [...players].sort((a, b) => (a.skillRating || 0) - (b.skillRating || 0));
+
+    const matchCount = {};
+    players.forEach(p => (matchCount[p.id] = 0));
+    const scheduled = new Set();
+    const pairs = [];
+
+    // Two passes so late-iteration players can still fill slots
+    for (let pass = 0; pass < 2; pass++) {
+        for (const player of sorted) {
+            if (matchCount[player.id] >= k) continue;
+            const candidates = sorted
+                .filter(p => p.id !== player.id && (pass === 0 ? matchCount[p.id] < k : matchCount[p.id] < players.length - 1))
+                .map(p => ({ ...p, d: Math.abs((p.skillRating || 0) - (player.skillRating || 0)) }))
+                .sort((a, b) => a.d - b.d);
+            for (const opp of candidates) {
+                if (matchCount[player.id] >= k) break;
+                const key = [player.id, opp.id].sort().join('|');
+                if (scheduled.has(key)) continue;
+                scheduled.add(key);
+                pairs.push({ p1: player, p2: opp });
+                matchCount[player.id]++;
+                matchCount[opp.id]++;
+            }
         }
-        list.splice(1, 0, list.pop()); // rotate — keep list[0] fixed
     }
-    return matches;
+
+    // Greedy round assignment: each round is a Set of busy player IDs
+    const roundBusy = [];
+    const roundCounters = {};
+    return pairs.map(pair => {
+        let round = -1;
+        for (let r = 0; r < roundBusy.length; r++) {
+            if (!roundBusy[r].has(pair.p1.id) && !roundBusy[r].has(pair.p2.id)) {
+                roundBusy[r].add(pair.p1.id);
+                roundBusy[r].add(pair.p2.id);
+                round = r + 1;
+                break;
+            }
+        }
+        if (round === -1) {
+            roundBusy.push(new Set([pair.p1.id, pair.p2.id]));
+            round = roundBusy.length;
+        }
+        roundCounters[round] = (roundCounters[round] || 0);
+        const idx = roundCounters[round]++;
+        return {
+            tournamentId, round, phase: 'GROUP', matchIndex: idx,
+            p1Id: pair.p1.id, p1Name: pair.p1.fullName || pair.p1.username,
+            p2Id: pair.p2.id, p2Name: pair.p2.fullName || pair.p2.username,
+            status: 'PENDING',
+        };
+    });
 }
 
 /** Single-elimination bracket — all rounds pre-created with TBD slots */
@@ -579,7 +617,8 @@ export const startTournament = async (req, res, next) => {
         if (tournament.type === '2') {
             matches = singleElimMatches(players, id, 1, 'PLAYOFF');
         } else {
-            matches = roundRobinMatches(players, id, 'GROUP');
+            const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
+            matches = eloBasedMatches(players, id, matchesPerPlayer);
         }
 
         await prisma.$transaction([
@@ -751,8 +790,9 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
 export const getArchivedTournaments = async (req, res, next) => {
     try {
-        const { category, subCategory, city, dateFrom, dateTo } = req.query;
+        const { category, subCategory, city, dateFrom, dateTo, participantId } = req.query;
         const myId = req.userId;
+        const filterUserId = participantId || null;
 
         const where = {
             status: 'COMPLETED',
@@ -764,6 +804,12 @@ export const getArchivedTournaments = async (req, res, next) => {
             ]}),
             ...(dateFrom && { completedAt: { gte: new Date(dateFrom) } }),
             ...(dateTo   && { completedAt: { lte: new Date(dateTo) } }),
+            ...(filterUserId && {
+                OR: [
+                    { creatorId: filterUserId },
+                    { participants: { some: { userId: filterUserId, status: 'ACCEPTED' } } },
+                ],
+            }),
         };
 
         const all = await prisma.tournament.findMany({
@@ -771,11 +817,11 @@ export const getArchivedTournaments = async (req, res, next) => {
             include: {
                 creator:      { select: { id: true, username: true, fullName: true } },
                 participants: { where: { userId: myId }, select: { userId: true } },
+                _count:       { select: { participants: { where: { status: 'ACCEPTED' } } } },
             },
             orderBy: { completedAt: 'desc' },
         });
 
-        const mine = all.filter(t => t.creatorId === myId || t.participants.length > 0);
-        res.json(mine);
+        res.json(all);
     } catch (e) { next(e); }
 };

@@ -3828,6 +3828,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveCity, setArchiveCity] = useState('');
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
+    const [archiveSubTab, setArchiveSubTab] = useState('rivals');
+    const [archiveTournaments, setArchiveTournaments] = useState([]);
+    const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
 
     const [filterCity, setFilterCity] = useState('');
     const [filterDate, setFilterDate] = useState('all');
@@ -3945,6 +3948,22 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [activeTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
 
     useEffect(() => { loadArchive(); }, [loadArchive]);
+
+    const loadArchiveTournaments = useCallback(async () => {
+        if (activeTab !== 'archive' || archiveSubTab !== 'tournaments') return;
+        setLoadingArchiveTournaments(true);
+        try {
+            const params = new URLSearchParams({ category, subCategory: sub });
+            if (archiveCity) params.set('city', archiveCity);
+            if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
+            if (archiveDateTo) params.set('dateTo', archiveDateTo);
+            const { data } = await api.get(`/tournaments/archived?${params.toString()}`);
+            setArchiveTournaments(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingArchiveTournaments(false); }
+    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
+
+    useEffect(() => { loadArchiveTournaments(); }, [loadArchiveTournaments]);
 
     const loadTournaments = useCallback(async () => {
         if (activeTab !== 'tournaments') return;
@@ -4193,32 +4212,59 @@ export default function SubCategoryScreen({ route, navigation }) {
                     )}
 
                     {/* ── TOURNAMENTS ── */}
-                    {activeTab === 'tournaments' && (
-                        <>
-                            <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color + '60' }]} onPress={() => setShowCreateTournament(true)}>
-                                <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
-                            </TouchableOpacity>
-                            {loadingTournaments
-                                ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
-                                : tournaments.length === 0
-                                    ? <EmptyState emoji="🏆" text={t.emptyTournaments} />
-                                    : tournaments.map(item => (
-                                        <TournamentCard
-                                            key={item.id}
-                                            item={item}
-                                            myId={myId}
-                                            myIsAdmin={myIsAdmin}
-                                            t={t}
-                                            cfg={cfg}
-                                            onJoin={handleJoinTournament}
-                                            onCancelJoin={handleCancelJoinTournament}
-                                            onDelete={handleDeleteTournament}
-                                            onUpdated={loadTournaments}
-                                        />
-                                    ))
-                            }
-                        </>
-                    )}
+                    {activeTab === 'tournaments' && (() => {
+                        const inProgress = tournaments.filter(t => t.status === 'IN_PROGRESS');
+                        const open = tournaments.filter(t => t.status === 'OPEN');
+                        const renderCard = (item) => (
+                            <TournamentCard
+                                key={item.id}
+                                item={item}
+                                myId={myId}
+                                myIsAdmin={myIsAdmin}
+                                t={t}
+                                cfg={cfg}
+                                onJoin={handleJoinTournament}
+                                onCancelJoin={handleCancelJoinTournament}
+                                onDelete={handleDeleteTournament}
+                                onUpdated={loadTournaments}
+                            />
+                        );
+                        return (
+                            <>
+                                <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color + '60' }]} onPress={() => setShowCreateTournament(true)}>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
+                                </TouchableOpacity>
+                                {loadingTournaments
+                                    ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
+                                    : (<>
+                                        {inProgress.length > 0 && (
+                                            <>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:8, marginBottom:4 }}>
+                                                    <View style={{ flex:1, height:1, backgroundColor:'#16a34a40' }} />
+                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>🏆 Devam Eden Turnuvalar</Text>
+                                                    <View style={{ flex:1, height:1, backgroundColor:'#16a34a40' }} />
+                                                </View>
+                                                {inProgress.map(renderCard)}
+                                            </>
+                                        )}
+                                        {open.length > 0 && (
+                                            <>
+                                                {inProgress.length > 0 && (
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:12, marginBottom:4 }}>
+                                                        <View style={{ flex:1, height:1, backgroundColor: cfg.color+'40' }} />
+                                                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>📋 Açık Turnuvalar</Text>
+                                                        <View style={{ flex:1, height:1, backgroundColor: cfg.color+'40' }} />
+                                                    </View>
+                                                )}
+                                                {open.map(renderCard)}
+                                            </>
+                                        )}
+                                        {tournaments.length === 0 && <EmptyState emoji="🏆" text={t.emptyTournaments} />}
+                                    </>)
+                                }
+                            </>
+                        );
+                    })()}
 
                     {/* ── COACHES ── */}
                     {activeTab === 'coaches' && (
@@ -4228,6 +4274,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── ARCHIVE ── */}
                     {activeTab === 'archive' && (
                         <>
+                        {/* Sub-tabs */}
+                        <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                            {['rivals','tournaments'].map(st => (
+                                <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
+                                    style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
+                                    <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                        {st === 'rivals' ? '⚔️ Bireysel Maçlar' : '🏆 Turnuvalar'}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
                         {/* Filter bar */}
                         <View style={{ flexDirection:'row', gap:6, marginBottom:8, alignItems:'center' }}>
                             <TextInput
@@ -4236,7 +4293,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 placeholderTextColor={colors.textMuted}
                                 value={archiveCity}
                                 onChangeText={setArchiveCity}
-                                onSubmitEditing={loadArchive}
+                                onSubmitEditing={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments}
                                 returnKeyType="search"
                             />
                             <TextInput
@@ -4245,7 +4302,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 placeholderTextColor={colors.textMuted}
                                 value={archiveDateFrom}
                                 onChangeText={setArchiveDateFrom}
-                                onSubmitEditing={loadArchive}
+                                onSubmitEditing={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments}
                                 returnKeyType="search"
                             />
                             <TextInput
@@ -4254,10 +4311,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 placeholderTextColor={colors.textMuted}
                                 value={archiveDateTo}
                                 onChangeText={setArchiveDateTo}
-                                onSubmitEditing={loadArchive}
+                                onSubmitEditing={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments}
                                 returnKeyType="search"
                             />
-                            <TouchableOpacity onPress={loadArchive} style={{ backgroundColor: cfg.color, borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
+                            <TouchableOpacity onPress={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments} style={{ backgroundColor: cfg.color, borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
                                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>🔍</Text>
                             </TouchableOpacity>
                             {(archiveCity || archiveDateFrom || archiveDateTo) && (
@@ -4266,74 +4323,122 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             )}
                         </View>
-                        {loadingArchive ? (
-                            <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
-                        ) : archiveRivals.length === 0 ? (
-                            <EmptyState emoji="🗃️" text={t.emptyArchive} />
-                        ) : (
-                            <View style={{ gap: 10, paddingVertical: 8 }}>
-                                {archiveRivals.map(m => {
-                                    const isOwner = m.senderId === myId;
-                                    const parts = Array.isArray(m.participants) ? m.participants : [];
-                                    const allP = [m.sender, ...parts].filter(Boolean);
-                                    const snapshot = m.score?.ratingSnapshot || {};
-                                    const sets = m.score?.sets;
-                                    const winner = m.score?.winner;
-                                    const myResult = winner === 'draw' ? '🤝' : winner === (isOwner ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
-                                    const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
-                                    const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
-                                    const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
-                                    return (
-                                        <View key={m.id} style={[s.card, { padding: 12 }]}>
-                                            {/* Row 1: size · mode · date time · result */}
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6, flexWrap:'wrap' }}>
-                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
-                                                {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
-                                                {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
-                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                                    {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
-                                                    {!m.flexibleSchedule && m.matchTime ? ` ${m.matchTime}` : ''}
-                                                </Text>
-                                                {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
+
+                        {/* Bireysel Maçlar */}
+                        {archiveSubTab === 'rivals' && (
+                            loadingArchive ? (
+                                <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
+                            ) : archiveRivals.length === 0 ? (
+                                <EmptyState emoji="🗃️" text={t.emptyArchive} />
+                            ) : (
+                                <View style={{ gap: 10, paddingVertical: 8 }}>
+                                    {archiveRivals.map(m => {
+                                        const isOwner = m.senderId === myId;
+                                        const parts = Array.isArray(m.participants) ? m.participants : [];
+                                        const allP = [m.sender, ...parts].filter(Boolean);
+                                        const snapshot = m.score?.ratingSnapshot || {};
+                                        const sets = m.score?.sets;
+                                        const winner = m.score?.winner;
+                                        const myResult = winner === 'draw' ? '🤝' : winner === (isOwner ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
+                                        const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
+                                        const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                        const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
+                                        return (
+                                            <View key={m.id} style={[s.card, { padding: 12 }]}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6, flexWrap:'wrap' }}>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
+                                                    {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
+                                                    {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                        {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
+                                                        {!m.flexibleSchedule && m.matchTime ? ` ${m.matchTime}` : ''}
+                                                    </Text>
+                                                    {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
+                                                </View>
+                                                {(m.courtName || m.location) ? (
+                                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>
+                                                        🏟️ {m.courtName || m.location}
+                                                        {m.courtName && m.location ? `  📍 ${m.location}` : ''}
+                                                    </Text>
+                                                ) : null}
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom: sets ? 4 : 0 }}>
+                                                    {allP.map(p => {
+                                                        const isSender = p.id === m.senderId;
+                                                        const hist = snapshot[p.id];
+                                                        const rBefore = hist?.skillRating_before;
+                                                        const pts = hist?.change ?? null;
+                                                        const pSets = sets ? sets.map(s2 => isSender ? s2.sender : s2.opponent) : null;
+                                                        const pWins = sets ? sets.filter(s2 => (isSender ? s2.sender : s2.opponent) > (isSender ? s2.opponent : s2.sender)).length : null;
+                                                        return (
+                                                            <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:2 }}>
+                                                                <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
+                                                                    {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(rBefore).toFixed(2)} ★</Text>}
+                                                                    {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
+                                                                </TouchableOpacity>
+                                                                {pSets && (
+                                                                    <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:4 }}>
+                                                                        {pSets.join('  ')}
+                                                                        {'  '}<Text style={{ color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted, fontWeight:'800' }}>({pWins})</Text>
+                                                                    </Text>
+                                                                )}
+                                                            </View>
+                                                        );
+                                                    })}
+                                                </View>
                                             </View>
-                                            {/* Row 2: court / location */}
-                                            {(m.courtName || m.location) ? (
-                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>
-                                                    🏟️ {m.courtName || m.location}
-                                                    {m.courtName && m.location ? `  📍 ${m.location}` : ''}
-                                                </Text>
-                                            ) : null}
-                                            {/* Row 3: players with per-set scores beneath each */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom: sets ? 4 : 0 }}>
-                                                {allP.map(p => {
-                                                    const isSender = p.id === m.senderId;
-                                                    const hist = snapshot[p.id];
-                                                    const rBefore = hist?.skillRating_before;
-                                                    const pts = hist?.change ?? null;
-                                                    const pSets = sets ? sets.map(s2 => isSender ? s2.sender : s2.opponent) : null;
-                                                    const pWins = sets ? sets.filter(s2 => (isSender ? s2.sender : s2.opponent) > (isSender ? s2.opponent : s2.sender)).length : null;
-                                                    return (
-                                                        <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:2 }}>
-                                                            <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
-                                                                {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(rBefore).toFixed(2)} ★</Text>}
-                                                                {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
-                                                            </TouchableOpacity>
-                                                            {pSets && (
-                                                                <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:4 }}>
-                                                                    {pSets.join('  ')}
-                                                                    {'  '}<Text style={{ color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted, fontWeight:'800' }}>({pWins})</Text>
-                                                                </Text>
-                                                            )}
+                                        );
+                                    })}
+                                </View>
+                            )
+                        )}
+
+                        {/* Turnuvalar arşivi */}
+                        {archiveSubTab === 'tournaments' && (
+                            loadingArchiveTournaments ? (
+                                <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
+                            ) : archiveTournaments.length === 0 ? (
+                                <EmptyState emoji="🏆" text="Henüz tamamlanmış turnuva yok" />
+                            ) : (
+                                <View style={{ gap:10, paddingVertical:8 }}>
+                                    {archiveTournaments.map(tourn => {
+                                        const typeLabel = TOURN_TYPE_LABELS(t)[tourn.type] || tourn.type;
+                                        const participated = tourn.participants?.length > 0 || tourn.creatorId === myId;
+                                        return (
+                                            <View key={tourn.id} style={[s.card, { padding:12 }]}>
+                                                <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800', marginBottom:2 }}>{tourn.name}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                            {typeLabel}{tourn.city ? `  📍 ${tourn.city}` : ''}
+                                                        </Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                            👤 {tourn.creator?.fullName || tourn.creator?.username}
+                                                            {'  '}👥 {tourn._count?.participants || 0} katılımcı
+                                                        </Text>
+                                                        {tourn.completedAt && (
+                                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                                🏁 {new Date(tourn.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}
+                                                            </Text>
+                                                        )}
+                                                    </View>
+                                                    <View style={{ alignItems:'flex-end', gap:4 }}>
+                                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>✅ Tamamlandı</Text>
                                                         </View>
-                                                    );
-                                                })}
+                                                        {participated && (
+                                                            <View style={{ backgroundColor: cfg.color+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>Katıldım</Text>
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                </View>
                                             </View>
-                                        </View>
-                                    );
-                                })}
-                            </View>
+                                        );
+                                    })}
+                                </View>
+                            )
                         )}
                         </>
                     )}
