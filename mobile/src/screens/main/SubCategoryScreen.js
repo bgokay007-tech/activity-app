@@ -2421,7 +2421,6 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
         try {
             await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status });
             setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status } : r));
-            onUpdated?.();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         }
@@ -2435,7 +2434,6 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
             } else {
                 setRequests(prev => prev.map(r => r.userId === userId ? { ...r, cancelRequested: false } : r));
             }
-            onUpdated?.();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         }
@@ -2448,7 +2446,6 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                 try {
                     await api.delete(`/tournaments/${item.id}/participants/${userId}`);
                     setRequests(prev => prev.filter(r => r.userId !== userId));
-                    onUpdated?.();
                 } catch (e) {
                     Alert.alert('', e?.response?.data?.message || t.actionFailed);
                 }
