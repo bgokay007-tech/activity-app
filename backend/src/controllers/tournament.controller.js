@@ -770,6 +770,78 @@ export const startTournament = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+export const rematchTournament = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const tournament = await prisma.tournament.findUnique({
+            where: { id },
+            include: {
+                participants: {
+                    where: { status: 'ACCEPTED' },
+                    orderBy: [{ acceptedAt: 'asc' }, { createdAt: 'asc' }],
+                    include: {
+                        user: {
+                            select: {
+                                id: true, fullName: true, username: true,
+                                interests: {
+                                    where: { category: { equals: undefined }, subCategory: { equals: undefined } },
+                                    select: { skillRating: true },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Yetkiniz yok' });
+        if (tournament.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Turnuva devam etmekte değil' });
+        if (tournament.type === '2') return res.status(400).json({ message: 'Eleme turnuvaları yeniden eşleştirilemez' });
+
+        // Fetch participants with correct interest filter
+        const rawParticipants = await prisma.tournamentParticipant.findMany({
+            where: { tournamentId: id, status: 'ACCEPTED' },
+            orderBy: [{ acceptedAt: 'asc' }, { createdAt: 'asc' }],
+            include: {
+                user: {
+                    select: {
+                        id: true, fullName: true, username: true,
+                        interests: {
+                            where: { category: tournament.category, subCategory: tournament.subCategory },
+                            select: { skillRating: true },
+                        },
+                    },
+                },
+            },
+        });
+
+        const mainList = tournament.maxPlayers ? rawParticipants.slice(0, tournament.maxPlayers) : rawParticipants;
+        const players = mainList.map(p => ({
+            id: p.userId,
+            fullName: p.user.fullName,
+            username: p.user.username,
+            skillRating: p.user.interests[0]?.skillRating || 0,
+        }));
+
+        const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
+        const newMatches = eloBasedMatches(players, id, matchesPerPlayer);
+
+        await prisma.$transaction([
+            // Delete only incomplete GROUP phase matches (keep COMPLETED ones)
+            prisma.tournamentMatch.deleteMany({
+                where: { tournamentId: id, phase: 'GROUP', status: { not: 'COMPLETED' } },
+            }),
+            prisma.tournamentMatch.createMany({ data: newMatches }),
+        ]);
+
+        const matches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+        res.json(matches);
+    } catch (e) { next(e); }
+};
+
 export const getTournamentMatches = async (req, res, next) => {
     try {
         const { id } = req.params;
