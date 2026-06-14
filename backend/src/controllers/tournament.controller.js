@@ -14,58 +14,42 @@ function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
 function eloBasedMatches(players, tournamentId, matchesPerPlayer) {
     const k = Math.min(matchesPerPlayer, players.length - 1);
     const sorted = [...players].sort((a, b) => (a.skillRating || 0) - (b.skillRating || 0));
+    const played = new Set(); // "id1|id2" pairs already scheduled across all rounds
+    const result = [];
 
-    const matchCount = {};
-    players.forEach(p => (matchCount[p.id] = 0));
-    const scheduled = new Set();
-    const pairs = [];
+    for (let round = 1; round <= k; round++) {
+        const unmatched = new Set(sorted.map(p => p.id));
+        const roundPairs = [];
 
-    // Two passes so late-iteration players can still fill slots
-    for (let pass = 0; pass < 2; pass++) {
         for (const player of sorted) {
-            if (matchCount[player.id] >= k) continue;
+            if (!unmatched.has(player.id)) continue;
+            // Find closest-ELO opponent: not played before, not already matched this round
             const candidates = sorted
-                .filter(p => p.id !== player.id && (pass === 0 ? matchCount[p.id] < k : matchCount[p.id] < players.length - 1))
+                .filter(p => p.id !== player.id && unmatched.has(p.id))
                 .map(p => ({ ...p, d: Math.abs((p.skillRating || 0) - (player.skillRating || 0)) }))
                 .sort((a, b) => a.d - b.d);
             for (const opp of candidates) {
-                if (matchCount[player.id] >= k) break;
                 const key = [player.id, opp.id].sort().join('|');
-                if (scheduled.has(key)) continue;
-                scheduled.add(key);
-                pairs.push({ p1: player, p2: opp });
-                matchCount[player.id]++;
-                matchCount[opp.id]++;
-            }
-        }
-    }
-
-    // Greedy round assignment: each round is a Set of busy player IDs
-    const roundBusy = [];
-    const roundCounters = {};
-    return pairs.map(pair => {
-        let round = -1;
-        for (let r = 0; r < roundBusy.length; r++) {
-            if (!roundBusy[r].has(pair.p1.id) && !roundBusy[r].has(pair.p2.id)) {
-                roundBusy[r].add(pair.p1.id);
-                roundBusy[r].add(pair.p2.id);
-                round = r + 1;
+                if (played.has(key)) continue;
+                played.add(key);
+                unmatched.delete(player.id);
+                unmatched.delete(opp.id);
+                roundPairs.push({ p1: player, p2: opp });
                 break;
             }
         }
-        if (round === -1) {
-            roundBusy.push(new Set([pair.p1.id, pair.p2.id]));
-            round = roundBusy.length;
-        }
-        roundCounters[round] = (roundCounters[round] || 0);
-        const idx = roundCounters[round]++;
-        return {
-            tournamentId, round, phase: 'GROUP', matchIndex: idx,
-            p1Id: pair.p1.id, p1Name: pair.p1.fullName || pair.p1.username,
-            p2Id: pair.p2.id, p2Name: pair.p2.fullName || pair.p2.username,
-            status: 'PENDING',
-        };
-    });
+
+        roundPairs.forEach((pair, idx) => {
+            result.push({
+                tournamentId, round, phase: 'GROUP', matchIndex: idx,
+                p1Id: pair.p1.id, p1Name: pair.p1.fullName || pair.p1.username,
+                p2Id: pair.p2.id, p2Name: pair.p2.fullName || pair.p2.username,
+                status: 'PENDING',
+            });
+        });
+    }
+
+    return result;
 }
 
 /** Single-elimination bracket â€” all rounds pre-created with TBD slots */
