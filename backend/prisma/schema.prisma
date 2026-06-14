@@ -365,6 +365,11 @@ model Tournament {
   scope                String       @default("YEREL")  // YEREL | ULUSAL | ULUSLARARASI
   genderType           String       @default("MIX")    // KADIN | ERKEK | MIX
   isPaid               Boolean      @default(false)
+  feeType              String?      // INCLUDED (court fee in price) | SHARED (court costs split)
+  playerFee            Float?       // fee per player in local currency
+  paymentMethod        String?      // EFT | CASH
+  ibanNumber           String?
+  ibanHolder           String?
   prize1               String?
   prize2               String?
   prize3               String?

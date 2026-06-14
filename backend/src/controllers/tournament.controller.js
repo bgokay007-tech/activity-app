@@ -95,7 +95,8 @@ export const createTournament = async (req, res, next) => {
     try {
         const {
             name, type, category, subCategory, description,
-            scope, genderType, isPaid, prize1, prize2, prize3, contactPhone,
+            scope, genderType, isPaid, feeType, playerFee, paymentMethod, ibanNumber, ibanHolder,
+            prize1, prize2, prize3, contactPhone,
             minPlayers, maxPlayers,
             setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers,
             location, city,
@@ -113,6 +114,11 @@ export const createTournament = async (req, res, next) => {
                 scope: scope || 'YEREL',
                 genderType: genderType || 'MIX',
                 isPaid: isPaid === true,
+                feeType: feeType || null,
+                playerFee: playerFee ? parseFloat(playerFee) : null,
+                paymentMethod: paymentMethod || null,
+                ibanNumber: ibanNumber || null,
+                ibanHolder: ibanHolder || null,
                 prize1: prize1 || null,
                 prize2: prize2 || null,
                 prize3: prize3 || null,

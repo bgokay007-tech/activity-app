@@ -2469,7 +2469,22 @@ function TournamentCard({ item, myId, t, cfg, onJoin, onCancelJoin, onDelete, on
                         👤 {item.creator?.fullName || item.creator?.username}
                         {item.contactPhone ? `  📞 ${item.contactPhone}` : ''}
                     </Text>
-                    {item.isPaid && <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>💰 Ücretli</Text>}
+                    {item.isPaid && (
+                        <View style={{ gap:1 }}>
+                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
+                                💰 Ücretli{item.playerFee ? ` · ${item.playerFee}₺/oyuncu` : ''}
+                            </Text>
+                            {item.feeType === 'INCLUDED'
+                                ? <Text style={{ color: colors.textMuted, fontSize:10 }}>Kort ücreti dahil</Text>
+                                : item.feeType === 'SHARED'
+                                ? <Text style={{ color: colors.textMuted, fontSize:10 }}>Kort ücreti ortaklaşa karşılanır</Text>
+                                : null}
+                            {item.paymentMethod === 'CASH' && <Text style={{ color:'#4ade80', fontSize:10 }}>💵 Kortta nakit ödeme</Text>}
+                            {item.paymentMethod === 'EFT' && <Text style={{ color:'#60a5fa', fontSize:10 }}>🏦 EFT ile ödeme</Text>}
+                            {item.paymentMethod === 'EFT' && item.ibanHolder && <Text style={{ color: colors.textMuted, fontSize:10 }}>Hesap: {item.ibanHolder}</Text>}
+                            {item.paymentMethod === 'EFT' && item.ibanNumber && <Text style={{ color: colors.textMuted, fontSize:10 }}>IBAN: {item.ibanNumber}</Text>}
+                        </View>
+                    )}
                     {item.endDate && (
                         <Text style={{ color: colors.textMuted, fontSize:11 }}>
                             📅 Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR')}{item.endTime ? ` ${item.endTime}` : ''}
@@ -2942,7 +2957,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         showManualCourt: false, manualCourtName: '', manualCourtCity: '',
         isIndoor: false,
         genderType: 'MIX',
-        surface: '', isPaid: false, prize1: '', prize2: '', prize3: '', contactPhone: '', description: '',
+        surface: '', isPaid: false,
+        feeType: 'INCLUDED', playerFee: '', paymentMethod: '', ibanNumber: '', ibanHolder: '',
+        prize1: '', prize2: '', prize3: '', contactPhone: '', description: '',
         setsPerMatch: '3', advantageScoring: true,
         matchesBeforePlayoff: '', playoffQualifiers: '',
     };
@@ -3015,7 +3032,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
 
-if (f.isPaid && (!f.prize1.trim() || !f.prize2.trim() || !f.prize3.trim())) { Alert.alert('', t.tournMissingPrizes); return; }
+        if (f.isPaid && (!f.prize1.trim() || !f.prize2.trim() || !f.prize3.trim())) { Alert.alert('', t.tournMissingPrizes); return; }
+        if (f.isPaid && !f.paymentMethod) { Alert.alert('', 'Ödeme yöntemini seçin.'); return; }
+        if (f.isPaid && f.paymentMethod === 'EFT' && (!f.ibanNumber.trim() || !f.ibanHolder.trim())) { Alert.alert('', 'IBAN numarası ve hesap sahibi adını girin.'); return; }
 
         const province = f.scopeCity.trim();
         const district = f.scopeDistrict.trim();
@@ -3051,6 +3070,13 @@ if (f.isPaid && (!f.prize1.trim() || !f.prize2.trim() || !f.prize3.trim())) { Al
                 surface: f.surface || undefined,
                 isIndoor: f.courtDecidedByPlayers ? undefined : f.isIndoor,
                 isPaid: f.isPaid,
+                ...(f.isPaid && {
+                    feeType: f.feeType,
+                    playerFee: f.playerFee ? parseFloat(f.playerFee) : undefined,
+                    paymentMethod: f.paymentMethod || undefined,
+                    ibanNumber: f.paymentMethod === 'EFT' ? f.ibanNumber.trim() || undefined : undefined,
+                    ibanHolder: f.paymentMethod === 'EFT' ? f.ibanHolder.trim() || undefined : undefined,
+                }),
                 prize1: f.prize1.trim() || undefined,
                 prize2: f.prize2.trim() || undefined,
                 prize3: f.prize3.trim() || undefined,
@@ -3369,6 +3395,88 @@ if (f.isPaid && (!f.prize1.trim() || !f.prize2.trim() || !f.prize3.trim())) { Al
                                     {f.isPaid ? t.tournPaidNote : t.tournFreeNote}
                                 </Text>
                             </View>
+
+                            {/* Payment options — only when paid */}
+                            {f.isPaid && (<>
+                                <Text style={s.fieldLabel}>Ücret Türü</Text>
+                                {[
+                                    { key:'INCLUDED', label:'Oyuncu başına ücret', desc:'Kort ücreti dahil fiyattır' },
+                                    { key:'SHARED',   label:'Oyuncu başına ücret', desc:'Kort fiyatlarını oyuncular ortaklaşa karşılar' },
+                                ].map(opt => (
+                                    <TouchableOpacity key={opt.key}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.feeType===opt.key ? '#d9770615' : colors.surface2, borderRadius:10, padding:10, marginBottom:6, borderWidth:1, borderColor: f.feeType===opt.key ? '#d97706' : colors.border }}
+                                        onPress={() => set('feeType', opt.key)}>
+                                        <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.feeType===opt.key ? '#fbbf24' : colors.border, backgroundColor: f.feeType===opt.key ? '#fbbf24' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                                            {f.feeType===opt.key && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#78350f' }} />}
+                                        </View>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{opt.label}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>{opt.desc}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+
+                                <Text style={[s.fieldLabel, { marginTop:4 }]}>Oyuncu Başına Ücret (₺)</Text>
+                                <TextInput
+                                    style={[s.fieldInput, ti]}
+                                    value={f.playerFee}
+                                    onChangeText={v => set('playerFee', v.replace(/[^0-9.]/g,''))}
+                                    keyboardType="numeric" maxLength={8}
+                                    placeholder="0.00" placeholderTextColor={colors.textMuted} />
+
+                                <Text style={[s.fieldLabel, { marginTop:4 }]}>Ödeme Yöntemi</Text>
+                                {/* Online payment — disabled */}
+                                <View style={{ opacity:0.4, marginBottom:6 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:10, borderWidth:1, borderColor: colors.border }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                                            <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: colors.border }} />
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>🌐 Online Ödeme</Text>
+                                        </View>
+                                        <View style={{ backgroundColor:'#334155', borderRadius:6, paddingHorizontal:6, paddingVertical:2 }}>
+                                            <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>Yakında</Text>
+                                        </View>
+                                    </View>
+                                </View>
+                                {/* EFT */}
+                                <TouchableOpacity
+                                    style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.paymentMethod==='EFT' ? '#2563eb15' : colors.surface2, borderRadius:10, padding:10, marginBottom:6, borderWidth:1, borderColor: f.paymentMethod==='EFT' ? '#2563eb' : colors.border }}
+                                    onPress={() => set('paymentMethod', 'EFT')}>
+                                    <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='EFT' ? '#60a5fa' : colors.border, backgroundColor: f.paymentMethod==='EFT' ? '#60a5fa' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                                        {f.paymentMethod==='EFT' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#1e40af' }} />}
+                                    </View>
+                                    <Text style={{ color: f.paymentMethod==='EFT' ? '#60a5fa' : '#fff', fontSize:12, fontWeight:'700' }}>🏦 EFT ile Ödeme</Text>
+                                </TouchableOpacity>
+                                {/* Cash */}
+                                <TouchableOpacity
+                                    style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.paymentMethod==='CASH' ? '#16a34a15' : colors.surface2, borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor: f.paymentMethod==='CASH' ? '#16a34a' : colors.border }}
+                                    onPress={() => set('paymentMethod', 'CASH')}>
+                                    <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='CASH' ? '#4ade80' : colors.border, backgroundColor: f.paymentMethod==='CASH' ? '#4ade80' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                                        {f.paymentMethod==='CASH' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#14532d' }} />}
+                                    </View>
+                                    <Text style={{ color: f.paymentMethod==='CASH' ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>💵 Kortta Nakit Ödeme</Text>
+                                </TouchableOpacity>
+
+                                {/* EFT fields */}
+                                {f.paymentMethod === 'EFT' && (<>
+                                    <Text style={s.fieldLabel}>IBAN Numarası</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti]}
+                                        value={f.ibanNumber}
+                                        onChangeText={v => set('ibanNumber', v.toUpperCase().replace(/\s/g,''))}
+                                        placeholder="TR00 0000 0000 0000 0000 0000 00"
+                                        placeholderTextColor={colors.textMuted}
+                                        autoCapitalize="characters" maxLength={32} />
+                                    <Text style={s.fieldLabel}>Hesap Sahibi (Ad Soyad)</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti]}
+                                        value={f.ibanHolder}
+                                        onChangeText={v => set('ibanHolder', v)}
+                                        placeholder="Ad Soyad"
+                                        placeholderTextColor={colors.textMuted}
+                                        autoCapitalize="words" />
+                                </>)}
+                            </>)}
+
                             {/* Prizes — required for paid, optional for free */}
                             {[
                                 { key:'prize1', label: f.isPaid ? t.tournPrize1 : t.tournPrize1Opt },
