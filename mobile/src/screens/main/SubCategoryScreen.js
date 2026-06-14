@@ -2986,15 +2986,47 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             )}
 
             {/* Requests list */}
-            {isCreator && showRequests && (
+            {isCreator && showRequests && (() => {
+                // ACCEPTED entries come first (sorted by acceptedAt from backend)
+                const acceptedEntries = requests.filter(r => r.status === 'ACCEPTED');
+                const mainListCount = item.maxPlayers || acceptedEntries.length;
+                let mainIdx = 0; // counter within ACCEPTED entries
+                return (
                 <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, marginTop:8, borderWidth:1, borderColor: colors.border }}>
                     {loadingRequests ? (
                         <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:8 }} />
                     ) : requests.length === 0 ? (
                         <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz başvuru yok</Text>
-                    ) : requests.map((r, i) => (
-                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
-                            <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
+                    ) : requests.map((r, i) => {
+                        const isAccepted = r.status === 'ACCEPTED';
+                        let posLabel = null;
+                        if (isAccepted) {
+                            mainIdx++;
+                            const isMain = mainIdx <= mainListCount;
+                            posLabel = isMain
+                                ? { text: `AS ${mainIdx}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }
+                                : { text: `YDK ${mainIdx - mainListCount}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' };
+                        }
+                        // Divider before first PENDING entry
+                        const prevIsAccepted = i > 0 && requests[i-1].status === 'ACCEPTED';
+                        const showDivider = i > 0 && r.status === 'PENDING' && prevIsAccepted;
+                        return (
+                        <View key={r.userId}>
+                        {showDivider && (
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginVertical:6 }}>
+                                <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
+                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>⏳ Başvurular</Text>
+                                <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
+                            </View>
+                        )}
+                        <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
+                            {posLabel ? (
+                                <View style={{ backgroundColor: posLabel.bg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:6, borderWidth:1, borderColor: posLabel.border }}>
+                                    <Text style={{ color: posLabel.color, fontSize:9, fontWeight:'800' }}>{posLabel.text}</Text>
+                                </View>
+                            ) : (
+                                <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
+                            )}
                             <View style={{ flex:1 }}>
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>
@@ -3055,9 +3087,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 )}
                             </View>
                         </View>
-                    ))}
+                        </View>
+                        );
+                    })}
                 </View>
-            )}
+                );
+            })()}
 
             {/* Participants list (non-creator view) */}
             {!isCreator && showParticipants && (
@@ -3066,9 +3101,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:8 }} />
                     ) : participants.length === 0 ? (
                         <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz katılımcı yok</Text>
-                    ) : participants.map((r, i) => (
+                    ) : participants.map((r, i) => {
+                        const maxP = item.maxPlayers || participants.length;
+                        const isMain = i < maxP;
+                        const label = isMain ? `AS ${i + 1}` : `YDK ${i + 1 - maxP}`;
+                        const labelColor = isMain ? '#4ade80' : '#fbbf24';
+                        const labelBg = isMain ? '#16a34a20' : '#f59e0b20';
+                        const labelBorder = isMain ? '#16a34a40' : '#f59e0b40';
+                        return (
                         <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < participants.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}>
-                            <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
+                            <View style={{ backgroundColor: labelBg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:6, borderWidth:1, borderColor: labelBorder }}>
+                                <Text style={{ color: labelColor, fontSize:9, fontWeight:'800' }}>{label}</Text>
+                            </View>
                             <View style={{ flex:1 }}>
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>
@@ -3077,7 +3121,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </Text>
                             </View>
                         </View>
-                    ))}
+                        );
+                    })}
                 </View>
             )}
 

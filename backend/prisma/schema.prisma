@@ -431,8 +431,9 @@ model TournamentParticipant {
   userId          String
   status          String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
   note            String?
-  cancelRequested Boolean  @default(false)
-  createdAt       DateTime @default(now())
+  cancelRequested Boolean   @default(false)
+  acceptedAt      DateTime?
+  createdAt       DateTime  @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)

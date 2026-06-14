@@ -241,7 +241,7 @@ export const joinTournament = async (req, res, next) => {
 
         const isCreator = tournament.creatorId === req.userId;
         const participant = await prisma.tournamentParticipant.create({
-            data: { tournamentId: id, userId: req.userId, note, status: isCreator ? 'ACCEPTED' : 'PENDING' },
+            data: { tournamentId: id, userId: req.userId, note, status: isCreator ? 'ACCEPTED' : 'PENDING', acceptedAt: isCreator ? new Date() : null },
             include: { user: { select: { id: true, username: true, fullName: true } } },
         });
 
@@ -281,6 +281,16 @@ export const getJoinRequests = async (req, res, next) => {
             },
             orderBy: { createdAt: 'asc' },
         });
+        // Sort: ACCEPTED (by acceptedAt asc) first, then PENDING (by createdAt asc), then others
+        const order = { ACCEPTED: 0, PENDING: 1, REJECTED: 2 };
+        requests.sort((a, b) => {
+            const oa = order[a.status] ?? 3, ob = order[b.status] ?? 3;
+            if (oa !== ob) return oa - ob;
+            if (a.status === 'ACCEPTED') {
+                return new Date(a.acceptedAt || a.createdAt) - new Date(b.acceptedAt || b.createdAt);
+            }
+            return new Date(a.createdAt) - new Date(b.createdAt);
+        });
         res.json(requests);
     } catch (e) { next(e); }
 };
@@ -303,7 +313,7 @@ export const getParticipants = async (req, res, next) => {
                     },
                 },
             },
-            orderBy: { createdAt: 'asc' },
+            orderBy: [{ acceptedAt: 'asc' }, { createdAt: 'asc' }],
         });
         res.json(participants);
     } catch (e) { next(e); }
@@ -320,7 +330,7 @@ export const updateJoinRequest = async (req, res, next) => {
 
         const updated = await prisma.tournamentParticipant.update({
             where: { tournamentId_userId: { tournamentId: id, userId } },
-            data: { status },
+            data: { status, ...(status === 'ACCEPTED' && { acceptedAt: new Date() }) },
             include: { user: { select: { id: true, username: true } } },
         });
         res.json(updated);
@@ -386,7 +396,7 @@ async function _promoteNextPending(tournamentId, tournament) {
     if (!nextUp) return;
     await prisma.tournamentParticipant.update({
         where: { tournamentId_userId: { tournamentId, userId: nextUp.userId } },
-        data: { status: 'ACCEPTED' },
+        data: { status: 'ACCEPTED', acceptedAt: new Date() },
     });
     const tourn = tournament || await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { name: true, category: true, subCategory: true } });
     await createNotification(
@@ -599,10 +609,14 @@ export const startTournament = async (req, res, next) => {
                     },
                 },
             },
-            orderBy: { createdAt: 'asc' },
+            orderBy: [{ acceptedAt: 'asc' }, { createdAt: 'asc' }],
         });
 
-        const players = rawParticipants.map(p => ({
+        // Main list = first maxPlayers accepted (by acceptance order); waitlist = the rest
+        const maxPlayers = tournament.maxPlayers || rawParticipants.length;
+        const mainList = rawParticipants.slice(0, maxPlayers);
+
+        const players = mainList.map(p => ({
             id: p.userId,
             fullName: p.user.fullName,
             username: p.user.username,
