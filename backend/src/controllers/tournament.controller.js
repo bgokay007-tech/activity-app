@@ -685,8 +685,10 @@ export const startTournament = async (req, res, next) => {
         });
 
         // Main list = first maxPlayers accepted (by acceptance order); waitlist = the rest
-        const maxPlayers = tournament.maxPlayers || rawParticipants.length;
-        const mainList = rawParticipants.slice(0, maxPlayers);
+        if (!tournament.maxPlayers) {
+            return res.status(400).json({ message: 'Lütfen turnuva başlatmadan önce maksimum oyuncu sayısını (AS kadro) belirleyin.' });
+        }
+        const mainList = rawParticipants.slice(0, tournament.maxPlayers);
 
         const players = mainList.map(p => ({
             id: p.userId,
