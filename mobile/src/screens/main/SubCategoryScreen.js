@@ -886,6 +886,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [propAccepting, setPropAccepting] = useState(false);
     const [showPropDatePicker, setShowPropDatePicker] = useState(false);
     const [showPropTimePicker, setShowPropTimePicker] = useState(false);
+    const [propCourtText, setPropCourtText] = useState('');
+    const [propCourtResults, setPropCourtResults] = useState([]);
+    const [propCourtSearching, setPropCourtSearching] = useState(false);
+    const [propSelectedCourt, setPropSelectedCourt] = useState(null);
+    const [propShowManual, setPropShowManual] = useState(false);
+    const [propManualName, setPropManualName] = useState('');
+    const [propManualCity, setPropManualCity] = useState('');
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
@@ -1040,12 +1047,57 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         );
     };
 
+    const searchPropCourts = async (text) => {
+        setPropCourtText(text);
+        setPropSelectedCourt(null);
+        setPropShowManual(false);
+        if (text.length < 2) { setPropCourtResults([]); return; }
+        setPropCourtSearching(true);
+        try {
+            const { data } = await api.get('/courts/search', { params: { q: text, sport: match.subCategory } });
+            setPropCourtResults(Array.isArray(data) ? data : []);
+        } catch { setPropCourtResults([]); }
+        finally { setPropCourtSearching(false); }
+    };
+
+    const selectPropCourt = (court) => {
+        setPropSelectedCourt(court);
+        setPropCourtText(court.name);
+        setPropCourtResults([]);
+        setPropShowManual(false);
+    };
+
+    const clearPropCourt = () => {
+        setPropSelectedCourt(null);
+        setPropCourtText('');
+        setPropCourtResults([]);
+        setPropShowManual(false);
+        setPropManualName('');
+        setPropManualCity('');
+    };
+
     const submitProposal = async () => {
         if (!propDate || !propTime) { Alert.alert('', 'Tarih ve saat seçin'); return; }
         setPropSubmitting(true);
         try {
+            const courtName = propSelectedCourt?.name || (propShowManual ? propManualName.trim() : null) || propCourtText.trim() || null;
+            const location  = propSelectedCourt?.city  || (propShowManual ? propManualCity.trim()  : null) || null;
+
+            if (propShowManual && propManualName.trim() && !propSelectedCourt) {
+                api.post('/courts', {
+                    name: propManualName.trim(),
+                    city: propManualCity.trim() || '',
+                    sport: match.subCategory,
+                }).catch(() => {});
+            }
+
             const dateStr = `${propDate.getFullYear()}-${String(propDate.getMonth()+1).padStart(2,'0')}-${String(propDate.getDate()).padStart(2,'0')}`;
-            await api.post(`/rivals/${match.id}/propose-schedule`, { date: dateStr, time: propTime, location: propLocation || undefined });
+            await api.post(`/rivals/${match.id}/propose-schedule`, {
+                date: dateStr,
+                time: propTime,
+                courtName: courtName || undefined,
+                location: location || courtName || undefined,
+            });
             setShowScheduleForm(false);
             onRefresh();
         } catch(e) { Alert.alert('', e?.response?.data?.message || 'Gönderilemedi'); }
@@ -1345,13 +1397,66 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     {propTime ? `🕐 ${propTime}` : '🕐 Saat Seç'}
                                 </Text>
                             </TouchableOpacity>
-                            <TextInput
-                                style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
-                                placeholder="📍 Konum/Kort (isteğe bağlı)"
-                                placeholderTextColor={colors.textMuted}
-                                value={propLocation}
-                                onChangeText={setPropLocation}
-                            />
+                            {/* Court search */}
+                            {propSelectedCourt ? (
+                                <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#16a34a15', borderRadius:8, padding:10, borderWidth:1, borderColor:'#16a34a50', gap:8 }}>
+                                    <Text style={{ color:'#4ade80', fontSize:13, flex:1 }} numberOfLines={1}>🏟️ {propSelectedCourt.name}{propSelectedCourt.city ? `  · ${propSelectedCourt.city}` : ''}</Text>
+                                    <TouchableOpacity onPress={clearPropCourt}><Text style={{ color: colors.textMuted, fontSize:14 }}>✕</Text></TouchableOpacity>
+                                </View>
+                            ) : (
+                                <TextInput
+                                    style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propCourtText ? '#f59e0b60' : colors.border, color:'#fff', fontSize:13 }}
+                                    placeholder="🔍 Kort Ara (isteğe bağlı)"
+                                    placeholderTextColor={colors.textMuted}
+                                    value={propCourtText}
+                                    onChangeText={searchPropCourts}
+                                />
+                            )}
+                            {propCourtSearching && <ActivityIndicator size="small" color={cfg.color} style={{ marginTop:4 }} />}
+                            {propCourtResults.length > 0 && (
+                                <View style={{ backgroundColor: colors.surface2, borderRadius:8, marginTop:4, borderWidth:1, borderColor: colors.border }}>
+                                    {propCourtResults.map((court, i) => (
+                                        <TouchableOpacity key={court.id}
+                                            style={{ padding:10, borderBottomWidth: i < propCourtResults.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}
+                                            onPress={() => selectPropCourt(court)}>
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{court.name}</Text>
+                                            {court.city && <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>{court.city}</Text>}
+                                        </TouchableOpacity>
+                                    ))}
+                                    <TouchableOpacity
+                                        style={{ padding:10, borderTopWidth:1, borderTopColor: colors.border + '40' }}
+                                        onPress={() => { setPropCourtResults([]); setPropShowManual(true); }}>
+                                        <Text style={{ color:'#f59e0b', fontSize:12 }}>+ "{propCourtText}" olarak ekle → admin onayına gider</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                            {!propSelectedCourt && !propCourtSearching && propCourtText.length >= 2 && propCourtResults.length === 0 && !propShowManual && (
+                                <TouchableOpacity style={{ marginTop:4, paddingVertical:6, paddingHorizontal:2 }} onPress={() => setPropShowManual(true)}>
+                                    <Text style={{ color:'#f59e0b', fontSize:12 }}>+ Kort bulunamadı — manuel ekle (onay bekler)</Text>
+                                </TouchableOpacity>
+                            )}
+                            {propShowManual && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:4, borderWidth:1, borderColor:'#f59e0b40', gap:6 }}>
+                                    <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⚠️ Admin onayına gönderilecek</Text>
+                                    <TextInput
+                                        style={{ backgroundColor: colors.surface2, borderRadius:6, padding:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
+                                        placeholder="Kort / Tesis Adı"
+                                        placeholderTextColor={colors.textMuted}
+                                        value={propManualName}
+                                        onChangeText={setPropManualName}
+                                    />
+                                    <TextInput
+                                        style={{ backgroundColor: colors.surface2, borderRadius:6, padding:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
+                                        placeholder="İl / Adres"
+                                        placeholderTextColor={colors.textMuted}
+                                        value={propManualCity}
+                                        onChangeText={setPropManualCity}
+                                    />
+                                    <TouchableOpacity onPress={() => setPropShowManual(false)} style={{ alignSelf:'flex-start' }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>✕ İptal</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                             <TouchableOpacity
                                 style={{ backgroundColor:'#f59e0b30', borderRadius:8, paddingVertical:9, borderWidth:1, borderColor:'#f59e0b60', alignItems:'center' }}
                                 onPress={submitProposal} disabled={propSubmitting}>
