@@ -415,6 +415,12 @@ export const cancelJoin = async (req, res, next) => {
                 `${updatedUser.fullName || updatedUser.username} "${tournament.name}" turnuvasından ayrılmak istiyor (etkinliğe 24 saat kaldı)`,
                 { tournamentId: id, userId: req.userId, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory },
             );
+            // Notify creator's open modal in real-time
+            emitToUser(tournament.creatorId, 'tournament:cancel_requested', {
+                tournamentId: id,
+                userId: req.userId,
+                cancelReason: reason || null,
+            });
             return res.json({ message: 'Cancellation request sent to creator', cancelRequested: true, lateCancelCount: newCount, penaltyApplied });
         }
 
