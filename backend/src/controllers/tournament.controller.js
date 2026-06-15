@@ -901,7 +901,30 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             if ((s.p1 || 0) > (s.p2 || 0)) p1Sets++; else if ((s.p2 || 0) > (s.p1 || 0)) p2Sets++;
         }
         const winnerId = winner === 'p1' ? match.p1Id : match.p2Id;
-        const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games };
+        const loserId  = winner === 'p1' ? match.p2Id : match.p1Id;
+
+        // ELO calculation (K=32)
+        let p1EloDelta = 0, p2EloDelta = 0;
+        if (match.p1Id && match.p2Id) {
+            const [u1, u2] = await Promise.all([
+                prisma.userInterest.findFirst({ where: { userId: match.p1Id, category: tournament.category, subCategory: tournament.subCategory }, select: { id: true, skillRating: true } }),
+                prisma.userInterest.findFirst({ where: { userId: match.p2Id, category: tournament.category, subCategory: tournament.subCategory }, select: { id: true, skillRating: true } }),
+            ]);
+            if (u1 && u2) {
+                const K = 32;
+                const r1 = u1.skillRating || 0, r2 = u2.skillRating || 0;
+                const e1 = 1 / (1 + Math.pow(10, (r2 - r1) / 400));
+                const s1 = winner === 'p1' ? 1 : 0;
+                p1EloDelta = Math.round(K * (s1 - e1) * 100) / 100;
+                p2EloDelta = -p1EloDelta;
+                await Promise.all([
+                    prisma.userInterest.update({ where: { id: u1.id }, data: { skillRating: { increment: p1EloDelta } } }),
+                    prisma.userInterest.update({ where: { id: u2.id }, data: { skillRating: { increment: p2EloDelta } } }),
+                ]);
+            }
+        }
+
+        const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta };
 
         await prisma.tournamentMatch.update({
             where: { id: matchId },
