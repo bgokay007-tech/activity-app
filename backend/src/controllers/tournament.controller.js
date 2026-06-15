@@ -937,8 +937,9 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 else if (ratingDiff >= 0.25) transfer = dominant ? 3 : 2;
                 else                         transfer = dominant ? 2 : 1;
 
-                const wRatingAfter = Math.min(5, parseFloat(((wi.totalPoints + transfer) / 100 * 5).toFixed(2)));
-                const lRatingAfter = Math.max(0, parseFloat(((Math.max(0, li.totalPoints - transfer)) / 100 * 5).toFixed(2)));
+                const ratingStep = parseFloat((transfer * 0.05).toFixed(2));
+                const wRatingAfter = Math.min(5, parseFloat((wi.skillRating + ratingStep).toFixed(2)));
+                const lRatingAfter = Math.max(0, parseFloat((li.skillRating - ratingStep).toFixed(2)));
 
                 await Promise.all([
                     prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1, skillRating: wRatingAfter } }),
