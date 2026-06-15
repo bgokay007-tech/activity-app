@@ -903,23 +903,51 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const winnerId = winner === 'p1' ? match.p1Id : match.p2Id;
         const loserId  = winner === 'p1' ? match.p2Id : match.p1Id;
 
-        // ELO calculation (K=32) — always calculate delta even if UserInterest record missing
+        // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5)
         let p1EloDelta = 0, p2EloDelta = 0;
         if (match.p1Id && match.p2Id) {
-            const [u1, u2] = await Promise.all([
-                prisma.userInterest.findFirst({ where: { userId: match.p1Id, category: tournament.category, subCategory: tournament.subCategory }, select: { id: true, skillRating: true } }),
-                prisma.userInterest.findFirst({ where: { userId: match.p2Id, category: tournament.category, subCategory: tournament.subCategory }, select: { id: true, skillRating: true } }),
-            ]);
-            const K = 32;
-            const r1 = u1?.skillRating ?? 0, r2 = u2?.skillRating ?? 0;
-            const e1 = 1 / (1 + Math.pow(10, (r2 - r1) / 400));
-            const s1 = winner === 'p1' ? 1 : 0;
-            p1EloDelta = Math.round(K * (s1 - e1) * 100) / 100;
-            p2EloDelta = -p1EloDelta;
-            const eloUpdates = [];
-            if (u1) eloUpdates.push(prisma.userInterest.update({ where: { id: u1.id }, data: { skillRating: { increment: p1EloDelta } } }));
-            if (u2) eloUpdates.push(prisma.userInterest.update({ where: { id: u2.id }, data: { skillRating: { increment: p2EloDelta } } }));
-            if (eloUpdates.length) await Promise.all(eloUpdates);
+            const winnerId_e = winner === 'p1' ? match.p1Id : match.p2Id;
+            const loserId_e  = winner === 'p1' ? match.p2Id : match.p1Id;
+            const allPlayerIds = [match.p1Id, match.p2Id];
+            const existing = await prisma.userInterest.findMany({
+                where: { userId: { in: allPlayerIds }, category: tournament.category, subCategory: tournament.subCategory },
+            });
+            const existingIds = new Set(existing.map(i => i.userId));
+            const missing = allPlayerIds.filter(id => !existingIds.has(id));
+            const created = missing.length > 0
+                ? await Promise.all(missing.map(userId =>
+                    prisma.userInterest.create({
+                        data: { userId, category: tournament.category, subCategory: tournament.subCategory, totalPoints: 0, wins: 0, losses: 0, skillRating: 0 },
+                    })
+                ))
+                : [];
+            const interests = [...existing, ...created];
+            const wi = interests.find(i => i.userId === winnerId_e);
+            const li = interests.find(i => i.userId === loserId_e);
+            if (wi && li) {
+                const ratingDiff = Math.abs(li.totalPoints - wi.totalPoints) / 20;
+                let winnerGames = 0, totalGames = 0;
+                for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
+                const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
+                let transfer;
+                if (ratingDiff >= 2.0)      transfer = dominant ? 7 : 6;
+                else if (ratingDiff >= 1.0) transfer = dominant ? 5 : 4;
+                else if (ratingDiff >= 0.5) transfer = dominant ? 4 : 3;
+                else if (ratingDiff >= 0.25) transfer = dominant ? 3 : 2;
+                else                         transfer = dominant ? 2 : 1;
+                await Promise.all([
+                    prisma.userInterest.update({ where: { id: wi.id }, data: {
+                        totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1,
+                        skillRating: Math.min(5, parseFloat(((wi.totalPoints + transfer) / 100 * 5).toFixed(2))),
+                    }}),
+                    prisma.userInterest.update({ where: { id: li.id }, data: {
+                        totalPoints: Math.max(0, li.totalPoints - transfer), losses: li.losses + 1,
+                        skillRating: Math.max(0, parseFloat(((Math.max(0, li.totalPoints - transfer)) / 100 * 5).toFixed(2))),
+                    }}),
+                ]);
+                p1EloDelta = winner === 'p1' ? +transfer : -transfer;
+                p2EloDelta = winner === 'p2' ? +transfer : -transfer;
+            }
         }
 
         const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta };
