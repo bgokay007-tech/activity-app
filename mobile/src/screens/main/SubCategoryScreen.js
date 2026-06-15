@@ -3006,7 +3006,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>
                                         {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ⭐ ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
                                     </Text>
-                                    {[row.played, row.won, row.lost, `${row.gamesWon}-${row.gamesLost}`, row.points].map((v,j) => (
+                                    {[row.played, row.won, row.lost, (() => { const d = row.setsWon - row.setsLost; return (d >= 0 ? "+" : "") + d; })(), row.points].map((v,j) => (
                                         <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
                                     ))}
                                 </View>
