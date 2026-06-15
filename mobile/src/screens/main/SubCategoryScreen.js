@@ -5431,8 +5431,8 @@ const s = StyleSheet.create({
 
     tabBar:           { flexGrow:0, marginBottom:12 },
     tabBarInner:      { paddingHorizontal:16, gap:8 },
-    tab:              { paddingHorizontal:14, paddingVertical:7, borderRadius:20, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
-    tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700', lineHeight:16, includeFontPadding: false },
+    tab:              { paddingHorizontal:14, paddingTop:7, paddingBottom:11, borderRadius:20, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700', lineHeight:20, includeFontPadding: false },
     tabTextActive:    { color:'#fff' },
 
     list:             { paddingHorizontal:4, gap:10, paddingBottom:60 },
