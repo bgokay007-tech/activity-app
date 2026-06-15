@@ -285,7 +285,7 @@ const en = {
     tournDeleteBtn: '🗑 Delete Tournament',
     tournDeleteConfirm: 'Delete this tournament?',
     tournJoinNotePh: 'Optional note to organizer...',
-    tournJoinSent: '✅ Join request sent.',
+    tournJoinSent: '✅ Join request sent. Waiting for organizer approval.',
     tournJoinFailed: 'Could not send join request',
 
     // SubCategory — empty states
@@ -697,7 +697,7 @@ const tr = {
     tournMissingRegEnd: 'Son başvuru tarihi zorunludur',
     tournJoinBtn: '📩 Katılım İsteği',
     tournCancelJoinBtn: '✕ İsteği İptal Et',
-    tournJoinPending: '⏳ İstek Gönderildi',
+    tournJoinPending: '⏳ Yönetici onayı bekleniyor',
     tournJoinAccepted: '✅ Kabul Edildi',
     tournParticipants: (n, max) => `${n}/${max} katılımcı`,
     tournStatusOpen: '🟢 Açık',
@@ -705,7 +705,7 @@ const tr = {
     tournDeleteBtn: '🗑 Turnuvayı Sil',
     tournDeleteConfirm: 'Bu turnuvayı silmek istiyor musunuz?',
     tournJoinNotePh: 'Organizatöre not (isteğe bağlı)...',
-    tournJoinSent: '✅ Katılım isteği gönderildi.',
+    tournJoinSent: '✅ Katılım isteğiniz gönderildi. Turnuva yöneticisinin onayı bekleniyor.',
     tournJoinFailed: 'Katılım isteği gönderilemedi',
 
     // SubCategory — empty states

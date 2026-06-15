@@ -4,6 +4,7 @@ import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
+    InteractionManager,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import * as Location from 'expo-location';
@@ -2344,6 +2345,7 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
 
 const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t.tournType3 });
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
+const SURFACE_LABEL = { CLAY:'Toprak', HARD:'Sert Zemin', GRASS:'Çim', CARPET:'Suni Zemin', HALI_SAHA:'Halı Saha', CIM_SAHA:'Çim Saha', FUTSAL:'Futsal', SOKAK:'Sokak', INDOOR:'Kapalı Salon', BEACH:'Plaj' };
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
 function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated }) {
@@ -2352,27 +2354,55 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const isCreator = item.creatorId === myId;
     const typeLabels = TOURN_TYPE_LABELS(t);
     const [showRules, setShowRules] = useState(false);
-    const [editing, setEditing] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editName, setEditName] = useState(item.name || '');
+    const [editDescription, setEditDescription] = useState(item.description || '');
+    const [editContactPhone, setEditContactPhone] = useState(item.contactPhone || '');
+    const [editScope, setEditScope] = useState(item.scope || 'YEREL');
+    const [editGenderType, setEditGenderType] = useState(item.genderType || 'MIX');
     const [editMin, setEditMin] = useState(String(item.minPlayers || 2));
     const [editMax, setEditMax] = useState(String(item.maxPlayers || 32));
     const [editMatches, setEditMatches] = useState(String(item.matchesBeforePlayoff || ''));
     const [editQualifiers, setEditQualifiers] = useState(String(item.playoffQualifiers || ''));
+    const [editSetsPerMatch, setEditSetsPerMatch] = useState(String(item.setsPerMatch || 3));
+    const [editAdvantageScoring, setEditAdvantageScoring] = useState(item.advantageScoring !== false);
+    const [editLocation, setEditLocation] = useState(item.location || '');
+    const [editSurface, setEditSurface] = useState(item.surface || '');
+    const [editIsIndoor, setEditIsIndoor] = useState(!!item.isIndoor);
+    const [editIsPaid, setEditIsPaid] = useState(!!item.isPaid);
+    const [editFeeType, setEditFeeType] = useState(item.feeType || 'INCLUDED');
+    const [editPlayerFee, setEditPlayerFee] = useState(String(item.playerFee || ''));
+    const [editPaymentMethod, setEditPaymentMethod] = useState(item.paymentMethod || '');
+    const [editIbanNumber, setEditIbanNumber] = useState(item.ibanNumber || '');
+    const [editIbanHolder, setEditIbanHolder] = useState(item.ibanHolder || '');
+    const [editPrize1, setEditPrize1] = useState(item.prize1 || '');
+    const [editPrize2, setEditPrize2] = useState(item.prize2 || '');
+    const [editPrize3, setEditPrize3] = useState(item.prize3 || '');
     const [editEventDate, setEditEventDate] = useState(item.eventDate ? new Date(item.eventDate) : null);
     const [editEventTime, setEditEventTime] = useState(item.eventTime || '');
     const [editEventEndDate, setEditEventEndDate] = useState(item.eventEndDate ? new Date(item.eventEndDate) : null);
     const [editEventEndTime, setEditEventEndTime] = useState(item.eventEndTime || '');
+    const [editRegEndDate, setEditRegEndDate] = useState(item.endDate ? new Date(item.endDate) : null);
+    const [editRegEndTime, setEditRegEndTime] = useState(item.endTime || '');
     const [editDp, setEditDp] = useState(null);
     const [editTf, setEditTf] = useState(null);
     const [saving, setSaving] = useState(false);
     const fmtD = (d) => d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : undefined;
 
-    // Join requests panel
-    const [showRequests, setShowRequests] = useState(false);
+    // Late-cancel reason modal (24h rule)
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [cancelReasonText, setCancelReasonText] = useState('');
+
+    // Reject reason modal
+    const [rejectTarget, setRejectTarget] = useState(null); // { userId, name }
+    const [rejectReason, setRejectReason] = useState('');
+
+    // Requests / participants modal (shared for creator and non-creator)
+    const [showListModal, setShowListModal] = useState(false);
     const [requests, setRequests] = useState([]);
     const [loadingRequests, setLoadingRequests] = useState(false);
 
-    // Participants panel (non-creator view)
-    const [showParticipants, setShowParticipants] = useState(false);
+    // Participants data (non-creator view)
     const [participants, setParticipants] = useState([]);
     const [loadingParticipants, setLoadingParticipants] = useState(false);
 
@@ -2389,7 +2419,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const demoStop = useRef(false);
     const [tournMatches, setTournMatches] = useState([]);
     const [loadingMatches, setLoadingMatches] = useState(false);
-    const [showMatchesPanel, setShowMatchesPanel] = useState(false);
+    const [showMatchesModal, setShowMatchesModal] = useState(false);
     const [matchTab, setMatchTab] = useState('matches');
     const [starting, setStarting] = useState(false);
     const [scoreEntry, setScoreEntry] = useState(null);
@@ -2417,9 +2447,40 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     // Auto-load requests for creator so participantCount is always accurate
     useEffect(() => { if (isCreator) fetchRequests(); }, [isCreator, fetchRequests]);
 
-    const updateRequest = async (userId, status) => {
+    // Real-time: when another user is accepted, update the modal instantly
+    useEffect(() => {
+        const off = onSocket('tournament:participant_accepted', ({ tournamentId, participant }) => {
+            if (tournamentId !== item.id) return;
+            if (isCreator) {
+                setRequests(prev =>
+                    prev.some(r => r.userId === participant.userId)
+                        ? prev.map(r => r.userId === participant.userId ? { ...r, ...participant } : r)
+                        : [...prev, participant]
+                );
+            } else {
+                setParticipants(prev =>
+                    prev.some(p => p.userId === participant.userId)
+                        ? prev
+                        : [...prev, participant]
+                );
+            }
+        });
+        return off;
+    }, [item.id, isCreator]);
+
+    // Real-time: when a participant requests cancel, show it instantly in creator's modal
+    useEffect(() => {
+        if (!isCreator) return;
+        const off = onSocket('tournament:cancel_requested', ({ tournamentId, userId }) => {
+            if (tournamentId !== item.id) return;
+            setRequests(prev => prev.map(r => r.userId === userId ? { ...r, cancelRequested: true } : r));
+        });
+        return off;
+    }, [item.id, isCreator]);
+
+    const updateRequest = async (userId, status, reason) => {
         try {
-            await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status });
+            await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status, reason });
             setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status } : r));
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
@@ -2453,6 +2514,36 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         ]);
     };
 
+    const [manualName, setManualName] = useState('');
+    const [addingManual, setAddingManual] = useState(false);
+
+    const addManualParticipant = async () => {
+        const name = manualName.trim();
+        if (!name) return;
+        setAddingManual(true);
+        try {
+            const { data } = await api.post(`/tournaments/${item.id}/participants/manual`, { name });
+            setRequests(prev => [...prev, { ...data, user: null }]);
+            setManualName('');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setAddingManual(false); }
+    };
+
+    const removeManualParticipant = async (participantId) => {
+        Alert.alert('Manuel Oyuncuyu Çıkar', 'Bu oyuncuyu listeden kaldırmak istediğinizden emin misiniz?', [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Kaldır', style: 'destructive', onPress: async () => {
+                try {
+                    await api.delete(`/tournaments/${item.id}/participants/manual/${participantId}`);
+                    setRequests(prev => prev.filter(r => r.id !== participantId));
+                } catch (e) {
+                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                }
+            }},
+        ]);
+    };
+
     const runDemo = useCallback(async (idx) => {
         if (demoStop.current || idx >= 40) { setDemoRunning(false); return; }
         try {
@@ -2475,7 +2566,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const startDemo = () => {
         demoStop.current = false;
         setDemoRunning(true);
-        setShowRequests(true);
+        setShowListModal(true);
         if (requests.length === 0) fetchRequests();
         runDemo(demoIdx);
     };
@@ -2511,6 +2602,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         ]);
     };
 
+    const handleRematch = () => {
+        Alert.alert('Tekrar Eşleştir', 'Tamamlanmamış maçlar silinip ELO\'ya göre yeniden eşleştirilecek. Onaylıyor musunuz?', [
+            { text: 'İptal', style: 'cancel' },
+            { text: 'Eşleştir', style: 'destructive', onPress: async () => {
+                try {
+                    const { data } = await api.post(`/tournaments/${item.id}/rematch`);
+                    setTournMatches(Array.isArray(data) ? data : []);
+                    if (!showMatchesModal) { fetchMatches(); setShowMatchesModal(true); }
+                    Alert.alert('✅', 'Eşleşmeler yenilendi!');
+                } catch (e) {
+                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                }
+            }},
+        ]);
+    };
+
     const openScoreEntry = (match) => {
         setScoreEntry({ matchId: match.id, p1Name: match.p1Name, p2Name: match.p2Name });
         setScoreSets(Array.from({ length: numSets }, () => ({ p1: '', p2: '' })));
@@ -2531,6 +2638,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             setTournMatches(Array.isArray(data) ? data : []);
             setScoreEntry(null);
             onUpdated?.();
+            if (isCreator) fetchRequests(); else fetchParticipants();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSubmittingScore(false); }
@@ -2540,23 +2648,96 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         setSaving(true);
         try {
             await api.patch(`/tournaments/${item.id}`, {
+                name: editName || item.name,
+                description: editDescription || null,
+                contactPhone: editContactPhone || null,
+                scope: editScope,
+                genderType: editGenderType,
                 minPlayers: parseInt(editMin) || item.minPlayers,
                 maxPlayers: parseInt(editMax) || item.maxPlayers,
+                setsPerMatch: editSetsPerMatch ? parseInt(editSetsPerMatch) : null,
+                advantageScoring: editAdvantageScoring,
                 matchesBeforePlayoff: editMatches ? parseInt(editMatches) : null,
                 playoffQualifiers: editQualifiers ? parseInt(editQualifiers) : null,
+                location: editLocation || null,
+                surface: editSurface || null,
+                isIndoor: editIsIndoor,
+                isPaid: editIsPaid,
+                feeType: editIsPaid ? editFeeType : null,
+                playerFee: editIsPaid && editPlayerFee ? parseFloat(editPlayerFee) : null,
+                paymentMethod: editIsPaid ? editPaymentMethod : null,
+                ibanNumber: editIsPaid && editPaymentMethod === 'EFT' ? editIbanNumber : null,
+                ibanHolder: editIsPaid && editPaymentMethod === 'EFT' ? editIbanHolder : null,
+                prize1: editPrize1 || null,
+                prize2: editPrize2 || null,
+                prize3: editPrize3 || null,
                 eventDate: fmtD(editEventDate),
-                eventTime: editEventTime || undefined,
+                eventTime: editEventTime || null,
                 eventEndDate: fmtD(editEventEndDate),
-                eventEndTime: editEventEndTime || undefined,
+                eventEndTime: editEventEndTime || null,
+                endDate: fmtD(editRegEndDate),
+                endTime: editRegEndTime || null,
             });
-            setEditing(false);
+            setShowEditModal(false);
             onUpdated?.();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSaving(false); }
     };
 
+    const isEventWithin24h = () => {
+        if (!item.eventDate) return false;
+        const eventStart = new Date(item.eventDate);
+        if (item.eventTime) {
+            const [h, m] = item.eventTime.split(':').map(Number);
+            eventStart.setHours(h, m, 0, 0);
+        }
+        const ms = eventStart.getTime() - Date.now();
+        return ms > 0 && ms < 24 * 60 * 60 * 1000;
+    };
+
+    const isEventStarted = () => {
+        if (!item.eventDate) return false;
+        const eventStart = new Date(item.eventDate);
+        if (item.eventTime) {
+            const [h, m] = item.eventTime.split(':').map(Number);
+            eventStart.setHours(h, m, 0, 0);
+        }
+        return Date.now() >= eventStart.getTime();
+    };
+
+    const handleCancelAttempt = () => {
+        if (myStatus === 'ACCEPTED' && isEventWithin24h()) {
+            setShowCancelModal(true);
+        } else {
+            Alert.alert('Katılımı İptal Et', 'Katılımı iptal etmek istediğinizden emin misiniz?', [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'İptal Et', style: 'destructive', onPress: () => onCancelJoin(item.id) },
+            ]);
+        }
+    };
+
+    const submitCancelWithReason = () => {
+        if (!cancelReasonText.trim()) {
+            Alert.alert('', 'Lütfen bir mazeret yazın.');
+            return;
+        }
+        setShowCancelModal(false);
+        onCancelJoin(item.id, cancelReasonText.trim());
+        setCancelReasonText('');
+    };
+
     const infoColor = cfg.color;
+
+    const skillRatingMap = (() => {
+        const map = {};
+        const src = requests.length > 0 ? requests : participants;
+        src.forEach(r => {
+            if (r.userId && r.user?.interests?.[0]?.skillRating != null)
+                map[r.userId] = r.user.interests[0].skillRating;
+        });
+        return map;
+    })();
 
     const standings = (() => {
         const stats = {};
@@ -2580,9 +2761,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         }
         return Object.values(stats).sort((a,b) => {
             if (b.points!==a.points) return b.points-a.points;
-            const sr=x=>x.setsWon/Math.max(1,x.setsWon+x.setsLost);
-            if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
-            return (b.gamesWon/Math.max(1,b.gamesWon+b.gamesLost))-(a.gamesWon/Math.max(1,a.gamesWon+a.gamesLost));
+            const gr=x=>x.gamesWon/Math.max(1,x.gamesWon+x.gamesLost);
+            return gr(b)-gr(a);
         });
     })();
 
@@ -2621,17 +2801,28 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             📅 Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR')}{item.endTime ? ` ${item.endTime}` : ''}
                         </Text>
                     )}
-                    {!editing && (
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                            👥 {t.tournParticipants(participantCount, item.maxPlayers)}
-                            {item.minPlayers > 2 ? `  (min ${item.minPlayers})` : ''}
-                        </Text>
-                    )}
+                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                        {(() => {
+                            const max = item.maxPlayers;
+                            const asCount = max ? Math.min(participantCount, max) : participantCount;
+                            const yedek = max ? Math.max(0, participantCount - max) : 0;
+                            const base = max ? `👥 ${asCount}/${max}` : `👥 ${participantCount}`;
+                            return yedek > 0 ? `${base} + yedek: ${yedek}` : base;
+                        })()}
+                        {item.minPlayers > 2 ? `  (min ${item.minPlayers})` : ''}
+                    </Text>
                     {item.location
                         ? <Text style={{ color:'#60a5fa', fontSize:11 }}>🏟️ {item.location}</Text>
                         : <Text style={{ color: colors.textMuted, fontSize:11 }}>🤝 {t.tournCourtPlayersDecide}</Text>
                     }
-                    {item.surface && <Text style={{ color: colors.textMuted, fontSize:11 }}>⬜ {item.surface}</Text>}
+                    {item.surface && <Text style={{ color: colors.textMuted, fontSize:11 }}>⬜ {SURFACE_LABEL[item.surface?.toUpperCase()] || item.surface}</Text>}
+                    {(item.prize1 || item.prize2 || item.prize3) && (
+                        <View style={{ gap:1 }}>
+                            {item.prize1 && <Text style={{ color:'#fbbf24', fontSize:11 }}>🥇 {item.prize1}</Text>}
+                            {item.prize2 && <Text style={{ color:'#94a3b8', fontSize:11 }}>🥈 {item.prize2}</Text>}
+                            {item.prize3 && <Text style={{ color:'#cd7f32', fontSize:11 }}>🥉 {item.prize3}</Text>}
+                        </View>
+                    )}
                     {item.eventDate && (<>
                         <Text style={{ color: colors.textMuted, fontSize:11 }}>
                             🗓️ {t.tournEventStartLabel}: {new Date(item.eventDate).toLocaleDateString('tr-TR')}{item.eventTime ? ` ${item.eventTime}` : ''}
@@ -2658,11 +2849,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     </Text>
                                 </View>
                             )}
-                            {item.matchesBeforePlayoff && (
-                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
-                                    <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>🔢 {item.matchesBeforePlayoff} {t.tournMatchesBeforePlayoff}</Text>
-                                </View>
-                            )}
+                            <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                                <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>🔢 Play-Off Öncesi Maç Sayısı: {item.matchesBeforePlayoff || 3}</Text>
+                            </View>
                             {item.playoffQualifiers && (
                                 <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>🏆 {t.tournPlayoffQualifiers}: {item.playoffQualifiers}</Text>
@@ -2678,7 +2867,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </Text>
                     </View>
                     {isCreator ? (<>
-                        {myStatus === null && (
+                        {myStatus === null && !isEventStarted() && (
                             <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
                             </TouchableOpacity>
@@ -2688,11 +2877,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={{ color:'#4ade80', fontSize:10 }}>✓ Katıldın</Text>
                             </View>
                         )}
-                        {!editing && (
-                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setEditing(true)}>
-                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournEditBtn}</Text>
-                            </TouchableOpacity>
-                        )}
+                        <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setShowEditModal(true)}>
+                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournEditBtn}</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650', alignItems:'center' }} onPress={() => onDelete(item.id)}>
                             <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', textAlign:'center' }}>Turnuvayı{'\n'}🗑️ Sil</Text>
                         </TouchableOpacity>
@@ -2706,24 +2893,31 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </Text>
                             </TouchableOpacity>
                         )}
+                        {item.status === 'IN_PROGRESS' && item.type !== '2' && (
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}
+                                onPress={handleRematch}>
+                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🔀 Tekrar{'\n'}Eşleştir</Text>
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity
                             style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
-                            onPress={() => { setShowRequests(v => { if (!v) fetchRequests(); return !v; }); }}>
+                            onPress={() => { fetchRequests(); setShowListModal(true); }}>
                             {requests.length > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{requests.length}</Text>}
                             <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
                                 {'Başvurular'.split('').join('\n')}
                             </Text>
-                            <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>{showRequests ? '▲' : '›'}</Text>
+                            <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
                         </TouchableOpacity>
                     </>) : (<>
-                        {myStatus === null && (
+                        {myStatus === null && ['OPEN', 'IN_PROGRESS'].includes(item.status) && !isEventStarted() && (
                             <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournJoinBtn}</Text>
                             </TouchableOpacity>
                         )}
                         {myStatus === 'PENDING' && (<>
-                            <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2, borderWidth:1, borderColor:'#a855f750' }}>
-                                <Text style={{ color:'#c084fc', fontSize:10 }}>{t.tournJoinPending}</Text>
+                            <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#a855f750', maxWidth:120 }}>
+                                <Text style={{ color:'#c084fc', fontSize:10, flexWrap:'wrap' }}>{t.tournJoinPending}</Text>
                             </View>
                             <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onCancelJoin(item.id)}>
                                 <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournCancelJoinBtn}</Text>
@@ -2734,7 +2928,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
                                     <Text style={{ color:'#4ade80', fontSize:10 }}>{t.tournJoinAccepted}</Text>
                                 </View>
-                                <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }} onPress={() => onCancelJoin(item.id)}>
+                                <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }} onPress={handleCancelAttempt}>
                                     <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>İptal</Text>
                                 </TouchableOpacity>
                             </View>
@@ -2746,42 +2940,48 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         )}
                         <TouchableOpacity
                             style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
-                            onPress={() => { setShowParticipants(v => { if (!v) fetchParticipants(); return !v; }); }}>
+                            onPress={() => { fetchParticipants(); setShowListModal(true); }}>
                             {participantCount > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{participantCount}</Text>}
                             <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
                                 {'Katılımcı'.split('').join('\n')}
                             </Text>
-                            <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>{showParticipants ? '▲' : '›'}</Text>
+                            <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
                         </TouchableOpacity>
                     </>)}
                 </View>
             </View>
 
-        {/* IN_PROGRESS: matches panel toggle */}
+        {/* IN_PROGRESS: matches modal open button */}
         {item.status === 'IN_PROGRESS' && (
             <TouchableOpacity
                 style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
-                onPress={() => { setShowMatchesPanel(v => { if (!v) fetchMatches(); return !v; }); }}>
+                onPress={() => { fetchMatches(); if (!isCreator && participants.length === 0) fetchParticipants(); setShowMatchesModal(true); }}>
                 <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📋 Maçlar & Puan Tablosu</Text>
-                <Text style={{ color:'#4ade80', fontSize:12 }}>{showMatchesPanel ? '▲' : '▼'}</Text>
+                <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
             </TouchableOpacity>
         )}
 
-        {/* IN_PROGRESS: matches & standings panel */}
-        {item.status === 'IN_PROGRESS' && showMatchesPanel && (
-            <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, marginTop:6, borderWidth:1, borderColor:'#16a34a40' }}>
-                {(item.type === '1' || item.type === '3') && (
-                    <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
-                        {['matches','standings'].map(tab => (
-                            <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
-                                style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
-                                <Text style={{ color: matchTab===tab ? '#4ade80' : colors.textMuted, fontSize:11, fontWeight:'700' }}>
-                                    {tab === 'matches' ? 'Maçlar' : 'Puan Tablosu'}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+        {/* IN_PROGRESS: matches & standings Modal */}
+        <Modal visible={showMatchesModal} animationType="slide" transparent onRequestClose={() => setShowMatchesModal(false)}>
+            <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
+                <View style={[s.modalBox, { maxHeight:'90%' }]}>
+                    <View style={s.modalHeader}>
+                        <Text style={s.modalTitle}>📋 Maçlar & Puan Tablosu</Text>
+                        <TouchableOpacity onPress={() => setShowMatchesModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                     </View>
-                )}
+                    {(item.type === '1' || item.type === '3') && (
+                        <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                            {['matches','standings'].map(tab => (
+                                <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
+                                    style={{ paddingHorizontal:14, paddingVertical:6, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
+                                    <Text style={{ color: matchTab===tab ? '#4ade80' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
+                                        {tab === 'matches' ? 'Maçlar' : 'Puan Tablosu'}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                    <ScrollView showsVerticalScrollIndicator={false}>
                 {loadingMatches ? (
                     <ActivityIndicator size="small" color="#4ade80" style={{ marginVertical:8 }} />
                 ) : matchTab === 'standings' ? (
@@ -2790,14 +2990,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         : <View>
                             <View style={{ flexDirection:'row', paddingVertical:4, borderBottomWidth:1, borderBottomColor: colors.border, marginBottom:2 }}>
                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
-                                {['O','G','M','Set','P'].map(h => (
+                                {['O','G','M','Av','P'].map(h => (
                                     <Text key={h} style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
                                 ))}
                             </View>
                             {standings.map((row, i) => (
                                 <View key={row.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < standings.length-1 ? 1 : 0, borderBottomColor: colors.border+'30' }}>
-                                    <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row.name}</Text>
-                                    {[row.played, row.won, row.lost, `${row.setsWon}-${row.setsLost}`, row.points].map((v,j) => (
+                                    <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>
+                                        {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ⭐ ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
+                                    </Text>
+                                    {[row.played, row.won, row.lost, `${row.gamesWon}-${row.gamesLost}`, row.points].map((v,j) => (
                                         <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
                                     ))}
                                 </View>
@@ -2836,13 +3038,33 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
                                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                         <View style={{ flex:1 }}>
-                                                            <Text style={{ color: isDone && match.winnerId === match.p1Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>
-                                                                {match.p1Name || 'TBD'}
-                                                            </Text>
+                                                            {(() => {
+                                                                const sc = match.score;
+                                                                const rB = sc?.p1RatingBefore;
+                                                                const rA = sc?.p1RatingAfter;
+                                                                const hasRating = rB != null && rA != null;
+                                                                const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
+                                                                return (
+                                                                    <Text style={{ color: isDone && match.winnerId === match.p1Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>
+                                                                        {match.p1Name || 'TBD'}
+                                                                        {hasRating ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}` : match.p1Id && skillRatingMap[match.p1Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : ''}
+                                                                    </Text>
+                                                                );
+                                                            })()}
                                                             <Text style={{ color: colors.textMuted, fontSize:10 }}>vs</Text>
-                                                            <Text style={{ color: isDone && match.winnerId === match.p2Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>
-                                                                {match.p2Name || 'TBD'}
-                                                            </Text>
+                                                            {(() => {
+                                                                const sc = match.score;
+                                                                const rB = sc?.p2RatingBefore;
+                                                                const rA = sc?.p2RatingAfter;
+                                                                const hasRating = rB != null && rA != null;
+                                                                const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
+                                                                return (
+                                                                    <Text style={{ color: isDone && match.winnerId === match.p2Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>
+                                                                        {match.p2Name || 'TBD'}
+                                                                        {hasRating ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}` : match.p2Id && skillRatingMap[match.p2Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : ''}
+                                                                    </Text>
+                                                                );
+                                                            })()}
                                                         </View>
                                                         <View style={{ alignItems:'flex-end', gap:3 }}>
                                                             {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:10 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
@@ -2855,6 +3077,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
                                                                     <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Skor Gir</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                            {isDone && isCreator && !isEntering && (
+                                                                <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                                    style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>✏️ Düzelt</Text>
                                                                 </TouchableOpacity>
                                                             )}
                                                         </View>
@@ -2900,231 +3128,538 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             });
                           })()
                 )}
+                    <View style={{ height:16 }} />
+                    </ScrollView>
+                </View>
             </View>
-        )}
+        </Modal>
 
-            {/* Players — edit mode */}
-            {editing && (
-                <View style={{ marginTop:8, gap:6 }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Min:</Text>
-                        <TextInput
-                            style={{ backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: colors.border, fontSize:12, width:54, textAlign:'center' }}
-                            value={editMin} onChangeText={setEditMin} keyboardType="numeric" maxLength={3} />
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Max:</Text>
-                        <TextInput
-                            style={{ backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: colors.border, fontSize:12, width:54, textAlign:'center' }}
-                            value={editMax} onChangeText={setEditMax} keyboardType="numeric" maxLength={3} />
-                    </View>
-                    {item.type === '1' && (
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                            <Text style={{ color: colors.textMuted, fontSize:11 }}>P-O Öncesi Maç:</Text>
-                            <TextInput
-                                style={{ backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: colors.border, fontSize:12, width:54, textAlign:'center' }}
-                                value={editMatches} onChangeText={v => setEditMatches(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="—" placeholderTextColor={colors.textMuted} />
-                            <Text style={{ color: colors.textMuted, fontSize:11 }}>P-O Oyuncu:</Text>
-                            <TextInput
-                                style={{ backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: colors.border, fontSize:12, width:54, textAlign:'center' }}
-                                value={editQualifiers} onChangeText={v => setEditQualifiers(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="—" placeholderTextColor={colors.textMuted} />
-                        </View>
-                    )}
-                    {/* Event date/time edit */}
-                    <View style={{ flexDirection:'row', gap:4, alignItems:'center', flexWrap:'wrap' }}>
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>🗓️ Başlangıç:</Text>
-                        <TouchableOpacity
-                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: editEventDate ? infoColor + '60' : colors.border }}
-                            onPress={() => { setEditTf(null); setEditDp('evStart'); }}>
-                            <Text style={{ color: editEventDate ? '#fff' : colors.textMuted, fontSize:11 }}>
-                                {editEventDate ? `${String(editEventDate.getDate()).padStart(2,'0')}/${String(editEventDate.getMonth()+1).padStart(2,'0')}/${editEventDate.getFullYear()}` : 'Tarih'}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: editEventTime ? infoColor + '60' : colors.border }}
-                            onPress={() => { setEditDp(null); setEditTf('evStart'); }}>
-                            <Text style={{ color: editEventTime ? '#fff' : colors.textMuted, fontSize:11 }}>{editEventTime || 'Saat'}</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <View style={{ flexDirection:'row', gap:4, alignItems:'center', flexWrap:'wrap' }}>
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>🏁 Tahmini Bitiş:</Text>
-                        <TouchableOpacity
-                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: editEventEndDate ? infoColor + '60' : colors.border }}
-                            onPress={() => { setEditTf(null); setEditDp('evEnd'); }}>
-                            <Text style={{ color: editEventEndDate ? '#fff' : colors.textMuted, fontSize:11 }}>
-                                {editEventEndDate ? `${String(editEventEndDate.getDate()).padStart(2,'0')}/${String(editEventEndDate.getMonth()+1).padStart(2,'0')}/${editEventEndDate.getFullYear()}` : 'Tarih'}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: editEventEndTime ? infoColor + '60' : colors.border }}
-                            onPress={() => { setEditDp(null); setEditTf('evEnd'); }}>
-                            <Text style={{ color: editEventEndTime ? '#fff' : colors.textMuted, fontSize:11 }}>{editEventEndTime || 'Saat'}</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <CustomCalendarPicker
-                        visible={editDp === 'evStart' || editDp === 'evEnd'}
-                        value={editDp === 'evStart' ? editEventDate : editEventEndDate}
-                        onSelect={(date) => { if (editDp === 'evStart') setEditEventDate(date); else setEditEventEndDate(date); setEditDp(null); }}
-                        onClose={() => setEditDp(null)}
-                    />
-                    <OptionPickerModal
-                        visible={editTf === 'evStart' || editTf === 'evEnd'}
-                        title={editTf === 'evStart' ? t.tournEventStartLabel : t.tournEventEndLabel}
-                        options={TIME_SLOTS.map(ts => ({ value: ts, label: ts }))}
-                        value={editTf === 'evStart' ? editEventTime : editEventEndTime}
-                        onSelect={(v) => { if (editTf === 'evStart') setEditEventTime(v); else setEditEventEndTime(v); setEditTf(null); }}
-                        onClose={() => setEditTf(null)}
-                    />
-                    <View style={{ flexDirection:'row', gap:8 }}>
-                        <TouchableOpacity style={{ backgroundColor: infoColor + '30', borderRadius:8, paddingHorizontal:12, paddingVertical:5, borderWidth:1, borderColor: infoColor + '60' }}
-                            onPress={saveEdit} disabled={saving}>
-                            <Text style={{ color: infoColor, fontSize:12, fontWeight:'800' }}>{saving ? '...' : t.tournSaveBtn}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setEditing(false)} style={{ paddingVertical:5, paddingHorizontal:8 }}>
-                            <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            )}
-
-            {/* Requests list */}
-            {isCreator && showRequests && (() => {
-                // ACCEPTED entries come first (sorted by acceptedAt from backend)
-                const acceptedEntries = requests.filter(r => r.status === 'ACCEPTED');
-                const mainListCount = item.maxPlayers || acceptedEntries.length;
-                let mainIdx = 0; // counter within ACCEPTED entries
-                return (
-                <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, marginTop:8, borderWidth:1, borderColor: colors.border }}>
-                    {loadingRequests ? (
-                        <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:8 }} />
-                    ) : requests.length === 0 ? (
-                        <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz başvuru yok</Text>
-                    ) : requests.map((r, i) => {
-                        const isAccepted = r.status === 'ACCEPTED';
-                        let posLabel = null;
-                        if (isAccepted) {
-                            mainIdx++;
-                            const isMain = mainIdx <= mainListCount;
-                            posLabel = isMain
-                                ? { text: `AS ${mainIdx}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }
-                                : { text: `YDK ${mainIdx - mainListCount}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' };
-                        }
-                        // Divider before first PENDING entry
-                        const prevIsAccepted = i > 0 && requests[i-1].status === 'ACCEPTED';
-                        const showDivider = i > 0 && r.status === 'PENDING' && prevIsAccepted;
-                        return (
-                        <View key={r.userId}>
-                        {showDivider && (
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginVertical:6 }}>
-                                <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
-                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>⏳ Başvurular</Text>
-                                <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
+            {/* Full Edit Modal */}
+            <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
+                <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width:'100%' }}>
+                        <View style={[s.modalBox, { maxHeight:'92%' }]}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>Turnuvayı Düzenle</Text>
+                                <TouchableOpacity onPress={() => setShowEditModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                             </View>
-                        )}
-                        <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
-                            {posLabel ? (
-                                <View style={{ backgroundColor: posLabel.bg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:6, borderWidth:1, borderColor: posLabel.border }}>
-                                    <Text style={{ color: posLabel.color, fontSize:9, fontWeight:'800' }}>{posLabel.text}</Text>
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                {/* Name */}
+                                <Text style={s.fieldLabel}>Turnuva Adı</Text>
+                                <TextInput style={s.fieldInput} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textMuted} />
+
+                                {/* Description */}
+                                <Text style={s.fieldLabel}>Açıklama</Text>
+                                <TextInput style={[s.fieldInput, { height:70, textAlignVertical:'top' }]} value={editDescription} onChangeText={setEditDescription} multiline placeholderTextColor={colors.textMuted} />
+
+                                {/* Contact phone */}
+                                <Text style={s.fieldLabel}>İletişim Telefonu</Text>
+                                <TextInput style={s.fieldInput} value={editContactPhone} onChangeText={setEditContactPhone} keyboardType="phone-pad" placeholderTextColor={colors.textMuted} />
+
+                                {/* Scope */}
+                                <Text style={s.fieldLabel}>Kapsam</Text>
+                                <View style={s.chipRow}>
+                                    {['YEREL','ULUSAL','ULUSLARARASI'].map(sc => (
+                                        <TouchableOpacity key={sc} onPress={() => setEditScope(sc)} style={[s.chipBtn, { flex:1 }, editScope===sc && s.chipBtnActive]}>
+                                            <Text style={[s.chipBtnText, editScope===sc && s.chipBtnTextActive]}>{sc==='YEREL'?'📍 Yerel':sc==='ULUSAL'?'🇹🇷 Ulusal':'🌍 Uluslararası'}</Text>
+                                        </TouchableOpacity>
+                                    ))}
                                 </View>
-                            ) : (
-                                <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i + 1}.</Text>
-                            )}
-                            <View style={{ flex:1 }}>
-                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                    @{r.user?.username}
-                                    {r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}
-                                </Text>
-                                {r.cancelRequested && (
-                                    <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti (24s kuralı)</Text>
-                                )}
-                            </View>
-                            <View style={{ alignItems:'flex-end', gap:4 }}>
-                                {!r.cancelRequested && (
-                                    <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2 }}>
-                                        <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
-                                            {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : '⏳ Bekliyor'}
-                                        </Text>
-                                    </View>
-                                )}
-                                {r.cancelRequested && (
-                                    <View style={{ flexDirection:'row', gap:4 }}>
-                                        <TouchableOpacity
-                                            onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [
-                                                { text: 'Vazgeç', style: 'cancel' },
-                                                { text: 'Onayla', style: 'destructive', onPress: () => approveCancelRequest(r.userId, true) },
-                                            ])}
-                                            style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
-                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [
-                                                { text: 'Vazgeç', style: 'cancel' },
-                                                { text: 'Reddet', style: 'destructive', onPress: () => approveCancelRequest(r.userId, false) },
-                                            ])}
-                                            style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
-                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
-                                {r.status === 'PENDING' && !r.cancelRequested && (
-                                    <View style={{ flexDirection:'row', gap:4 }}>
-                                        <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
-                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            onPress={() => Alert.alert('Başvuruyu Reddet', `${r.user?.fullName || r.user?.username} adlı oyuncunun başvurusunu reddetmek istediğinizden emin misiniz?`, [
-                                                { text: 'Vazgeç', style: 'cancel' },
-                                                { text: 'Reddet', style: 'destructive', onPress: () => updateRequest(r.userId, 'REJECTED') },
-                                            ])}
-                                            style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
-                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
-                                {r.status === 'ACCEPTED' && !r.cancelRequested && (
-                                    <TouchableOpacity onPress={() => removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:6, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }}>
-                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        </View>
-                        </View>
-                        );
-                    })}
-                </View>
-                );
-            })()}
 
-            {/* Participants list (non-creator view) */}
-            {!isCreator && showParticipants && (
-                <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:8, marginTop:8, borderWidth:1, borderColor: colors.border }}>
-                    {loadingParticipants ? (
-                        <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:8 }} />
-                    ) : participants.length === 0 ? (
-                        <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz katılımcı yok</Text>
-                    ) : participants.map((r, i) => {
-                        const maxP = item.maxPlayers || participants.length;
-                        const isMain = i < maxP;
-                        const label = isMain ? `AS ${i + 1}` : `YDK ${i + 1 - maxP}`;
-                        const labelColor = isMain ? '#4ade80' : '#fbbf24';
-                        const labelBg = isMain ? '#16a34a20' : '#f59e0b20';
-                        const labelBorder = isMain ? '#16a34a40' : '#f59e0b40';
-                        return (
-                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:7, borderBottomWidth: i < participants.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}>
-                            <View style={{ backgroundColor: labelBg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:6, borderWidth:1, borderColor: labelBorder }}>
-                                <Text style={{ color: labelColor, fontSize:9, fontWeight:'800' }}>{label}</Text>
+                                {/* Gender */}
+                                <Text style={s.fieldLabel}>Cinsiyet</Text>
+                                <View style={s.chipRow}>
+                                    {['MIX','ERKEK','KADIN'].map(g => (
+                                        <TouchableOpacity key={g} onPress={() => setEditGenderType(g)} style={[s.chipBtn, { flex:1 }, editGenderType===g && s.chipBtnActive]}>
+                                            <Text style={[s.chipBtnText, editGenderType===g && s.chipBtnTextActive]}>{g==='MIX'?'🤝 Mix':g==='ERKEK'?'👨 Erkek':'👩 Kadın'}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* Min / Max players */}
+                                <Text style={s.fieldLabel}>Oyuncu Sayısı</Text>
+                                <View style={{ flexDirection:'row', gap:10, alignItems:'center', marginBottom:14 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:12 }}>Min:</Text>
+                                    <TextInput style={[s.fieldInput, { flex:1, textAlign:'center' }]} value={editMin} onChangeText={setEditMin} keyboardType="numeric" maxLength={3} />
+                                    <Text style={{ color: colors.textMuted, fontSize:12 }}>Max (AS Kadro):</Text>
+                                    <TextInput style={[s.fieldInput, { flex:1, textAlign:'center' }]} value={editMax} onChangeText={setEditMax} keyboardType="numeric" maxLength={3} />
+                                </View>
+
+                                {/* Location */}
+                                <Text style={s.fieldLabel}>Konum / Kort</Text>
+                                <TextInput style={s.fieldInput} value={editLocation} onChangeText={setEditLocation} placeholder="Kort adı veya adres" placeholderTextColor={colors.textMuted} />
+
+                                {/* Surface */}
+                                <Text style={s.fieldLabel}>Zemin</Text>
+                                <TextInput style={s.fieldInput} value={editSurface} onChangeText={setEditSurface} placeholder="Kil, Sert, Çim..." placeholderTextColor={colors.textMuted} />
+
+                                {/* Indoor toggle */}
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>Kapalı Alan</Text>
+                                    <Switch value={editIsIndoor} onValueChange={setEditIsIndoor} trackColor={{ true: infoColor }} />
+                                </View>
+
+                                {/* Type-1 specific */}
+                                {item.type === '1' && (<>
+                                    <Text style={s.fieldLabel}>Set Sayısı</Text>
+                                    <View style={s.chipRow}>
+                                        {['1','3','5'].map(n => (
+                                            <TouchableOpacity key={n} onPress={() => setEditSetsPerMatch(n)} style={[s.chipBtn, { flex:1 }, editSetsPerMatch===n && s.chipBtnActive]}>
+                                                <Text style={[s.chipBtnText, editSetsPerMatch===n && s.chipBtnTextActive]}>{n==='1'?'1 Set':`En İyi ${n}`}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>Avantaj Puanı</Text>
+                                        <Switch value={editAdvantageScoring} onValueChange={setEditAdvantageScoring} trackColor={{ true: infoColor }} />
+                                    </View>
+                                    <Text style={s.fieldLabel}>Play-Off Öncesi Maç Sayısı</Text>
+                                    <View style={{ flexDirection:'row', gap:10, alignItems:'center', marginBottom:14 }}>
+                                        <TextInput style={[s.fieldInput, { flex:1, textAlign:'center' }]} value={editMatches} onChangeText={v => setEditMatches(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="3" placeholderTextColor={colors.textMuted} />
+                                        <Text style={{ color: colors.textMuted, fontSize:12 }}>Play-Off Oyuncu:</Text>
+                                        <TextInput style={[s.fieldInput, { flex:1, textAlign:'center' }]} value={editQualifiers} onChangeText={v => setEditQualifiers(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="4" placeholderTextColor={colors.textMuted} />
+                                    </View>
+                                </>)}
+
+                                {/* Registration deadline */}
+                                <Text style={s.fieldLabel}>📋 Son Başvuru Tarihi</Text>
+                                <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('regEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editRegEndDate ? infoColor+'60' : colors.border, flex:1 }}>
+                                        <Text style={{ color: editRegEndDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editRegEndDate ? `${String(editRegEndDate.getDate()).padStart(2,'0')}/${String(editRegEndDate.getMonth()+1).padStart(2,'0')}/${editRegEndDate.getFullYear()}` : 'Tarih'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('regEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editRegEndTime ? infoColor+'60' : colors.border }}>
+                                        <Text style={{ color: editRegEndTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editRegEndTime || 'Saat'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Event start date */}
+                                <Text style={s.fieldLabel}>🗓️ Etkinlik Başlangıcı</Text>
+                                <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('evStart'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editEventDate ? infoColor+'60' : colors.border, flex:1 }}>
+                                        <Text style={{ color: editEventDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventDate ? `${String(editEventDate.getDate()).padStart(2,'0')}/${String(editEventDate.getMonth()+1).padStart(2,'0')}/${editEventDate.getFullYear()}` : 'Tarih'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('evStart'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editEventTime ? infoColor+'60' : colors.border }}>
+                                        <Text style={{ color: editEventTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventTime || 'Saat'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Event end date */}
+                                <Text style={s.fieldLabel}>🏁 Tahmini Bitiş</Text>
+                                <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('evEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editEventEndDate ? infoColor+'60' : colors.border, flex:1 }}>
+                                        <Text style={{ color: editEventEndDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventEndDate ? `${String(editEventEndDate.getDate()).padStart(2,'0')}/${String(editEventEndDate.getMonth()+1).padStart(2,'0')}/${editEventEndDate.getFullYear()}` : 'Tarih'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('evEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editEventEndTime ? infoColor+'60' : colors.border }}>
+                                        <Text style={{ color: editEventEndTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventEndTime || 'Saat'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Paid toggle */}
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>💰 Ücretli Turnuva</Text>
+                                    <Switch value={editIsPaid} onValueChange={setEditIsPaid} trackColor={{ true: '#fbbf24' }} />
+                                </View>
+                                {editIsPaid && (<>
+                                    <View style={s.chipRow}>
+                                        {[{id:'INCLUDED',label:'Kort dahil'},{id:'SHARED',label:'Ortaklaşa'}].map(ft => (
+                                            <TouchableOpacity key={ft.id} onPress={() => setEditFeeType(ft.id)} style={[s.chipBtn, { flex:1 }, editFeeType===ft.id && s.chipBtnActive]}>
+                                                <Text style={[s.chipBtnText, editFeeType===ft.id && s.chipBtnTextActive]}>{ft.label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                                        <TextInput style={[s.fieldInput, { flex:1 }]} value={editPlayerFee} onChangeText={setEditPlayerFee} keyboardType="numeric" placeholder="Oyuncu başı ücret (₺)" placeholderTextColor={colors.textMuted} />
+                                    </View>
+                                    <View style={s.chipRow}>
+                                        {[{id:'CASH',label:'💵 Nakit'},{id:'EFT',label:'🏦 EFT'}].map(pm => (
+                                            <TouchableOpacity key={pm.id} onPress={() => setEditPaymentMethod(pm.id)} style={[s.chipBtn, { flex:1 }, editPaymentMethod===pm.id && s.chipBtnActive]}>
+                                                <Text style={[s.chipBtnText, editPaymentMethod===pm.id && s.chipBtnTextActive]}>{pm.label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    {editPaymentMethod === 'EFT' && (<>
+                                        <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editIbanHolder} onChangeText={setEditIbanHolder} placeholder="Hesap Sahibi" placeholderTextColor={colors.textMuted} />
+                                        <TextInput style={s.fieldInput} value={editIbanNumber} onChangeText={setEditIbanNumber} placeholder="IBAN" placeholderTextColor={colors.textMuted} />
+                                    </>)}
+                                </>)}
+
+                                {/* Prizes */}
+                                <Text style={s.fieldLabel}>🏆 Ödüller</Text>
+                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize1} onChangeText={setEditPrize1} placeholder="🥇 1. Ödül" placeholderTextColor={colors.textMuted} />
+                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize2} onChangeText={setEditPrize2} placeholder="🥈 2. Ödül" placeholderTextColor={colors.textMuted} />
+                                <TextInput style={s.fieldInput} value={editPrize3} onChangeText={setEditPrize3} placeholder="🥉 3. Ödül" placeholderTextColor={colors.textMuted} />
+
+                                <TouchableOpacity
+                                    style={[s.submitBtn, { backgroundColor: infoColor, marginTop:20 }, saving && { opacity:0.6 }]}
+                                    onPress={saveEdit} disabled={saving}>
+                                    <Text style={s.submitBtnText}>{saving ? 'Kaydediliyor...' : '💾 Kaydet'}</Text>
+                                </TouchableOpacity>
+                                <View style={{ height:16 }} />
+                            </ScrollView>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
+                {/* Date / time pickers rendered outside the inner modal so they stack on top */}
+                <CustomCalendarPicker
+                    visible={!!editDp}
+                    value={editDp === 'evStart' ? editEventDate : editDp === 'evEnd' ? editEventEndDate : editRegEndDate}
+                    onSelect={(date) => {
+                        if (editDp === 'evStart') setEditEventDate(date);
+                        else if (editDp === 'evEnd') setEditEventEndDate(date);
+                        else setEditRegEndDate(date);
+                        setEditDp(null);
+                    }}
+                    onClose={() => setEditDp(null)}
+                />
+                <OptionPickerModal
+                    visible={!!editTf}
+                    title="Saat Seçin"
+                    options={TIME_SLOTS.map(ts => ({ value: ts, label: ts }))}
+                    value={editTf === 'evStart' ? editEventTime : editTf === 'evEnd' ? editEventEndTime : editRegEndTime}
+                    onSelect={(v) => {
+                        if (editTf === 'evStart') setEditEventTime(v);
+                        else if (editTf === 'evEnd') setEditEventEndTime(v);
+                        else setEditRegEndTime(v);
+                        setEditTf(null);
+                    }}
+                    onClose={() => setEditTf(null)}
+                />
+            </Modal>
+
+            {/* 24h Late Cancel Reason Modal */}
+            <Modal visible={showCancelModal} animationType="slide" transparent onRequestClose={() => setShowCancelModal(false)}>
+                <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                        <View style={[s.modalBox, { maxHeight:'75%' }]}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>⚠️ Geç İptal Talebi</Text>
+                                <TouchableOpacity onPress={() => setShowCancelModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                             </View>
-                            <View style={{ flex:1 }}>
-                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                    @{r.user?.username}
-                                    {r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}
+                            <View style={{ backgroundColor:'#dc262615', borderRadius:10, padding:12, marginBottom:14, borderWidth:1, borderColor:'#dc262640' }}>
+                                <Text style={{ color:'#f87171', fontSize:12, fontWeight:'800', marginBottom:6 }}>⚠️ 24 Saat Geç İptal Kuralı</Text>
+                                <Text style={{ color:'#fca5a5', fontSize:11, lineHeight:18 }}>
+                                    Turnuva başlangıcına 24 saatten az kaldığı için iptal talebiniz turnuva düzenleyicisine iletilecek ve onayına sunulacaktır.
+                                    {'\n\n'}Turnuva katılımlarında üçten fazla 24 saat kala iptal ettiğiniz takdirde dördüncü ve sonraki turnuva katılımlarında 24 saatten az kala iptallerinizde -0.50 ELO puanınız düşücek ve beş turnuva katılım yasağınız olucaktır.
                                 </Text>
                             </View>
+                            <Text style={[s.fieldLabel, { marginBottom:8 }]}>Mazeret (zorunlu)</Text>
+                            <TextInput
+                                style={[s.fieldInput, { height:90, textAlignVertical:'top', marginBottom:16 }]}
+                                value={cancelReasonText}
+                                onChangeText={setCancelReasonText}
+                                placeholder="İptal nedeninizi açıklayın..."
+                                placeholderTextColor={colors.textMuted}
+                                multiline
+                                maxLength={300}
+                            />
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#dc262630', borderRadius:10, paddingVertical:13, alignItems:'center', borderWidth:1, borderColor:'#dc262660' }}
+                                onPress={submitCancelWithReason}>
+                                <Text style={{ color:'#f87171', fontSize:14, fontWeight:'800' }}>İptal Talebini Gönder</Text>
+                            </TouchableOpacity>
+                            <View style={{ height:8 }} />
                         </View>
-                        );
-                    })}
+                    </KeyboardAvoidingView>
                 </View>
-            )}
+            </Modal>
+
+            {/* Participants / Requests Modal */}
+            <Modal visible={showListModal} animationType="slide" transparent onRequestClose={() => setShowListModal(false)}>
+                <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
+                    <View style={[s.modalBox, { maxHeight:'80%' }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>{isCreator ? 'Başvurular' : 'Katılımcılar'}</Text>
+                            <TouchableOpacity onPress={() => setShowListModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:2 }}>
+                        {isCreator ? (() => {
+                            if (loadingRequests) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
+                            if (requests.length === 0) return <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Henüz başvuru yok</Text>;
+                            const acceptedEntries = requests.filter(r => r.status === 'ACCEPTED');
+                            const mainListCount = item.maxPlayers || acceptedEntries.length;
+
+                            if (item.status === 'IN_PROGRESS') {
+                                // Show AS LİSTE / YEDEK LİSTE sections
+                                const mainList = acceptedEntries.slice(0, mainListCount);
+                                const waitList = acceptedEntries.slice(mainListCount);
+                                return (
+                                    <View>
+                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800' }}>✅ AS LİSTE</Text>
+                                        </View>
+                                        {mainList.length === 0
+                                            ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>—</Text>
+                                            : mainList.map((r, i) => (
+                                            <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < mainList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
+                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor:'#16a34a40' }}>
+                                                    <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'800' }}>AS {i+1}</Text>
+                                                </View>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
+                                                </View>
+                                                {r.cancelRequested && (
+                                                    <View style={{ flexDirection:'row', gap:4 }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                )}
+                                            </View>
+                                        ))}
+                                        {waitList.length > 0 && <>
+                                            <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
+                                            </View>
+                                            {waitList.map((r, i) => (
+                                                <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < waitList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
+                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800' }}>YDK {i+1}</Text>
+                                                    </View>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                        {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
+                                                    </View>
+                                                    {r.cancelRequested && (
+                                                        <View style={{ flexDirection:'row', gap:4 }}>
+                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            ))}
+                                        </>}
+                                    </View>
+                                );
+                            }
+
+                            // OPEN status — show AS/YDK labels + PENDING section with action buttons
+                            let mainIdx = 0;
+                            return (
+                                <View>
+                                {/* Manual participant add input */}
+                                <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
+                                    <TextInput
+                                        style={{ flex:1, backgroundColor:'#0f172a', borderRadius:10, borderWidth:1, borderColor:'#3b82f640', color:'#fff', fontSize:13, paddingHorizontal:12, paddingVertical:8 }}
+                                        placeholder="İsim gir (manuel ekle)"
+                                        placeholderTextColor="#475569"
+                                        value={manualName}
+                                        onChangeText={setManualName}
+                                        returnKeyType="done"
+                                        onSubmitEditing={addManualParticipant}
+                                    />
+                                    <TouchableOpacity onPress={addManualParticipant} disabled={addingManual || !manualName.trim()} style={{ backgroundColor: manualName.trim() ? '#3b82f6' : '#1e293b', borderRadius:10, paddingHorizontal:14, justifyContent:'center', borderWidth:1, borderColor:'#3b82f640' }}>
+                                        <Text style={{ color: manualName.trim() ? '#fff' : '#475569', fontSize:12, fontWeight:'800' }}>{addingManual ? '...' : '+ Ekle'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                {requests.map((r, i) => {
+                                    const isAccepted = r.status === 'ACCEPTED';
+                                    let posLabel = null;
+                                    if (isAccepted) {
+                                        mainIdx++;
+                                        const isMain = mainIdx <= mainListCount;
+                                        posLabel = isMain
+                                            ? { text: `AS ${mainIdx}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }
+                                            : { text: `YDK ${mainIdx - mainListCount}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' };
+                                    }
+                                    const prevIsAccepted = i > 0 && requests[i-1].status === 'ACCEPTED';
+                                    const showDivider = i > 0 && r.status === 'PENDING' && prevIsAccepted;
+                                    return (
+                                        <View key={r.id || r.userId}>
+                                        {showDivider && (
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginVertical:8 }}>
+                                                <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
+                                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>⏳ Bekleyen Başvurular</Text>
+                                                <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
+                                            </View>
+                                        )}
+                                        <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
+                                            {posLabel ? (
+                                                <View style={{ backgroundColor: posLabel.bg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor: posLabel.border }}>
+                                                    <Text style={{ color: posLabel.color, fontSize:9, fontWeight:'800' }}>{posLabel.text}</Text>
+                                                </View>
+                                            ) : (
+                                                <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i+1}.</Text>
+                                            )}
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || r.user?.fullName || r.user?.username}</Text>
+                                                {r.manualName
+                                                    ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
+                                                    : <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                }
+                                                {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti (24s kuralı)</Text>}
+                                            </View>
+                                            <View style={{ alignItems:'flex-end', gap:4 }}>
+                                                {!r.cancelRequested && (
+                                                    <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2 }}>
+                                                        <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
+                                                            {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : r.userId === myId ? '⏳ Yönetici onayı bekleniyor' : '⏳ Bekliyor'}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                {r.cancelRequested && (
+                                                    <View style={{ flexDirection:'row', gap:4 }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                )}
+                                                {r.status === 'PENDING' && !r.cancelRequested && (
+                                                    <View style={{ flexDirection:'row', gap:4 }}>
+                                                        <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: r.user?.fullName || r.user?.username }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                )}
+                                                {r.status === 'ACCEPTED' && !r.cancelRequested && (
+                                                    <TouchableOpacity onPress={() => r.manualName ? removeManualParticipant(r.id) : removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:6, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        </View>
+                                        </View>
+                                    );
+                                })}
+                                </View>
+                            );
+                        })() : (() => {
+                            if (loadingParticipants) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
+                            const maxP = item.maxPlayers || participants.length;
+
+                            if (item.status === 'IN_PROGRESS') {
+                                const mainList = participants.slice(0, maxP);
+                                const waitList = participants.slice(maxP);
+                                return (
+                                    <View>
+                                        {myStatus === 'PENDING' && (
+                                            <View style={{ backgroundColor:'#a855f715', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor:'#a855f740', flexDirection:'row', alignItems:'center', gap:8 }}>
+                                                <Text style={{ fontSize:20 }}>⏳</Text>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>Başvurunuz alındı</Text>
+                                                    <Text style={{ color:'#c084fc', fontSize:11, marginTop:2, opacity:0.85 }}>Turnuva yöneticisinin onayı bekleniyor. Onaylandığında bildirim alacaksınız.</Text>
+                                                </View>
+                                            </View>
+                                        )}
+                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800' }}>✅ AS LİSTE</Text>
+                                        </View>
+                                        {mainList.length === 0
+                                            ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>—</Text>
+                                            : mainList.map((r, i) => (
+                                            <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < mainList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor:'#16a34a40' }}>
+                                                    <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'800' }}>AS {i+1}</Text>
+                                                </View>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                </View>
+                                            </View>
+                                        ))}
+                                        {waitList.length > 0 && <>
+                                            <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
+                                            </View>
+                                            {waitList.map((r, i) => (
+                                                <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < waitList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800' }}>YDK {i+1}</Text>
+                                                    </View>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    </View>
+                                                </View>
+                                            ))}
+                                        </>}
+                                    </View>
+                                );
+                            }
+
+                            // OPEN — show AS/YDK labels read-only
+                            return (
+                                <View>
+                                {myStatus === 'PENDING' && (
+                                    <View style={{ backgroundColor:'#a855f715', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor:'#a855f740', flexDirection:'row', alignItems:'center', gap:8 }}>
+                                        <Text style={{ fontSize:20 }}>⏳</Text>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>Başvurunuz alındı</Text>
+                                            <Text style={{ color:'#c084fc', fontSize:11, marginTop:2, opacity:0.85 }}>Turnuva yöneticisinin onayı bekleniyor. Onaylandığında bildirim alacaksınız.</Text>
+                                        </View>
+                                    </View>
+                                )}
+                                {participants.map((r, i) => {
+                                    const isMain = i < maxP;
+                                    const label = isMain ? `AS ${i+1}` : `YDK ${i+1-maxP}`;
+                                    const labelColor = isMain ? '#4ade80' : '#fbbf24';
+                                    const labelBg = isMain ? '#16a34a20' : '#f59e0b20';
+                                    const labelBorder = isMain ? '#16a34a40' : '#f59e0b40';
+                                    return (
+                                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < participants.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                            <View style={{ backgroundColor: labelBg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor: labelBorder }}>
+                                                <Text style={{ color: labelColor, fontSize:9, fontWeight:'800' }}>{label}</Text>
+                                            </View>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                            </View>
+                                        </View>
+                                    );
+                                })}
+                                </View>
+                            );
+                        })()}
+                        <View style={{ height:16 }} />
+                        </ScrollView>
+
+                        {/* Reject reason modal (nested) */}
+                        <Modal visible={!!rejectTarget} animationType="fade" transparent onRequestClose={() => setRejectTarget(null)}>
+                            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:24 }}>
+                                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width:'100%' }}>
+                                    <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:20, borderWidth:1, borderColor:'#dc262650' }}>
+                                        <Text style={{ color:'#f87171', fontSize:15, fontWeight:'800', marginBottom:4 }}>❌ Başvuruyu Reddet</Text>
+                                        <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:14 }}>{rejectTarget?.name} adlı oyuncunun başvurusu reddedilecek.</Text>
+                                        <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:6 }}>Red nedeni (opsiyonel):</Text>
+                                        <TextInput
+                                            style={{ backgroundColor:'#0f172a', borderRadius:10, borderWidth:1, borderColor:'#dc262650', color:'#fff', fontSize:13, padding:12, minHeight:60, textAlignVertical:'top' }}
+                                            placeholder="Neden reddediyorsunuz? (isteğe bağlı)"
+                                            placeholderTextColor="#475569"
+                                            value={rejectReason}
+                                            onChangeText={setRejectReason}
+                                            multiline
+                                            maxLength={200}
+                                        />
+                                        <View style={{ flexDirection:'row', gap:10, marginTop:16 }}>
+                                            <TouchableOpacity onPress={() => setRejectTarget(null)} style={{ flex:1, backgroundColor:'#334155', borderRadius:10, paddingVertical:11, alignItems:'center' }}>
+                                                <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={async () => { const t2 = rejectTarget; setRejectTarget(null); await updateRequest(t2.userId, 'REJECTED', rejectReason.trim() || undefined); }} style={{ flex:1, backgroundColor:'#dc262640', borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1, borderColor:'#dc262660' }}>
+                                                <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>Reddet</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </KeyboardAvoidingView>
+                            </View>
+                        </Modal>
+                    </View>
+                </View>
+            </Modal>
 
             {item.description && <Text style={{ color: colors.textSecondary, fontSize:12, marginTop:6 }}>{item.description}</Text>}
 
@@ -3969,7 +4504,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         finally { setLoading(false); setRefreshing(false); }
     }, [category, sub, myId]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { load(); });
+        return () => task.cancel();
+    }, [load]);
     const onRefresh = () => { setRefreshing(true); load(); };
 
     // Refresh data whenever screen comes into focus (e.g. navigating back from notification)
@@ -3992,7 +4530,10 @@ export default function SubCategoryScreen({ route, navigation }) {
             .finally(() => setLoadingArchive(false));
     }, [activeTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
 
-    useEffect(() => { loadArchive(); }, [loadArchive]);
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { loadArchive(); });
+        return () => task.cancel();
+    }, [loadArchive]);
 
     const loadArchiveTournaments = useCallback(async () => {
         if (activeTab !== 'archive' || archiveSubTab !== 'tournaments') return;
@@ -4008,7 +4549,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         finally { setLoadingArchiveTournaments(false); }
     }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
 
-    useEffect(() => { loadArchiveTournaments(); }, [loadArchiveTournaments]);
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { loadArchiveTournaments(); });
+        return () => task.cancel();
+    }, [loadArchiveTournaments]);
 
     const loadTournaments = useCallback(async () => {
         if (activeTab !== 'tournaments') return;
@@ -4020,7 +4564,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         finally { setLoadingTournaments(false); }
     }, [activeTab, category, sub]);
 
-    useEffect(() => { loadTournaments(); }, [loadTournaments]);
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { loadTournaments(); });
+        return () => task.cancel();
+    }, [loadTournaments]);
 
     const handleJoinTournament = useCallback(async (item) => {
         try {
@@ -4032,11 +4579,14 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
     }, [loadTournaments, t]);
 
-    const handleCancelJoinTournament = useCallback(async (id) => {
+    const handleCancelJoinTournament = useCallback(async (id, reason) => {
         try {
-            const { data } = await api.delete(`/tournaments/${id}/join`);
+            const { data } = await api.delete(`/tournaments/${id}/join`, reason ? { data: { reason } } : undefined);
             if (data?.cancelRequested) {
-                Alert.alert('⚠️ İptal Talebi', 'Turnuva başlangıcına 24 saat kaldığı için iptal talebiniz turnuva düzenleyicisine iletildi. Onaylaması bekleniyor.');
+                const penaltyMsg = data.penaltyApplied
+                    ? '\n\n🚨 Ceza uygulandı: −0.50 ELO puanı ve 5 turnuva katılım yasağı aldınız.'
+                    : '';
+                Alert.alert('⚠️ İptal Talebi Gönderildi', 'Talebiniz turnuva düzenleyicisine iletildi. Onaylaması bekleniyor.' + penaltyMsg);
             }
             loadTournaments();
         } catch (e) {
@@ -4538,10 +5088,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </ScrollView>
             )}
 
-            <CreateRivalModal visible={showCreateRival} onClose={() => setShowCreateRival(false)} category={category} sub={sub} onCreated={load} />
-            <CreatePlayerWantedModal visible={showCreatePW} onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />
-            <CreateTournamentModal visible={showCreateTournament} onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />
-            <UserProfileModal visible={!!profileUserId} userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />
+            {showCreateRival && <CreateRivalModal visible onClose={() => setShowCreateRival(false)} category={category} sub={sub} onCreated={load} />}
+            {showCreatePW && <CreatePlayerWantedModal visible onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />}
+            {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
+            {!!profileUserId && <UserProfileModal visible userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />}
 
             {/* ── Yorumlar — tam ekran modal ── */}
             {(() => {

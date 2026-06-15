@@ -710,7 +710,8 @@ export const completeTournament = async (req, res, next) => {
 
         const ratingSnapshot = {};
         for (const p of accepted) {
-            const interest = p.user.interests[0];
+            if (!p.userId || !p.user) continue;
+            const interest = p.user.interests?.[0];
             ratingSnapshot[p.userId] = {
                 username: p.user.username,
                 fullName: p.user.fullName,
@@ -766,11 +767,11 @@ export const startTournament = async (req, res, next) => {
         const mainList = rawParticipants.slice(0, tournament.maxPlayers);
 
         const players = mainList.map(p => ({
-        const players = mainList.map(p => ({
             id: p.userId || p.id,
             fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
             username: p.userId ? (p.user?.username || null) : p.manualName,
             skillRating: p.userId ? (p.user?.interests?.[0]?.skillRating || 0) : 0,
+        }));
 
         if (players.length < (tournament.minPlayers || 2)) {
             return res.status(400).json({ message: `En az ${tournament.minPlayers || 2} oyuncu gerekli` });
@@ -803,8 +804,6 @@ export const startTournament = async (req, res, next) => {
             });
         }
 
-        // Notify all participants
-        for (const p of players) {
         // Notify real (non-manual) participants
         for (const p of mainList) {
             if (p.userId && p.userId !== req.userId) {
@@ -813,6 +812,8 @@ export const startTournament = async (req, res, next) => {
                     `"${tournament.name}" turnuvası başladı! Eşleşmelerinizi kontrol edin.`,
                     { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
                 );
+            }
+        }
 
         const updated = await prisma.tournament.findUnique({
             where: { id },
@@ -872,11 +873,11 @@ export const rematchTournament = async (req, res, next) => {
 
         const mainList = tournament.maxPlayers ? rawParticipants.slice(0, tournament.maxPlayers) : rawParticipants;
         const players = mainList.map(p => ({
-        const players = mainList.map(p => ({
             id: p.userId || p.id,
             fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
             username: p.userId ? (p.user?.username || null) : p.manualName,
             skillRating: p.userId ? (p.user?.interests?.[0]?.skillRating || 0) : 0,
+        }));
 
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
         const newMatches = eloBasedMatches(players, id, matchesPerPlayer);
