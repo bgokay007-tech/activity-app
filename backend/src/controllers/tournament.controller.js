@@ -542,30 +542,66 @@ export const removeParticipant = async (req, res, next) => {
         const { id, userId } = req.params;
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
-        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+        if (!tournament) return res.status(404).json({ message: "Tournament not found" });
 
         const requester = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
-        if (tournament.creatorId !== req.userId && !requester?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
+        if (tournament.creatorId !== req.userId && !requester?.isAdmin) return res.status(403).json({ message: "Not authorized" });
 
         const existing = await prisma.tournamentParticipant.findUnique({
             where: { tournamentId_userId: { tournamentId: id, userId } },
         });
-        if (!existing) return res.status(404).json({ message: 'Participant not found' });
+        if (!existing) return res.status(404).json({ message: "Participant not found" });
 
-        const wasAccepted = existing.status === 'ACCEPTED';
+        const wasAccepted = existing.status === "ACCEPTED";
         await prisma.tournamentParticipant.delete({
             where: { tournamentId_userId: { tournamentId: id, userId } },
         });
 
-        await createNotification(userId, 'TOURNAMENT_REMOVED', 'âŒ Turnuvadan Ã‡Ä±karÄ±ldÄ±nÄ±z',
-            `"${tournament.name}" turnuvasÄ±ndan Ã§Ä±karÄ±ldÄ±nÄ±z.`,
+        await createNotification(userId, "TOURNAMENT_REMOVED", "❌ Turnuvadan Çıkarıldınız",
+            `"${tournament.name}" turnuvasından çıkarıldınız.`,
             { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
 
-        if (wasAccepted) {
-            await _promoteNextPending(id, tournament);
-        }
+        if (wasAccepted) { await _promoteNextPending(id, tournament); }
 
-        res.json({ message: 'Participant removed' });
+        res.json({ message: "Participant removed" });
+    } catch (e) { next(e); }
+};
+
+export const addManualParticipant = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+
+        if (!name?.trim()) return res.status(400).json({ message: "İsim zorunludur" });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: "Not your tournament" });
+
+        const participant = await prisma.tournamentParticipant.create({
+            data: { tournamentId: id, userId: null, manualName: name.trim(), status: "ACCEPTED", acceptedAt: new Date() },
+        });
+
+        res.status(201).json(participant);
+    } catch (e) { next(e); }
+};
+
+export const removeManualParticipant = async (req, res, next) => {
+    try {
+        const { id, participantId } = req.params;
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: "Not authorized" });
+
+        const existing = await prisma.tournamentParticipant.findUnique({ where: { id: participantId } });
+        if (!existing || existing.tournamentId !== id) return res.status(404).json({ message: "Participant not found" });
+
+        await prisma.tournamentParticipant.delete({ where: { id: participantId } });
+
+        if (existing.status === "ACCEPTED") { await _promoteNextPending(id, tournament); }
+
+        res.json({ message: "Participant removed" });
     } catch (e) { next(e); }
 };
 
@@ -730,11 +766,11 @@ export const startTournament = async (req, res, next) => {
         const mainList = rawParticipants.slice(0, tournament.maxPlayers);
 
         const players = mainList.map(p => ({
-            id: p.userId,
-            fullName: p.user.fullName,
-            username: p.user.username,
-            skillRating: p.user.interests[0]?.skillRating || 0,
-        }));
+        const players = mainList.map(p => ({
+            id: p.userId || p.id,
+            fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
+            username: p.userId ? (p.user?.username || null) : p.manualName,
+            skillRating: p.userId ? (p.user?.interests?.[0]?.skillRating || 0) : 0,
 
         if (players.length < (tournament.minPlayers || 2)) {
             return res.status(400).json({ message: `En az ${tournament.minPlayers || 2} oyuncu gerekli` });
@@ -769,14 +805,14 @@ export const startTournament = async (req, res, next) => {
 
         // Notify all participants
         for (const p of players) {
-            if (p.id !== req.userId) {
+        // Notify real (non-manual) participants
+        for (const p of mainList) {
+            if (p.userId && p.userId !== req.userId) {
                 await createNotification(
-                    p.id, 'TOURNAMENT_STARTED', 'ğŸ† Turnuva BaÅŸladÄ±',
-                    `"${tournament.name}" turnuvasÄ± baÅŸladÄ±! EÅŸleÅŸmelerinizi kontrol edin.`,
+                    p.userId, 'TOURNAMENT_STARTED', '🏆 Turnuva Başladı',
+                    `"${tournament.name}" turnuvası başladı! Eşleşmelerinizi kontrol edin.`,
                     { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
                 );
-            }
-        }
 
         const updated = await prisma.tournament.findUnique({
             where: { id },
@@ -836,11 +872,11 @@ export const rematchTournament = async (req, res, next) => {
 
         const mainList = tournament.maxPlayers ? rawParticipants.slice(0, tournament.maxPlayers) : rawParticipants;
         const players = mainList.map(p => ({
-            id: p.userId,
-            fullName: p.user.fullName,
-            username: p.user.username,
-            skillRating: p.user.interests[0]?.skillRating || 0,
-        }));
+        const players = mainList.map(p => ({
+            id: p.userId || p.id,
+            fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
+            username: p.userId ? (p.user?.username || null) : p.manualName,
+            skillRating: p.userId ? (p.user?.interests?.[0]?.skillRating || 0) : 0,
 
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
         const newMatches = eloBasedMatches(players, id, matchesPerPlayer);

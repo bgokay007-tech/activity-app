@@ -430,7 +430,8 @@ model TournamentMatch {
 model TournamentParticipant {
   id              String   @id @default(uuid())
   tournamentId    String
-  userId          String
+  userId          String?
+  manualName      String?  // set when userId is null (manual participant added by creator)
   status          String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
   note            String?
   cancelRequested Boolean   @default(false)
@@ -439,7 +440,7 @@ model TournamentParticipant {
   createdAt       DateTime  @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, userId])
 }
