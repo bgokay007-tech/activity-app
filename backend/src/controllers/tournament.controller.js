@@ -1007,20 +1007,17 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
                 const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
                 let transfer;
-                if (ratingDiff >= 2.0)       transfer = dominant ? 7 : 6;
-                else if (ratingDiff >= 1.0)  transfer = dominant ? 5 : 4;
-                else if (ratingDiff >= 0.5)  transfer = dominant ? 4 : 3;
-                else if (ratingDiff >= 0.25) transfer = dominant ? 3 : 2;
-                else                         transfer = dominant ? 2 : 1;
+                if (ratingDiff >= 2.0)        transfer = dominant ? 7 : 6;
+                else if (ratingDiff >= 1.0)   transfer = dominant ? 5 : 4;
+                else if (ratingDiff >= 0.5)   transfer = dominant ? 4 : 3;
+                else if (ratingDiff >= 0.25)  transfer = dominant ? 3 : 2;
+                else if (ratingDiff >= 0.10)  transfer = dominant ? 2 : 1;
+                else                          transfer = dominant ? 1 : 0.5;
 
                 const divisor = tournament.type === "1" ? 2 : 1;
-                // If skill rating diff <=0.10, use half of 0.25-bracket values for ratingStep
-                const skillRatingDiff = Math.abs(wi.skillRating - li.skillRating);
-                const ratingStep = skillRatingDiff <= 0.10
-                    ? parseFloat(((dominant ? 1.5 : 1) * 0.05 / divisor).toFixed(3))
-                    : parseFloat((transfer * 0.05 / divisor).toFixed(2));
-                const wRatingAfter = Math.min(5, parseFloat((wi.skillRating + ratingStep).toFixed(2)));
-                const lRatingAfter = Math.max(0, parseFloat((li.skillRating - ratingStep).toFixed(2)));
+                const ratingStep = parseFloat((transfer * 0.05 / divisor).toFixed(3));
+                const wRatingAfter = Math.min(5, parseFloat((wi.skillRating + ratingStep).toFixed(3)));
+                const lRatingAfter = Math.max(0, parseFloat((li.skillRating - ratingStep).toFixed(3)));
 
                 await Promise.all([
                     prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1, skillRating: wRatingAfter } }),
