@@ -70,7 +70,7 @@ function getTabs(sub) {
     if (sub === 'football' || sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', ...(sub==='football' ? ['referee'] : []), 'media'];
     if (sub === 'tennis')
-        return ['rivals', 'tournaments', 'coaches', 'media', 'news', 'posts', 'archive'];
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'news', 'posts', 'archive'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
 }
 
@@ -4407,6 +4407,13 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [textPosts, setTextPosts] = useState([]);
     const [mediaPosts, setMediaPosts] = useState([]);
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
+    const [equipmentListings, setEquipmentListings] = useState([]);
+    const [equipmentCondition, setEquipmentCondition] = useState('ALL');
+    const [loadingEquipment, setLoadingEquipment] = useState(false);
+    const [showEquipmentForm, setShowEquipmentForm] = useState(false);
+    const [equipmentForm, setEquipmentForm] = useState({ title:'', price:'', condition:'NEW', description:'', location:'', images:[] });
+    const [submittingEquipment, setSubmittingEquipment] = useState(false);
+    const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [archiveRivals, setArchiveRivals] = useState([]);
@@ -4575,6 +4582,43 @@ export default function SubCategoryScreen({ route, navigation }) {
         const task = InteractionManager.runAfterInteractions(() => { loadTournaments(); });
         return () => task.cancel();
     }, [loadTournaments]);
+
+    const loadEquipment = useCallback(async () => {
+        if (activeTab !== 'equipment') return;
+        setLoadingEquipment(true);
+        try {
+            const params = new URLSearchParams({ category, subCategory: sub });
+            if (equipmentCondition !== 'ALL') params.set('condition', equipmentCondition);
+            const { data } = await api.get(`/equipment?${params.toString()}`);
+            setEquipmentListings(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingEquipment(false); }
+    }, [activeTab, category, sub, equipmentCondition]);
+
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { loadEquipment(); });
+        return () => task.cancel();
+    }, [loadEquipment]);
+
+    const submitEquipment = async () => {
+        if (!equipmentForm.title.trim()) return Alert.alert('', 'Ürün adı zorunludur');
+        setSubmittingEquipment(true);
+        try {
+            await api.post('/equipment', { ...equipmentForm, category, subCategory: sub, price: parseInt(equipmentForm.price) || 0 });
+            setShowEquipmentForm(false);
+            setEquipmentForm({ title:'', price:'', condition:'NEW', description:'', location:'', images:[] });
+            loadEquipment();
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setSubmittingEquipment(false); }
+    };
+
+    const deleteEquipment = async (id) => {
+        try {
+            await api.delete(`/equipment/${id}`);
+            setEquipmentListings(prev => prev.filter(e => e.id !== id));
+            setSelectedEquipment(null);
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+    };
 
     const handleJoinTournament = useCallback(async (item) => {
         try {
@@ -4869,6 +4913,124 @@ export default function SubCategoryScreen({ route, navigation }) {
                     })()}
 
                     {/* ── COACHES ── */}
+
+                    {/* ── EKİPMAN ── */}
+                    {activeTab === 'equipment' && (
+                        <View>
+                            {/* Filtre butonları */}
+                            <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                                {['ALL','NEW','USED'].map(c => (
+                                    <TouchableOpacity key={c} onPress={() => setEquipmentCondition(c)}
+                                        style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: equipmentCondition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentCondition===c ? cfg.color : colors.border }}>
+                                        <Text style={{ color: equipmentCondition===c ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                            {c==='ALL' ? 'Tümü' : c==='NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            {/* İlan ekle butonu */}
+                            <TouchableOpacity onPress={() => setShowEquipmentForm(true)}
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:9, marginBottom:10, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>+ İlan Ver</Text>
+                            </TouchableOpacity>
+                            {/* Liste */}
+                            {loadingEquipment ? (
+                                <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:10 }} />
+                            ) : equipmentListings.length === 0 ? (
+                                <EmptyState emoji="🎾" text="Henüz ekipman ilanı yok" />
+                            ) : (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                                    {equipmentListings.map(eq => (
+                                        <TouchableOpacity key={eq.id} onPress={() => setSelectedEquipment(eq)}
+                                            style={{ width:'48%', backgroundColor: colors.surface2, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
+                                            {eq.images?.[0] ? (
+                                                <Image source={{ uri: eq.images[0] }} style={{ width:'100%', height:120 }} resizeMode="cover" />
+                                            ) : (
+                                                <View style={{ width:'100%', height:120, alignItems:'center', justifyContent:'center', backgroundColor: colors.surface }}>
+                                                    <Text style={{ fontSize:36 }}>🎾</Text>
+                                                </View>
+                                            )}
+                                            <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:5, paddingVertical:2 }}>
+                                                <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{eq.condition==='NEW' ? 'Sıfır' : '2.El'}</Text>
+                                            </View>
+                                            <View style={{ padding:8 }}>
+                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{eq.title}</Text>
+                                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : 'Fiyat sor'}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>@{eq.user?.username}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+                            {/* İlan ver formu Modal */}
+                            <Modal visible={showEquipmentForm} animationType="slide" transparent onRequestClose={() => setShowEquipmentForm(false)}>
+                                <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36 }}>
+                                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎾 Ekipman İlanı Ver</Text>
+                                        <View style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
+                                            {['NEW','USED'].map(c => (
+                                                <TouchableOpacity key={c} onPress={() => setEquipmentForm(f => ({...f, condition:c}))}
+                                                    style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: equipmentForm.condition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentForm.condition===c ? cfg.color : colors.border }}>
+                                                    <Text style={{ color: equipmentForm.condition===c ? '#fff' : colors.textSecondary, fontSize:13, fontWeight:'700' }}>{c==='NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                        <TextInput placeholder="Ürün adı *" placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                        <TextInput placeholder="Fiyat (₺)" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                        <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+                                        <TextInput placeholder="Konum / Şehir" placeholderTextColor={colors.textMuted} value={equipmentForm.location} onChangeText={v => setEquipmentForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                        <View style={{ flexDirection:'row', gap:8 }}>
+                                            <TouchableOpacity onPress={() => setShowEquipmentForm(false)} style={{ flex:1, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={submitEquipment} disabled={submittingEquipment} style={{ flex:2, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
+                                                <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{submittingEquipment ? '...' : 'İlanı Yayınla'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </View>
+                            </Modal>
+                            {/* İlan detay Modal */}
+                            <Modal visible={!!selectedEquipment} animationType="slide" transparent onRequestClose={() => setSelectedEquipment(null)}>
+                                <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36, maxHeight:'85%' }}>
+                                        <ScrollView showsVerticalScrollIndicator={false}>
+                                            {selectedEquipment?.images?.length > 0 && (
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:12 }}>
+                                                    {(selectedEquipment.images||[]).map((img,idx) => (
+                                                        <Image key={idx} source={{ uri:img }} style={{ width:220, height:160, borderRadius:10, marginRight:8 }} resizeMode="cover" />
+                                                    ))}
+                                                </ScrollView>
+                                            )}
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
+                                                <View style={{ backgroundColor: selectedEquipment?.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:8, paddingVertical:3 }}>
+                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>{selectedEquipment?.condition==='NEW' ? 'Sıfır' : 'İkinci El'}</Text>
+                                                </View>
+                                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>{selectedEquipment?.title}</Text>
+                                            </View>
+                                            <Text style={{ color: cfg.color, fontSize:20, fontWeight:'900', marginBottom:8 }}>{selectedEquipment?.price > 0 ? selectedEquipment.price + ' ₺' : 'Fiyat sor'}</Text>
+                                            {selectedEquipment?.description ? <Text style={{ color:colors.textSecondary, fontSize:13, marginBottom:8 }}>{selectedEquipment.description}</Text> : null}
+                                            {selectedEquipment?.location ? <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:4 }}>📍 {selectedEquipment.location}</Text> : null}
+                                            <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:12 }}>👤 {selectedEquipment?.user?.fullName || selectedEquipment?.user?.username}</Text>
+                                            {selectedEquipment?.userId === myId && (
+                                                <TouchableOpacity onPress={() => Alert.alert('İlanı Sil', 'Bu ilanı silmek istiyor musunuz?', [
+                                                    { text:'İptal', style:'cancel' },
+                                                    { text:'Sil', style:'destructive', onPress:() => deleteEquipment(selectedEquipment.id) }
+                                                ])} style={{ backgroundColor:'#ef444420', borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
+                                                    <Text style={{ color:'#ef4444', fontWeight:'800' }}>🗑️ İlanı Sil</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </ScrollView>
+                                        <TouchableOpacity onPress={() => setSelectedEquipment(null)} style={{ marginTop:12, paddingVertical:10, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                            <Text style={{ color:colors.textMuted, fontWeight:'700' }}>Kapat</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </Modal>
+                        </View>
+                    )}
+
+
                     {activeTab === 'coaches' && (
                         <EmptyState emoji="🎓" text={t.emptyCoaches} />
                     )}
