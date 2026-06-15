@@ -255,8 +255,8 @@ export const joinTournament = async (req, res, next) => {
             await createNotification(
                 tournament.creatorId,
                 "TOURNAMENT_JOIN",
-                "🏾 New Join Request",
-                `${participant.user.fullName || participant.user.username} wants to join "${tournament.name}"`,
+                "🏾 Yeni Katılım İsteği",
+                `${participant.user.fullName || participant.user.username} "${tournament.name}" turnuvasına katılmak istiyor.`,
                 { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
             );
         }
@@ -414,8 +414,8 @@ export const cancelJoin = async (req, res, next) => {
             await createNotification(
                 tournament.creatorId,
                 'TOURNAMENT_CANCEL_REQUEST',
-                'âš ï¸ Ä°ptal Talebi',
-                `${updatedUser.fullName || updatedUser.username} "${tournament.name}" turnuvasÄ±ndan ayrÄ±lmak istiyor (etkinliÄŸe 24 saat kaldÄ±)`,
+                "⚠️ İptal Talebi",
+                `${updatedUser.fullName || updatedUser.username} "${tournament.name}" turnuvasından ayrılmak istiyor (etkinliğe 24 saat kaldı)`,
                 { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
             );
             // Notify creator's open modal in real-time
@@ -455,8 +455,8 @@ async function _promoteNextPending(tournamentId, tournament) {
     await createNotification(
         nextUp.userId,
         'TOURNAMENT_JOIN_ACCEPTED',
-        'ğŸ‰ Turnuvaya Kabul Edildiniz',
-        `"${tourn.name}" turnuvasÄ±na yedek listesinden kabul edildiniz`,
+        "🎉 Turnuvaya Kabul Edildiniz",
+        `"${tourn.name}" turnuvasına yedek listesinden kabul edildiniz.`,
         { tournamentId, category: tourn.category, subCategory: tourn.subCategory },
     );
 }
@@ -479,8 +479,8 @@ async function _promoteOnCancel(tournamentId, tournament) {
         await createNotification(
             promoted.userId,
             'TOURNAMENT_JOIN_ACCEPTED',
-            'ğŸ‰ Ana Listeye AlÄ±ndÄ±nÄ±z',
-            `"${tourn.name}" turnuvasÄ±nda yedek listesinden AS LÄ°STE'ye geÃ§tiniz!`,
+            "🎉 Ana Listeye Alındınız",
+            `"${tourn.name}" turnuvasında yedek listesinden AS LİSTE'ye geçtiniz!`,
             { tournamentId, category: tourn.category, subCategory: tourn.subCategory },
         );
     } else {
@@ -517,8 +517,8 @@ export const approveCancelRequest = async (req, res, next) => {
             await prisma.tournamentParticipant.delete({
                 where: { tournamentId_userId: { tournamentId: id, userId } },
             });
-            await createNotification(userId, 'TOURNAMENT_CANCEL_APPROVED', 'âœ… Ä°ptal Talebiniz OnaylandÄ±',
-                `"${tournament.name}" turnuvasÄ±ndan ayrÄ±lma talebiniz onaylandÄ±.`,
+            await createNotification(userId, "TOURNAMENT_CANCEL_APPROVED", "✅ İptal Talebiniz Onaylandı",
+                `"${tournament.name}" turnuvasından ayrılma talebiniz onaylandı.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
             if (wasAS) {
                 await _promoteOnCancel(id, tournament);
@@ -528,8 +528,8 @@ export const approveCancelRequest = async (req, res, next) => {
                 where: { tournamentId_userId: { tournamentId: id, userId } },
                 data: { cancelRequested: false },
             });
-            await createNotification(userId, 'TOURNAMENT_CANCEL_REJECTED', 'âŒ Ä°ptal Talebiniz Reddedildi',
-                `"${tournament.name}" turnuvasÄ±ndan ayrÄ±lma talebiniz reddedildi.`,
+            await createNotification(userId, "TOURNAMENT_CANCEL_REJECTED", "❌ İptal Talebiniz Reddedildi",
+                `"${tournament.name}" turnuvasından ayrılma talebiniz reddedildi.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
         }
 
@@ -619,8 +619,8 @@ export const requestCancellation = async (req, res, next) => {
         await createNotification(
             tournament.creatorId,
             'CANCELLATION_REQUEST',
-            'âš ï¸ Late Cancellation Request',
-            `${user.fullName || user.username} wants to cancel their registration for "${tournament.name}" (less than 24h before start)`,
+            "⚠️ Geç İptal Talebi",
+            `${user.fullName || user.username} "${tournament.name}" turnuvasından ayrılmak istiyor (başlangıca 24 saatten az kaldı).`,
             { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
         );
         res.json({ message: 'Cancellation request sent to creator' });
@@ -946,6 +946,41 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5)
         let p1EloDelta = 0, p2EloDelta = 0;
         let p1RatingBefore = null, p1RatingAfter = null, p2RatingBefore = null, p2RatingAfter = null;
+        // If match was already scored, reverse previous ELO before re-applying
+        if (match.status === "COMPLETED" && match.score && match.p1Id && match.p2Id) {
+            const prev = match.score;
+            if (prev.p1EloDelta !== 0 || prev.p2EloDelta !== 0) {
+                const prevAllIds = [match.p1Id, match.p2Id];
+                const prevInterests = await prisma.userInterest.findMany({
+                    where: { userId: { in: prevAllIds }, category: tournament.category, subCategory: tournament.subCategory },
+                });
+                const p1ir = prevInterests.find(i => i.userId === match.p1Id);
+                const p2ir = prevInterests.find(i => i.userId === match.p2Id);
+                if (p1ir) {
+                    await prisma.userInterest.update({
+                        where: { id: p1ir.id },
+                        data: {
+                            totalPoints: Math.max(0, p1ir.totalPoints - prev.p1EloDelta),
+                            wins:   { decrement: prev.p1EloDelta > 0 ? 1 : 0 },
+                            losses: { decrement: prev.p1EloDelta < 0 ? 1 : 0 },
+                            skillRating: prev.p1RatingBefore ?? p1ir.skillRating,
+                        },
+                    });
+                }
+                if (p2ir) {
+                    await prisma.userInterest.update({
+                        where: { id: p2ir.id },
+                        data: {
+                            totalPoints: Math.max(0, p2ir.totalPoints - prev.p2EloDelta),
+                            wins:   { decrement: prev.p2EloDelta > 0 ? 1 : 0 },
+                            losses: { decrement: prev.p2EloDelta < 0 ? 1 : 0 },
+                            skillRating: prev.p2RatingBefore ?? p2ir.skillRating,
+                        },
+                    });
+                }
+            }
+        }
+
         if (match.p1Id && match.p2Id) {
             const winnerId_e = winner === 'p1' ? match.p1Id : match.p2Id;
             const loserId_e  = winner === 'p1' ? match.p2Id : match.p1Id;
@@ -977,8 +1012,12 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 else if (ratingDiff >= 0.25) transfer = dominant ? 3 : 2;
                 else                         transfer = dominant ? 2 : 1;
 
-                const divisor = tournament.type === '1' ? 2 : 1;
-                const ratingStep = parseFloat((transfer * 0.05 / divisor).toFixed(2));
+                const divisor = tournament.type === "1" ? 2 : 1;
+                // If skill rating diff <=0.10, use half of 0.25-bracket values for ratingStep
+                const skillRatingDiff = Math.abs(wi.skillRating - li.skillRating);
+                const ratingStep = skillRatingDiff <= 0.10
+                    ? parseFloat(((dominant ? 1.5 : 1) * 0.05 / divisor).toFixed(3))
+                    : parseFloat((transfer * 0.05 / divisor).toFixed(2));
                 const wRatingAfter = Math.min(5, parseFloat((wi.skillRating + ratingStep).toFixed(2)));
                 const lRatingAfter = Math.max(0, parseFloat((li.skillRating - ratingStep).toFixed(2)));
 
