@@ -107,9 +107,9 @@ function computeStandings(players, matches) {
     }
     return Object.values(stats).sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
-        const sr = (x) => x.setsWon / Math.max(1, x.setsWon + x.setsLost);
+        const sr = (x) => x.setsLost === 0 ? (x.setsWon === 0 ? 0 : Infinity) : x.setsWon / x.setsLost;
         if (Math.abs(sr(b) - sr(a)) > 0.001) return sr(b) - sr(a);
-        const gr = (x) => x.gamesWon / Math.max(1, x.gamesWon + x.gamesLost);
+        const gr = (x) => x.gamesLost === 0 ? (x.gamesWon === 0 ? 0 : Infinity) : x.gamesWon / x.gamesLost;
         return gr(b) - gr(a);
     });
 }

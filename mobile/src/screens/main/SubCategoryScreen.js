@@ -2637,8 +2637,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const { data } = await api.patch(`/tournaments/${item.id}/matches/${scoreEntry.matchId}/score`, { sets, winner });
             setTournMatches(Array.isArray(data) ? data : []);
             setScoreEntry(null);
-            onUpdated?.();
-            if (isCreator) fetchRequests(); else fetchParticipants();
+            setShowMatchesModal(false);
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSubmittingScore(false); }
@@ -2761,7 +2760,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         }
         return Object.values(stats).sort((a,b) => {
             if (b.points!==a.points) return b.points-a.points;
-            const gr=x=>x.gamesWon/Math.max(1,x.gamesWon+x.gamesLost);
+            const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
+            if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
+            const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
             return gr(b)-gr(a);
         });
     })();
