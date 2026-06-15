@@ -1002,7 +1002,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             const wi = interests.find(i => i.userId === winnerId_e);
             const li = interests.find(i => i.userId === loserId_e);
             if (wi && li) {
-                const ratingDiff = Math.abs(li.totalPoints - wi.totalPoints) / 20;
+                const ratingDiff = Math.abs(wi.skillRating - li.skillRating);
                 let winnerGames = 0, totalGames = 0;
                 for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
                 const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
