@@ -2637,7 +2637,6 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const { data } = await api.patch(`/tournaments/${item.id}/matches/${scoreEntry.matchId}/score`, { sets, winner });
             setTournMatches(Array.isArray(data) ? data : []);
             setScoreEntry(null);
-            setShowMatchesModal(false);
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSubmittingScore(false); }
@@ -2735,6 +2734,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             if (r.userId && r.user?.interests?.[0]?.skillRating != null)
                 map[r.userId] = r.user.interests[0].skillRating;
         });
+        // Override with latest ratings from completed match scores
+        const done = [...tournMatches].filter(m => m.status === "COMPLETED" && m.score);
+        done.sort((a, b) => (a.round||0) - (b.round||0) || (a.matchIndex||0) - (b.matchIndex||0));
+        for (const m of done) {
+            if (m.p1Id && m.score.p1RatingAfter != null) map[m.p1Id] = m.score.p1RatingAfter;
+            if (m.p2Id && m.score.p2RatingAfter != null) map[m.p2Id] = m.score.p2RatingAfter;
+        }
         return map;
     })();
 
