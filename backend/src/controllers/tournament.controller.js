@@ -905,6 +905,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
         // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5)
         let p1EloDelta = 0, p2EloDelta = 0;
+        let p1RatingBefore = null, p1RatingAfter = null, p2RatingBefore = null, p2RatingAfter = null;
         if (match.p1Id && match.p2Id) {
             const winnerId_e = winner === 'p1' ? match.p1Id : match.p2Id;
             const loserId_e  = winner === 'p1' ? match.p2Id : match.p1Id;
@@ -930,27 +931,32 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
                 const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
                 let transfer;
-                if (ratingDiff >= 2.0)      transfer = dominant ? 7 : 6;
-                else if (ratingDiff >= 1.0) transfer = dominant ? 5 : 4;
-                else if (ratingDiff >= 0.5) transfer = dominant ? 4 : 3;
+                if (ratingDiff >= 2.0)       transfer = dominant ? 7 : 6;
+                else if (ratingDiff >= 1.0)  transfer = dominant ? 5 : 4;
+                else if (ratingDiff >= 0.5)  transfer = dominant ? 4 : 3;
                 else if (ratingDiff >= 0.25) transfer = dominant ? 3 : 2;
                 else                         transfer = dominant ? 2 : 1;
+
+                const wRatingAfter = Math.min(5, parseFloat(((wi.totalPoints + transfer) / 100 * 5).toFixed(2)));
+                const lRatingAfter = Math.max(0, parseFloat(((Math.max(0, li.totalPoints - transfer)) / 100 * 5).toFixed(2)));
+
                 await Promise.all([
-                    prisma.userInterest.update({ where: { id: wi.id }, data: {
-                        totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1,
-                        skillRating: Math.min(5, parseFloat(((wi.totalPoints + transfer) / 100 * 5).toFixed(2))),
-                    }}),
-                    prisma.userInterest.update({ where: { id: li.id }, data: {
-                        totalPoints: Math.max(0, li.totalPoints - transfer), losses: li.losses + 1,
-                        skillRating: Math.max(0, parseFloat(((Math.max(0, li.totalPoints - transfer)) / 100 * 5).toFixed(2))),
-                    }}),
+                    prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1, skillRating: wRatingAfter } }),
+                    prisma.userInterest.update({ where: { id: li.id }, data: { totalPoints: Math.max(0, li.totalPoints - transfer), losses: li.losses + 1, skillRating: lRatingAfter } }),
                 ]);
+
+                const p1i = interests.find(i => i.userId === match.p1Id);
+                const p2i = interests.find(i => i.userId === match.p2Id);
+                p1RatingBefore = p1i.skillRating;
+                p2RatingBefore = p2i.skillRating;
+                p1RatingAfter  = winner === 'p1' ? wRatingAfter : lRatingAfter;
+                p2RatingAfter  = winner === 'p2' ? wRatingAfter : lRatingAfter;
                 p1EloDelta = winner === 'p1' ? +transfer : -transfer;
                 p2EloDelta = winner === 'p2' ? +transfer : -transfer;
             }
         }
 
-        const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta };
+        const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta, p1RatingBefore, p1RatingAfter, p2RatingBefore, p2RatingAfter };
 
         await prisma.tournamentMatch.update({
             where: { id: matchId },
