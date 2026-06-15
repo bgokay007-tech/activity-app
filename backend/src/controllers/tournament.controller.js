@@ -328,7 +328,7 @@ export const getParticipants = async (req, res, next) => {
 export const updateJoinRequest = async (req, res, next) => {
     try {
         const { id, userId } = req.params;
-        const { status } = req.body; // ACCEPTED | REJECTED
+        const { status, reason } = req.body; // ACCEPTED | REJECTED
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
@@ -348,6 +348,11 @@ export const updateJoinRequest = async (req, res, next) => {
             });
             const payload = { tournamentId: id, participant: updated };
             accepted.forEach(p => emitToUser(p.userId, 'tournament:participant_accepted', payload));
+        }
+
+        if (status === 'REJECTED') {
+            const body = reason ? `"${tournament.name}" turnuvasına başvurunuz reddedildi. Neden: ${reason}` : `"${tournament.name}" turnuvasına başvurunuz reddedildi.`;
+            await createNotification(userId, 'TOURNAMENT_REJECT', '❌ Başvurunuz Reddedildi', body, { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
         }
 
         res.json(updated);
