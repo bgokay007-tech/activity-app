@@ -246,17 +246,16 @@ export const joinTournament = async (req, res, next) => {
         });
         if (existing) return res.status(400).json({ message: 'You already sent a join request' });
 
-        const isCreator = tournament.creatorId === req.userId;
         const participant = await prisma.tournamentParticipant.create({
-            data: { tournamentId: id, userId: req.userId, note, status: isCreator ? 'ACCEPTED' : 'PENDING', acceptedAt: isCreator ? new Date() : null },
+            data: { tournamentId: id, userId: req.userId, note, status: "PENDING", acceptedAt: null },
             include: { user: { select: { id: true, username: true, fullName: true } } },
         });
 
-        if (!isCreator) {
+        if (tournament.creatorId !== req.userId) {
             await createNotification(
                 tournament.creatorId,
-                'TOURNAMENT_JOIN',
-                'ğŸ¾ New Join Request',
+                "TOURNAMENT_JOIN",
+                "🏾 New Join Request",
                 `${participant.user.fullName || participant.user.username} wants to join "${tournament.name}"`,
                 { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
             );
