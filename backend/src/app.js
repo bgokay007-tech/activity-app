@@ -55,7 +55,7 @@ app.use('/api/cities', cityRoutes);
 app.use('/api/city-alerts', cityAlertRoutes);
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });
+    res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯', resend: !!process.env.RESEND_API_KEY });
 });
 
 app.use((req, res) => {
