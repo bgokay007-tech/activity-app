@@ -2,9 +2,83 @@
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 
-// â”€â”€â”€ Tournament bracket helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tournament bracket helpers ───────────────────────────────────────────────
 
 function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
+
+function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+/** Random group matches: each player plays `matchesPerPlayer` rounds, pairings randomised */
+function randomMatches(players, tournamentId, matchesPerPlayer) {
+    const k = Math.min(matchesPerPlayer, players.length - 1);
+    const played = new Set();
+    const result = [];
+    for (let round = 1; round <= k; round++) {
+        const pool = shuffle(players);
+        const unmatched = new Set(pool.map(p => p.id));
+        const roundPairs = [];
+        for (const player of pool) {
+            if (!unmatched.has(player.id)) continue;
+            const candidates = pool.filter(p => p.id !== player.id && unmatched.has(p.id));
+            for (const opp of candidates) {
+                const key = [player.id, opp.id].sort().join('|');
+                if (played.has(key)) continue;
+                played.add(key);
+                unmatched.delete(player.id);
+                unmatched.delete(opp.id);
+                roundPairs.push({ p1: player, p2: opp });
+                break;
+            }
+        }
+        roundPairs.forEach((pair, idx) => result.push({
+            tournamentId, round, phase: 'GROUP', matchIndex: idx,
+            p1Id: pair.p1.id, p1Name: pair.p1.fullName || pair.p1.username,
+            p2Id: pair.p2.id, p2Name: pair.p2.fullName || pair.p2.username,
+            status: 'PENDING',
+        }));
+    }
+    return result;
+}
+
+/** Seeded group matches: best vs worst, 2nd best vs 2nd worst, etc. */
+function seededMatches(players, tournamentId, matchesPerPlayer) {
+    const k = Math.min(matchesPerPlayer, players.length - 1);
+    // Sort descending by rating
+    const sorted = [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
+    const played = new Set();
+    const result = [];
+    for (let round = 1; round <= k; round++) {
+        const len = sorted.length;
+        const roundPairs = [];
+        // Rotate the “tail” each round so pairings change
+        const tail = sorted.slice(Math.ceil(len / 2));
+        const rotatedTail = [...tail.slice(round % tail.length), ...tail.slice(0, round % tail.length)];
+        const bottom = [...rotatedTail, ...sorted.slice(Math.ceil(len / 2) + rotatedTail.length - tail.length)];
+        const top = sorted.slice(0, Math.ceil(len / 2));
+        for (let i = 0; i < Math.min(top.length, bottom.length); i++) {
+            const p1 = top[i], p2 = bottom[i];
+            if (!p1 || !p2 || p1.id === p2.id) continue;
+            const key = [p1.id, p2.id].sort().join('|');
+            if (played.has(key)) continue;
+            played.add(key);
+            roundPairs.push({ p1, p2 });
+        }
+        roundPairs.forEach((pair, idx) => result.push({
+            tournamentId, round, phase: 'GROUP', matchIndex: idx,
+            p1Id: pair.p1.id, p1Name: pair.p1.fullName || pair.p1.username,
+            p2Id: pair.p2.id, p2Name: pair.p2.fullName || pair.p2.username,
+            status: 'PENDING',
+        }));
+    }
+    return result;
+}
 
 /**
  * ELO-based group matches: each player plays `matchesPerPlayer` matches
@@ -128,6 +202,7 @@ export const createTournament = async (req, res, next) => {
             scope, genderType, isPaid, feeType, playerFee, paymentMethod, ibanNumber, ibanHolder,
             prize1, prize2, prize3, contactPhone,
             minPlayers, maxPlayers, minRating, maxRating,
+            matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd,
             setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers,
             location, city,
             surface, isIndoor,
@@ -155,6 +230,10 @@ export const createTournament = async (req, res, next) => {
                 contactPhone: contactPhone || null,
                 minRating: minRating !== undefined && minRating !== '' ? parseFloat(minRating) : null,
                 maxRating: maxRating !== undefined && maxRating !== '' ? parseFloat(maxRating) : null,
+                matchmakingType: matchmakingType || 'ELO',
+                matchFrequency: matchFrequency || 'FLEXIBLE',
+                matchTimeStart: matchTimeStart || null,
+                matchTimeEnd: matchTimeEnd || null,
                 minPlayers: minPlayers ? parseInt(minPlayers) : 2,
                 setsPerMatch: setsPerMatch ? parseInt(setsPerMatch) : null,
                 advantageScoring: advantageScoring !== false,
@@ -672,8 +751,12 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.prize1              !== undefined && { prize1: b.prize1 || null }),
                 ...(b.prize2              !== undefined && { prize2: b.prize2 || null }),
                 ...(b.prize3              !== undefined && { prize3: b.prize3 || null }),
-                ...(b.minRating !== undefined && { minRating: b.minRating !== '' && b.minRating !== null ? parseFloat(b.minRating) : null }),
-                ...(b.maxRating !== undefined && { maxRating: b.maxRating !== '' && b.maxRating !== null ? parseFloat(b.maxRating) : null }),
+                ...(b.minRating          !== undefined && { minRating: b.minRating !== '' && b.minRating !== null ? parseFloat(b.minRating) : null }),
+                ...(b.maxRating          !== undefined && { maxRating: b.maxRating !== '' && b.maxRating !== null ? parseFloat(b.maxRating) : null }),
+                ...(b.matchmakingType    !== undefined && { matchmakingType: b.matchmakingType || null }),
+                ...(b.matchFrequency     !== undefined && { matchFrequency: b.matchFrequency || null }),
+                ...(b.matchTimeStart     !== undefined && { matchTimeStart: b.matchTimeStart || null }),
+                ...(b.matchTimeEnd       !== undefined && { matchTimeEnd: b.matchTimeEnd || null }),
                 ...(b.minPlayers          !== undefined && { minPlayers: parseInt(b.minPlayers) }),
                 ...(b.maxPlayers          !== undefined && { maxPlayers: parseInt(b.maxPlayers) }),
                 ...(b.setsPerMatch        !== undefined && { setsPerMatch: b.setsPerMatch ? parseInt(b.setsPerMatch) : null }),
@@ -797,12 +880,37 @@ export const startTournament = async (req, res, next) => {
             return res.status(400).json({ message: `En az ${tournament.minPlayers || 2} oyuncu gerekli` });
         }
 
+        const mmType = tournament.matchmakingType || 'ELO';
+        const freq   = tournament.matchFrequency  || 'FLEXIBLE';
+        const daysPerRound = freq === 'WEEKLY_1' ? 7 : freq === 'WEEKLY_2' ? 4 : null;
+        const now = new Date();
+
+        // For RANDOM/SEEDED playoff seeding, apply ordering before singleElim
+        const playoffPlayers = mmType === 'RANDOM'
+            ? shuffle(players)
+            : [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
+
         let matches;
         if (tournament.type === '2') {
-            matches = singleElimMatches(players, id, 1, 'PLAYOFF');
+            matches = singleElimMatches(playoffPlayers, id, 1, 'PLAYOFF');
         } else {
             const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
-            matches = eloBasedMatches(players, id, matchesPerPlayer);
+            if (mmType === 'RANDOM') {
+                matches = randomMatches(players, id, matchesPerPlayer);
+            } else if (mmType === 'SEEDED') {
+                matches = seededMatches(players, id, matchesPerPlayer);
+            } else {
+                matches = eloBasedMatches(players, id, matchesPerPlayer); // ELO default
+            }
+        }
+
+        // Attach deadline to each match based on matchFrequency
+        if (daysPerRound) {
+            matches = matches.map(m => {
+                const d = new Date(now);
+                d.setDate(d.getDate() + (m.round || 1) * daysPerRound);
+                return { ...m, deadline: d };
+            });
         }
 
         await prisma.$transaction([

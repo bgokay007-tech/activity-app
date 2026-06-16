@@ -408,6 +408,10 @@ model Tournament {
   contactPhone         String?
   minRating            Float?       // minimum skillRating to join (0.0–5.0)
   maxRating            Float?       // maximum skillRating to join (0.0–5.0)
+  matchmakingType      String?      // 'ELO' | 'RANDOM' | 'SEEDED'
+  matchFrequency       String?      // 'WEEKLY_1' | 'WEEKLY_2' | 'FLEXIBLE'
+  matchTimeStart       String?      // earliest allowed match time e.g. '09:00'
+  matchTimeEnd         String?      // latest allowed match time e.g. '22:00'
   minPlayers           Int          @default(2)
   maxPlayers           Int          @default(32)
   setsPerMatch         Int?         // 1 | 3 | 5
@@ -451,9 +455,10 @@ model TournamentMatch {
   p2Id         String?
   p2Name       String?
   score        Json?    // {sets:[{p1:X,p2:Y},...], winner:'p1'|'p2', p1Sets:N, p2Sets:N, p1Games:N, p2Games:N}
-  status       String   @default("PENDING") // PENDING | COMPLETED | BYE
+  status       String    @default("PENDING") // PENDING | COMPLETED | BYE
   winnerId     String?
-  createdAt    DateTime @default(now())
+  deadline     DateTime? // computed from matchFrequency when tournament starts
+  createdAt    DateTime  @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 }

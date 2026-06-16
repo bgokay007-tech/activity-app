@@ -2926,6 +2926,36 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             ⭐ {item.minRating !== null && item.minRating !== undefined ? `${item.minRating}★` : '0★'} – {item.maxRating !== null && item.maxRating !== undefined ? `${item.maxRating}★` : '5★'}
                         </Text>
                     ) : null}
+                    {/* Rules badges */}
+                    {(item.matchmakingType || item.matchFrequency || item.matchTimeStart) && (
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:2 }}>
+                            {item.matchmakingType && item.matchmakingType !== 'ELO' ? (
+                                <View style={{ backgroundColor:'#6d28d920', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#6d28d940' }}>
+                                    <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'700' }}>
+                                        {item.matchmakingType === 'RANDOM' ? '🎲 Rastgele Eşleşme' : '🏅 Sıralamaya Göre'}
+                                    </Text>
+                                </View>
+                            ) : item.matchmakingType === 'ELO' ? (
+                                <View style={{ backgroundColor:'#1d4ed820', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#1d4ed840' }}>
+                                    <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'700' }}>🎯 ELO Eşleşme</Text>
+                                </View>
+                            ) : null}
+                            {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
+                                <View style={{ backgroundColor:'#065f4620', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#065f4640' }}>
+                                    <Text style={{ color:'#34d399', fontSize:9, fontWeight:'700' }}>
+                                        {item.matchFrequency === 'WEEKLY_1' ? '📅 Haftada 1 Maç' : '📅 Haftada 2 Maç'}
+                                    </Text>
+                                </View>
+                            )}
+                            {(item.matchTimeStart || item.matchTimeEnd) && (
+                                <View style={{ backgroundColor:'#78350f20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#78350f40' }}>
+                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>
+                                        ⏰ {item.matchTimeStart || '?'} – {item.matchTimeEnd || '?'}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    )}
                     {(item.prize1 || item.prize2 || item.prize3) && (
                         <View style={{ gap:1 }}>
                             {item.prize1 && <Text style={{ color:'#fbbf24', fontSize:11 }}>🥇 {item.prize1}</Text>}
@@ -3079,6 +3109,32 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <Text style={s.modalTitle}>📋 Maçlar & Puan Tablosu</Text>
                         <TouchableOpacity onPress={() => setShowMatchesModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                     </View>
+                    {/* Rules summary bar */}
+                    {(item.matchmakingType || item.matchFrequency || item.matchTimeStart) && (
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5, marginBottom:10, paddingHorizontal:2 }}>
+                            {item.matchmakingType && (
+                                <View style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ color: colors.textSecondary, fontSize:10, fontWeight:'700' }}>
+                                        {item.matchmakingType === 'ELO' ? '🎯 ELO Eşleşme' : item.matchmakingType === 'RANDOM' ? '🎲 Rastgele' : '🏅 Sıralamaya Göre'}
+                                    </Text>
+                                </View>
+                            )}
+                            {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
+                                <View style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ color: colors.textSecondary, fontSize:10, fontWeight:'700' }}>
+                                        {item.matchFrequency === 'WEEKLY_1' ? '📅 Haftada 1 Maç' : '📅 Haftada 2 Maç'}
+                                    </Text>
+                                </View>
+                            )}
+                            {(item.matchTimeStart || item.matchTimeEnd) && (
+                                <View style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>
+                                        ⏰ {item.matchTimeStart || '?'} – {item.matchTimeEnd || '?'}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    )}
                     {(item.type === '1' || item.type === '3') && (
                         <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
                             {['matches','standings'].map(tab => (
@@ -3178,6 +3234,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         </View>
                                                         <View style={{ alignItems:'flex-end', gap:3 }}>
                                                             {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:10 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
+                                                            {match.deadline && !isDone && (
+                                                                <Text style={{ color: new Date(match.deadline) < new Date() ? '#f87171' : '#fbbf24', fontSize:9, fontWeight:'700' }}>
+                                                                    ⏳ {new Date(match.deadline).toLocaleDateString('tr-TR')}
+                                                                </Text>
+                                                            )}
                                                             {isDone && match.score && (
                                                                 <Text style={{ color:'#94a3b8', fontSize:11 }}>
                                                                     {(match.score.sets||[]).map(s=>`${s.p1}-${s.p2}`).join(', ')}
@@ -3948,6 +4009,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const INIT = {
         name: '', scope: 'YEREL', scopeCity: '', scopeDistrict: '', scopeCountry: '',
         type: '1', minPlayers: '', maxPlayers: '', minRating: '', maxRating: '',
+        matchmakingType: 'ELO', matchFrequency: 'FLEXIBLE', matchTimeStart: '', matchTimeEnd: '',
         eventStartDate: null, eventStartTime: '',
         eventEndDate:   null, eventEndTime:   '',
         regEndDate: null, regEndTime: '',
@@ -4066,6 +4128,10 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 scope: f.scope, genderType: f.genderType, city: cityVal,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
+                matchmakingType: f.matchmakingType || 'ELO',
+                matchFrequency: f.matchFrequency || 'FLEXIBLE',
+                matchTimeStart: f.matchTimeStart || undefined,
+                matchTimeEnd: f.matchTimeEnd || undefined,
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || undefined,
@@ -4610,6 +4676,64 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </TouchableOpacity>
                             </View>
 
+                            {/* ─── Turnuva Kuralları ─── */}
+                            <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:10, borderWidth:1, borderColor: colors.border }}>
+                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'900', marginBottom:10 }}>⚙️ Turnuva Kuralları</Text>
+
+                                {/* Eşleşme Tipi */}
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>Eşleşme Tipi</Text>
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                                    {[
+                                        { v:'ELO',    label:'🎯 ELO Bazlı',        desc:'Yakın dereceli eşleşme' },
+                                        { v:'RANDOM',  label:'🎲 Rastgele',          desc:'Karışık kura' },
+                                        { v:'SEEDED',  label:'🏅 Sıralamaya Göre',  desc:'En iyi vs en zayıf' },
+                                    ].map(opt => (
+                                        <TouchableOpacity key={opt.v} onPress={() => set('matchmakingType', opt.v)}
+                                            style={{ flex:1, borderRadius:8, paddingVertical:8, paddingHorizontal:4, alignItems:'center', borderWidth:1.5,
+                                                borderColor: f.matchmakingType === opt.v ? cfg.color : colors.border,
+                                                backgroundColor: f.matchmakingType === opt.v ? cfg.color+'22' : 'transparent' }}>
+                                            <Text style={{ color: f.matchmakingType === opt.v ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800', textAlign:'center' }}>{opt.label}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginTop:2 }}>{opt.desc}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* Maç Sıklığı */}
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>Maç Sıklığı</Text>
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                                    {[
+                                        { v:'WEEKLY_1', label:'📅 Haftada 1',  desc:'7 gün/round' },
+                                        { v:'WEEKLY_2', label:'📅 Haftada 2',  desc:'4 gün/round' },
+                                        { v:'FLEXIBLE', label:'🔓 Esnek',      desc:'Süre yok' },
+                                    ].map(opt => (
+                                        <TouchableOpacity key={opt.v} onPress={() => set('matchFrequency', opt.v)}
+                                            style={{ flex:1, borderRadius:8, paddingVertical:8, paddingHorizontal:4, alignItems:'center', borderWidth:1.5,
+                                                borderColor: f.matchFrequency === opt.v ? cfg.color : colors.border,
+                                                backgroundColor: f.matchFrequency === opt.v ? cfg.color+'22' : 'transparent' }}>
+                                            <Text style={{ color: f.matchFrequency === opt.v ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800', textAlign:'center' }}>{opt.label}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginTop:2 }}>{opt.desc}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* Maç Saati Aralığı */}
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>⏰ Maç Saati Aralığı (opsiyonel)</Text>
+                                <View style={{ flexDirection:'row', gap:8 }}>
+                                    <TouchableOpacity onPress={() => setRatingField('timeStart')} style={{ flex:1 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>En Erken</Text>
+                                        <View style={{ backgroundColor: colors.surface, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: f.matchTimeStart ? cfg.color : colors.border }}>
+                                            <Text style={{ color: f.matchTimeStart ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>{f.matchTimeStart || '—'}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setRatingField('timeEnd')} style={{ flex:1 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>En Geç</Text>
+                                        <View style={{ backgroundColor: colors.surface, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: f.matchTimeEnd ? cfg.color : colors.border }}>
+                                            <Text style={{ color: f.matchTimeEnd ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>{f.matchTimeEnd || '—'}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
                             {/* Contact phone */}
                             <Text style={s.fieldLabel}>{t.tournContactPhoneLabel}</Text>
                             <TextInput style={[s.fieldInput, ti]} value={f.contactPhone}
@@ -4634,10 +4758,17 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 </KeyboardAvoidingView>
             </View>
             <RatingPickerModal
-                visible={!!ratingField}
+                visible={ratingField === 'min' || ratingField === 'max'}
                 title={ratingField === 'min' ? '⭐ Alt Derece Limiti' : '⭐ Üst Derece Limiti'}
                 value={ratingField === 'min' ? f.minRating : f.maxRating}
                 onSelect={(v) => { set(ratingField === 'min' ? 'minRating' : 'maxRating', v); setRatingField(null); }}
+                onClose={() => setRatingField(null)}
+            />
+            <TimeGridModal
+                visible={ratingField === 'timeStart' || ratingField === 'timeEnd'}
+                title={ratingField === 'timeStart' ? '⏰ En Erken Maç Saati' : '⏰ En Geç Maç Saati'}
+                value={ratingField === 'timeStart' ? f.matchTimeStart : f.matchTimeEnd}
+                onSelect={(v) => { set(ratingField === 'timeStart' ? 'matchTimeStart' : 'matchTimeEnd', v); setRatingField(null); }}
                 onClose={() => setRatingField(null)}
             />
         </Modal>
