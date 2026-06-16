@@ -124,9 +124,9 @@ function getRequired(request) {
 
 export const getCountsBySubCategory = async (req, res, next) => {
     try {
-        const { category: categoryRaw } = req.query;
-        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
-        const where = { status: 'OPEN', ...(category && { category }) };
+        const { category } = req.query;
+        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
+        const where = { status: 'OPEN', ...catWhere };
 
         const [rivalRows, tournRows] = await Promise.all([
             prisma.activityRequest.groupBy({
@@ -136,7 +136,7 @@ export const getCountsBySubCategory = async (req, res, next) => {
             }),
             prisma.tournament.groupBy({
                 by: ['subCategory'],
-                where: { status: 'OPEN', ...(category && { category }) },
+                where: { status: 'OPEN', ...catWhere },
                 _count: { id: true },
             }),
         ]);
@@ -268,8 +268,8 @@ export const createRivalRequest = async (req, res, next) => {
 
 export const getRivalRequests = async (req, res, next) => {
     try {
-        const { category: categoryRaw, subCategory, matchType } = req.query;
-        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
+        const { category, subCategory, matchType } = req.query;
+        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
 
         // Auto-delete OPEN listings whose match time has already passed (not enough players)
         const now = new Date();
@@ -300,7 +300,7 @@ export const getRivalRequests = async (req, res, next) => {
 
         const requests = await prisma.activityRequest.findMany({
             where: {
-                ...(category    && { category }),
+                ...catWhere,
                 ...(subCategory && { subCategory }),
                 ...(matchType   && { matchType: matchType.toUpperCase() }),
                 status: 'OPEN',
@@ -314,7 +314,7 @@ export const getRivalRequests = async (req, res, next) => {
                     select: {
                         ...SENDER_SELECT,
                         interests: {
-                            where: { ...(category && { category }), ...(subCategory && { subCategory }) },
+                            where: { ...catWhere, ...(subCategory && { subCategory }) },
                             select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true },
                         },
                     },
@@ -327,7 +327,7 @@ export const getRivalRequests = async (req, res, next) => {
                                 ...SENDER_SELECT,
                                 interests: {
                                     where: {
-                                        ...(category    && { category }),
+                                        ...catWhere,
                                         ...(subCategory && { subCategory }),
                                     },
                                     select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true },
@@ -513,13 +513,13 @@ const getMatchDeadline = (match) => {
 
 export const getUpcomingMatches = async (req, res, next) => {
     try {
-        const { category: categoryRaw, subCategory } = req.query;
-        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
+        const { category, subCategory } = req.query;
+        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
 
         const matches = await prisma.activityRequest.findMany({
             where: {
                 status: 'MATCHED',
-                ...(category    && { category }),
+                ...catWhere,
                 ...(subCategory && { subCategory }),
             },
             include: { sender: { select: SENDER_SELECT }, _count: { select: { matchComments: true } } },
@@ -978,11 +978,11 @@ export const archiveMatch = async (req, res, next) => {
 
 export const getCompletedMatches = async (req, res, next) => {
     try {
-        const { category: categoryRaw, subCategory } = req.query;
-        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
+        const { category, subCategory } = req.query;
+        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
         const all = await prisma.activityRequest.findMany({
             where: {
-                ...(category    && { category }),
+                ...catWhere,
                 ...(subCategory && { subCategory }),
                 status: 'COMPLETED',
                 scoreStatus: { not: 'CONFIRMED' },
@@ -1004,11 +1004,11 @@ export const getCompletedMatches = async (req, res, next) => {
 
 export const getArchivedMatchesBySport = async (req, res, next) => {
     try {
-        const { category: categoryRaw, subCategory } = req.query;
-        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
+        const { category, subCategory } = req.query;
+        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
         const all = await prisma.activityRequest.findMany({
             where: {
-                ...(category    && { category }),
+                ...catWhere,
                 ...(subCategory && { subCategory }),
                 status: 'COMPLETED',
                 archived: true,
