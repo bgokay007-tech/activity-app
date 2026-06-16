@@ -243,11 +243,20 @@ export const joinTournament = async (req, res, next) => {
             }
         }
 
-        // Check tournament ban
-        const userBan = await prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true } });
+        // Check tournament ban + rating
+        const userBan = await prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true, skillRating: true } });
         if (userBan?.tournamentBanRemaining > 0) {
             await prisma.user.update({ where: { id: req.userId }, data: { tournamentBanRemaining: { decrement: 1 } } });
-            return res.status(403).json({ message: `GeÃ§ iptal cezasÄ± nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katÄ±lamazsÄ±nÄ±z.` });
+            return res.status(403).json({ message: `Geç iptal cezası nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katılamazsınız.` });
+        }
+
+        // Check rating limits
+        const userRating = userBan?.skillRating ?? 0;
+        if (tournament.minRating !== null && tournament.minRating !== undefined && userRating < tournament.minRating) {
+            return res.status(403).json({ message: `Bu turnuvaya katılmak için en az ${tournament.minRating}★ dereceniz olması gerekiyor. Mevcut dereceniz: ${userRating.toFixed(2)}★` });
+        }
+        if (tournament.maxRating !== null && tournament.maxRating !== undefined && userRating > tournament.maxRating) {
+            return res.status(403).json({ message: `Bu turnuva en fazla ${tournament.maxRating}★ dereceli oyuncular içindir. Mevcut dereceniz: ${userRating.toFixed(2)}★` });
         }
 
         const existing = await prisma.tournamentParticipant.findUnique({

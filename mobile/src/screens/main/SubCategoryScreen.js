@@ -4689,8 +4689,6 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showTournamentPermission, setShowTournamentPermission] = useState(false);
     const [tournamentPermStatus, setTournamentPermStatus] = useState(null);
     const [tournaments, setTournaments] = useState([]);
-    const [tournFilterMin, setTournFilterMin] = useState('');
-    const [tournFilterMax, setTournFilterMax] = useState('');
     const [loadingTournaments, setLoadingTournaments] = useState(false);
     const [profileUserId, setProfileUserId] = useState(null);
 
@@ -5214,15 +5212,8 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── TOURNAMENTS ── */}
                     {activeTab === 'tournaments' && (() => {
-                        const ratingFilter = (item) => {
-                            // Hide tournament if its maxRating is below user's min selected rating
-                            if (tournFilterMin !== '' && item.maxRating !== null && item.maxRating < parseFloat(tournFilterMin)) return false;
-                            // Hide tournament if its minRating is above user's max selected rating
-                            if (tournFilterMax !== '' && item.minRating !== null && item.minRating > parseFloat(tournFilterMax)) return false;
-                            return true;
-                        };
-                        const inProgress = tournaments.filter(t => t.status === 'IN_PROGRESS' && ratingFilter(t));
-                        const open = tournaments.filter(t => t.status === 'OPEN' && ratingFilter(t));
+                        const inProgress = tournaments.filter(t => t.status === 'IN_PROGRESS');
+                        const open = tournaments.filter(t => t.status === 'OPEN');
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -5248,40 +5239,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 >
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
                                 </TouchableOpacity>
-
-                                {/* Rating filter chips */}
-                                <View style={{ marginBottom:8 }}>
-                                    <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:4 }}>⭐ Derece Filtresi (Alt Limit)</Text>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                        <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
-                                            {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
-                                                <TouchableOpacity key={v} onPress={() => setTournFilterMin(v)}
-                                                    style={{ paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1.5,
-                                                        borderColor: tournFilterMin === v ? cfg.color : colors.border,
-                                                        backgroundColor: tournFilterMin === v ? cfg.color + '33' : colors.surface2 }}>
-                                                    <Text style={{ color: tournFilterMin === v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
-                                                        {v === '' ? 'Tümü' : `${v} ★`}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    </ScrollView>
-                                    <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:4, marginTop:6 }}>⭐ Derece Filtresi (Üst Limit)</Text>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                        <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
-                                            {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
-                                                <TouchableOpacity key={v} onPress={() => setTournFilterMax(v)}
-                                                    style={{ paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1.5,
-                                                        borderColor: tournFilterMax === v ? cfg.color : colors.border,
-                                                        backgroundColor: tournFilterMax === v ? cfg.color + '33' : colors.surface2 }}>
-                                                    <Text style={{ color: tournFilterMax === v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
-                                                        {v === '' ? 'Tümü' : `${v} ★`}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    </ScrollView>
-                                </View>
 
                                 {loadingTournaments
                                     ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
