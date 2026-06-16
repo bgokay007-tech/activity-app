@@ -116,12 +116,12 @@ function computeStandings(players, matches) {
 
 export const createTournament = async (req, res, next) => {
     try {
-        const creator = await prisma.user.findUnique({
-            where: { id: req.userId },
-            select: { canCreateTournament: true, isAdmin: true },
-        });
-        if (!creator?.canCreateTournament && !creator?.isAdmin) {
-            return res.status(403).json({ message: 'Turnuva oluşturma izniniz yok. Lütfen admin onayı alın.' });
+        const creator = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+        if (!creator?.isAdmin) {
+            const perm = await prisma.tournamentPermissionRequest.findUnique({ where: { userId: req.userId }, select: { status: true } });
+            if (perm?.status !== 'APPROVED') {
+                return res.status(403).json({ message: 'Turnuva oluşturma izniniz yok. Lütfen admin onayı alın.' });
+            }
         }
         const {
             name, type, category, subCategory, description,
@@ -1164,11 +1164,9 @@ export const getArchivedTournaments = async (req, res, next) => {
 
 export const requestTournamentPermission = async (req, res, next) => {
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: req.userId },
-            select: { canCreateTournament: true, username: true },
-        });
-        if (user?.canCreateTournament) return res.json({ status: 'APPROVED' });
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        const existing = await prisma.tournamentPermissionRequest.findUnique({ where: { userId: req.userId }, select: { status: true } });
+        if (existing?.status === 'APPROVED') return res.json({ status: 'APPROVED' });
 
         await prisma.tournamentPermissionRequest.upsert({
             where: { userId: req.userId },
@@ -1191,14 +1189,7 @@ export const requestTournamentPermission = async (req, res, next) => {
 
 export const getTournamentPermissionStatus = async (req, res, next) => {
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: req.userId },
-            select: { canCreateTournament: true },
-        });
-        if (user?.canCreateTournament) return res.json({ status: 'APPROVED' });
-        const request = await prisma.tournamentPermissionRequest.findUnique({
-            where: { userId: req.userId },
-        });
+        const request = await prisma.tournamentPermissionRequest.findUnique({ where: { userId: req.userId }, select: { status: true } });
         res.json({ status: request?.status || 'NONE' });
     } catch (e) { next(e); }
 };

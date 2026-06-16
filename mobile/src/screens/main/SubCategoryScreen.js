@@ -3761,9 +3761,9 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) =>
     `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`
 );
 
-function TournamentPermissionModal({ visible, onClose }) {
+function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
     const t = useT();
-    const [status, setStatus] = useState(null); // null | NONE | PENDING | APPROVED | REJECTED
+    const [status, setStatus] = useState(null);
     const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
 
@@ -3771,7 +3771,7 @@ function TournamentPermissionModal({ visible, onClose }) {
         if (!visible) return;
         setLoading(true);
         api.get('/tournaments/permission-status')
-            .then(r => setStatus(r.data.status))
+            .then(r => { setStatus(r.data.status); onStatusChange?.(r.data.status); })
             .catch(() => setStatus('NONE'))
             .finally(() => setLoading(false));
     }, [visible]);
@@ -3781,6 +3781,7 @@ function TournamentPermissionModal({ visible, onClose }) {
         try {
             const r = await api.post('/tournaments/permission-request');
             setStatus(r.data.status);
+            onStatusChange?.(r.data.status);
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSending(false); }
@@ -4553,7 +4554,6 @@ export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
-    const myCanCreateTournament = useSelector(s => s.auth.user?.canCreateTournament);
     const t = useT();
     const cfg = getConfig(sub);
     const tabs = getTabs(sub);
@@ -4615,6 +4615,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showCreatePW, setShowCreatePW] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
     const [showTournamentPermission, setShowTournamentPermission] = useState(false);
+    const [tournamentPermStatus, setTournamentPermStatus] = useState(null);
     const [tournaments, setTournaments] = useState([]);
     const [loadingTournaments, setLoadingTournaments] = useState(false);
     const [profileUserId, setProfileUserId] = useState(null);
@@ -4803,6 +4804,13 @@ export default function SubCategoryScreen({ route, navigation }) {
         const task = InteractionManager.runAfterInteractions(() => { loadTournaments(); });
         return () => task.cancel();
     }, [loadTournaments]);
+
+    useEffect(() => {
+        if (activeTab !== 'tournaments' || myIsAdmin) return;
+        api.get('/tournaments/permission-status')
+            .then(r => setTournamentPermStatus(r.data.status))
+            .catch(() => {});
+    }, [activeTab, myIsAdmin]);
 
     const loadEquipment = useCallback(async () => {
         if (activeTab !== 'equipment') return;
@@ -5153,7 +5161,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <TouchableOpacity
                                     style={[s.createBtn, { borderColor: cfg.color + '60' }]}
                                     onPress={() => {
-                                        if (myCanCreateTournament || myIsAdmin) setShowCreateTournament(true);
+                                        if (myIsAdmin || tournamentPermStatus === 'APPROVED') setShowCreateTournament(true);
                                         else setShowTournamentPermission(true);
                                     }}
                                 >
@@ -5644,7 +5652,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             {showCreateRival && <CreateRivalModal visible onClose={() => setShowCreateRival(false)} category={category} sub={sub} onCreated={load} />}
             {showCreatePW && <CreatePlayerWantedModal visible onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />}
             {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
-            {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} />}
+            {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} onStatusChange={setTournamentPermStatus} />}
             {!!profileUserId && <UserProfileModal visible userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />}
 
             {/* ── Yorumlar — tam ekran modal ── */}

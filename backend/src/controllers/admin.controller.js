@@ -132,10 +132,7 @@ export const getTournamentPermissionRequests = async (req, res, next) => {
 export const approveTournamentPermission = async (req, res, next) => {
     try {
         const { userId } = req.params;
-        await prisma.$transaction([
-            prisma.user.update({ where: { id: userId }, data: { canCreateTournament: true } }),
-            prisma.tournamentPermissionRequest.update({ where: { userId }, data: { status: 'APPROVED' } }),
-        ]);
+        await prisma.tournamentPermissionRequest.update({ where: { userId }, data: { status: 'APPROVED' } });
         createNotification(userId, 'TOURNAMENT_PERMISSION_APPROVED',
             '✅ Turnuva İzni Onaylandı',
             'Tebrikler! Artık turnuva oluşturabilirsiniz.',

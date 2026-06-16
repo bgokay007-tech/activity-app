@@ -207,7 +207,7 @@ export const getMe = async (req, res, next) => {
                 id: true, email: true, phone: true, username: true,
                 fullName: true, avatar: true, bio: true, gender: true,
                 birthDate: true, createdAt: true, city: true, country: true,
-                isPublic: true, isAdmin: true, canCreateTournament: true,
+                isPublic: true, isAdmin: true,
                 profilePrivacy: true, profileExclude: true,
                 fullNamePrivacy: true, fullNameExclude: true,
                 cityPrivacy: true, genderPrivacy: true, birthDatePrivacy: true,
