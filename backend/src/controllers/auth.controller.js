@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Resend } from 'resend';
+import axios from 'axios';
 import twilio from 'twilio';
 import prisma from '../config/prisma.js';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../config/env.js';
@@ -26,14 +26,16 @@ const HTML_TEMPLATE = (code) => `
 </div>`;
 
 const sendEmailOtp = async (to, code) => {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const { error } = await resend.emails.send({
-        from: 'AcTiViTy <onboarding@resend.dev>',
-        to,
-        subject: 'AcTiViTy – Doğrulama Kodunuz',
-        html: HTML_TEMPLATE(code),
-    });
-    if (error) throw new Error(error.message);
+    await axios.post(
+        'https://api.brevo.com/v3/smtp/email',
+        {
+            sender: { name: 'AcTiViTy', email: 'b.gokay007@gmail.com' },
+            to: [{ email: to }],
+            subject: 'AcTiViTy – Doğrulama Kodunuz',
+            htmlContent: HTML_TEMPLATE(code),
+        },
+        { headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json' }, timeout: 8000 }
+    );
 };
 
 const generateToken = (userId) => jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -72,7 +74,7 @@ export const sendOtp = async (req, res, next) => {
 
         console.log(`[OTP] ${key} → ${code}`);
 
-        const resendReady = !!process.env.RESEND_API_KEY;
+        const resendReady = !!process.env.BREVO_API_KEY;
 
         let emailSent = false;
         if (method === 'email') {
