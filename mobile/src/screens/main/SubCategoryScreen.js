@@ -1916,6 +1916,39 @@ const tg = StyleSheet.create({
     cellTextActive: { color:'#fff' },
 });
 
+function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
+    const ratings = ['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'];
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={tg.overlay}>
+                <View style={tg.box}>
+                    <View style={tg.header}>
+                        <Text style={tg.title}>{title}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <FlatList
+                        data={ratings}
+                        keyExtractor={item => item === '' ? 'none' : item}
+                        numColumns={4}
+                        columnWrapperStyle={{ gap:8, marginBottom:8 }}
+                        showsVerticalScrollIndicator={false}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity
+                                style={[tg.cell, value === item && tg.cellActive]}
+                                onPress={() => { onSelect(item); onClose(); }}
+                            >
+                                <Text style={[tg.cellText, value === item && tg.cellTextActive]}>
+                                    {item === '' ? 'Yok' : `${item} ★`}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    />
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
 
 const DURATIONS_FULL = [
@@ -2448,6 +2481,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [editRegEndTime, setEditRegEndTime] = useState(item.endTime || '');
     const [editDp, setEditDp] = useState(null);
     const [editTf, setEditTf] = useState(null);
+    const [editRf, setEditRf] = useState(null); // 'min' | 'max'
     const [saving, setSaving] = useState(false);
     const fmtD = (d) => d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : undefined;
 
@@ -3360,36 +3394,23 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </>)}
 
                                 {/* Rating limits */}
-                                <Text style={[s.fieldLabel, { marginTop:10 }]}>⭐ Alt Derece Limiti</Text>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:2 }}>
-                                    <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
-                                        {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
-                                            <TouchableOpacity key={v} onPress={() => setEditMinRating(v)}
-                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1.5,
-                                                    borderColor: editMinRating === v ? infoColor : colors.border,
-                                                    backgroundColor: editMinRating === v ? infoColor + '33' : colors.surface2 }}>
-                                                <Text style={{ color: editMinRating === v ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
-                                                    {v === '' ? 'Yok' : `${v} ★`}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </ScrollView>
-                                <Text style={[s.fieldLabel, { marginTop:6 }]}>⭐ Üst Derece Limiti</Text>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
-                                    <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
-                                        {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
-                                            <TouchableOpacity key={v} onPress={() => setEditMaxRating(v)}
-                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1.5,
-                                                    borderColor: editMaxRating === v ? infoColor : colors.border,
-                                                    backgroundColor: editMaxRating === v ? infoColor + '33' : colors.surface2 }}>
-                                                <Text style={{ color: editMaxRating === v ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
-                                                    {v === '' ? 'Yok' : `${v} ★`}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </ScrollView>
+                                <Text style={[s.fieldLabel, { marginTop:10 }]}>⭐ Derece Limiti</Text>
+                                <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                    <TouchableOpacity onPress={() => setEditRf('min')}
+                                        style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1.5, borderColor: editMinRating ? infoColor : colors.border }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>Alt Limit</Text>
+                                        <Text style={{ color: editMinRating ? infoColor : colors.textSecondary, fontSize:14, fontWeight:'800' }}>
+                                            {editMinRating ? `${editMinRating} ★` : 'Yok'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setEditRf('max')}
+                                        style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1.5, borderColor: editMaxRating ? infoColor : colors.border }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>Üst Limit</Text>
+                                        <Text style={{ color: editMaxRating ? infoColor : colors.textSecondary, fontSize:14, fontWeight:'800' }}>
+                                            {editMaxRating ? `${editMaxRating} ★` : 'Yok'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
 
                                 {/* Prizes */}
                                 <Text style={s.fieldLabel}>🏆 Ödüller</Text>
@@ -3430,6 +3451,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         setEditTf(null);
                     }}
                     onClose={() => setEditTf(null)}
+                />
+                <RatingPickerModal
+                    visible={!!editRf}
+                    title={editRf === 'min' ? '⭐ Alt Derece Limiti' : '⭐ Üst Derece Limiti'}
+                    value={editRf === 'min' ? editMinRating : editMaxRating}
+                    onSelect={(v) => {
+                        if (editRf === 'min') setEditMinRating(v);
+                        else setEditMaxRating(v);
+                        setEditRf(null);
+                    }}
+                    onClose={() => setEditRf(null)}
                 />
             </Modal>
 
@@ -3962,6 +3994,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     // null | 'evStart' | 'evEnd' | 'start' | 'end'
     const [dpField, setDpField] = useState(null);
     const [timeField, setTimeField] = useState(null);
+    const [ratingField, setRatingField] = useState(null); // null | 'min' | 'max'
 
     const fmtISO = (d) => d
         ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -4561,37 +4594,24 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             </View>
 
-                            {/* Rating filter — min/max skillRating */}
-                            <Text style={[s.fieldLabel, { marginTop:10 }]}>⭐ Alt Derece Limiti</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:2 }}>
-                                <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
-                                    {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
-                                        <TouchableOpacity key={v} onPress={() => set('minRating', v)}
-                                            style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1.5,
-                                                borderColor: f.minRating === v ? cfg.color : colors.border,
-                                                backgroundColor: f.minRating === v ? cfg.color + '33' : colors.surface2 }}>
-                                            <Text style={{ color: f.minRating === v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
-                                                {v === '' ? 'Yok' : `${v} ★`}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </ScrollView>
-                            <Text style={[s.fieldLabel, { marginTop:6 }]}>⭐ Üst Derece Limiti</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:4 }}>
-                                <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
-                                    {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
-                                        <TouchableOpacity key={v} onPress={() => set('maxRating', v)}
-                                            style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1.5,
-                                                borderColor: f.maxRating === v ? cfg.color : colors.border,
-                                                backgroundColor: f.maxRating === v ? cfg.color + '33' : colors.surface2 }}>
-                                            <Text style={{ color: f.maxRating === v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
-                                                {v === '' ? 'Yok' : `${v} ★`}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </ScrollView>
+                            {/* Rating limits */}
+                            <Text style={[s.fieldLabel, { marginTop:10 }]}>⭐ Derece Limiti</Text>
+                            <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                <TouchableOpacity onPress={() => setRatingField('min')}
+                                    style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1.5, borderColor: f.minRating ? cfg.color : colors.border }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>Alt Limit</Text>
+                                    <Text style={{ color: f.minRating ? cfg.color : colors.textSecondary, fontSize:14, fontWeight:'800' }}>
+                                        {f.minRating ? `${f.minRating} ★` : 'Yok'}
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setRatingField('max')}
+                                    style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1.5, borderColor: f.maxRating ? cfg.color : colors.border }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>Üst Limit</Text>
+                                    <Text style={{ color: f.maxRating ? cfg.color : colors.textSecondary, fontSize:14, fontWeight:'800' }}>
+                                        {f.maxRating ? `${f.maxRating} ★` : 'Yok'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
 
                             {/* Contact phone */}
                             <Text style={s.fieldLabel}>{t.tournContactPhoneLabel}</Text>
@@ -4616,6 +4636,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                     </View>
                 </KeyboardAvoidingView>
             </View>
+            <RatingPickerModal
+                visible={!!ratingField}
+                title={ratingField === 'min' ? '⭐ Alt Derece Limiti' : '⭐ Üst Derece Limiti'}
+                value={ratingField === 'min' ? f.minRating : f.maxRating}
+                onSelect={(v) => { set(ratingField === 'min' ? 'minRating' : 'maxRating', v); setRatingField(null); }}
+                onClose={() => setRatingField(null)}
+            />
         </Modal>
     );
 }
