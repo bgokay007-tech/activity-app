@@ -69,7 +69,7 @@ export default function NotificationsScreen({ navigation }) {
 
         const goToSub = (tab = 'rivals') => {
             if (!data.category || !data.subCategory) return;
-            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab });
+            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null });
         };
 
         if (type === 'MESSAGE') {
