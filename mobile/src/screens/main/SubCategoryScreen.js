@@ -527,7 +527,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
 // ─── Rival Card ────────────────────────────────────────────────────────────────
 
-function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOpen }) {
+function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOpen, onAutoOpened }) {
     const t = useT();
     const cfg = getConfig(sub);
     const isOwner = item.senderId === myId;
@@ -539,7 +539,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
     const [detailVisible, setDetailVisible] = useState(false);
 
     useEffect(() => {
-        if (autoOpen) { setDetailVisible(true); onRefresh(); }
+        if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
     }, [autoOpen]);
 
     const handleJoin = async () => {
@@ -4414,6 +4414,10 @@ export default function SubCategoryScreen({ route, navigation }) {
             setActiveTab(route.params.initialTab);
         }
     }, [route.params?.initialTab]);
+
+    const [autoOpenId, setAutoOpenId] = useState(null);
+    const autoOpenHandledRef = useRef(null);
+
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
     const [matchedUpcoming, setMatchedUpcoming] = useState([]);
@@ -4549,6 +4553,16 @@ export default function SubCategoryScreen({ route, navigation }) {
         return () => task.cancel();
     }, [load]);
     const onRefresh = () => { setRefreshing(true); load(); };
+
+    useEffect(() => {
+        if (!highlightRivalId || autoOpenHandledRef.current === highlightRivalId) return;
+        if (rivals.length === 0) return;
+        const found = rivals.find(r => r.id === highlightRivalId);
+        if (found) {
+            autoOpenHandledRef.current = highlightRivalId;
+            setAutoOpenId(highlightRivalId);
+        }
+    }, [rivals, highlightRivalId]);
 
     useEffect(() => {
         api.get(`/city-alerts/${encodeURIComponent(sub)}`)
@@ -4922,7 +4936,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {filteredRivals.length === 0
                                 ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
                                 : filteredRivals.map(item => (
-                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} autoOpen={item.id === highlightRivalId} />
+                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} />
                                 ))
                             }
 
