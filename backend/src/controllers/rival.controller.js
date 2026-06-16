@@ -125,7 +125,8 @@ function getRequired(request) {
 export const getCountsBySubCategory = async (req, res, next) => {
     try {
         const { category } = req.query;
-        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
+        const cat = category ? category.toUpperCase() : null;
+        const catWhere = cat ? { category: cat } : {};
         const where = { status: 'OPEN', ...catWhere };
 
         const [rivalRows, tournRows] = await Promise.all([
@@ -269,7 +270,8 @@ export const createRivalRequest = async (req, res, next) => {
 export const getRivalRequests = async (req, res, next) => {
     try {
         const { category, subCategory, matchType } = req.query;
-        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
+        const cat = category ? category.toUpperCase() : null;
+        const catWhere = cat ? { category: cat } : {};
 
         // Auto-delete OPEN listings whose match time has already passed (not enough players)
         const now = new Date();
@@ -514,7 +516,8 @@ const getMatchDeadline = (match) => {
 export const getUpcomingMatches = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
-        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
+        const cat = category ? category.toUpperCase() : null;
+        const catWhere = cat ? { category: cat } : {};
 
         const matches = await prisma.activityRequest.findMany({
             where: {
@@ -979,7 +982,8 @@ export const archiveMatch = async (req, res, next) => {
 export const getCompletedMatches = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
-        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
+        const cat = category ? category.toUpperCase() : null;
+        const catWhere = cat ? { category: cat } : {};
         const all = await prisma.activityRequest.findMany({
             where: {
                 ...catWhere,
@@ -1005,7 +1009,8 @@ export const getCompletedMatches = async (req, res, next) => {
 export const getArchivedMatchesBySport = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
-        const catWhere = category ? { category: { equals: category, mode: 'insensitive' } } : {};
+        const cat = category ? category.toUpperCase() : null;
+        const catWhere = cat ? { category: cat } : {};
         const all = await prisma.activityRequest.findMany({
             where: {
                 ...catWhere,
