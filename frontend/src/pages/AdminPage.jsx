@@ -559,19 +559,23 @@ function CitiesPanel() {
 
 // ── TOURNAMENT PERMISSIONS ────────────────────────────────────────────────
 function TournamentPermsPanel() {
+    const [tab, setTab] = useState('PENDING');
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
+    const load = useCallback(() => {
+        setLoading(true);
         api.get('/admin/tournament-permissions')
             .then(r => setRequests(r.data))
             .finally(() => setLoading(false));
     }, []);
 
+    useEffect(() => { load(); }, [load]);
+
     const approve = async (userId) => {
         try {
             await api.patch(`/admin/tournament-permissions/${userId}/approve`);
-            setRequests(prev => prev.filter(r => r.userId !== userId));
+            setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status: 'APPROVED' } : r));
         } catch (e) { alert(e?.response?.data?.message || 'Error'); }
     };
 
@@ -582,39 +586,78 @@ function TournamentPermsPanel() {
         } catch (e) { alert(e?.response?.data?.message || 'Error'); }
     };
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
-    if (!requests.length) return (
-        <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
-            <p className="text-4xl mb-3">✅</p>
-            <p className="text-white font-bold">Bekleyen izin talebi yok</p>
-        </div>
-    );
+    const revoke = async (userId) => {
+        if (!window.confirm('Bu kullanıcının turnuva iznini iptal etmek istediğinizden emin misiniz?')) return;
+        try {
+            await api.delete(`/admin/tournament-permissions/${userId}/revoke`);
+            setRequests(prev => prev.filter(r => r.userId !== userId));
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
+    const filtered = requests.filter(r => r.status === tab);
 
     return (
-        <div className="space-y-3">
-            <p className="text-gray-500 text-xs">{requests.length} bekleyen talep</p>
-            {requests.map(r => (
-                <div key={r.id} className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
-                        {r.user?.username?.[0]?.toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-white font-bold text-sm">@{r.user?.username}</p>
-                        {r.user?.fullName && <p className="text-gray-400 text-xs">{r.user.fullName}</p>}
-                        <p className="text-gray-600 text-[10px] mt-0.5">{new Date(r.createdAt).toLocaleString('tr-TR')}</p>
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                        <button onClick={() => approve(r.userId)}
-                            className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
-                            ✓ Onayla
-                        </button>
-                        <button onClick={() => reject(r.userId)}
-                            className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
-                            ✕ Reddet
-                        </button>
-                    </div>
+        <div className="space-y-4">
+            {/* Tabs */}
+            <div className="flex gap-2">
+                {[['PENDING', '⏳ Bekleyenler'], ['APPROVED', '✅ İzin Verilenler']].map(([s, label]) => (
+                    <button key={s} onClick={() => setTab(s)}
+                        className={`px-4 py-2 rounded-xl text-xs font-black transition border ${
+                            tab === s
+                                ? s === 'PENDING'
+                                    ? 'bg-yellow-900/40 border-yellow-700/60 text-yellow-400'
+                                    : 'bg-green-900/40 border-green-700/60 text-green-400'
+                                : 'bg-gray-900 border-gray-700 text-gray-500 hover:text-gray-300'
+                        }`}>
+                        {label}
+                        <span className="ml-1.5 opacity-70">({requests.filter(r => r.status === s).length})</span>
+                    </button>
+                ))}
+            </div>
+
+            {loading ? (
+                <p className="text-gray-500 text-center py-16">Yükleniyor...</p>
+            ) : filtered.length === 0 ? (
+                <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
+                    <p className="text-4xl mb-3">{tab === 'PENDING' ? '✅' : '📭'}</p>
+                    <p className="text-white font-bold">
+                        {tab === 'PENDING' ? 'Bekleyen izin talebi yok' : 'İzin verilen kullanıcı yok'}
+                    </p>
                 </div>
-            ))}
+            ) : (
+                <div className="space-y-3">
+                    <p className="text-gray-500 text-xs">{filtered.length} kayıt</p>
+                    {filtered.map(r => (
+                        <div key={r.id} className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
+                                {r.user?.username?.[0]?.toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-white font-bold text-sm">@{r.user?.username}</p>
+                                {r.user?.fullName && <p className="text-gray-400 text-xs">{r.user.fullName}</p>}
+                                <p className="text-gray-600 text-[10px] mt-0.5">{new Date(r.createdAt).toLocaleString('tr-TR')}</p>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                                {tab === 'PENDING' ? (<>
+                                    <button onClick={() => approve(r.userId)}
+                                        className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
+                                        ✓ Onayla
+                                    </button>
+                                    <button onClick={() => reject(r.userId)}
+                                        className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
+                                        ✕ Reddet
+                                    </button>
+                                </>) : (
+                                    <button onClick={() => revoke(r.userId)}
+                                        className="px-3 py-1.5 rounded-xl bg-orange-900/40 hover:bg-orange-900/60 border border-orange-700/50 text-orange-400 font-black text-xs transition">
+                                        🚫 İzni İptal Et
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

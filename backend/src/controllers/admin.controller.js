@@ -120,8 +120,9 @@ export const deletePost = async (req, res, next) => {
 
 export const getTournamentPermissionRequests = async (req, res, next) => {
     try {
+        const { status } = req.query; // 'PENDING' | 'APPROVED' — omit for both
         const requests = await prisma.tournamentPermissionRequest.findMany({
-            where: { status: 'PENDING' },
+            where: status ? { status } : { status: { in: ['PENDING', 'APPROVED'] } },
             orderBy: { createdAt: 'desc' },
         });
         const userIds = requests.map(r => r.userId);
@@ -159,5 +160,18 @@ export const rejectTournamentPermission = async (req, res, next) => {
             {}
         ).catch(() => {});
         res.json({ message: 'Rejected' });
+    } catch (e) { next(e); }
+};
+
+export const revokeTournamentPermission = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        await prisma.tournamentPermissionRequest.delete({ where: { userId } });
+        createNotification(userId, 'TOURNAMENT_PERMISSION_REJECTED',
+            '🚫 Turnuva İzni İptal Edildi',
+            'Turnuva oluşturma izniniz admin tarafından iptal edildi. Yeniden başvurabilirsiniz.',
+            {}
+        ).catch(() => {});
+        res.json({ message: 'Revoked' });
     } catch (e) { next(e); }
 };
