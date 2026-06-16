@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-    View, Text, ScrollView, TouchableOpacity, StyleSheet,
+    View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
     InteractionManager,
@@ -1868,6 +1868,54 @@ const opt = StyleSheet.create({
     itemTextActive:{ color:'#fff', fontWeight:'800' },
 });
 
+function TimeGridModal({ visible, title, value, onSelect, onClose }) {
+    const times = [];
+    for (let h = 0; h < 24; h++) {
+        for (let m = 0; m < 60; m += 15) {
+            times.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+        }
+    }
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={tg.overlay}>
+                <View style={tg.box}>
+                    <View style={tg.header}>
+                        <Text style={tg.title}>{title}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <FlatList
+                        data={times}
+                        keyExtractor={item => item}
+                        numColumns={4}
+                        columnWrapperStyle={{ gap: 8, marginBottom: 8 }}
+                        showsVerticalScrollIndicator={false}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity
+                                style={[tg.cell, value === item && tg.cellActive]}
+                                onPress={() => { onSelect(item); onClose(); }}
+                            >
+                                <Text style={[tg.cellText, value === item && tg.cellTextActive]}>{item}</Text>
+                            </TouchableOpacity>
+                        )}
+                    />
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+const tg = StyleSheet.create({
+    overlay:        { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
+    box:            { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:20, paddingBottom:40, maxHeight:'80%' },
+    header:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 },
+    title:          { color:'#fff', fontSize:16, fontWeight:'900' },
+    close:          { color: colors.textMuted, fontSize:22 },
+    cell:           { flex:1, paddingVertical:12, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    cellActive:     { backgroundColor: colors.purple, borderColor: colors.purple },
+    cellText:       { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
+    cellTextActive: { color:'#fff' },
+});
+
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
 
 const DURATIONS_FULL = [
@@ -2117,10 +2165,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         onSelect={(date) => setF(p => ({ ...p, matchDate: date, showDatePicker: false }))}
                                         onClose={() => set('showDatePicker', false)}
                                     />
-                                    <OptionPickerModal
+                                    <TimeGridModal
                                         visible={f.showTimePicker}
                                         title={t.selectTime}
-                                        options={TIME_OPTS.filter(t => t.value)}
                                         value={f.matchTime}
                                         onSelect={(v) => set('matchTime', v)}
                                         onClose={() => set('showTimePicker', false)}
