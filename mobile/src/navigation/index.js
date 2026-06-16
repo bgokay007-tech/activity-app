@@ -42,7 +42,7 @@ function navigateFromNotif(data) {
         else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED' || type === 'MATCH_CONFIRMED') initialTab = 'archive';
         navigationRef.navigate('HomeTab', {
             screen: 'SubCategory',
-            params: { category: data.category, sub: data.subCategory, initialTab },
+            params: { category: data.category, sub: data.subCategory, initialTab, highlightRivalId: data.rivalId || null },
         });
     }
 }

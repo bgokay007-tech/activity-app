@@ -527,7 +527,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
 // ─── Rival Card ────────────────────────────────────────────────────────────────
 
-function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
+function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOpen }) {
     const t = useT();
     const cfg = getConfig(sub);
     const isOwner = item.senderId === myId;
@@ -537,6 +537,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
     const isFull = filled >= required;
     const mySentReq = item._myJoinStatus;
     const [detailVisible, setDetailVisible] = useState(false);
+
+    useEffect(() => {
+        if (autoOpen) { setDetailVisible(true); onRefresh(); }
+    }, [autoOpen]);
 
     const handleJoin = async () => {
         try {
@@ -4396,7 +4400,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
-    const { category, sub, initialTab } = route.params;
+    const { category, sub, initialTab, highlightRivalId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const t = useT();
@@ -4918,7 +4922,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {filteredRivals.length === 0
                                 ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
                                 : filteredRivals.map(item => (
-                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} />
+                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} autoOpen={item.id === highlightRivalId} />
                                 ))
                             }
 
