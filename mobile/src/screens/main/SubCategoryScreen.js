@@ -3394,20 +3394,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </>)}
 
                                 {/* Rating limits */}
-                                <Text style={[s.fieldLabel, { marginTop:10 }]}>⭐ Derece Limiti</Text>
-                                <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                <View style={{ flexDirection:'row', gap:8, marginBottom:8, marginTop:8 }}>
                                     <TouchableOpacity onPress={() => setEditRf('min')}
-                                        style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1.5, borderColor: editMinRating ? infoColor : colors.border }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>Alt Limit</Text>
-                                        <Text style={{ color: editMinRating ? infoColor : colors.textSecondary, fontSize:14, fontWeight:'800' }}>
-                                            {editMinRating ? `${editMinRating} ★` : 'Yok'}
+                                        style={{ flex:1, backgroundColor: colors.surface2, borderRadius:8, paddingVertical:6, paddingHorizontal:8, flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1, borderColor: editMinRating ? infoColor : colors.border }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:10 }}>⭐ Alt</Text>
+                                        <Text style={{ color: editMinRating ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
+                                            {editMinRating ? `${editMinRating} ★` : '—'}
                                         </Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setEditRf('max')}
-                                        style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1.5, borderColor: editMaxRating ? infoColor : colors.border }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>Üst Limit</Text>
-                                        <Text style={{ color: editMaxRating ? infoColor : colors.textSecondary, fontSize:14, fontWeight:'800' }}>
-                                            {editMaxRating ? `${editMaxRating} ★` : 'Yok'}
+                                        style={{ flex:1, backgroundColor: colors.surface2, borderRadius:8, paddingVertical:6, paddingHorizontal:8, flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1, borderColor: editMaxRating ? infoColor : colors.border }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:10 }}>⭐ Üst</Text>
+                                        <Text style={{ color: editMaxRating ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
+                                            {editMaxRating ? `${editMaxRating} ★` : '—'}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -4595,20 +4594,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </View>
 
                             {/* Rating limits */}
-                            <Text style={[s.fieldLabel, { marginTop:10 }]}>⭐ Derece Limiti</Text>
-                            <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                            <View style={{ flexDirection:'row', gap:8, marginBottom:8, marginTop:8 }}>
                                 <TouchableOpacity onPress={() => setRatingField('min')}
-                                    style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1.5, borderColor: f.minRating ? cfg.color : colors.border }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>Alt Limit</Text>
-                                    <Text style={{ color: f.minRating ? cfg.color : colors.textSecondary, fontSize:14, fontWeight:'800' }}>
-                                        {f.minRating ? `${f.minRating} ★` : 'Yok'}
+                                    style={{ flex:1, backgroundColor: colors.surface2, borderRadius:8, paddingVertical:6, paddingHorizontal:8, flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1, borderColor: f.minRating ? cfg.color : colors.border }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:10 }}>⭐ Alt</Text>
+                                    <Text style={{ color: f.minRating ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
+                                        {f.minRating ? `${f.minRating} ★` : '—'}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setRatingField('max')}
-                                    style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1.5, borderColor: f.maxRating ? cfg.color : colors.border }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>Üst Limit</Text>
-                                    <Text style={{ color: f.maxRating ? cfg.color : colors.textSecondary, fontSize:14, fontWeight:'800' }}>
-                                        {f.maxRating ? `${f.maxRating} ★` : 'Yok'}
+                                    style={{ flex:1, backgroundColor: colors.surface2, borderRadius:8, paddingVertical:6, paddingHorizontal:8, flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1, borderColor: f.maxRating ? cfg.color : colors.border }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:10 }}>⭐ Üst</Text>
+                                    <Text style={{ color: f.maxRating ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
+                                        {f.maxRating ? `${f.maxRating} ★` : '—'}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
