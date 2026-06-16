@@ -603,6 +603,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress }) {
                             <Text style={{ fontSize:11, marginTop:2, color: item.isCourtReserved ? '#4ade80' : '#f87171' }}>
                                 {item.isCourtReserved ? `✅ ${t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
                             </Text>
+                            {item.courtName && (
+                                <Text style={{ fontSize:11, marginTop:2, color:'#60a5fa' }}>🏟️ {item.courtName}</Text>
+                            )}
                         </View>
                         {!item.flexibleSchedule && (
                             <View style={{ gap:2 }}>
@@ -955,7 +958,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 sender:   isOwner ? (parseInt(r.my) || 0) : (parseInt(r.opp) || 0),
                 opponent: isOwner ? (parseInt(r.opp) || 0) : (parseInt(r.my) || 0),
             }));
-            await api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: autoWinner });
+            const doRequest = () => api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: autoWinner });
+            try {
+                await doRequest();
+            } catch (firstErr) {
+                if (!firstErr.response) await doRequest();
+                else throw firstErr;
+            }
             Alert.alert('', t.scoreSent);
             setShowScore(false);
             setSets([{ my: '', opp: '' }]);
@@ -4413,6 +4422,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showEquipmentForm, setShowEquipmentForm] = useState(false);
     const [equipmentForm, setEquipmentForm] = useState({ title:'', price:'', condition:'NEW', description:'', location:'', images:[] });
     const [submittingEquipment, setSubmittingEquipment] = useState(false);
+    const [equipmentMedia, setEquipmentMedia] = useState([]);
+    const [uploadingEquipmentMedia, setUploadingEquipmentMedia] = useState(false);
+    const [equipmentSearch, setEquipmentSearch] = useState('');
+    const [equipmentCity, setEquipmentCity] = useState('');
+    const [equipmentMinPrice, setEquipmentMinPrice] = useState('');
+    const [equipmentMaxPrice, setEquipmentMaxPrice] = useState('');
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -4425,10 +4440,17 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
     const [archiveTournaments, setArchiveTournaments] = useState([]);
     const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
+    const [selectedArchiveTournament, setSelectedArchiveTournament] = useState(null);
+    const [archiveModalMatches, setArchiveModalMatches] = useState([]);
+    const [archiveModalLoading, setArchiveModalLoading] = useState(false);
+    const [archiveModalTab, setArchiveModalTab] = useState('details');
 
     const [filterCity, setFilterCity] = useState('');
     const [filterDate, setFilterDate] = useState('all');
     const [locationLoading, setLocationLoading] = useState(false);
+    const [cityAlertSubscribed, setCityAlertSubscribed] = useState(false);
+    const [cityAlertCity, setCityAlertCity] = useState(null);
+    const [cityAlertLoading, setCityAlertLoading] = useState(false);
 
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [showCreatePW, setShowCreatePW] = useState(false);
@@ -4524,6 +4546,24 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [load]);
     const onRefresh = () => { setRefreshing(true); load(); };
 
+    useEffect(() => {
+        api.get(`/city-alerts/${encodeURIComponent(sub)}`)
+            .then(res => { setCityAlertSubscribed(res.data.subscribed); setCityAlertCity(res.data.city); })
+            .catch(() => {});
+    }, [sub]);
+
+    const toggleCityAlert = async () => {
+        if (!cityAlertCity) return Alert.alert('', t.cityAlertNoCity);
+        setCityAlertLoading(true);
+        try {
+            const res = await api.post('/city-alerts', { subCategory: sub });
+            setCityAlertSubscribed(res.data.subscribed);
+            setCityAlertCity(res.data.city);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setCityAlertLoading(false); }
+    };
+
     // Refresh data whenever screen comes into focus (e.g. navigating back from notification)
     const isMounted = useRef(false);
     useFocusEffect(useCallback(() => {
@@ -4568,6 +4608,16 @@ export default function SubCategoryScreen({ route, navigation }) {
         return () => task.cancel();
     }, [loadArchiveTournaments]);
 
+    useEffect(() => {
+        if (!selectedArchiveTournament) { setArchiveModalMatches([]); return; }
+        setArchiveModalTab('details');
+        setArchiveModalLoading(true);
+        api.get(`/tournaments/${selectedArchiveTournament.id}/matches`)
+            .then(res => setArchiveModalMatches(Array.isArray(res.data) ? res.data : []))
+            .catch(() => setArchiveModalMatches([]))
+            .finally(() => setArchiveModalLoading(false));
+    }, [selectedArchiveTournament?.id]);
+
     const loadTournaments = useCallback(async () => {
         if (activeTab !== 'tournaments') return;
         setLoadingTournaments(true);
@@ -4600,16 +4650,46 @@ export default function SubCategoryScreen({ route, navigation }) {
         return () => task.cancel();
     }, [loadEquipment]);
 
+    const pickEquipmentMedia = async () => {
+        if (equipmentMedia.length >= 5) return Alert.alert('', 'En fazla 5 medya ekleyebilirsiniz');
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images', 'videos'],
+            allowsMultipleSelection: true,
+            quality: 0.85,
+            videoMaxDuration: 60,
+            selectionLimit: 5 - equipmentMedia.length,
+        });
+        if (!result.canceled) {
+            const picked = result.assets.map(a => ({ uri: a.uri, type: a.type === 'video' ? 'video' : 'image' }));
+            setEquipmentMedia(prev => [...prev, ...picked].slice(0, 5));
+        }
+    };
+
     const submitEquipment = async () => {
         if (!equipmentForm.title.trim()) return Alert.alert('', 'Ürün adı zorunludur');
         setSubmittingEquipment(true);
         try {
-            await api.post('/equipment', { ...equipmentForm, category, subCategory: sub, price: parseInt(equipmentForm.price) || 0 });
+            let uploadedUrls = [];
+            if (equipmentMedia.length > 0) {
+                setUploadingEquipmentMedia(true);
+                for (const media of equipmentMedia) {
+                    const form = new FormData();
+                    const isVideo = media.type === 'video';
+                    form.append('file', { uri: media.uri, name: isVideo ? 'eq.mp4' : 'eq.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
+                    const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+                    uploadedUrls.push(data.url);
+                }
+                setUploadingEquipmentMedia(false);
+            }
+            await api.post('/equipment', { ...equipmentForm, category, subCategory: sub, price: parseInt(equipmentForm.price) || 0, images: uploadedUrls });
             setShowEquipmentForm(false);
             setEquipmentForm({ title:'', price:'', condition:'NEW', description:'', location:'', images:[] });
+            setEquipmentMedia([]);
             loadEquipment();
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
-        finally { setSubmittingEquipment(false); }
+        finally { setSubmittingEquipment(false); setUploadingEquipmentMedia(false); }
     };
 
     const deleteEquipment = async (id) => {
@@ -4696,6 +4776,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (subCategory && subCategory !== sub) return;
             setRivals(prev => prev.filter(r => r.id !== rivalId));
             setPlayerWanted(prev => prev.filter(r => r.id !== rivalId));
+            setMatchedUpcoming(prev => prev.filter(r => r.id !== rivalId));
         });
         return () => { offUpdate(); offDeleted(); };
     }, [category, sub]);
@@ -4811,6 +4892,27 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                     )}
                                 </View>
+
+                                {cityAlertCity && (
+                                    <TouchableOpacity
+                                        onPress={toggleCityAlert}
+                                        disabled={cityAlertLoading}
+                                        style={{
+                                            marginTop: 8,
+                                            paddingVertical: 8,
+                                            paddingHorizontal: 12,
+                                            borderRadius: 8,
+                                            backgroundColor: cityAlertSubscribed ? cfg.color + '20' : '#ffffff10',
+                                            borderWidth: 1,
+                                            borderColor: cityAlertSubscribed ? cfg.color + '60' : '#ffffff20',
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        <Text style={{ color: cityAlertSubscribed ? cfg.color : colors.textMuted, fontSize: 12, textAlign: 'center' }}>
+                                            {cityAlertLoading ? '...' : cityAlertSubscribed ? t.cityAlertOn(cityAlertCity) : t.cityAlertBtn(cityAlertCity)}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
 
                             {filteredRivals.length === 0
@@ -4915,9 +5017,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── COACHES ── */}
 
                     {/* ── EKİPMAN ── */}
-                    {activeTab === 'equipment' && (
+                    {activeTab === 'equipment' && (() => {
+                        const filteredEquipment = equipmentListings.filter(eq => {
+                            if (equipmentSearch && !eq.title.toLowerCase().includes(equipmentSearch.toLowerCase())) return false;
+                            if (equipmentCity) {
+                                const city = equipmentCity.toLowerCase();
+                                const inLoc = (eq.location||'').toLowerCase().includes(city);
+                                const inCity = (eq.city||'').toLowerCase().includes(city);
+                                if (!inLoc && !inCity) return false;
+                            }
+                            if (equipmentMinPrice && eq.price < parseInt(equipmentMinPrice)) return false;
+                            if (equipmentMaxPrice && eq.price > parseInt(equipmentMaxPrice)) return false;
+                            return true;
+                        });
+                        return (
                         <View>
-                            {/* Filtre butonları */}
+                            {/* Durum filtresi */}
                             <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
                                 {['ALL','NEW','USED'].map(c => (
                                     <TouchableOpacity key={c} onPress={() => setEquipmentCondition(c)}
@@ -4928,6 +5043,48 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                 ))}
                             </View>
+                            {/* Filtre alanları */}
+                            <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor: colors.border, gap:8 }}>
+                                <TextInput
+                                    placeholder="Ürün adı ara..."
+                                    placeholderTextColor={colors.textMuted}
+                                    value={equipmentSearch}
+                                    onChangeText={setEquipmentSearch}
+                                    style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
+                                />
+                                <TextInput
+                                    placeholder="İl / Konum"
+                                    placeholderTextColor={colors.textMuted}
+                                    value={equipmentCity}
+                                    onChangeText={setEquipmentCity}
+                                    style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
+                                />
+                                <View style={{ flexDirection:'row', gap:8 }}>
+                                    <TextInput
+                                        placeholder="Min ₺"
+                                        placeholderTextColor={colors.textMuted}
+                                        value={equipmentMinPrice}
+                                        onChangeText={v => setEquipmentMinPrice(v.replace(/[^0-9]/g,''))}
+                                        keyboardType="numeric"
+                                        style={{ flex:1, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
+                                    />
+                                    <TextInput
+                                        placeholder="Max ₺"
+                                        placeholderTextColor={colors.textMuted}
+                                        value={equipmentMaxPrice}
+                                        onChangeText={v => setEquipmentMaxPrice(v.replace(/[^0-9]/g,''))}
+                                        keyboardType="numeric"
+                                        style={{ flex:1, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
+                                    />
+                                    {(equipmentSearch || equipmentCity || equipmentMinPrice || equipmentMaxPrice) && (
+                                        <TouchableOpacity
+                                            onPress={() => { setEquipmentSearch(''); setEquipmentCity(''); setEquipmentMinPrice(''); setEquipmentMaxPrice(''); }}
+                                            style={{ justifyContent:'center', paddingHorizontal:10, backgroundColor:'#ef444420', borderRadius:8, borderWidth:1, borderColor:'#ef444440' }}>
+                                            <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>Sıfırla</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            </View>
                             {/* İlan ekle butonu */}
                             <TouchableOpacity onPress={() => setShowEquipmentForm(true)}
                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:9, marginBottom:10, borderWidth:1, borderColor: cfg.color+'50' }}>
@@ -4936,11 +5093,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Liste */}
                             {loadingEquipment ? (
                                 <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:10 }} />
-                            ) : equipmentListings.length === 0 ? (
-                                <EmptyState emoji="🎾" text="Henüz ekipman ilanı yok" />
+                            ) : filteredEquipment.length === 0 ? (
+                                <EmptyState emoji="🎾" text={equipmentListings.length === 0 ? "Henüz ekipman ilanı yok" : "Filtreyle eşleşen ilan bulunamadı"} />
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
-                                    {equipmentListings.map(eq => (
+                                    {filteredEquipment.map(eq => (
                                         <TouchableOpacity key={eq.id} onPress={() => setSelectedEquipment(eq)}
                                             style={{ width:'48%', backgroundColor: colors.surface2, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
                                             {eq.images?.[0] ? (
@@ -4963,30 +5120,66 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </View>
                             )}
                             {/* İlan ver formu Modal */}
-                            <Modal visible={showEquipmentForm} animationType="slide" transparent onRequestClose={() => setShowEquipmentForm(false)}>
+                            <Modal visible={showEquipmentForm} animationType="slide" transparent onRequestClose={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }}>
                                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
-                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36 }}>
-                                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎾 Ekipman İlanı Ver</Text>
-                                        <View style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
-                                            {['NEW','USED'].map(c => (
-                                                <TouchableOpacity key={c} onPress={() => setEquipmentForm(f => ({...f, condition:c}))}
-                                                    style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: equipmentForm.condition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentForm.condition===c ? cfg.color : colors.border }}>
-                                                    <Text style={{ color: equipmentForm.condition===c ? '#fff' : colors.textSecondary, fontSize:13, fontWeight:'700' }}>{c==='NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}</Text>
+                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
+                                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20 }}>
+                                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎾 Ekipman İlanı Ver</Text>
+                                            <View style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
+                                                {['NEW','USED'].map(c => (
+                                                    <TouchableOpacity key={c} onPress={() => setEquipmentForm(f => ({...f, condition:c}))}
+                                                        style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: equipmentForm.condition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentForm.condition===c ? cfg.color : colors.border }}>
+                                                        <Text style={{ color: equipmentForm.condition===c ? '#fff' : colors.textSecondary, fontSize:13, fontWeight:'700' }}>{c==='NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                            <TextInput placeholder="Ürün adı *" placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder="Fiyat (₺)" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+                                            <TextInput placeholder="Konum / Şehir" placeholderTextColor={colors.textMuted} value={equipmentForm.location} onChangeText={v => setEquipmentForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:10, borderWidth:1, borderColor:colors.border }} />
+
+                                            {/* Medya seçici */}
+                                            {equipmentMedia.length > 0 && (
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:10 }}>
+                                                    {equipmentMedia.map((m, idx) => (
+                                                        <View key={idx} style={{ marginRight:8, position:'relative' }}>
+                                                            {m.type === 'video'
+                                                                ? <View style={{ width:90, height:90, borderRadius:8, backgroundColor:'#1e293b', borderWidth:1, borderColor:colors.border, justifyContent:'center', alignItems:'center' }}>
+                                                                    <Text style={{ fontSize:28 }}>🎬</Text>
+                                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginTop:2 }}>Video</Text>
+                                                                  </View>
+                                                                : <Image source={{ uri:m.uri }} style={{ width:90, height:90, borderRadius:8 }} resizeMode="cover" />
+                                                            }
+                                                            <TouchableOpacity
+                                                                onPress={() => setEquipmentMedia(prev => prev.filter((_,i) => i !== idx))}
+                                                                style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))}
+                                                </ScrollView>
+                                            )}
+                                            {equipmentMedia.length < 5 && (
+                                                <TouchableOpacity onPress={pickEquipmentMedia}
+                                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:10, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                                    <Text style={{ fontSize:16 }}>📷</Text>
+                                                    <Text style={{ color:colors.textSecondary, fontSize:13, fontWeight:'700' }}>
+                                                        Fotoğraf / Video Ekle {equipmentMedia.length > 0 ? `(${equipmentMedia.length}/5)` : ''}
+                                                    </Text>
                                                 </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                        <TextInput placeholder="Ürün adı *" placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                        <TextInput placeholder="Fiyat (₺)" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                        <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
-                                        <TextInput placeholder="Konum / Şehir" placeholderTextColor={colors.textMuted} value={equipmentForm.location} onChangeText={v => setEquipmentForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
-                                        <View style={{ flexDirection:'row', gap:8 }}>
-                                            <TouchableOpacity onPress={() => setShowEquipmentForm(false)} style={{ flex:1, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity onPress={submitEquipment} disabled={submittingEquipment} style={{ flex:2, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
-                                                <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{submittingEquipment ? '...' : 'İlanı Yayınla'}</Text>
-                                            </TouchableOpacity>
-                                        </View>
+                                            )}
+
+                                            <View style={{ flexDirection:'row', gap:8 }}>
+                                                <TouchableOpacity onPress={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }} style={{ flex:1, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={submitEquipment} disabled={submittingEquipment || uploadingEquipmentMedia} style={{ flex:2, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
+                                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
+                                                        {uploadingEquipmentMedia ? 'Yükleniyor...' : submittingEquipment ? '...' : 'İlanı Yayınla'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </ScrollView>
                                     </View>
                                 </View>
                             </Modal>
@@ -4997,9 +5190,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <ScrollView showsVerticalScrollIndicator={false}>
                                             {selectedEquipment?.images?.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:12 }}>
-                                                    {(selectedEquipment.images||[]).map((img,idx) => (
-                                                        <Image key={idx} source={{ uri:img }} style={{ width:220, height:160, borderRadius:10, marginRight:8 }} resizeMode="cover" />
-                                                    ))}
+                                                    {(selectedEquipment.images||[]).map((img,idx) => {
+                                                        const isVideo = typeof img === 'string' && img.includes('/video/upload/');
+                                                        return isVideo
+                                                            ? <View key={idx} style={{ width:220, height:160, borderRadius:10, marginRight:8, backgroundColor:'#1e293b', borderWidth:1, borderColor:colors.border, justifyContent:'center', alignItems:'center' }}>
+                                                                <Text style={{ fontSize:40 }}>🎬</Text>
+                                                                <Text style={{ color:colors.textMuted, fontSize:12, marginTop:4 }}>Video</Text>
+                                                              </View>
+                                                            : <Image key={idx} source={{ uri:img }} style={{ width:220, height:160, borderRadius:10, marginRight:8 }} resizeMode="cover" />;
+                                                    })}
                                                 </ScrollView>
                                             )}
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
@@ -5028,7 +5227,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </View>
                             </Modal>
                         </View>
-                    )}
+                        );
+                    })()}
 
 
                     {activeTab === 'coaches' && (
@@ -5198,6 +5398,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         )}
                                                     </View>
                                                 </View>
+                                                <TouchableOpacity
+                                                    style={{ backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#a855f740', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                                                    onPress={() => setSelectedArchiveTournament(tourn)}
+                                                >
+                                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📋 Turnuva Detayları</Text>
+                                                    <Text style={{ color:'#c084fc', fontSize:14 }}>›</Text>
+                                                </TouchableOpacity>
                                             </View>
                                         );
                                     })}
@@ -5383,6 +5590,174 @@ export default function SubCategoryScreen({ route, navigation }) {
                     </Modal>
                 );
             })()}
+
+            {/* ── Archive Tournament Detail Modal ── */}
+            <Modal visible={!!selectedArchiveTournament} animationType="slide" transparent onRequestClose={() => setSelectedArchiveTournament(null)}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { maxHeight:'92%' }]}>
+                        {selectedArchiveTournament && (() => {
+                            const tourn = selectedArchiveTournament;
+                            const typeLabel = TOURN_TYPE_LABELS(t)[tourn.type] || tourn.type;
+                            const row = (label, value) => value ? (
+                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', paddingVertical:10, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                                    <Text style={{ color:colors.textMuted, fontSize:13, fontWeight:'600', flex:1 }}>{label}</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1.2, textAlign:'right' }}>{value}</Text>
+                                </View>
+                            ) : null;
+                            const archiveStandings = (() => {
+                                const stats = {};
+                                for (const m of archiveModalMatches) {
+                                    if (m.phase !== 'GROUP') continue;
+                                    if (m.p1Id && !stats[m.p1Id]) stats[m.p1Id] = { id:m.p1Id, name:m.p1Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+                                    if (m.p2Id && !stats[m.p2Id]) stats[m.p2Id] = { id:m.p2Id, name:m.p2Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+                                    if (m.status !== 'COMPLETED' || !m.score || !m.p2Id) continue;
+                                    const sc = m.score;
+                                    const s1 = stats[m.p1Id], s2 = stats[m.p2Id];
+                                    if (!s1 || !s2) continue;
+                                    s1.played++; s2.played++;
+                                    let p1s=0,p2s=0,p1g=0,p2g=0;
+                                    for (const set of (sc.sets||[])) {
+                                        p1g+=set.p1||0; p2g+=set.p2||0;
+                                        if ((set.p1||0)>(set.p2||0)) p1s++; else if ((set.p2||0)>(set.p1||0)) p2s++;
+                                    }
+                                    s1.setsWon+=p1s; s1.setsLost+=p2s; s1.gamesWon+=p1g; s1.gamesLost+=p2g;
+                                    s2.setsWon+=p2s; s2.setsLost+=p1s; s2.gamesWon+=p2g; s2.gamesLost+=p1g;
+                                    if (sc.winner==='p1') { s1.won++; s1.points+=3; s2.lost++; } else { s2.won++; s2.points+=3; s1.lost++; }
+                                }
+                                return Object.values(stats).sort((a,b) => {
+                                    if (b.points!==a.points) return b.points-a.points;
+                                    const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
+                                    if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
+                                    const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
+                                    return gr(b)-gr(a);
+                                });
+                            })();
+                            const hasGroup = archiveModalMatches.some(m => m.phase === 'GROUP');
+                            const tabs = ['details', 'matches', ...(hasGroup ? ['standings'] : [])];
+                            const tabLabel = { details:'Detaylar', matches:'Maçlar', standings:'Puan Tablosu' };
+                            const playoffMs = archiveModalMatches.filter(m => m.phase === 'PLAYOFF');
+                            const playoffMaxRound = playoffMs.length ? Math.max(...playoffMs.map(m => m.round)) : 0;
+                            const getRoundLabel = (round, phase) => {
+                                if (phase === 'GROUP') return `Grup - Tur ${round}`;
+                                const fromEnd = playoffMaxRound - round;
+                                if (fromEnd === 0) return 'Final';
+                                if (fromEnd === 1) return 'Yarı Final';
+                                if (fromEnd === 2) return 'Çeyrek Final';
+                                return `Playoff - Tur ${round}`;
+                            };
+                            return (
+                                <>
+                                    <View style={[s.modalHeader, { paddingHorizontal:24 }]}>
+                                        <Text style={[s.modalTitle, { flex:1 }]} numberOfLines={2}>🏆 {tourn.name}</Text>
+                                        <TouchableOpacity onPress={() => setSelectedArchiveTournament(null)}>
+                                            <Text style={s.modalClose}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ flexDirection:'row', gap:6, marginBottom:10, paddingHorizontal:24 }}>
+                                        {tabs.map(tab => (
+                                            <TouchableOpacity key={tab} onPress={() => setArchiveModalTab(tab)}
+                                                style={{ paddingHorizontal:12, paddingVertical:6, borderRadius:8, backgroundColor: archiveModalTab===tab ? '#a855f740' : 'transparent', borderWidth:1, borderColor: archiveModalTab===tab ? '#a855f760' : colors.border }}>
+                                                <Text style={{ color: archiveModalTab===tab ? '#c084fc' : colors.textMuted, fontSize:12, fontWeight:'700' }}>{tabLabel[tab]}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:24, paddingBottom:24 }}>
+                                        {archiveModalTab === 'details' && (
+                                            <>
+                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:12, paddingVertical:6, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50', marginBottom:14 }}>
+                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✅ Tamamlandı</Text>
+                                                </View>
+                                                {row('📋 Format', typeLabel)}
+                                                {row('👤 Organizatör', tourn.creator?.fullName || tourn.creator?.username)}
+                                                {tourn.city ? row('📍 Şehir', tourn.city) : null}
+                                                {tourn.location ? row('🏟️ Mekan', tourn.location) : null}
+                                                {tourn.surface ? row('🎾 Zemin', tourn.surface) : null}
+                                                {typeof tourn.isIndoor === 'boolean' ? row('🏠 Alan', tourn.isIndoor ? 'Kapalı' : 'Açık') : null}
+                                                {tourn.eventDate ? row('📅 Başlangıç', new Date(tourn.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
+                                                {tourn.eventEndDate ? row('📅 Bitiş', new Date(tourn.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
+                                                {row('👥 Katılımcı', `${tourn._count?.participants || 0} kişi`)}
+                                                {tourn.setsPerMatch ? row('🎯 Set/Maç', `${tourn.setsPerMatch} set`) : null}
+                                                {tourn.playoffQualifiers ? row('🏆 Playoff', `İlk ${tourn.playoffQualifiers} takım`) : null}
+                                                {tourn.prize1 ? row('🥇 1. Ödül', tourn.prize1) : null}
+                                                {tourn.prize2 ? row('🥈 2. Ödül', tourn.prize2) : null}
+                                                {tourn.prize3 ? row('🥉 3. Ödül', tourn.prize3) : null}
+                                                {tourn.isPaid ? row('💰 Katılım Ücreti', `${tourn.playerFee} ₺`) : null}
+                                                {tourn.completedAt ? row('🏁 Tamamlandı', new Date(tourn.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
+                                            </>
+                                        )}
+                                        {archiveModalTab === 'matches' && (
+                                            archiveModalLoading
+                                                ? <ActivityIndicator color="#c084fc" style={{ marginTop:20 }} />
+                                                : archiveModalMatches.length === 0
+                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Maç bulunamadı</Text>
+                                                    : (() => {
+                                                        const seen = new Set();
+                                                        const roundKeys = archiveModalMatches
+                                                            .filter(m => { const k=`${m.phase}|${m.round}`; if (seen.has(k)) return false; seen.add(k); return true; })
+                                                            .map(m => ({ phase:m.phase, round:m.round }));
+                                                        return roundKeys.map(({ phase, round }) => {
+                                                            const rMatches = archiveModalMatches.filter(m => m.phase === phase && m.round === round);
+                                                            return (
+                                                                <View key={`${phase}|${round}`} style={{ marginBottom:10 }}>
+                                                                    <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800', marginBottom:6 }}>{getRoundLabel(round, phase)}</Text>
+                                                                    {rMatches.map(match => {
+                                                                        const isDone = match.status === 'COMPLETED';
+                                                                        const isBye = match.status === 'BYE';
+                                                                        const isTBD = !match.p1Id || !match.p2Id;
+                                                                        return (
+                                                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
+                                                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                                                    <View style={{ flex:1 }}>
+                                                                                        <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{match.p1Name || 'TBD'}</Text>
+                                                                                        <Text style={{ color:colors.textMuted, fontSize:10 }}>vs</Text>
+                                                                                        <Text style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{match.p2Name || 'TBD'}</Text>
+                                                                                    </View>
+                                                                                    <View style={{ alignItems:'flex-end' }}>
+                                                                                        {(isBye || isTBD) && <Text style={{ color:colors.textMuted, fontSize:10 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
+                                                                                        {isDone && match.score && (
+                                                                                            <Text style={{ color:'#94a3b8', fontSize:12, fontWeight:'700' }}>
+                                                                                                {(match.score.sets||[]).map(s=>`${s.p1}-${s.p2}`).join(', ')}
+                                                                                            </Text>
+                                                                                        )}
+                                                                                    </View>
+                                                                                </View>
+                                                                            </View>
+                                                                        );
+                                                                    })}
+                                                                </View>
+                                                            );
+                                                        });
+                                                    })()
+                                        )}
+                                        {archiveModalTab === 'standings' && (
+                                            archiveModalLoading
+                                                ? <ActivityIndicator color="#c084fc" style={{ marginTop:20 }} />
+                                                : archiveStandings.length === 0
+                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Henüz maç sonucu yok</Text>
+                                                    : <View>
+                                                        <View style={{ flexDirection:'row', paddingVertical:4, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
+                                                            <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
+                                                            {['O','G','M','Av','P'].map(h => (
+                                                                <Text key={h} style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
+                                                            ))}
+                                                        </View>
+                                                        {archiveStandings.map((row2, i) => (
+                                                            <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row2.name}</Text>
+                                                                {[row2.played, row2.won, row2.lost, (() => { const d=row2.setsWon-row2.setsLost; return (d>=0?'+':'')+d; })(), row2.points].map((v,j) => (
+                                                                    <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
+                                                                ))}
+                                                            </View>
+                                                        ))}
+                                                    </View>
+                                        )}
+                                    </ScrollView>
+                                </>
+                            );
+                        })()}
+                    </View>
+                </View>
+            </Modal>
 
             {/* ── Media Viewer ── */}
             <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => setMediaViewIdx(null)}>

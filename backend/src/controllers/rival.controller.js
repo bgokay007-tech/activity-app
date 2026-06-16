@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
+import { notifyCitySubscribers } from './cityAlert.controller.js';
 
 // Fixed transfer lookup based on rating gap + score dominance
 // ratingDiff = |loserRating - winnerRating| (0–5 scale, 1 rating pt = 20 totalPoints)
@@ -159,6 +160,14 @@ export const createRivalRequest = async (req, res, next) => {
             refereePayment,
         } = req.body;
 
+        if (!flexibleSchedule && matchDate && matchTime) {
+            const [h, m] = matchTime.split(':').map(Number);
+            const matchUTC = new Date(new Date(matchDate).getTime() + (h * 60 + m) * 60000 - 3 * 3600000);
+            if (matchUTC <= new Date()) {
+                return res.status(400).json({ message: 'Geçmiş zamanda maç oluşturalamaz.' });
+            }
+        }
+
         const request = await prisma.activityRequest.create({
             data: {
                 senderId: req.userId,
@@ -201,6 +210,17 @@ export const createRivalRequest = async (req, res, next) => {
         });
 
         res.status(201).json(request);
+
+        // Notify city-alert subscribers about new listing (async, non-blocking)
+        prisma.user.findUnique({ where: { id: req.userId }, select: { city: true } })
+            .then(u => notifyCitySubscribers({
+                subCategory, category,
+                senderCity: u?.city || null,
+                senderUsername: request.sender?.username || '',
+                senderId: req.userId,
+                rivalId: request.id,
+            }))
+            .catch(() => {});
 
         // Auto-submit venue for admin review if courtName + location provided
         if (courtName && location) {
@@ -1152,6 +1172,19 @@ export const getMyUpcomingMatches = async (req, res, next) => {
         );
         if (schedExpired.length > 0) {
             await prisma.activityRequest.deleteMany({ where: { id: { in: schedExpired.map(m => m.id) } } });
+            for (const m of schedExpired) {
+                const parts = Array.isArray(m.participants) ? m.participants : [];
+                const allIds = [...new Set([m.senderId, ...parts.map(p => p.id)])];
+                for (const uid of allIds) {
+                    emitToUser(uid, 'rivalDeleted', { rivalId: m.id, subCategory: m.subCategory });
+                    createNotification(
+                        uid, 'MATCH_EXPIRED',
+                        '⏰ Esnek Maç Silindi',
+                        `${m.subCategory} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
+                        { subCategory: m.subCategory }
+                    ).catch(() => {});
+                }
+            }
         }
         const schedExpiredIds = new Set(schedExpired.map(m => m.id));
         const mine = all.filter(r => {

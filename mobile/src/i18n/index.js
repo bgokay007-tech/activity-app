@@ -153,6 +153,10 @@ const en = {
     allFilter: 'All',
     todayFilter: 'Today',
     weekFilter: 'This Week',
+    clearFilter: 'Clear',
+    cityAlertBtn: city => `🔔 Get alerts for new listings in ${city}`,
+    cityAlertOn: city => `🔔 Alerts on for ${city} — tap to turn off`,
+    cityAlertNoCity: 'Set your city in your profile to receive city alerts.',
 
     // SubCategory — archive / score
     enterScore: 'Enter Score',
@@ -574,6 +578,10 @@ const tr = {
     allFilter: 'Tümü',
     todayFilter: 'Bugün',
     weekFilter: 'Bu Hafta',
+    clearFilter: 'Temizle',
+    cityAlertBtn: city => `🔔 ${city} şehrindeki yeni ilanlar için bildirim al`,
+    cityAlertOn: city => `🔔 ${city} bildirimleri açık — kapatmak için dokun`,
+    cityAlertNoCity: 'Bildirim alabilmek için profil sayfanızdan şehrinizi ekleyin.',
 
     // SubCategory — archive / score
     enterScore: 'Skor Gir',
