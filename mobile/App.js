@@ -1,5 +1,7 @@
 import { Component } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, LogBox } from 'react-native';
+
+LogBox.ignoreLogs(['expo-notifications']);
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
