@@ -6,6 +6,7 @@ import {
     getDisputes, resolveDispute,
     getAllCourts, deleteCourt,
     getAllPosts, deletePost,
+    getTournamentPermissionRequests, approveTournamentPermission, rejectTournamentPermission,
 } from '../controllers/admin.controller.js';
 import { getNoShowReports, approveNoShow, rejectNoShow } from '../controllers/noshow.controller.js';
 import { adminGetCities, adminUpdateCity } from '../controllers/city.controller.js';
@@ -28,5 +29,8 @@ router.patch('/no-show-reports/:id/approve', approveNoShow);
 router.patch('/no-show-reports/:id/reject',  rejectNoShow);
 router.get('/cities',        adminGetCities);
 router.patch('/cities/:id',  adminUpdateCity);
+router.get('/tournament-permissions',                  getTournamentPermissionRequests);
+router.patch('/tournament-permissions/:userId/approve', approveTournamentPermission);
+router.patch('/tournament-permissions/:userId/reject',  rejectTournamentPermission);
 
 export default router;

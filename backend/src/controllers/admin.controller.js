@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { createNotification } from './notification.controller.js';
 
 export const getStats = async (req, res, next) => {
     try {
@@ -114,5 +115,48 @@ export const deletePost = async (req, res, next) => {
     try {
         await prisma.post.delete({ where: { id: req.params.id } });
         res.json({ message: 'Post deleted' });
+    } catch (e) { next(e); }
+};
+
+export const getTournamentPermissionRequests = async (req, res, next) => {
+    try {
+        const requests = await prisma.tournamentPermissionRequest.findMany({
+            where: { status: 'PENDING' },
+            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(requests);
+    } catch (e) { next(e); }
+};
+
+export const approveTournamentPermission = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        await prisma.$transaction([
+            prisma.user.update({ where: { id: userId }, data: { canCreateTournament: true } }),
+            prisma.tournamentPermissionRequest.update({ where: { userId }, data: { status: 'APPROVED' } }),
+        ]);
+        createNotification(userId, 'TOURNAMENT_PERMISSION_APPROVED',
+            '✅ Turnuva İzni Onaylandı',
+            'Tebrikler! Artık turnuva oluşturabilirsiniz.',
+            {}
+        ).catch(() => {});
+        res.json({ message: 'Approved' });
+    } catch (e) { next(e); }
+};
+
+export const rejectTournamentPermission = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        await prisma.tournamentPermissionRequest.update({
+            where: { userId },
+            data: { status: 'REJECTED' },
+        });
+        createNotification(userId, 'TOURNAMENT_PERMISSION_REJECTED',
+            '❌ Turnuva İzni Reddedildi',
+            'Turnuva oluşturma talebiniz reddedildi.',
+            {}
+        ).catch(() => {});
+        res.json({ message: 'Rejected' });
     } catch (e) { next(e); }
 };

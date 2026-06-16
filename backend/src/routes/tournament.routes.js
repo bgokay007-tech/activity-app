@@ -21,11 +21,15 @@ import {
     addManualParticipant,
     removeManualParticipant,
     rematchTournament,
+    requestTournamentPermission,
+    getTournamentPermissionStatus,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
 router.use(authenticate);
 
+router.get('/permission-status',             getTournamentPermissionStatus);
+router.post('/permission-request',           requestTournamentPermission);
 router.get('/',                              getTournaments);
 router.get('/archived',                      getArchivedTournaments);
 router.post('/',                             createTournament);

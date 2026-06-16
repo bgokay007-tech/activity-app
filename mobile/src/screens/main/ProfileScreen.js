@@ -206,6 +206,9 @@ export default function ProfileScreen({ route, navigation }) {
     const [friendCount, setFriendCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [manageOpen, setManageOpen] = useState(false);
+    const [showAdminPanel, setShowAdminPanel] = useState(false);
+    const [permRequests, setPermRequests] = useState([]);
+    const [loadingPerms, setLoadingPerms] = useState(false);
     const [friendStatus, setFriendStatus] = useState(null);
 
     // Stories
@@ -253,6 +256,10 @@ export default function ProfileScreen({ route, navigation }) {
     const [loadingUpcoming, setLoadingUpcoming] = useState(false);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [loadingTournamentHistory, setLoadingTournamentHistory] = useState(false);
+    const [selectedArchiveTournament, setSelectedArchiveTournament] = useState(null);
+    const [archiveModalMatches, setArchiveModalMatches] = useState([]);
+    const [archiveModalLoading, setArchiveModalLoading] = useState(false);
+    const [archiveModalTab, setArchiveModalTab] = useState('details');
 
     // Data saver
     const [dataSaver, setDataSaver] = useState(false);
@@ -295,6 +302,16 @@ export default function ProfileScreen({ route, navigation }) {
         }
         await Promise.all(loads);
     };
+
+    useEffect(() => {
+        if (!selectedArchiveTournament) { setArchiveModalMatches([]); return; }
+        setArchiveModalTab('details');
+        setArchiveModalLoading(true);
+        api.get(`/tournaments/${selectedArchiveTournament.id}/matches`)
+            .then(res => setArchiveModalMatches(Array.isArray(res.data) ? res.data : []))
+            .catch(() => setArchiveModalMatches([]))
+            .finally(() => setArchiveModalLoading(false));
+    }, [selectedArchiveTournament?.id]);
 
     // Privacy picker
     const [privacyPickerField, setPrivacyPickerField] = useState(null); // 'city'|'gender'|'birthDate'
@@ -376,6 +393,30 @@ export default function ProfileScreen({ route, navigation }) {
             { text: t.cancelBtn, style: 'cancel' },
             { text: t.logoutAction, style: 'destructive', onPress: () => dispatch(logout()) },
         ]);
+    };
+
+    const openAdminPanel = async () => {
+        setShowAdminPanel(true);
+        setLoadingPerms(true);
+        try {
+            const { data } = await api.get('/admin/tournament-permissions');
+            setPermRequests(data);
+        } catch { setPermRequests([]); }
+        finally { setLoadingPerms(false); }
+    };
+
+    const handlePermApprove = async (userId) => {
+        try {
+            await api.patch(`/admin/tournament-permissions/${userId}/approve`);
+            setPermRequests(prev => prev.filter(r => r.userId !== userId));
+        } catch (e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+    };
+
+    const handlePermReject = async (userId) => {
+        try {
+            await api.patch(`/admin/tournament-permissions/${userId}/reject`);
+            setPermRequests(prev => prev.filter(r => r.userId !== userId));
+        } catch (e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
     };
 
     const handleChangeAvatar = () => {
@@ -838,6 +879,13 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
+                {/* ── Admin Panel Butonu (sadece admin) ── */}
+                {isOwnProfile && myUser?.isAdmin && (
+                    <TouchableOpacity style={ap.adminBtn} onPress={openAdminPanel}>
+                        <Text style={ap.adminBtnText}>🛡️ Admin Paneli</Text>
+                    </TouchableOpacity>
+                )}
+
             </ScrollView>
 
             {/* ── Yaklaşan Maçlarım Modal ── */}
@@ -1047,10 +1095,183 @@ export default function ProfileScreen({ route, navigation }) {
                                                 <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>✅ Tamamlandı</Text>
                                             </View>
                                         </View>
+                                        <TouchableOpacity
+                                            style={{ backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#a855f740', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                                            onPress={() => setSelectedArchiveTournament(tourn)}
+                                        >
+                                            <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📋 Turnuva Detayları</Text>
+                                            <Text style={{ color:'#c084fc', fontSize:14 }}>›</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 ));
                             })())}
                         </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Archive Tournament Detail Modal ── */}
+            <Modal visible={!!selectedArchiveTournament} animationType="slide" transparent onRequestClose={() => setSelectedArchiveTournament(null)}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { maxHeight:'92%' }]}>
+                        {selectedArchiveTournament && (() => {
+                            const tourn = selectedArchiveTournament;
+                            const row = (label, value) => value ? (
+                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', paddingVertical:10, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                                    <Text style={{ color:colors.textMuted, fontSize:13, fontWeight:'600', flex:1 }}>{label}</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1.2, textAlign:'right' }}>{value}</Text>
+                                </View>
+                            ) : null;
+                            const archiveStandings = (() => {
+                                const stats = {};
+                                for (const m of archiveModalMatches) {
+                                    if (m.phase !== 'GROUP') continue;
+                                    if (m.p1Id && !stats[m.p1Id]) stats[m.p1Id] = { id:m.p1Id, name:m.p1Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+                                    if (m.p2Id && !stats[m.p2Id]) stats[m.p2Id] = { id:m.p2Id, name:m.p2Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+                                    if (m.status !== 'COMPLETED' || !m.score || !m.p2Id) continue;
+                                    const sc = m.score;
+                                    const s1 = stats[m.p1Id], s2 = stats[m.p2Id];
+                                    if (!s1 || !s2) continue;
+                                    s1.played++; s2.played++;
+                                    let p1s=0,p2s=0,p1g=0,p2g=0;
+                                    for (const set of (sc.sets||[])) {
+                                        p1g+=set.p1||0; p2g+=set.p2||0;
+                                        if ((set.p1||0)>(set.p2||0)) p1s++; else if ((set.p2||0)>(set.p1||0)) p2s++;
+                                    }
+                                    s1.setsWon+=p1s; s1.setsLost+=p2s; s1.gamesWon+=p1g; s1.gamesLost+=p2g;
+                                    s2.setsWon+=p2s; s2.setsLost+=p1s; s2.gamesWon+=p2g; s2.gamesLost+=p1g;
+                                    if (sc.winner==='p1') { s1.won++; s1.points+=3; s2.lost++; } else { s2.won++; s2.points+=3; s1.lost++; }
+                                }
+                                return Object.values(stats).sort((a,b) => {
+                                    if (b.points!==a.points) return b.points-a.points;
+                                    const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
+                                    if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
+                                    const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
+                                    return gr(b)-gr(a);
+                                });
+                            })();
+                            const hasGroup = archiveModalMatches.some(m => m.phase === 'GROUP');
+                            const tabs = ['details', 'matches', ...(hasGroup ? ['standings'] : [])];
+                            const tabLabel = { details:'Detaylar', matches:'Maçlar', standings:'Puan Tablosu' };
+                            const playoffMs = archiveModalMatches.filter(m => m.phase === 'PLAYOFF');
+                            const playoffMaxRound = playoffMs.length ? Math.max(...playoffMs.map(m => m.round)) : 0;
+                            const getRoundLabel = (round, phase) => {
+                                if (phase === 'GROUP') return `Grup - Tur ${round}`;
+                                const fromEnd = playoffMaxRound - round;
+                                if (fromEnd === 0) return 'Final';
+                                if (fromEnd === 1) return 'Yarı Final';
+                                if (fromEnd === 2) return 'Çeyrek Final';
+                                return `Playoff - Tur ${round}`;
+                            };
+                            return (
+                                <>
+                                    <View style={[s.modalHeader, { paddingHorizontal:24 }]}>
+                                        <Text style={[s.modalTitle, { flex:1 }]} numberOfLines={2}>🏆 {tourn.name}</Text>
+                                        <TouchableOpacity onPress={() => setSelectedArchiveTournament(null)}>
+                                            <Text style={s.modalClose}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ flexDirection:'row', gap:6, marginBottom:10, paddingHorizontal:24 }}>
+                                        {tabs.map(tab => (
+                                            <TouchableOpacity key={tab} onPress={() => setArchiveModalTab(tab)}
+                                                style={{ paddingHorizontal:12, paddingVertical:6, borderRadius:8, backgroundColor: archiveModalTab===tab ? '#a855f740' : 'transparent', borderWidth:1, borderColor: archiveModalTab===tab ? '#a855f760' : colors.border }}>
+                                                <Text style={{ color: archiveModalTab===tab ? '#c084fc' : colors.textMuted, fontSize:12, fontWeight:'700' }}>{tabLabel[tab]}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:24, paddingBottom:24 }}>
+                                        {archiveModalTab === 'details' && (
+                                            <>
+                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:12, paddingVertical:6, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50', marginBottom:14 }}>
+                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✅ Tamamlandı</Text>
+                                                </View>
+                                                {tourn.subCategory ? row('🏅 Dal', `${SUB_EMOJI[tourn.subCategory] || ''} ${tourn.subCategory}`) : null}
+                                                {row('👤 Organizatör', tourn.creator?.fullName || tourn.creator?.username)}
+                                                {tourn.city ? row('📍 Şehir', tourn.city) : null}
+                                                {tourn.location ? row('🏟️ Mekan', tourn.location) : null}
+                                                {tourn.surface ? row('🎾 Zemin', tourn.surface) : null}
+                                                {typeof tourn.isIndoor === 'boolean' ? row('🏠 Alan', tourn.isIndoor ? 'Kapalı' : 'Açık') : null}
+                                                {tourn.eventDate ? row('📅 Başlangıç', new Date(tourn.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
+                                                {tourn.eventEndDate ? row('📅 Bitiş', new Date(tourn.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
+                                                {row('👥 Katılımcı', `${tourn._count?.participants || 0} kişi`)}
+                                                {tourn.setsPerMatch ? row('🎯 Set/Maç', `${tourn.setsPerMatch} set`) : null}
+                                                {tourn.playoffQualifiers ? row('🏆 Playoff', `İlk ${tourn.playoffQualifiers} takım`) : null}
+                                                {tourn.prize1 ? row('🥇 1. Ödül', tourn.prize1) : null}
+                                                {tourn.prize2 ? row('🥈 2. Ödül', tourn.prize2) : null}
+                                                {tourn.prize3 ? row('🥉 3. Ödül', tourn.prize3) : null}
+                                                {tourn.isPaid ? row('💰 Katılım Ücreti', `${tourn.playerFee} ₺`) : null}
+                                                {tourn.completedAt ? row('🏁 Tamamlandı', new Date(tourn.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
+                                            </>
+                                        )}
+                                        {archiveModalTab === 'matches' && (
+                                            archiveModalLoading
+                                                ? <ActivityIndicator color="#c084fc" style={{ marginTop:20 }} />
+                                                : archiveModalMatches.length === 0
+                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Maç bulunamadı</Text>
+                                                    : (() => {
+                                                        const seen = new Set();
+                                                        const roundKeys = archiveModalMatches
+                                                            .filter(m => { const k=`${m.phase}|${m.round}`; if (seen.has(k)) return false; seen.add(k); return true; })
+                                                            .map(m => ({ phase:m.phase, round:m.round }));
+                                                        return roundKeys.map(({ phase, round }) => {
+                                                            const rMatches = archiveModalMatches.filter(m => m.phase === phase && m.round === round);
+                                                            return (
+                                                                <View key={`${phase}|${round}`} style={{ marginBottom:10 }}>
+                                                                    <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800', marginBottom:6 }}>{getRoundLabel(round, phase)}</Text>
+                                                                    {rMatches.map(match => {
+                                                                        const isDone = match.status === 'COMPLETED';
+                                                                        const isBye = match.status === 'BYE';
+                                                                        return (
+                                                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
+                                                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                                                    <View style={{ flex:1 }}>
+                                                                                        <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{match.p1Name || 'TBD'}</Text>
+                                                                                        <Text style={{ color:colors.textMuted, fontSize:10 }}>vs</Text>
+                                                                                        <Text style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{match.p2Name || 'TBD'}</Text>
+                                                                                    </View>
+                                                                                    <View style={{ alignItems:'flex-end' }}>
+                                                                                        {isBye && <Text style={{ color:colors.textMuted, fontSize:10 }}>BYE</Text>}
+                                                                                        {isDone && match.score && (
+                                                                                            <Text style={{ color:'#94a3b8', fontSize:12, fontWeight:'700' }}>
+                                                                                                {(match.score.sets||[]).map(s=>`${s.p1}-${s.p2}`).join(', ')}
+                                                                                            </Text>
+                                                                                        )}
+                                                                                    </View>
+                                                                                </View>
+                                                                            </View>
+                                                                        );
+                                                                    })}
+                                                                </View>
+                                                            );
+                                                        });
+                                                    })()
+                                        )}
+                                        {archiveModalTab === 'standings' && (
+                                            archiveModalLoading
+                                                ? <ActivityIndicator color="#c084fc" style={{ marginTop:20 }} />
+                                                : archiveStandings.length === 0
+                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Henüz maç sonucu yok</Text>
+                                                    : <View>
+                                                        <View style={{ flexDirection:'row', paddingVertical:4, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
+                                                            <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
+                                                            {['O','G','M','Av','P'].map(h => (
+                                                                <Text key={h} style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
+                                                            ))}
+                                                        </View>
+                                                        {archiveStandings.map((row2, i) => (
+                                                            <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row2.name}</Text>
+                                                                {[row2.played, row2.won, row2.lost, (() => { const d=row2.setsWon-row2.setsLost; return (d>=0?'+':'')+d; })(), row2.points].map((v,j) => (
+                                                                    <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
+                                                                ))}
+                                                            </View>
+                                                        ))}
+                                                    </View>
+                                        )}
+                                    </ScrollView>
+                                </>
+                            );
+                        })()}
                     </View>
                 </View>
             </Modal>
@@ -1061,6 +1282,41 @@ export default function ProfileScreen({ route, navigation }) {
                 onClose={() => setManageOpen(false)}
                 onInterestsChange={(updated) => setInterests(updated)}
             />
+
+            {/* ── Admin Paneli — Turnuva İzin Talepleri ── */}
+            <Modal visible={showAdminPanel} animationType="slide" transparent onRequestClose={() => setShowAdminPanel(false)}>
+                <View style={ap.overlay}>
+                    <View style={ap.box}>
+                        <View style={ap.header}>
+                            <Text style={ap.title}>🛡️ Turnuva İzin Talepleri</Text>
+                            <TouchableOpacity onPress={() => setShowAdminPanel(false)}><Text style={ap.close}>✕</Text></TouchableOpacity>
+                        </View>
+                        {loadingPerms ? (
+                            <ActivityIndicator color={colors.purple} style={{ marginVertical: 40 }} />
+                        ) : permRequests.length === 0 ? (
+                            <View style={{ alignItems: 'center', paddingVertical: 48 }}>
+                                <Text style={{ fontSize: 40, marginBottom: 12 }}>✅</Text>
+                                <Text style={{ color: colors.textMuted, fontSize: 14 }}>Bekleyen talep yok.</Text>
+                            </View>
+                        ) : (
+                            permRequests.map(req => (
+                                <View key={req.id} style={ap.card}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={ap.username}>@{req.user?.username}</Text>
+                                        {req.user?.fullName ? <Text style={ap.fullname}>{req.user.fullName}</Text> : null}
+                                    </View>
+                                    <TouchableOpacity style={ap.approveBtn} onPress={() => handlePermApprove(req.userId)}>
+                                        <Text style={ap.approveTxt}>Onayla</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={ap.rejectBtn} onPress={() => handlePermReject(req.userId)}>
+                                        <Text style={ap.rejectTxt}>Reddet</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))
+                        )}
+                    </View>
+                </View>
+            </Modal>
 
             {/* ── Create Story Modal ── */}
             <Modal visible={createStoryOpen} animationType="slide" transparent onRequestClose={() => setCreateStoryOpen(false)}>
@@ -1580,6 +1836,25 @@ export default function ProfileScreen({ route, navigation }) {
         </View>
     );
 }
+
+// ─── Admin Panel Styles ───────────────────────────────────────────────────────
+
+const ap = StyleSheet.create({
+    adminBtn:    { marginHorizontal: 20, marginTop: 20, marginBottom: 8, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    adminBtnText:{ color: colors.purple, fontSize: 14, fontWeight: '800' },
+    overlay:     { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
+    box:         { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, maxHeight: '80%' },
+    header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    title:       { color: '#fff', fontSize: 16, fontWeight: '900' },
+    close:       { color: colors.textMuted, fontSize: 22 },
+    card:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border + '50' },
+    username:    { color: '#fff', fontSize: 14, fontWeight: '700' },
+    fullname:    { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+    approveBtn:  { backgroundColor: '#16a34a', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+    approveTxt:  { color: '#fff', fontSize: 12, fontWeight: '800' },
+    rejectBtn:   { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#ef444450' },
+    rejectTxt:   { color: '#ef4444', fontSize: 12, fontWeight: '800' },
+});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

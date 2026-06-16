@@ -3761,6 +3761,109 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) =>
     `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`
 );
 
+function TournamentPermissionModal({ visible, onClose }) {
+    const t = useT();
+    const [status, setStatus] = useState(null); // null | NONE | PENDING | APPROVED | REJECTED
+    const [loading, setLoading] = useState(false);
+    const [sending, setSending] = useState(false);
+
+    useEffect(() => {
+        if (!visible) return;
+        setLoading(true);
+        api.get('/tournaments/permission-status')
+            .then(r => setStatus(r.data.status))
+            .catch(() => setStatus('NONE'))
+            .finally(() => setLoading(false));
+    }, [visible]);
+
+    const sendRequest = async () => {
+        setSending(true);
+        try {
+            const r = await api.post('/tournaments/permission-request');
+            setStatus(r.data.status);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSending(false); }
+    };
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={tp.overlay}>
+                <View style={tp.box}>
+                    <View style={tp.header}>
+                        <Text style={tp.title}>🏆 Turnuva Oluşturma</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={tp.close}>✕</Text></TouchableOpacity>
+                    </View>
+
+                    {loading ? (
+                        <ActivityIndicator color={colors.purple} style={{ marginVertical: 40 }} />
+                    ) : (
+                        <>
+                            <Text style={tp.desc}>
+                                Turnuva oluşturmak için admin onayı gereklidir.
+                            </Text>
+
+                            {status === 'NONE' && (
+                                <>
+                                    <Text style={tp.sub}>
+                                        Admin'e başvurarak turnuva oluşturma izni talep edebilirsiniz.
+                                    </Text>
+                                    <TouchableOpacity style={tp.btn} onPress={sendRequest} disabled={sending}>
+                                        {sending
+                                            ? <ActivityIndicator color="#fff" />
+                                            : <Text style={tp.btnText}>📩 Admin'e Başvur</Text>
+                                        }
+                                    </TouchableOpacity>
+                                </>
+                            )}
+
+                            {status === 'PENDING' && (
+                                <View style={tp.statusBox}>
+                                    <Text style={tp.statusEmoji}>⏳</Text>
+                                    <Text style={tp.statusTitle}>Başvurunuz İnceleniyor</Text>
+                                    <Text style={tp.statusDesc}>Admin talebinizi değerlendirdiğinde bildirim alacaksınız.</Text>
+                                </View>
+                            )}
+
+                            {status === 'REJECTED' && (
+                                <>
+                                    <View style={[tp.statusBox, { borderColor: '#ef444440' }]}>
+                                        <Text style={tp.statusEmoji}>❌</Text>
+                                        <Text style={[tp.statusTitle, { color: '#ef4444' }]}>Başvuru Reddedildi</Text>
+                                        <Text style={tp.statusDesc}>Talebiniz admin tarafından reddedildi. Yeniden başvurabilirsiniz.</Text>
+                                    </View>
+                                    <TouchableOpacity style={tp.btn} onPress={sendRequest} disabled={sending}>
+                                        {sending
+                                            ? <ActivityIndicator color="#fff" />
+                                            : <Text style={tp.btnText}>📩 Yeniden Başvur</Text>
+                                        }
+                                    </TouchableOpacity>
+                                </>
+                            )}
+                        </>
+                    )}
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+const tp = StyleSheet.create({
+    overlay:     { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
+    box:         { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:48 },
+    header:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20 },
+    title:       { color:'#fff', fontSize:17, fontWeight:'900' },
+    close:       { color: colors.textMuted, fontSize:22 },
+    desc:        { color:'#fff', fontSize:14, fontWeight:'700', marginBottom:8 },
+    sub:         { color: colors.textSecondary, fontSize:13, lineHeight:19, marginBottom:24 },
+    btn:         { backgroundColor: colors.purple, borderRadius:14, paddingVertical:15, alignItems:'center' },
+    btnText:     { color:'#fff', fontSize:15, fontWeight:'800' },
+    statusBox:   { borderWidth:1, borderColor: colors.border, borderRadius:16, padding:20, alignItems:'center', marginBottom:24, gap:8 },
+    statusEmoji: { fontSize:36 },
+    statusTitle: { color:'#fff', fontSize:15, fontWeight:'800' },
+    statusDesc:  { color: colors.textSecondary, fontSize:13, textAlign:'center', lineHeight:18 },
+});
+
 const TOURN_TYPES   = ['1', '2', '3'];
 const TOURN_SCOPES  = ['YEREL', 'ULUSAL', 'ULUSLARARASI'];
 const TOURN_GENDERS = ['KADIN', 'ERKEK', 'MIX'];
@@ -4450,6 +4553,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
+    const myCanCreateTournament = useSelector(s => s.auth.user?.canCreateTournament);
     const t = useT();
     const cfg = getConfig(sub);
     const tabs = getTabs(sub);
@@ -4510,6 +4614,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [showCreatePW, setShowCreatePW] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
+    const [showTournamentPermission, setShowTournamentPermission] = useState(false);
     const [tournaments, setTournaments] = useState([]);
     const [loadingTournaments, setLoadingTournaments] = useState(false);
     const [profileUserId, setProfileUserId] = useState(null);
@@ -5045,7 +5150,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                         );
                         return (
                             <>
-                                <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color + '60' }]} onPress={() => setShowCreateTournament(true)}>
+                                <TouchableOpacity
+                                    style={[s.createBtn, { borderColor: cfg.color + '60' }]}
+                                    onPress={() => {
+                                        if (myCanCreateTournament || myIsAdmin) setShowCreateTournament(true);
+                                        else setShowTournamentPermission(true);
+                                    }}
+                                >
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
                                 </TouchableOpacity>
                                 {loadingTournaments
@@ -5533,6 +5644,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             {showCreateRival && <CreateRivalModal visible onClose={() => setShowCreateRival(false)} category={category} sub={sub} onCreated={load} />}
             {showCreatePW && <CreatePlayerWantedModal visible onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />}
             {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
+            {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} />}
             {!!profileUserId && <UserProfileModal visible userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />}
 
             {/* ── Yorumlar — tam ekran modal ── */}
