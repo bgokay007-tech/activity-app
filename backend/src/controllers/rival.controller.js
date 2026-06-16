@@ -402,7 +402,7 @@ export const sendJoinRequest = async (req, res, next) => {
             'JOIN_REQUEST',
             '⚔️ New Join Request',
             `${me.fullName || me.username} wants to join your ${request.matchType === 'DOUBLE' ? 'double' : 'single'} match in ${request.subCategory}.`,
-            { rivalId: id, fromUserId: req.userId, fromUsername: me.username, category: request.category.toLowerCase(), subCategory: request.subCategory }
+            { rivalId: id, fromUserId: req.userId, fromUsername: me.username, category: request.category, subCategory: request.subCategory }
         );
 
         res.status(201).json({ message: '✓ Join request sent! Waiting for the organizer to accept.' });
@@ -487,7 +487,7 @@ export const respondToJoin = async (req, res, next) => {
             isFull
                 ? `Your request to join ${rival.sender?.username || ''}'s match was accepted. Match is full!`
                 : `Your request to join a match was accepted.`,
-            { rivalId: rival.id, category: rival.category.toLowerCase(), subCategory: rival.subCategory }
+            { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
         );
 
         res.json({
@@ -640,7 +640,7 @@ export const addMatchComment = async (req, res, next) => {
                 uid, 'MATCH_COMMENT',
                 '💬 Yeni Yorum',
                 `@${commenterUsername}: ${content.trim().slice(0, 60)}`,
-                { rivalId: id, category: match.category?.toLowerCase(), subCategory: match.subCategory }
+                { rivalId: id, category: match.category, subCategory: match.subCategory }
             ).catch(() => {});
         }
     } catch (error) { next(error); }
@@ -747,7 +747,7 @@ export const enterScore = async (req, res, next) => {
                 opp.id, 'SCORE_SUBMITTED',
                 '📊 Score submitted — confirm?',
                 `${me.fullName || me.username} entered the match score. Please confirm or dispute.`,
-                { rivalId: request.id, fromUserId: req.userId, category: request.category.toLowerCase(), subCategory: request.subCategory }
+                { rivalId: request.id, fromUserId: req.userId, category: request.category, subCategory: request.subCategory }
             );
         }
 
@@ -839,7 +839,7 @@ export const confirmScore = async (req, res, next) => {
             request.scoreEnteredBy, 'SCORE_CONFIRMED',
             '✅ Score confirmed!',
             `${me.username} confirmed the match score.${eloMsg}`,
-            { rivalId: id, pointChanges, category: request.category.toLowerCase(), subCategory: request.subCategory }
+            { rivalId: id, pointChanges, category: request.category, subCategory: request.subCategory }
         );
         // Emit to all players so their screens update in real-time
         const allPlayerIds2 = [...new Set([request.senderId, ...(Array.isArray(request.participants) ? request.participants.map(p => p.id) : [])])];
@@ -889,7 +889,7 @@ export const extendScoreDeadline = async (req, res, next) => {
                     'MATCH_CONFIRMED',
                     `⏱️ Score deadline extended by ${hours}h`,
                     `${me.fullName || me.username} extended the score entry window by ${hours} hours.`,
-                    { rivalId: id, category: request.category.toLowerCase(), subCategory: request.subCategory }
+                    { rivalId: id, category: request.category, subCategory: request.subCategory }
                 );
             }
         }
@@ -917,7 +917,7 @@ export const disputeScore = async (req, res, next) => {
             request.scoreEnteredBy, 'SCORE_DISPUTED',
             '⚠️ Score disputed!',
             `${me.username} disputed the score${reason ? `: ${reason}` : '.'}`,
-            { rivalId: id, disputed: true, category: request.category.toLowerCase(), subCategory: request.subCategory }
+            { rivalId: id, disputed: true, category: request.category, subCategory: request.subCategory }
         );
 
         // Notify both players about admin report option
@@ -949,7 +949,7 @@ export const reportDispute = async (req, res, next) => {
                 uid, 'JOIN_REQUEST',
                 '📋 Admin report filed',
                 `${me.username} reported the score dispute${reason ? `: ${reason}` : '.'}. An admin will review this.`,
-                { rivalId: id, adminReport: true, category: request.category.toLowerCase(), subCategory: request.subCategory }
+                { rivalId: id, adminReport: true, category: request.category, subCategory: request.subCategory }
             );
         }
 
@@ -1251,7 +1251,7 @@ export const proposeSchedule = async (req, res, next) => {
             createNotification(uid, 'MATCH_CONFIRMED',
                 '📅 Tarih Önerisi',
                 `${me.fullName || me.username} esnek maç için ${date} ${time} önerdi. Kabul edebilir veya farklı önerebilirsin.`,
-                { rivalId: id, category: match.category?.toLowerCase(), subCategory: match.subCategory }
+                { rivalId: id, category: match.category, subCategory: match.subCategory }
             ).catch(() => {});
         }
 
@@ -1296,7 +1296,7 @@ export const acceptSchedule = async (req, res, next) => {
                 createNotification(uid, 'MATCH_CONFIRMED',
                     '✅ Tarih Onaylandı!',
                     `${me.fullName || me.username} önerinizi kabul etti. Maç ${proposal.date} ${proposal.time} olarak ayarlandı.`,
-                    { rivalId: id, category: match.category?.toLowerCase(), subCategory: match.subCategory }
+                    { rivalId: id, category: match.category, subCategory: match.subCategory }
                 ).catch(() => {});
             }
         }

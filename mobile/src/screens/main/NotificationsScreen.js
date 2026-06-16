@@ -66,7 +66,6 @@ export default function NotificationsScreen({ navigation }) {
         markRead(item.id);
         const data = item.data || {};
         const type = item.type;
-
         const goToSub = (tab = 'rivals') => {
             if (!data.category || !data.subCategory) return;
             navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null });
