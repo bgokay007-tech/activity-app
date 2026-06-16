@@ -2422,6 +2422,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [editGenderType, setEditGenderType] = useState(item.genderType || 'MIX');
     const [editMin, setEditMin] = useState(String(item.minPlayers || 2));
     const [editMax, setEditMax] = useState(String(item.maxPlayers || 32));
+    const [editMinRating, setEditMinRating] = useState(item.minRating !== null && item.minRating !== undefined ? String(item.minRating) : '');
+    const [editMaxRating, setEditMaxRating] = useState(item.maxRating !== null && item.maxRating !== undefined ? String(item.maxRating) : '');
     const [editMatches, setEditMatches] = useState(String(item.matchesBeforePlayoff || ''));
     const [editQualifiers, setEditQualifiers] = useState(String(item.playoffQualifiers || ''));
     const [editSetsPerMatch, setEditSetsPerMatch] = useState(String(item.setsPerMatch || 3));
@@ -2711,6 +2713,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 contactPhone: editContactPhone || null,
                 scope: editScope,
                 genderType: editGenderType,
+                minRating: editMinRating !== '' ? parseFloat(editMinRating) : null,
+                maxRating: editMaxRating !== '' ? parseFloat(editMaxRating) : null,
                 minPlayers: parseInt(editMin) || item.minPlayers,
                 maxPlayers: parseInt(editMax) || item.maxPlayers,
                 setsPerMatch: editSetsPerMatch ? parseInt(editSetsPerMatch) : null,
@@ -2883,6 +2887,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         : <Text style={{ color: colors.textMuted, fontSize:11 }}>🤝 {t.tournCourtPlayersDecide}</Text>
                     }
                     {item.surface && <Text style={{ color: colors.textMuted, fontSize:11 }}>⬜ {SURFACE_LABEL[item.surface?.toUpperCase()] || item.surface}</Text>}
+                    {(item.minRating !== null && item.minRating !== undefined) || (item.maxRating !== null && item.maxRating !== undefined) ? (
+                        <Text style={{ color:'#fbbf24', fontSize:11 }}>
+                            ⭐ {item.minRating !== null && item.minRating !== undefined ? `${item.minRating}★` : '0★'} – {item.maxRating !== null && item.maxRating !== undefined ? `${item.maxRating}★` : '5★'}
+                        </Text>
+                    ) : null}
                     {(item.prize1 || item.prize2 || item.prize3) && (
                         <View style={{ gap:1 }}>
                             {item.prize1 && <Text style={{ color:'#fbbf24', fontSize:11 }}>🥇 {item.prize1}</Text>}
@@ -3349,6 +3358,38 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <TextInput style={s.fieldInput} value={editIbanNumber} onChangeText={setEditIbanNumber} placeholder="IBAN" placeholderTextColor={colors.textMuted} />
                                     </>)}
                                 </>)}
+
+                                {/* Rating limits */}
+                                <Text style={[s.fieldLabel, { marginTop:10 }]}>⭐ Alt Derece Limiti</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:2 }}>
+                                    <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
+                                        {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
+                                            <TouchableOpacity key={v} onPress={() => setEditMinRating(v)}
+                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1.5,
+                                                    borderColor: editMinRating === v ? infoColor : colors.border,
+                                                    backgroundColor: editMinRating === v ? infoColor + '33' : colors.surface2 }}>
+                                                <Text style={{ color: editMinRating === v ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
+                                                    {v === '' ? 'Yok' : `${v} ★`}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </ScrollView>
+                                <Text style={[s.fieldLabel, { marginTop:6 }]}>⭐ Üst Derece Limiti</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                    <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
+                                        {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
+                                            <TouchableOpacity key={v} onPress={() => setEditMaxRating(v)}
+                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1.5,
+                                                    borderColor: editMaxRating === v ? infoColor : colors.border,
+                                                    backgroundColor: editMaxRating === v ? infoColor + '33' : colors.surface2 }}>
+                                                <Text style={{ color: editMaxRating === v ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
+                                                    {v === '' ? 'Yok' : `${v} ★`}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </ScrollView>
 
                                 {/* Prizes */}
                                 <Text style={s.fieldLabel}>🏆 Ödüller</Text>
@@ -3874,7 +3915,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
     const INIT = {
         name: '', scope: 'YEREL', scopeCity: '', scopeDistrict: '', scopeCountry: '',
-        type: '1', minPlayers: '', maxPlayers: '',
+        type: '1', minPlayers: '', maxPlayers: '', minRating: '', maxRating: '',
         eventStartDate: null, eventStartTime: '',
         eventEndDate:   null, eventEndTime:   '',
         regEndDate: null, regEndTime: '',
@@ -3990,6 +4031,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
             await api.post('/tournaments', {
                 name: f.name.trim(), type: f.type, category, subCategory: sub,
                 scope: f.scope, genderType: f.genderType, city: cityVal,
+                minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
+                maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || undefined,
@@ -4518,6 +4561,38 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             </View>
 
+                            {/* Rating filter — min/max skillRating */}
+                            <Text style={[s.fieldLabel, { marginTop:10 }]}>⭐ Alt Derece Limiti</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:2 }}>
+                                <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
+                                    {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
+                                        <TouchableOpacity key={v} onPress={() => set('minRating', v)}
+                                            style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1.5,
+                                                borderColor: f.minRating === v ? cfg.color : colors.border,
+                                                backgroundColor: f.minRating === v ? cfg.color + '33' : colors.surface2 }}>
+                                            <Text style={{ color: f.minRating === v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
+                                                {v === '' ? 'Yok' : `${v} ★`}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                            <Text style={[s.fieldLabel, { marginTop:6 }]}>⭐ Üst Derece Limiti</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:4 }}>
+                                <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
+                                    {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
+                                        <TouchableOpacity key={v} onPress={() => set('maxRating', v)}
+                                            style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1.5,
+                                                borderColor: f.maxRating === v ? cfg.color : colors.border,
+                                                backgroundColor: f.maxRating === v ? cfg.color + '33' : colors.surface2 }}>
+                                            <Text style={{ color: f.maxRating === v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
+                                                {v === '' ? 'Yok' : `${v} ★`}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+
                             {/* Contact phone */}
                             <Text style={s.fieldLabel}>{t.tournContactPhoneLabel}</Text>
                             <TextInput style={[s.fieldInput, ti]} value={f.contactPhone}
@@ -4614,6 +4689,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showTournamentPermission, setShowTournamentPermission] = useState(false);
     const [tournamentPermStatus, setTournamentPermStatus] = useState(null);
     const [tournaments, setTournaments] = useState([]);
+    const [tournFilterMin, setTournFilterMin] = useState('');
+    const [tournFilterMax, setTournFilterMax] = useState('');
     const [loadingTournaments, setLoadingTournaments] = useState(false);
     const [profileUserId, setProfileUserId] = useState(null);
 
@@ -5137,8 +5214,15 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── TOURNAMENTS ── */}
                     {activeTab === 'tournaments' && (() => {
-                        const inProgress = tournaments.filter(t => t.status === 'IN_PROGRESS');
-                        const open = tournaments.filter(t => t.status === 'OPEN');
+                        const ratingFilter = (item) => {
+                            // Hide tournament if its maxRating is below user's min selected rating
+                            if (tournFilterMin !== '' && item.maxRating !== null && item.maxRating < parseFloat(tournFilterMin)) return false;
+                            // Hide tournament if its minRating is above user's max selected rating
+                            if (tournFilterMax !== '' && item.minRating !== null && item.minRating > parseFloat(tournFilterMax)) return false;
+                            return true;
+                        };
+                        const inProgress = tournaments.filter(t => t.status === 'IN_PROGRESS' && ratingFilter(t));
+                        const open = tournaments.filter(t => t.status === 'OPEN' && ratingFilter(t));
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -5164,6 +5248,41 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 >
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
                                 </TouchableOpacity>
+
+                                {/* Rating filter chips */}
+                                <View style={{ marginBottom:8 }}>
+                                    <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:4 }}>⭐ Derece Filtresi (Alt Limit)</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                        <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
+                                            {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
+                                                <TouchableOpacity key={v} onPress={() => setTournFilterMin(v)}
+                                                    style={{ paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1.5,
+                                                        borderColor: tournFilterMin === v ? cfg.color : colors.border,
+                                                        backgroundColor: tournFilterMin === v ? cfg.color + '33' : colors.surface2 }}>
+                                                    <Text style={{ color: tournFilterMin === v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
+                                                        {v === '' ? 'Tümü' : `${v} ★`}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </ScrollView>
+                                    <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:4, marginTop:6 }}>⭐ Derece Filtresi (Üst Limit)</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                        <View style={{ flexDirection:'row', gap:6, paddingBottom:4 }}>
+                                            {['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'].map(v => (
+                                                <TouchableOpacity key={v} onPress={() => setTournFilterMax(v)}
+                                                    style={{ paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1.5,
+                                                        borderColor: tournFilterMax === v ? cfg.color : colors.border,
+                                                        backgroundColor: tournFilterMax === v ? cfg.color + '33' : colors.surface2 }}>
+                                                    <Text style={{ color: tournFilterMax === v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'600' }}>
+                                                        {v === '' ? 'Tümü' : `${v} ★`}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </ScrollView>
+                                </View>
+
                                 {loadingTournaments
                                     ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
                                     : (<>
