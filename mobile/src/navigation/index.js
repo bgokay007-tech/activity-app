@@ -281,7 +281,7 @@ export default function Navigation() {
     }, []);
 
     useEffect(() => {
-        if (!token) return;
+        if (!token || isExpoGo) return;
         (async () => {
             try {
                 const { status } = await Notifications.requestPermissionsAsync();
