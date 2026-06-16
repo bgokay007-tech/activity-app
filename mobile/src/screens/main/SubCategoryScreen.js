@@ -3378,10 +3378,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     }}
                     onClose={() => setEditDp(null)}
                 />
-                <OptionPickerModal
+                <TimeGridModal
                     visible={!!editTf}
                     title="Saat Seçin"
-                    options={TIME_SLOTS.map(ts => ({ value: ts, label: ts }))}
                     value={editTf === 'evStart' ? editEventTime : editTf === 'evEnd' ? editEventEndTime : editRegEndTime}
                     onSelect={(v) => {
                         if (editTf === 'evStart') setEditEventTime(v);
@@ -4252,10 +4251,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 onSelect={(date) => { set('regEndDate', date); setDpField(null); }}
                                 onClose={() => setDpField(null)}
                             />
-                            <OptionPickerModal
+                            <TimeGridModal
                                 visible={timeField === 'end'}
                                 title={t.tournRegEndLabel}
-                                options={TIME_SLOTS.map(s => ({ value: s, label: s }))}
                                 value={f.regEndTime}
                                 onSelect={(v) => { set('regEndTime', v); setTimeField(null); }}
                                 onClose={() => setTimeField(null)}
@@ -4294,10 +4292,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 onSelect={(date) => { set(dpField === 'evStart' ? 'eventStartDate' : 'eventEndDate', date); setDpField(null); }}
                                 onClose={() => setDpField(null)}
                             />
-                            <OptionPickerModal
+                            <TimeGridModal
                                 visible={timeField === 'evStart' || timeField === 'evEnd'}
                                 title={timeField === 'evStart' ? t.tournEventStartLabel : t.tournEventEndLabel}
-                                options={TIME_SLOTS.map(s => ({ value: s, label: s }))}
                                 value={timeField === 'evStart' ? f.eventStartTime : f.eventEndTime}
                                 onSelect={(v) => { set(timeField === 'evStart' ? 'eventStartTime' : 'eventEndTime', v); setTimeField(null); }}
                                 onClose={() => setTimeField(null)}
