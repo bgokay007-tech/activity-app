@@ -124,7 +124,8 @@ function getRequired(request) {
 
 export const getCountsBySubCategory = async (req, res, next) => {
     try {
-        const { category } = req.query;
+        const { category: categoryRaw } = req.query;
+        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
         const where = { status: 'OPEN', ...(category && { category }) };
 
         const [rivalRows, tournRows] = await Promise.all([
@@ -267,7 +268,8 @@ export const createRivalRequest = async (req, res, next) => {
 
 export const getRivalRequests = async (req, res, next) => {
     try {
-        const { category, subCategory, matchType } = req.query;
+        const { category: categoryRaw, subCategory, matchType } = req.query;
+        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
 
         // Auto-delete OPEN listings whose match time has already passed (not enough players)
         const now = new Date();
@@ -511,7 +513,8 @@ const getMatchDeadline = (match) => {
 
 export const getUpcomingMatches = async (req, res, next) => {
     try {
-        const { category, subCategory } = req.query;
+        const { category: categoryRaw, subCategory } = req.query;
+        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
 
         const matches = await prisma.activityRequest.findMany({
             where: {
@@ -975,7 +978,8 @@ export const archiveMatch = async (req, res, next) => {
 
 export const getCompletedMatches = async (req, res, next) => {
     try {
-        const { category, subCategory } = req.query;
+        const { category: categoryRaw, subCategory } = req.query;
+        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
         const all = await prisma.activityRequest.findMany({
             where: {
                 ...(category    && { category }),
@@ -1000,7 +1004,8 @@ export const getCompletedMatches = async (req, res, next) => {
 
 export const getArchivedMatchesBySport = async (req, res, next) => {
     try {
-        const { category, subCategory } = req.query;
+        const { category: categoryRaw, subCategory } = req.query;
+        const category = categoryRaw ? categoryRaw.toUpperCase() : null;
         const all = await prisma.activityRequest.findMany({
             where: {
                 ...(category    && { category }),
