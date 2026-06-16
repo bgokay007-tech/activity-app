@@ -88,7 +88,9 @@ export default function NotificationsScreen({ navigation }) {
             }
         } else if (type === 'SCORE_SUBMITTED') {
             goToSub('rivals');
-        } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED' || type === 'MATCH_CONFIRMED') {
+        } else if (type === 'MATCH_CONFIRMED') {
+            goToSub('rivals');
+        } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') {
             goToSub('archive');
         } else if (type === 'SCORE_DISPUTED') {
             goToSub('rivals');

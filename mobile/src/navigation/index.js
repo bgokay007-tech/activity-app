@@ -39,7 +39,8 @@ function navigateFromNotif(data) {
     } else if (data.category && data.subCategory) {
         let initialTab = 'rivals';
         if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') initialTab = 'tournaments';
-        else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED' || type === 'MATCH_CONFIRMED') initialTab = 'archive';
+        else if (type === 'MATCH_CONFIRMED') initialTab = 'rivals';
+        else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') initialTab = 'archive';
         navigationRef.navigate('HomeTab', {
             screen: 'SubCategory',
             params: { category: data.category, sub: data.subCategory, initialTab, highlightRivalId: data.rivalId || null },

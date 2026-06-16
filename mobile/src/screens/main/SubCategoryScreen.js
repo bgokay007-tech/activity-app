@@ -4539,7 +4539,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 !Array.isArray(p.positions) ||
                 (!p.positions.includes('REFEREE') && !p.positions.includes('REFEREE_OFFER'))
             ));
-            setMatchedUpcoming(Array.isArray(upcomingRes.data) ? upcomingRes.data : []);
+            const upcomingList = Array.isArray(upcomingRes.data) ? upcomingRes.data : [];
+            setMatchedUpcoming(upcomingList);
             setPendingScore(Array.isArray(pendingRes.data) ? pendingRes.data : []);
 
             const allPosts = Array.isArray(postsRes.data) ? postsRes.data : [];
@@ -4547,7 +4548,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             setMediaPosts(Array.isArray(mediaRes.data) ? mediaRes.data : []);
 
             if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
-                const found = openRivals.find(r => r.id === highlightRivalId);
+                const found = openRivals.find(r => r.id === highlightRivalId)
+                    || upcomingList.find(r => r.id === highlightRivalId);
                 if (found) {
                     autoOpenHandledRef.current = highlightRivalId;
                     setAutoOpenId(highlightRivalId);
