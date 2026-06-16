@@ -4533,7 +4533,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             ]);
 
             const allRivals = rvRes.data;
-            setRivals(allRivals.filter(r => r.matchType !== 'PLAYER_WANTED'));
+            const openRivals = allRivals.filter(r => r.matchType !== 'PLAYER_WANTED');
+            setRivals(openRivals);
             setPlayerWanted(pwRes.data.filter(p =>
                 !Array.isArray(p.positions) ||
                 (!p.positions.includes('REFEREE') && !p.positions.includes('REFEREE_OFFER'))
@@ -4544,25 +4545,23 @@ export default function SubCategoryScreen({ route, navigation }) {
             const allPosts = Array.isArray(postsRes.data) ? postsRes.data : [];
             setTextPosts(allPosts.filter(p => p.type === 'POST' && !p.imageUrl && !p.videoUrl));
             setMediaPosts(Array.isArray(mediaRes.data) ? mediaRes.data : []);
+
+            if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
+                const found = openRivals.find(r => r.id === highlightRivalId);
+                if (found) {
+                    autoOpenHandledRef.current = highlightRivalId;
+                    setAutoOpenId(highlightRivalId);
+                }
+            }
         } catch(e) { console.warn(e?.message); }
         finally { setLoading(false); setRefreshing(false); }
-    }, [category, sub, myId]);
+    }, [category, sub, myId, highlightRivalId]);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => { load(); });
         return () => task.cancel();
     }, [load]);
     const onRefresh = () => { setRefreshing(true); load(); };
-
-    useEffect(() => {
-        if (!highlightRivalId || autoOpenHandledRef.current === highlightRivalId) return;
-        if (rivals.length === 0) return;
-        const found = rivals.find(r => r.id === highlightRivalId);
-        if (found) {
-            autoOpenHandledRef.current = highlightRivalId;
-            setAutoOpenId(highlightRivalId);
-        }
-    }, [rivals, highlightRivalId]);
 
     useEffect(() => {
         api.get(`/city-alerts/${encodeURIComponent(sub)}`)
