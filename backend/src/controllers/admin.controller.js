@@ -122,10 +122,14 @@ export const getTournamentPermissionRequests = async (req, res, next) => {
     try {
         const requests = await prisma.tournamentPermissionRequest.findMany({
             where: { status: 'PENDING' },
-            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(requests);
+        const userIds = requests.map(r => r.userId);
+        const users = userIds.length > 0
+            ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, username: true, fullName: true, avatar: true } })
+            : [];
+        const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+        res.json(requests.map(r => ({ ...r, user: userMap[r.userId] || null })));
     } catch (e) { next(e); }
 };
 
