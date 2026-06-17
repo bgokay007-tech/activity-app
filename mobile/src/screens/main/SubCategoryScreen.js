@@ -1298,9 +1298,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 {/* Right: small stacked action buttons */}
                 <View style={{ gap:5, alignItems:'flex-end' }}>
                     {!hasScore && scoreUnlocked && (
-                        <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
-                            <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
-                        </TouchableOpacity>
+                        <View style={{ alignItems:'flex-end', gap:4 }}>
+                            <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
+                                <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={{ paddingHorizontal:8, paddingVertical:3, borderRadius:7, borderWidth:1, borderColor:'#dc262630', backgroundColor:'#dc262612' }}
+                                onPress={() => setShowCantScore(true)}
+                            >
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
+                            </TouchableOpacity>
+                        </View>
                     )}
                     {match.scoreStatus !== 'CONFIRMED' && (
                         <>
@@ -1612,17 +1620,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 </TouchableOpacity>
             )}
 
-            {/* Lock message / Skor Giremiyoruz button */}
+            {/* Lock message */}
             {!hasScore && !scoreUnlocked && matchEnd && (
                 <Text style={sc.lockedTxt}>{t.matchNotStarted}</Text>
-            )}
-            {!hasScore && scoreUnlocked && (
-                <TouchableOpacity
-                    style={[s.cancelBtn, { marginTop:6 }]}
-                    onPress={() => setShowCantScore(true)}
-                >
-                    <Text style={s.cancelBtnText}>{t.cantScoreBtn}</Text>
-                </TouchableOpacity>
             )}
 
             {/* Skor Giremiyoruz Modal */}
@@ -4839,6 +4839,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [cityAlertLoading, setCityAlertLoading] = useState(false);
 
     const [showCreateRival, setShowCreateRival] = useState(false);
+    const [upcomingExpanded, setUpcomingExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
     const [showTournamentPermission, setShowTournamentPermission] = useState(false);
@@ -5331,8 +5332,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Yaklaşan Maçlar — tüm ilanların altında, filtreye tabi */}
                             {filteredMatchedUpcoming.length > 0 && (
                                 <>
-                                    <Text style={s.sectionTitle}>{t.upcomingMatchesTitle}</Text>
-                                    {filteredMatchedUpcoming.map(m => (
+                                    <TouchableOpacity
+                                        onPress={() => setUpcomingExpanded(v => !v)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: upcomingExpanded ? 8 : 4 }}
+                                    >
+                                        <Text style={s.sectionTitle}>{t.upcomingMatchesTitle} ({filteredMatchedUpcoming.length})</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
+                                            {upcomingExpanded ? '▼' : '›'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {upcomingExpanded && filteredMatchedUpcoming.map(m => (
                                         <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                     ))}
                                 </>
