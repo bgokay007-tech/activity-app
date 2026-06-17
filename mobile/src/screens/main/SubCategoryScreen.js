@@ -2926,34 +2926,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             ⭐ {item.minRating !== null && item.minRating !== undefined ? `${item.minRating}★` : '0★'} – {item.maxRating !== null && item.maxRating !== undefined ? `${item.maxRating}★` : '5★'}
                         </Text>
                     ) : null}
-                    {/* Rules badges */}
-                    {(item.matchmakingType || item.matchFrequency || item.matchTimeStart) && (
-                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:2 }}>
-                            {item.matchmakingType && item.matchmakingType !== 'ELO' ? (
-                                <View style={{ backgroundColor:'#6d28d920', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#6d28d940' }}>
-                                    <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'700' }}>
-                                        {item.matchmakingType === 'RANDOM' ? '🎲 Rastgele Eşleşme' : '🏅 Sıralamaya Göre'}
-                                    </Text>
-                                </View>
-                            ) : item.matchmakingType === 'ELO' ? (
-                                <View style={{ backgroundColor:'#1d4ed820', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#1d4ed840' }}>
-                                    <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'700' }}>🎯 ELO Eşleşme</Text>
-                                </View>
-                            ) : null}
-                            {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
-                                <View style={{ backgroundColor:'#065f4620', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#065f4640' }}>
-                                    <Text style={{ color:'#34d399', fontSize:9, fontWeight:'700' }}>
-                                        {item.matchFrequency === 'WEEKLY_1' ? '📅 Haftada 1 Maç' : '📅 Haftada 2 Maç'}
-                                    </Text>
-                                </View>
-                            )}
-                            {(item.matchTimeStart || item.matchTimeEnd) && (
-                                <View style={{ backgroundColor:'#78350f20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#78350f40' }}>
-                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>
-                                        ⏰ {item.matchTimeStart || '?'} – {item.matchTimeEnd || '?'}
-                                    </Text>
-                                </View>
-                            )}
+                    {/* Rules badge */}
+                    {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
+                        <View style={{ backgroundColor:'#1e3a8a20', borderRadius:7, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#1e3a8a50', marginTop:2 }}>
+                            <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }}>
+                                {item.matchFrequency === 'WEEKLY_1'
+                                    ? '📅 Haftada 1 Maç  •  🃏 1 joker (+10 gün)'
+                                    : '📅 Haftada 2 Maç  •  🃏 2 joker (+14 gün)'}
+                            </Text>
                         </View>
                     )}
                     {(item.prize1 || item.prize2 || item.prize3) && (
@@ -3110,29 +3090,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <TouchableOpacity onPress={() => setShowMatchesModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                     </View>
                     {/* Rules summary bar */}
-                    {(item.matchmakingType || item.matchFrequency || item.matchTimeStart) && (
-                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5, marginBottom:10, paddingHorizontal:2 }}>
-                            {item.matchmakingType && (
-                                <View style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
-                                    <Text style={{ color: colors.textSecondary, fontSize:10, fontWeight:'700' }}>
-                                        {item.matchmakingType === 'ELO' ? '🎯 ELO Eşleşme' : item.matchmakingType === 'RANDOM' ? '🎲 Rastgele' : '🏅 Sıralamaya Göre'}
-                                    </Text>
-                                </View>
-                            )}
-                            {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
-                                <View style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
-                                    <Text style={{ color: colors.textSecondary, fontSize:10, fontWeight:'700' }}>
-                                        {item.matchFrequency === 'WEEKLY_1' ? '📅 Haftada 1 Maç' : '📅 Haftada 2 Maç'}
-                                    </Text>
-                                </View>
-                            )}
-                            {(item.matchTimeStart || item.matchTimeEnd) && (
-                                <View style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
-                                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>
-                                        ⏰ {item.matchTimeStart || '?'} – {item.matchTimeEnd || '?'}
-                                    </Text>
-                                </View>
-                            )}
+                    {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
+                        <View style={{ backgroundColor:'#1e3a8a18', borderRadius:8, padding:8, marginBottom:10, borderWidth:1, borderColor:'#1e3a8a40' }}>
+                            <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800' }}>
+                                {item.matchFrequency === 'WEEKLY_1'
+                                    ? '📅 Haftada 1 Maç  •  🃏 1 joker hakkı (+10 gün)'
+                                    : '📅 Haftada 2 Maç  •  🃏 2 joker hakkı (+14 gün)'}
+                            </Text>
                         </View>
                     )}
                     {(item.type === '1' || item.type === '3') && (
@@ -4680,58 +4644,47 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:10, borderWidth:1, borderColor: colors.border }}>
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'900', marginBottom:10 }}>⚙️ Turnuva Kuralları</Text>
 
-                                {/* Eşleşme Tipi */}
-                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>Eşleşme Tipi</Text>
-                                <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
-                                    {[
-                                        { v:'ELO',    label:'🎯 ELO Bazlı',        desc:'Yakın dereceli eşleşme' },
-                                        { v:'RANDOM',  label:'🎲 Rastgele',          desc:'Karışık kura' },
-                                        { v:'SEEDED',  label:'🏅 Sıralamaya Göre',  desc:'En iyi vs en zayıf' },
-                                    ].map(opt => (
-                                        <TouchableOpacity key={opt.v} onPress={() => set('matchmakingType', opt.v)}
-                                            style={{ flex:1, borderRadius:8, paddingVertical:8, paddingHorizontal:4, alignItems:'center', borderWidth:1.5,
-                                                borderColor: f.matchmakingType === opt.v ? cfg.color : colors.border,
-                                                backgroundColor: f.matchmakingType === opt.v ? cfg.color+'22' : 'transparent' }}>
-                                            <Text style={{ color: f.matchmakingType === opt.v ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800', textAlign:'center' }}>{opt.label}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginTop:2 }}>{opt.desc}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
                                 {/* Maç Sıklığı */}
                                 <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>Maç Sıklığı</Text>
-                                <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
                                     {[
-                                        { v:'WEEKLY_1', label:'📅 Haftada 1',  desc:'7 gün/round' },
-                                        { v:'WEEKLY_2', label:'📅 Haftada 2',  desc:'4 gün/round' },
-                                        { v:'FLEXIBLE', label:'🔓 Esnek',      desc:'Süre yok' },
+                                        { v:'WEEKLY_1', label:'📅 Haftada 1' },
+                                        { v:'WEEKLY_2', label:'📅 Haftada 2' },
+                                        { v:'FLEXIBLE', label:'🔓 Esnek'     },
                                     ].map(opt => (
                                         <TouchableOpacity key={opt.v} onPress={() => set('matchFrequency', opt.v)}
-                                            style={{ flex:1, borderRadius:8, paddingVertical:8, paddingHorizontal:4, alignItems:'center', borderWidth:1.5,
+                                            style={{ flex:1, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1.5,
                                                 borderColor: f.matchFrequency === opt.v ? cfg.color : colors.border,
                                                 backgroundColor: f.matchFrequency === opt.v ? cfg.color+'22' : 'transparent' }}>
-                                            <Text style={{ color: f.matchFrequency === opt.v ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800', textAlign:'center' }}>{opt.label}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginTop:2 }}>{opt.desc}</Text>
+                                            <Text style={{ color: f.matchFrequency === opt.v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>{opt.label}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
 
-                                {/* Maç Saati Aralığı */}
-                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>⏰ Maç Saati Aralığı (opsiyonel)</Text>
-                                <View style={{ flexDirection:'row', gap:8 }}>
-                                    <TouchableOpacity onPress={() => setRatingField('timeStart')} style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>En Erken</Text>
-                                        <View style={{ backgroundColor: colors.surface, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: f.matchTimeStart ? cfg.color : colors.border }}>
-                                            <Text style={{ color: f.matchTimeStart ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>{f.matchTimeStart || '—'}</Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setRatingField('timeEnd')} style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>En Geç</Text>
-                                        <View style={{ backgroundColor: colors.surface, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: f.matchTimeEnd ? cfg.color : colors.border }}>
-                                            <Text style={{ color: f.matchTimeEnd ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>{f.matchTimeEnd || '—'}</Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                </View>
+                                {/* Joker açıklaması */}
+                                {f.matchFrequency === 'WEEKLY_1' && (
+                                    <View style={{ backgroundColor:'#1e40af18', borderRadius:8, padding:10, borderWidth:1, borderColor:'#1e40af40' }}>
+                                        <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800', marginBottom:4 }}>🃏 Joker Hakkı</Text>
+                                        <Text style={{ color:'#93c5fd', fontSize:11, lineHeight:17 }}>
+                                            Her katılımcının <Text style={{ fontWeight:'900' }}>1 joker hakkı</Text> vardır.{'\n'}
+                                            İstediği maçta kullanabilir → o maç için <Text style={{ fontWeight:'900' }}>+10 gün</Text> ek süre verilir.
+                                        </Text>
+                                    </View>
+                                )}
+                                {f.matchFrequency === 'WEEKLY_2' && (
+                                    <View style={{ backgroundColor:'#1e40af18', borderRadius:8, padding:10, borderWidth:1, borderColor:'#1e40af40' }}>
+                                        <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800', marginBottom:4 }}>🃏 Joker Hakkı</Text>
+                                        <Text style={{ color:'#93c5fd', fontSize:11, lineHeight:17 }}>
+                                            Her katılımcının <Text style={{ fontWeight:'900' }}>2 joker hakkı</Text> vardır.{'\n'}
+                                            İstediği maçlarda kullanabilir → her kullanımda <Text style={{ fontWeight:'900' }}>+14 gün</Text> ek süre verilir.
+                                        </Text>
+                                    </View>
+                                )}
+                                {f.matchFrequency === 'FLEXIBLE' && (
+                                    <Text style={{ color: colors.textMuted, fontSize:11, lineHeight:16 }}>
+                                        🔓 Maç süreleri serbest — joker hakkı ve deadline uygulanmaz.
+                                    </Text>
+                                )}
                             </View>
 
                             {/* Contact phone */}
