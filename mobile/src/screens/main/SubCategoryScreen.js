@@ -5305,17 +5305,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         onPress={toggleCityAlert}
                                         disabled={cityAlertLoading}
                                         style={{
-                                            marginTop: 8,
-                                            paddingVertical: 8,
-                                            paddingHorizontal: 12,
-                                            borderRadius: 8,
+                                            paddingVertical: 5,
+                                            paddingHorizontal: 10,
+                                            borderRadius: 7,
                                             backgroundColor: cityAlertSubscribed ? cfg.color + '20' : '#ffffff10',
                                             borderWidth: 1,
                                             borderColor: cityAlertSubscribed ? cfg.color + '60' : '#ffffff20',
-                                            alignItems: 'center',
+                                            alignSelf: 'flex-start',
                                         }}
                                     >
-                                        <Text style={{ color: cityAlertSubscribed ? cfg.color : colors.textMuted, fontSize: 12, textAlign: 'center' }}>
+                                        <Text style={{ color: cityAlertSubscribed ? cfg.color : colors.textMuted, fontSize: 11 }}>
                                             {cityAlertLoading ? '...' : cityAlertSubscribed ? t.cityAlertOn(cityAlertCity) : t.cityAlertBtn(cityAlertCity)}
                                         </Text>
                                     </TouchableOpacity>
@@ -6239,16 +6238,16 @@ const s = StyleSheet.create({
     createBtn:        { backgroundColor: colors.surface, borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
     createBtnText:    { fontWeight:'700', fontSize:14 },
 
-    filterBox:        { backgroundColor: colors.surface, borderRadius:16, padding:12, borderWidth:1, borderColor: colors.border, gap:10 },
-    filterInputRow:   { flexDirection:'row', gap:8, alignItems:'center' },
-    filterInput:      { flex:1, backgroundColor: colors.surface2, color:'#fff', borderRadius:10, paddingHorizontal:12, paddingVertical:9, borderWidth:1, borderColor: colors.border, fontSize:13 },
-    nearBtn:          { backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:12, paddingVertical:9, borderWidth:1, borderColor: colors.border, height:40, justifyContent:'center' },
-    nearBtnText:      { fontSize:12, fontWeight:'700' },
-    dateChips:        { flexDirection:'row', gap:8, flexWrap:'wrap' },
-    dateChip:         { paddingHorizontal:12, paddingVertical:6, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
-    dateChipText:     { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
-    clearChip:        { paddingHorizontal:12, paddingVertical:6, borderRadius:10, backgroundColor:'#dc262620', borderWidth:1, borderColor:'#dc262640' },
-    clearChipText:    { color:'#f87171', fontSize:12, fontWeight:'700' },
+    filterBox:        { backgroundColor: colors.surface, borderRadius:12, padding:8, borderWidth:1, borderColor: colors.border, gap:6 },
+    filterInputRow:   { flexDirection:'row', gap:6, alignItems:'center' },
+    filterInput:      { flex:1, backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor: colors.border, fontSize:12 },
+    nearBtn:          { backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:6, borderWidth:1, borderColor: colors.border, justifyContent:'center' },
+    nearBtnText:      { fontSize:11, fontWeight:'700' },
+    dateChips:        { flexDirection:'row', gap:5, flexWrap:'wrap' },
+    dateChip:         { paddingHorizontal:9, paddingVertical:4, borderRadius:8, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    dateChipText:     { color: colors.textSecondary, fontSize:11, fontWeight:'700' },
+    clearChip:        { paddingHorizontal:9, paddingVertical:4, borderRadius:8, backgroundColor:'#dc262620', borderWidth:1, borderColor:'#dc262640' },
+    clearChipText:    { color:'#f87171', fontSize:11, fontWeight:'700' },
 
     empty:            { alignItems:'center', paddingTop:60, paddingBottom:40 },
     emptyEmoji:       { fontSize:48, marginBottom:12 },
