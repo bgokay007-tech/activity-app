@@ -644,10 +644,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                         <Text style={s.flexDesc}>{t.flexibleBannerDesc}</Text>
                     </View>
                 )}
-                {item.level && (
+                {(item.level || item.minRating != null || item.maxRating != null) && (
                     <View style={s.levelRow}>
-                        <Text style={s.levelBadge}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
+                        {item.level && <Text style={s.levelBadge}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>}
                         {item.levelDetail && <Text style={s.levelDetail}>{item.levelDetail}</Text>}
+                        {(item.minRating != null || item.maxRating != null) && (
+                            <Text style={s.levelDetail}>⭐ {item.minRating != null ? `${item.minRating}` : '0'}–{item.maxRating != null ? `${item.maxRating}` : '5'}★</Text>
+                        )}
                     </View>
                 )}
                 {item.message && <Text style={s.cardMsg}>{item.message}</Text>}
@@ -1989,10 +1992,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         manualCourtName: '', manualCity: '', manualAddress: '',
         surface: '', venueType: '', courtReserved: false,
         message: '',
+        minRating: '', maxRating: '',
     };
     const [f, setF]               = useState(INIT);
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [ratingPickerTarget, setRatingPickerTarget] = useState(null);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
 
     const searchCourts = async (text) => {
@@ -2067,6 +2072,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                 venueType: f.venueType || undefined,
                 isCourtReserved: f.courtReserved,
                 message:   f.message || undefined,
+                minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
+                maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
             });
             onCreated();
             onClose();
@@ -2142,45 +2149,78 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             )}
 
-                            {/* 2 - Format (non-team) / Takım büyüklüğü (team) */}
+                            {/* 2+3 - Format + Esnek Program yan yana (non-team) */}
                             {!isTeamSport ? (
-                                <>
-                                    <Text style={s.fieldLabel}>{t.formatLabel}</Text>
-                                    <View style={s.chipRow}>
-                                        {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
-                                            <TouchableOpacity key={fmt.id} onPress={() => set('matchType', fmt.id)}
-                                                style={[s.chipBtn, { flex:1 }, f.matchType===fmt.id && s.chipBtnActive]}>
-                                                <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </>
-                            ) : teamSizes.length > 0 && (
-                                <>
-                                    <Text style={s.fieldLabel}>{t.teamSizeLabel}</Text>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:14 }}>
-                                        <View style={s.chipRow}>
-                                            {teamSizes.map(n => (
-                                                <TouchableOpacity key={n} onPress={() => set('teamSize', n)}
-                                                    style={[s.chipBtn, f.teamSize===n && s.chipBtnActive]}>
-                                                    <Text style={[s.chipBtnText, f.teamSize===n && s.chipBtnTextActive]}>{n}v{n}</Text>
+                                <View style={{ flexDirection:'row', gap:10, marginBottom:14 }}>
+                                    <View style={{ flex:1 }}>
+                                        <Text style={s.fieldLabel}>{t.formatLabel}</Text>
+                                        <View style={[s.chipRow, { marginBottom:0 }]}>
+                                            {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
+                                                <TouchableOpacity key={fmt.id} onPress={() => set('matchType', fmt.id)}
+                                                    style={[s.chipBtn, { flex:1 }, f.matchType===fmt.id && s.chipBtnActive]}>
+                                                    <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
-                                    </ScrollView>
+                                    </View>
+                                    <View style={[s.switchRow, { flex:1, marginBottom:0 }]}>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:2 }]}>{t.flexLabel}</Text>
+                                            <Text style={[s.fieldHint, { marginBottom:0 }]}>{t.flexHint}</Text>
+                                        </View>
+                                        <Switch value={f.flexibleSchedule} onValueChange={v => setF(p => ({ ...p, flexibleSchedule: v, matchMode: !v && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
+                                            trackColor={{ false: colors.border, true: '#eab308' }}
+                                            thumbColor={f.flexibleSchedule ? '#fff' : colors.textMuted} />
+                                    </View>
+                                </View>
+                            ) : (
+                                <>
+                                    {teamSizes.length > 0 && (
+                                        <>
+                                            <Text style={s.fieldLabel}>{t.teamSizeLabel}</Text>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:14 }}>
+                                                <View style={s.chipRow}>
+                                                    {teamSizes.map(n => (
+                                                        <TouchableOpacity key={n} onPress={() => set('teamSize', n)}
+                                                            style={[s.chipBtn, f.teamSize===n && s.chipBtnActive]}>
+                                                            <Text style={[s.chipBtnText, f.teamSize===n && s.chipBtnTextActive]}>{n}v{n}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </ScrollView>
+                                        </>
+                                    )}
+                                    <View style={s.switchRow}>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={s.fieldLabel}>{t.flexLabel}</Text>
+                                            <Text style={s.fieldHint}>{t.flexHint}</Text>
+                                        </View>
+                                        <Switch value={f.flexibleSchedule} onValueChange={v => setF(p => ({ ...p, flexibleSchedule: v, matchMode: !v && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
+                                            trackColor={{ false: colors.border, true: '#eab308' }}
+                                            thumbColor={f.flexibleSchedule ? '#fff' : colors.textMuted} />
+                                    </View>
                                 </>
                             )}
 
-                            {/* 3 - Esnek Program */}
-                            <View style={s.switchRow}>
-                                <View style={{ flex:1 }}>
-                                    <Text style={s.fieldLabel}>{t.flexLabel}</Text>
-                                    <Text style={s.fieldHint}>{t.flexHint}</Text>
-                                </View>
-                                <Switch value={f.flexibleSchedule} onValueChange={v => setF(p => ({ ...p, flexibleSchedule: v, matchMode: !v && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
-                                    trackColor={{ false: colors.border, true: '#eab308' }}
-                                    thumbColor={f.flexibleSchedule ? '#fff' : colors.textMuted} />
+                            {/* 3b - Puan Limiti */}
+                            <Text style={s.fieldLabel}>{t.ratingLimitLabel}</Text>
+                            <View style={{ flexDirection:'row', gap:10, marginBottom:14 }}>
+                                <TouchableOpacity style={[s.triBtn, { flex:1 }, f.minRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('min')}>
+                                    <Text style={s.triLabel}>{t.minRatingLabel}</Text>
+                                    <Text style={[s.triValue, !f.minRating && s.triPlaceholder]}>{f.minRating ? `${f.minRating} ★` : '—'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[s.triBtn, { flex:1 }, f.maxRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('max')}>
+                                    <Text style={s.triLabel}>{t.maxRatingLabel}</Text>
+                                    <Text style={[s.triValue, !f.maxRating && s.triPlaceholder]}>{f.maxRating ? `${f.maxRating} ★` : '—'}</Text>
+                                </TouchableOpacity>
                             </View>
+                            <RatingPickerModal
+                                visible={ratingPickerTarget !== null}
+                                title={ratingPickerTarget === 'min' ? '⭐ Alt Puan Limiti' : '⭐ Üst Puan Limiti'}
+                                value={ratingPickerTarget === 'min' ? f.minRating : f.maxRating}
+                                onSelect={(v) => { set(ratingPickerTarget === 'min' ? 'minRating' : 'maxRating', v); setRatingPickerTarget(null); }}
+                                onClose={() => setRatingPickerTarget(null)}
+                            />
 
                             {/* 4 - Geri kalanlar sadece esnek program KAPALI ise */}
                             {!f.flexibleSchedule && (

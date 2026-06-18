@@ -160,6 +160,7 @@ export const createRivalRequest = async (req, res, next) => {
             senderTeam, // COMPETITIVE football: [{id,username,fullName,skillRating}]
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
             refereePayment,
+            minRating, maxRating,
         } = req.body;
 
         if (!flexibleSchedule && matchDate && matchTime) {
@@ -206,6 +207,8 @@ export const createRivalRequest = async (req, res, next) => {
                 senderTeam: Array.isArray(senderTeam) ? senderTeam : [],
                 positions: Array.isArray(positions) ? positions : [],
                 ...(refereePayment && { refereePayment }),
+                ...(minRating !== undefined && minRating !== null && minRating !== '' && { minRating: parseFloat(minRating) }),
+                ...(maxRating !== undefined && maxRating !== null && maxRating !== '' && { maxRating: parseFloat(maxRating) }),
                 status: 'OPEN',
             },
             include: { sender: { select: SENDER_SELECT } },
@@ -384,6 +387,17 @@ export const sendJoinRequest = async (req, res, next) => {
             where: { rivalId_userId: { rivalId: id, userId: req.userId } },
         });
         if (existing) return res.status(400).json({ message: 'You already sent a request', status: existing.status });
+
+        if (request.minRating !== null || request.maxRating !== null) {
+            const userInterest = await prisma.userInterest.findFirst({
+                where: { userId: req.userId, category: request.category, subCategory: request.subCategory },
+            });
+            const userRating = userInterest?.skillRating ?? 0;
+            if (request.minRating !== null && userRating < request.minRating)
+                return res.status(400).json({ message: `Bu ilan için en az ${request.minRating}★ puan gerekiyor. Sizin puanınız: ${userRating.toFixed(2)}★` });
+            if (request.maxRating !== null && userRating > request.maxRating)
+                return res.status(400).json({ message: `Bu ilan için en fazla ${request.maxRating}★ puan kabul ediliyor. Sizin puanınız: ${userRating.toFixed(2)}★` });
+        }
 
         const joiningTeam = Array.isArray(req.body.joiningTeam) ? req.body.joiningTeam : [];
         await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam } });
