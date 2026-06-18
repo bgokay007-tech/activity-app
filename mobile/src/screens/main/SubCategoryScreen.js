@@ -2207,11 +2207,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ flex:1 }}>
                                     <Text style={s.fieldLabel}>{t.ratingLimitLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:6 }}>
-                                        <TouchableOpacity style={[s.triBtn, { flex:1 }, f.minRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('min')}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:1, paddingHorizontal:3, paddingVertical:3 }, f.minRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('min')}>
                                             <Text style={s.triLabel}>{t.minRatingLabel}</Text>
                                             <Text style={[s.triValue, !f.minRating && s.triPlaceholder]}>{f.minRating ? `${f.minRating} ★` : '—'}</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={[s.triBtn, { flex:1 }, f.maxRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('max')}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:1, paddingHorizontal:3, paddingVertical:3 }, f.maxRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('max')}>
                                             <Text style={s.triLabel}>{t.maxRatingLabel}</Text>
                                             <Text style={[s.triValue, !f.maxRating && s.triPlaceholder]}>{f.maxRating ? `${f.maxRating} ★` : '—'}</Text>
                                         </TouchableOpacity>
