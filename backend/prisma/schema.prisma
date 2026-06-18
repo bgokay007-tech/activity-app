@@ -314,6 +314,8 @@ model ActivityRequest {
   senderTeam      Json         @default("[]")     // COMPETITIVE team: creator's additional teammates [{id,username,fullName,skillRating}]
   positions       Json         @default("[]")     // e.g. ['REFEREE'] | ['REFEREE_OFFER'] | ['GOALKEEPER']
   refereePayment  String?                         // fee offered or rate per match
+  minRating       Float?                          // min skill rating to join
+  maxRating       Float?                          // max skill rating to join
   status          String       @default("OPEN")   // OPEN | MATCHED | CANCELLED | COMPLETED
   score           Json?                           // {sets:[{sender:6,opponent:3},...], winner:"sender"|"opponent"}
   scoreStatus     String       @default("NONE")   // NONE | PENDING | CONFIRMED | DISPUTED
