@@ -2354,16 +2354,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
 
                                     {/* Kort Zemini */}
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:6 }}>
-                                        <View style={s.chipRow}>
-                                            {courtSurfaces.map(sf => (
-                                                <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
-                                                    style={[s.chipBtn, f.surface===sf.id && s.chipBtnActive]}>
-                                                    <Text style={[s.chipBtnText, f.surface===sf.id && s.chipBtnTextActive]}>{sf.emoji} {sf.label}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    </ScrollView>
+                                    <View style={s.chipRow}>
+                                        {courtSurfaces.map(sf => (
+                                            <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
+                                                style={[s.chipBtn, f.surface===sf.id && s.chipBtnActive]}>
+                                                <Text style={[s.chipBtnText, f.surface===sf.id && s.chipBtnTextActive]}>{sf.emoji} {sf.label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
 
                                     {/* Mekan Tipi */}
                                     <Text style={[s.fieldLabel, { marginTop: -6 }]}>{t.venueLabel}</Text>
