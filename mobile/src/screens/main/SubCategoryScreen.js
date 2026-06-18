@@ -632,6 +632,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                             </View>
                             <Text style={s.joinedCount}>{t.joinedCount(filled, TEAM_SPORTS.has(sub) ? item.teamSize : required)}</Text>
                         </View>
+                        {isOwner && (
+                            <TouchableOpacity style={[s.cancelBtn, { flex:0, paddingHorizontal:12, paddingVertical:5 }]} onPress={handleCancel}>
+                                <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -666,28 +671,24 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                 )}
             </TouchableOpacity>
 
-            {/* ── Aksiyon butonları ── */}
-            <View style={{ marginTop:4 }}>
-                {isOwner ? (
-                    <View style={{ flexDirection:'row', justifyContent:'flex-end' }}>
-                        <TouchableOpacity style={[s.cancelBtn, { flex:0, paddingHorizontal:18 }]} onPress={handleCancel}>
-                            <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
+            {/* ── Aksiyon butonları (sadece non-owner) ── */}
+            {!isOwner && (
+                <View style={{ marginTop:4 }}>
+                    {mySentReq === 'PENDING' ? (
+                        <View style={s.waitingBox}><Text style={s.waitingText}>{t.waitingReq}</Text></View>
+                    ) : mySentReq === 'ACCEPTED' ? (
+                        <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40' }]}>
+                            <Text style={[s.waitingText, { color:'#4ade80' }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
+                        </View>
+                    ) : isFull ? (
+                        <View style={s.waitingBox}><Text style={s.waitingText}>{t.ilanFull || 'İlan doldu'}</Text></View>
+                    ) : (
+                        <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color }]} onPress={handleJoin}>
+                            <Text style={s.joinBtnText}>{t.joinBtn}</Text>
                         </TouchableOpacity>
-                    </View>
-                ) : mySentReq === 'PENDING' ? (
-                    <View style={s.waitingBox}><Text style={s.waitingText}>{t.waitingReq}</Text></View>
-                ) : mySentReq === 'ACCEPTED' ? (
-                    <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40' }]}>
-                        <Text style={[s.waitingText, { color:'#4ade80' }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
-                    </View>
-                ) : isFull ? (
-                    <View style={s.waitingBox}><Text style={s.waitingText}>{t.ilanFull || 'İlan doldu'}</Text></View>
-                ) : (
-                    <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color }]} onPress={handleJoin}>
-                        <Text style={s.joinBtnText}>{t.joinBtn}</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
+                    )}
+                </View>
+            )}
         </View>
 
         <RivalDetailModal
