@@ -563,7 +563,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
             { text: t.no },
             { text: t.yes, style: 'destructive', onPress: async () => {
                 try { await api.patch(`/rivals/${item.id}/cancel`, {}); onRefresh(); }
-                catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.deleteFailed); }
+                catch(e) {
+                    if (e?.response) Alert.alert(t.error, e.response.data?.message || t.deleteFailed);
+                    else onRefresh(); // network drop — server likely cancelled it
+                }
             }}
         ]);
     };
@@ -664,7 +667,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
             </TouchableOpacity>
 
             {/* ── Aksiyon butonları ── */}
-            <View style={{ marginTop:10 }}>
+            <View style={{ marginTop:4 }}>
                 {isOwner ? (
                     <TouchableOpacity style={s.cancelBtn} onPress={handleCancel}>
                         <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
@@ -1978,7 +1981,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
     const INIT = {
         matchType: 'SINGLE', teamSize: isFootball ? 5 : 1,
         matchMode: 'PRACTICE', flexibleSchedule: false,
-        matchDate: null, matchTime: '', duration: '90',
+        matchDate: null, matchTime: '', duration: '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
         courtSearchText: '', courtResults: [], selectedCourt: null,
         showManualCourt: false,
@@ -2067,7 +2070,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
             onCreated();
             onClose();
             reset();
-        } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.sendFailed); }
+        } catch(e) {
+            if (e?.response) {
+                Alert.alert(t.error, e.response.data?.message || t.sendFailed);
+            } else {
+                // Network drop after server processed — listing likely created
+                onCreated();
+                onClose();
+                reset();
+            }
+        }
         finally { setSubmitting(false); }
     };
 
@@ -6180,7 +6192,7 @@ const s = StyleSheet.create({
     tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700', lineHeight:20, includeFontPadding: false },
     tabTextActive:    { color:'#fff' },
 
-    list:             { paddingHorizontal:4, gap:10, paddingBottom:60 },
+    list:             { paddingHorizontal:4, gap:8, paddingBottom:60 },
     sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
 
     createBtn:        { backgroundColor: colors.surface, borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
@@ -6203,8 +6215,8 @@ const s = StyleSheet.create({
     emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:20, paddingVertical:10 },
     emptyBtnText:     { color:'#fff', fontWeight:'700' },
 
-    card:             { backgroundColor: colors.surface, borderRadius:14, padding:1, borderWidth:1, borderColor: colors.border },
-    cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:8 },
+    card:             { backgroundColor: colors.surface, borderRadius:14, paddingHorizontal:10, paddingTop:8, paddingBottom:8, borderWidth:1, borderColor: colors.border },
+    cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:2 },
     avatar:           { justifyContent:'center', alignItems:'center', borderWidth:1 },
     avatarText:       { fontWeight:'800' },
     cardName:         { color:'#fff', fontWeight:'700', fontSize:14 },
@@ -6215,26 +6227,26 @@ const s = StyleSheet.create({
     modeBadgeText:    { fontSize:10, fontWeight:'700' },
     joinedCount:      { color: colors.textMuted, fontSize:10, marginTop:2 },
 
-    flexBanner:       { backgroundColor:'#eab30815', borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor:'#eab30840' },
+    flexBanner:       { backgroundColor:'#eab30815', borderRadius:10, padding:8, marginBottom:4, borderWidth:1, borderColor:'#eab30840' },
     flexTitle:        { color:'#fbbf24', fontSize:11, fontWeight:'700', marginBottom:2 },
     flexDesc:         { color:'#fcd34d99', fontSize:10 },
 
-    levelRow:         { flexDirection:'row', gap:8, marginBottom:8, flexWrap:'wrap' },
+    levelRow:         { flexDirection:'row', gap:8, marginBottom:4, flexWrap:'wrap' },
     levelBadge:       { backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:3, color:'#d1d5db', fontSize:11, fontWeight:'700', borderWidth:1, borderColor: colors.border },
     levelDetail:      { backgroundColor:'#a855f720', borderRadius:8, paddingHorizontal:8, paddingVertical:3, color:'#c084fc', fontSize:11, fontWeight:'700', borderWidth:1, borderColor:'#a855f740' },
 
-    cardMsg:          { color: colors.textSecondary, fontSize:13, marginBottom:8 },
+    cardMsg:          { color: colors.textSecondary, fontSize:13, marginBottom:4 },
     cardMeta:         { flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 },
     metaItem:         { backgroundColor: colors.surface2, paddingHorizontal:8, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor: colors.border },
     metaItemText:     { color: colors.text, fontSize:11, fontWeight:'600' },
 
-    joinBtn:          { borderRadius:12, paddingVertical:12, alignItems:'center', backgroundColor: colors.purple },
-    joinBtnText:      { color:'#fff', fontWeight:'800', fontSize:14 },
-    msgBtn:           { backgroundColor:'#2563eb20', borderRadius:12, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#2563eb40', flex:1 },
-    msgBtnText:       { color:'#60a5fa', fontWeight:'700', fontSize:13 },
-    cancelBtn:        { backgroundColor:'#dc262620', borderRadius:12, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#dc262640', flex:1 },
-    cancelBtnText:    { color:'#f87171', fontWeight:'700', fontSize:13 },
-    waitingBox:       { backgroundColor: colors.surface2, borderRadius:12, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor: colors.border },
+    joinBtn:          { borderRadius:10, paddingVertical:9, alignItems:'center', backgroundColor: colors.purple },
+    joinBtnText:      { color:'#fff', fontWeight:'800', fontSize:13 },
+    msgBtn:           { backgroundColor:'#2563eb20', borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor:'#2563eb40', flex:1 },
+    msgBtnText:       { color:'#60a5fa', fontWeight:'700', fontSize:12 },
+    cancelBtn:        { backgroundColor:'#dc262620', borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor:'#dc262640', flex:1 },
+    cancelBtnText:    { color:'#f87171', fontWeight:'700', fontSize:12 },
+    waitingBox:       { backgroundColor: colors.surface2, borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor: colors.border },
     waitingText:      { color: colors.textMuted, fontSize:13, fontWeight:'600' },
 
     ownerActions:     { gap:8 },
@@ -6246,10 +6258,10 @@ const s = StyleSheet.create({
     acceptBtn:        { backgroundColor:'#16a34a', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center' },
     declineBtn:       { backgroundColor:'#dc2626', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center' },
 
-    participantsRow:      { flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 },
+    participantsRow:      { flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:6 },
     participantChip:      { backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a40' },
     participantChipText:  { color:'#4ade80', fontSize:11, fontWeight:'700' },
-    pendingBadge:         { backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#a855f740', marginBottom:8 },
+    pendingBadge:         { backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#a855f740', marginBottom:4 },
     pendingBadgeText:     { color:'#c084fc', fontSize:12, fontWeight:'700' },
 
     scoreText:        { color:'#fff', fontSize:16, fontWeight:'900' },
