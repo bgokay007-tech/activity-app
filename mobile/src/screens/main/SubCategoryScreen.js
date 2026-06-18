@@ -594,32 +594,30 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                 {/* Header */}
                 <View style={s.cardHeader}>
                     <Avatar name={item.sender?.username} size={42} color={cfg.color} />
-                    <View style={{ flex:1, flexDirection:'row', alignItems:'flex-start', gap:8 }}>
-                        <View style={{ flexShrink:1 }}>
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                <Text style={s.cardName}>@{item.sender?.username}</Text>
-                                {item.sender?.interests?.[0]?.skillRating > 0 && (
-                                    <Text style={[s.ratingText, { color: cfg.color }]}>
-                                        {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
-                                    </Text>
-                                )}
-                            </View>
-                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
-                                💬 Yorumlar {item.commentCount ?? 0}
-                            </Text>
-                            <Text style={{ fontSize:11, marginTop:2, color: item.isCourtReserved ? '#4ade80' : '#f87171' }}>
-                                {item.isCourtReserved ? `✅ ${t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
-                            </Text>
-                            {item.courtName && (
-                                <Text style={{ fontSize:11, marginTop:2, color:'#60a5fa' }}>🏟️ {item.courtName}</Text>
+                    <View style={{ flex:1, minWidth:0 }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                            <Text style={s.cardName} numberOfLines={1}>@{item.sender?.username}</Text>
+                            {item.sender?.interests?.[0]?.skillRating > 0 && (
+                                <Text style={[s.ratingText, { color: cfg.color }]}>
+                                    {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
+                                </Text>
                             )}
                         </View>
-                        {!item.flexibleSchedule && (
-                            <View style={{ gap:2 }}>
+                        {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
+                            <View style={{ flexDirection:'row', gap:6, marginTop:2, flexWrap:'wrap' }}>
                                 {item.matchDate && <Text style={s.metaItemText}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text>}
                                 {item.matchTime && <Text style={s.metaItemText}>🕐 {item.matchTime}</Text>}
                                 {item.duration && <Text style={s.metaItemText}>⏱ {item.duration} {t.timeMinSuffix}</Text>}
                             </View>
+                        )}
+                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
+                            💬 Yorumlar {item.commentCount ?? 0}
+                        </Text>
+                        <Text style={{ fontSize:11, marginTop:2, color: item.isCourtReserved ? '#4ade80' : '#f87171' }}>
+                            {item.isCourtReserved ? `✅ ${t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
+                        </Text>
+                        {item.courtName && (
+                            <Text style={{ fontSize:11, marginTop:2, color:'#60a5fa' }}>🏟️ {item.courtName}</Text>
                         )}
                     </View>
                     <View style={{ alignItems:'flex-end', gap:4 }}>
