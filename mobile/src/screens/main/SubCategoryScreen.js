@@ -6326,7 +6326,7 @@ const s = StyleSheet.create({
     fieldHint:        { color: colors.textMuted, fontSize:10, marginBottom:8 },
     fieldInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:12, paddingHorizontal:14, paddingVertical:12, borderWidth:1, borderColor: colors.border, fontSize:14, marginBottom:14 },
     chipRow:          { flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:14 },
-    chipBtn:          { paddingHorizontal:14, paddingVertical:8, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    chipBtn:          { paddingHorizontal:10, paddingVertical:6, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     chipBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
     chipBtnText:      { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
     chipBtnTextActive:{ color:'#fff' },
@@ -6372,12 +6372,12 @@ const s = StyleSheet.create({
     checkboxChecked:  { backgroundColor: colors.purple, borderColor: colors.purple },
     checkLabel:       { color: colors.textSecondary, fontSize:13, fontWeight:'600' },
 
-    triRow:           { flexDirection:'row', gap:8, marginBottom:16 },
-    triBtn:           { flex:1, backgroundColor: colors.surface2, borderRadius:12, paddingVertical:12, paddingHorizontal:10, borderWidth:1, borderColor: colors.border, alignItems:'center' },
+    triRow:           { flexDirection:'row', gap:8, marginBottom:12 },
+    triBtn:           { flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, paddingHorizontal:8, borderWidth:1, borderColor: colors.border, alignItems:'center' },
     triBtnFilled:     { borderColor: colors.purple+'80' },
-    triLabel:         { color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 },
-    triValue:         { color:'#fff', fontSize:13, fontWeight:'800', textAlign:'center' },
-    triPlaceholder:   { color: colors.textMuted, fontSize:18 },
+    triLabel:         { color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:2 },
+    triValue:         { color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
+    triPlaceholder:   { color: colors.textMuted, fontSize:13 },
 
     storyNavBtn:      { backgroundColor:'#ffffff20', borderRadius:12, paddingHorizontal:20, paddingVertical:10 },
 
