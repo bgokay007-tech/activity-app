@@ -527,7 +527,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
 // ─── Rival Card ────────────────────────────────────────────────────────────────
 
-function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOpen, onAutoOpened }) {
+function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOpen, onAutoOpened, myRating = 0 }) {
     const t = useT();
     const cfg = getConfig(sub);
     const isOwner = item.senderId === myId;
@@ -543,6 +543,14 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
     }, [autoOpen]);
 
     const handleJoin = async () => {
+        if (item.minRating != null && myRating < item.minRating) {
+            Alert.alert('⚠️ Puan Limiti', `Bu ilan için en az ${item.minRating}★ puan gerekiyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
+            return;
+        }
+        if (item.maxRating != null && myRating > item.maxRating) {
+            Alert.alert('⚠️ Puan Limiti', `Bu ilan için en fazla ${item.maxRating}★ puan kabul ediliyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
+            return;
+        }
         try {
             await api.post(`/rivals/${item.id}/respond`, {});
             Alert.alert('', t.requestSent);
@@ -4795,6 +4803,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
+    const myInterests = useSelector(s => s.auth.user?.interests || []);
+    const myRating = myInterests.find(i => i.subCategory === sub)?.skillRating ?? 0;
     const t = useT();
     const cfg = getConfig(sub);
     const tabs = getTabs(sub);
@@ -5338,7 +5348,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {filteredRivals.length === 0
                                 ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
                                 : filteredRivals.map(item => (
-                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} />
+                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} />
                                 ))
                             }
 
@@ -5381,7 +5391,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {playerWanted.length === 0
                                 ? <EmptyState emoji="👤" text={t.emptyPlayerWanted} />
                                 : playerWanted.map(item => (
-                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} />
+                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} onUserPress={setProfileUserId} myRating={myRating} />
                                 ))
                             }
                         </>
