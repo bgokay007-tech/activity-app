@@ -2157,7 +2157,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         <View style={[s.chipRow, { marginBottom:0 }]}>
                                             {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
                                                 <TouchableOpacity key={fmt.id} onPress={() => set('matchType', fmt.id)}
-                                                    style={[s.chipBtn, { flex:1, paddingHorizontal:7, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive]}>
+                                                    style={[s.chipBtn, { flex:1, paddingLeft:7, paddingRight:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive]}>
                                                     <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
                                                 </TouchableOpacity>
                                             ))}
