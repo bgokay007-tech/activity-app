@@ -669,9 +669,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
             {/* ── Aksiyon butonları ── */}
             <View style={{ marginTop:4 }}>
                 {isOwner ? (
-                    <TouchableOpacity style={s.cancelBtn} onPress={handleCancel}>
-                        <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection:'row', justifyContent:'flex-end' }}>
+                        <TouchableOpacity style={[s.cancelBtn, { flex:0, paddingHorizontal:18 }]} onPress={handleCancel}>
+                            <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
                 ) : mySentReq === 'PENDING' ? (
                     <View style={s.waitingBox}><Text style={s.waitingText}>{t.waitingReq}</Text></View>
                 ) : mySentReq === 'ACCEPTED' ? (
