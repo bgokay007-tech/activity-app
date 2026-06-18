@@ -2151,7 +2151,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* 2+3 - Format + Esnek Program yan yana (non-team) */}
                             {!isTeamSport ? (
-                                <View style={{ flexDirection:'row', gap:10, marginBottom:14 }}>
+                                <View style={{ flexDirection:'row', gap:1, marginBottom:14 }}>
                                     <View style={{ flex:1 }}>
                                         <Text style={s.fieldLabel}>{t.formatLabel}</Text>
                                         <View style={[s.chipRow, { marginBottom:0 }]}>
