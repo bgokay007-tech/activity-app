@@ -2364,23 +2364,25 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
 
                                     {/* Mekan Tipi */}
-                                    <Text style={[s.fieldLabel, { marginTop: -6 }]}>{t.venueLabel}</Text>
-                                    <View style={s.chipRow}>
-                                        {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor}].map(vt => (
-                                            <TouchableOpacity key={vt.id} onPress={() => set('venueType', vt.id)}
-                                                style={[s.chipBtn, { flex:1 }, f.venueType===vt.id && s.chipBtnActive]}>
-                                                <Text style={[s.chipBtnText, f.venueType===vt.id && s.chipBtnTextActive]}>{vt.label}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-
-                                    {/* Kort Rezerve */}
-                                    <TouchableOpacity style={s.checkRow} onPress={() => set('courtReserved', !f.courtReserved)}>
-                                        <View style={[s.checkbox, f.courtReserved && s.checkboxChecked]}>
-                                            {f.courtReserved && <Text style={{ color:'#fff', fontSize:12 }}>✓</Text>}
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:14 }}>
+                                        <View>
+                                            <Text style={[s.fieldLabel, { marginTop:-6 }]}>{t.venueLabel}</Text>
+                                            <View style={[s.chipRow, { marginBottom:0 }]}>
+                                                {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor}].map(vt => (
+                                                    <TouchableOpacity key={vt.id} onPress={() => set('venueType', vt.id)}
+                                                        style={[s.chipBtn, f.venueType===vt.id && s.chipBtnActive]}>
+                                                        <Text style={[s.chipBtnText, f.venueType===vt.id && s.chipBtnTextActive]}>{vt.label}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
                                         </View>
-                                        <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
-                                    </TouchableOpacity>
+                                        <TouchableOpacity style={[s.checkRow, { marginBottom:0, flex:1 }]} onPress={() => set('courtReserved', !f.courtReserved)}>
+                                            <View style={[s.checkbox, f.courtReserved && s.checkboxChecked]}>
+                                                {f.courtReserved && <Text style={{ color:'#fff', fontSize:12 }}>✓</Text>}
+                                            </View>
+                                            <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
+                                        </TouchableOpacity>
+                                    </View>
 
                                 </>
                             )}
