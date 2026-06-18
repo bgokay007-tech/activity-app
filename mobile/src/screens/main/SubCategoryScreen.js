@@ -2217,7 +2217,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         </TouchableOpacity>
                                     </View>
                                 </View>
-                                <View style={[s.switchRow, { flex:1, marginBottom:0 }]}>
+                                <View style={[s.switchRow, { flex:1, marginBottom:0, padding:3 }]}>
                                     <View style={{ flex:1 }}>
                                         <Text style={[s.fieldLabel, { marginBottom:2 }]}>{t.flexLabel}</Text>
                                         <Text style={[s.fieldHint, { marginBottom:0 }]}>{t.flexHint}</Text>
