@@ -2104,77 +2104,95 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-                            {/* 1 - Mod */}
-                            <Text style={s.fieldLabel}>{t.modLabel}</Text>
-                            <View style={s.chipRow}>
-                                {(sub === 'tennis' ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
-                                    const isActive = sub === 'tennis'
-                                        ? (f.matchMode === mode || f.matchMode === 'BOTH')
-                                        : f.matchMode === mode;
-
-                                    const handleModePress = () => {
-                                        if (sub !== 'tennis' || !f.flexibleSchedule) {
-                                            set('matchMode', mode);
-                                            return;
-                                        }
-                                        // Tennis + flexible: toggle multi-select
-                                        if (mode === 'PRACTICE') {
-                                            if (f.matchMode === 'PRACTICE') return;
-                                            set('matchMode', f.matchMode === 'BOTH' ? 'COMPETITIVE' : 'BOTH');
-                                        } else {
-                                            if (f.matchMode === 'COMPETITIVE') return;
-                                            set('matchMode', f.matchMode === 'BOTH' ? 'PRACTICE' : 'BOTH');
-                                        }
-                                    };
-
-                                    return (
-                                        <TouchableOpacity key={mode} onPress={handleModePress}
-                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, isActive && {
-                                                backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
-                                                borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
-                                            }]}>
-                                            <Text style={[s.chipBtnText, isActive && { color:'#fff' }]}>
-                                                {mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                            {sub === 'tennis' && f.flexibleSchedule && (
-                                <Text style={s.modeHint}>{t.multiSelectHint}</Text>
-                            )}
-                            {(f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
-                                <View style={s.eloWarning}>
-                                    <Text style={s.eloWarningText}>{t.eloWarning}</Text>
-                                </View>
-                            )}
-
-                            {/* 2+3 - Format + Esnek Program yan yana (non-team) */}
+                            {/* 1+2 - Mod + Format yan yana (non-team) / Mod + Takım (team) */}
                             {!isTeamSport ? (
-                                <View style={{ flexDirection:'row', gap:1, marginBottom:14 }}>
-                                    <View style={{ flex:1 }}>
-                                        <Text style={s.fieldLabel}>{t.formatLabel}</Text>
-                                        <View style={[s.chipRow, { marginBottom:0 }]}>
-                                            {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
-                                                <TouchableOpacity key={fmt.id} onPress={() => set('matchType', fmt.id)}
-                                                    style={[s.chipBtn, { flex:1, paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive]}>
-                                                    <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
-                                                </TouchableOpacity>
-                                            ))}
+                                <>
+                                    <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={s.fieldLabel}>{t.modLabel}</Text>
+                                            <View style={[s.chipRow, { marginBottom:0 }]}>
+                                                {(sub === 'tennis' ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
+                                                    const isActive = sub === 'tennis'
+                                                        ? (f.matchMode === mode || f.matchMode === 'BOTH')
+                                                        : f.matchMode === mode;
+                                                    const handleModePress = () => {
+                                                        if (sub !== 'tennis' || !f.flexibleSchedule) { set('matchMode', mode); return; }
+                                                        if (mode === 'PRACTICE') {
+                                                            if (f.matchMode === 'PRACTICE') return;
+                                                            set('matchMode', f.matchMode === 'BOTH' ? 'COMPETITIVE' : 'BOTH');
+                                                        } else {
+                                                            if (f.matchMode === 'COMPETITIVE') return;
+                                                            set('matchMode', f.matchMode === 'BOTH' ? 'PRACTICE' : 'BOTH');
+                                                        }
+                                                    };
+                                                    return (
+                                                        <TouchableOpacity key={mode} onPress={handleModePress}
+                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, isActive && {
+                                                                backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
+                                                                borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
+                                                            }]}>
+                                                            <Text style={[s.chipBtnText, isActive && { color:'#fff' }]}>
+                                                                {mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </View>
+                                        </View>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={s.fieldLabel}>{t.formatLabel}</Text>
+                                            <View style={[s.chipRow, { marginBottom:0 }]}>
+                                                {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
+                                                    <TouchableOpacity key={fmt.id} onPress={() => set('matchType', fmt.id)}
+                                                        style={[s.chipBtn, { flex:1, paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive]}>
+                                                        <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
                                         </View>
                                     </View>
-                                    <View style={[s.switchRow, { flex:1, marginBottom:0 }]}>
+                                    {sub === 'tennis' && f.flexibleSchedule && (
+                                        <Text style={s.modeHint}>{t.multiSelectHint}</Text>
+                                    )}
+                                    {(f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
+                                        <View style={s.eloWarning}>
+                                            <Text style={s.eloWarningText}>{t.eloWarning}</Text>
+                                        </View>
+                                    )}
+                                    <View style={s.switchRow}>
                                         <View style={{ flex:1 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:2 }]}>{t.flexLabel}</Text>
-                                            <Text style={[s.fieldHint, { marginBottom:0 }]}>{t.flexHint}</Text>
+                                            <Text style={s.fieldLabel}>{t.flexLabel}</Text>
+                                            <Text style={s.fieldHint}>{t.flexHint}</Text>
                                         </View>
                                         <Switch value={f.flexibleSchedule} onValueChange={v => setF(p => ({ ...p, flexibleSchedule: v, matchMode: !v && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
                                             trackColor={{ false: colors.border, true: '#eab308' }}
                                             thumbColor={f.flexibleSchedule ? '#fff' : colors.textMuted} />
                                     </View>
-                                </View>
+                                </>
                             ) : (
                                 <>
+                                    <Text style={s.fieldLabel}>{t.modLabel}</Text>
+                                    <View style={s.chipRow}>
+                                        {['PRACTICE','COMPETITIVE','BOTH'].map(mode => {
+                                            const isActive = f.matchMode === mode;
+                                            return (
+                                                <TouchableOpacity key={mode} onPress={() => set('matchMode', mode)}
+                                                    style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, isActive && {
+                                                        backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
+                                                        borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
+                                                    }]}>
+                                                    <Text style={[s.chipBtnText, isActive && { color:'#fff' }]}>
+                                                        {mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                    {(f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
+                                        <View style={s.eloWarning}>
+                                            <Text style={s.eloWarningText}>{t.eloWarning}</Text>
+                                        </View>
+                                    )}
                                     {teamSizes.length > 0 && (
                                         <>
                                             <Text style={s.fieldLabel}>{t.teamSizeLabel}</Text>
