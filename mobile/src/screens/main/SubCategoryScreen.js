@@ -2159,15 +2159,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             <Text style={s.eloWarningText}>{t.eloWarning}</Text>
                                         </View>
                                     )}
-                                    <View style={s.switchRow}>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={s.fieldLabel}>{t.flexLabel}</Text>
-                                            <Text style={s.fieldHint}>{t.flexHint}</Text>
-                                        </View>
-                                        <Switch value={f.flexibleSchedule} onValueChange={v => setF(p => ({ ...p, flexibleSchedule: v, matchMode: !v && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
-                                            trackColor={{ false: colors.border, true: '#eab308' }}
-                                            thumbColor={f.flexibleSchedule ? '#fff' : colors.textMuted} />
-                                    </View>
                                 </>
                             ) : (
                                 <>
@@ -2208,29 +2199,33 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             </ScrollView>
                                         </>
                                     )}
-                                    <View style={s.switchRow}>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={s.fieldLabel}>{t.flexLabel}</Text>
-                                            <Text style={s.fieldHint}>{t.flexHint}</Text>
-                                        </View>
-                                        <Switch value={f.flexibleSchedule} onValueChange={v => setF(p => ({ ...p, flexibleSchedule: v, matchMode: !v && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
-                                            trackColor={{ false: colors.border, true: '#eab308' }}
-                                            thumbColor={f.flexibleSchedule ? '#fff' : colors.textMuted} />
-                                    </View>
                                 </>
                             )}
 
-                            {/* 3b - Puan Limiti */}
-                            <Text style={s.fieldLabel}>{t.ratingLimitLabel}</Text>
-                            <View style={{ flexDirection:'row', gap:10, marginBottom:14 }}>
-                                <TouchableOpacity style={[s.triBtn, { flex:1 }, f.minRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('min')}>
-                                    <Text style={s.triLabel}>{t.minRatingLabel}</Text>
-                                    <Text style={[s.triValue, !f.minRating && s.triPlaceholder]}>{f.minRating ? `${f.minRating} ★` : '—'}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[s.triBtn, { flex:1 }, f.maxRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('max')}>
-                                    <Text style={s.triLabel}>{t.maxRatingLabel}</Text>
-                                    <Text style={[s.triValue, !f.maxRating && s.triPlaceholder]}>{f.maxRating ? `${f.maxRating} ★` : '—'}</Text>
-                                </TouchableOpacity>
+                            {/* Puan Limiti + Esnek Program yan yana */}
+                            <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                                <View style={{ flex:1 }}>
+                                    <Text style={s.fieldLabel}>{t.ratingLimitLabel}</Text>
+                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:1 }, f.minRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('min')}>
+                                            <Text style={s.triLabel}>{t.minRatingLabel}</Text>
+                                            <Text style={[s.triValue, !f.minRating && s.triPlaceholder]}>{f.minRating ? `${f.minRating} ★` : '—'}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[s.triBtn, { flex:1 }, f.maxRating && s.triBtnFilled]} onPress={() => setRatingPickerTarget('max')}>
+                                            <Text style={s.triLabel}>{t.maxRatingLabel}</Text>
+                                            <Text style={[s.triValue, !f.maxRating && s.triPlaceholder]}>{f.maxRating ? `${f.maxRating} ★` : '—'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                                <View style={[s.switchRow, { flex:1, marginBottom:0 }]}>
+                                    <View style={{ flex:1 }}>
+                                        <Text style={[s.fieldLabel, { marginBottom:2 }]}>{t.flexLabel}</Text>
+                                        <Text style={[s.fieldHint, { marginBottom:0 }]}>{t.flexHint}</Text>
+                                    </View>
+                                    <Switch value={f.flexibleSchedule} onValueChange={v => setF(p => ({ ...p, flexibleSchedule: v, matchMode: !v && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
+                                        trackColor={{ false: colors.border, true: '#eab308' }}
+                                        thumbColor={f.flexibleSchedule ? '#fff' : colors.textMuted} />
+                                </View>
                             </View>
                             <RatingPickerModal
                                 visible={ratingPickerTarget !== null}
