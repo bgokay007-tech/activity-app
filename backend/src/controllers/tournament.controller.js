@@ -883,7 +883,17 @@ export const startTournament = async (req, res, next) => {
         const mmType = tournament.matchmakingType || 'ELO';
         const freq   = tournament.matchFrequency  || 'FLEXIBLE';
         const daysPerRound = freq === 'WEEKLY_1' ? 7 : freq === 'WEEKLY_2' ? 4 : null;
-        const now = new Date();
+
+        let baseDate;
+        if (tournament.eventDate) {
+            baseDate = new Date(tournament.eventDate);
+            if (tournament.eventTime) {
+                const [h, m] = tournament.eventTime.split(':').map(Number);
+                baseDate.setHours(h, m, 0, 0);
+            }
+        } else {
+            baseDate = new Date();
+        }
 
         // For RANDOM/SEEDED playoff seeding, apply ordering before singleElim
         const playoffPlayers = mmType === 'RANDOM'
@@ -907,7 +917,7 @@ export const startTournament = async (req, res, next) => {
         // Attach deadline to each match based on matchFrequency
         if (daysPerRound) {
             matches = matches.map(m => {
-                const d = new Date(now);
+                const d = new Date(baseDate);
                 d.setDate(d.getDate() + (m.round || 1) * daysPerRound);
                 return { ...m, deadline: d };
             });

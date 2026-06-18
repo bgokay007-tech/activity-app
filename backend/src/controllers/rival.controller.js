@@ -400,16 +400,15 @@ export const sendJoinRequest = async (req, res, next) => {
         });
         emitToUser(request.senderId, 'rivalUpdate', updatedRival);
 
-        // Notify the match creator
-        await createNotification(
+        res.status(201).json({ message: '✓ Join request sent! Waiting for the organizer to accept.' });
+
+        createNotification(
             request.senderId,
             'JOIN_REQUEST',
             '⚔️ New Join Request',
             `${me.fullName || me.username} wants to join your ${request.matchType === 'DOUBLE' ? 'double' : 'single'} match in ${request.subCategory}.`,
             { rivalId: id, fromUserId: req.userId, fromUsername: me.username, category: request.category, subCategory: request.subCategory }
-        );
-
-        res.status(201).json({ message: '✓ Join request sent! Waiting for the organizer to accept.' });
+        ).catch(() => {});
     } catch (error) { next(error); }
 };
 
@@ -483,8 +482,13 @@ export const respondToJoin = async (req, res, next) => {
             updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
         }
 
-        // Notify the accepted player
-        await createNotification(
+        res.json({
+            message: isFull ? '🎉 Match is full!' : `✓ Accepted!`,
+            request: updated,
+            matched: isFull,
+        });
+
+        createNotification(
             u.id,
             'MATCH_CONFIRMED',
             isFull ? '🎉 Match confirmed!' : '✓ Join request accepted!',
@@ -492,13 +496,7 @@ export const respondToJoin = async (req, res, next) => {
                 ? `Your request to join ${rival.sender?.username || ''}'s match was accepted. Match is full!`
                 : `Your request to join a match was accepted.`,
             { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
-        );
-
-        res.json({
-            message: isFull ? '🎉 Match is full!' : `✓ Accepted!`,
-            request: updated,
-            matched: isFull,
-        });
+        ).catch(() => {});
     } catch (error) { next(error); }
 };
 
@@ -743,21 +741,20 @@ export const enterScore = async (req, res, next) => {
                 // archived is intentionally not reset — auto-completed matches stay archived=true
             },
         });
-        // Notify the opponent to confirm the score
-        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
-        const opponents = request.senderId === req.userId
-            ? participants
-            : [{ id: request.senderId }];
-        for (const opp of opponents) {
-            await createNotification(
-                opp.id, 'SCORE_SUBMITTED',
-                '📊 Score submitted — confirm?',
-                `${me.fullName || me.username} entered the match score. Please confirm or dispute.`,
-                { rivalId: request.id, fromUserId: req.userId, category: request.category, subCategory: request.subCategory }
-            );
-        }
-
         res.json(updated);
+
+        const opponents = request.senderId === req.userId ? participants : [{ id: request.senderId }];
+        prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } })
+            .then(me => {
+                for (const opp of opponents) {
+                    createNotification(
+                        opp.id, 'SCORE_SUBMITTED',
+                        '📊 Score submitted — confirm?',
+                        `${me.fullName || me.username} entered the match score. Please confirm or dispute.`,
+                        { rivalId: request.id, fromUserId: req.userId, category: request.category, subCategory: request.subCategory }
+                    ).catch(() => {});
+                }
+            }).catch(() => {});
     } catch (error) { next(error); }
 };
 
@@ -836,22 +833,20 @@ export const confirmScore = async (req, res, next) => {
             data: { score: { ...request.score, ratingSnapshot } },
         });
 
-        // Notify the scorer
-        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
-        const eloMsg = pointChanges.length > 0
-            ? ` Points have been updated based on match result.`
-            : '';
-        await createNotification(
-            request.scoreEnteredBy, 'SCORE_CONFIRMED',
-            '✅ Score confirmed!',
-            `${me.username} confirmed the match score.${eloMsg}`,
-            { rivalId: id, pointChanges, category: request.category, subCategory: request.subCategory }
-        );
         // Emit to all players so their screens update in real-time
         const allPlayerIds2 = [...new Set([request.senderId, ...(Array.isArray(request.participants) ? request.participants.map(p => p.id) : [])])];
         for (const uid of allPlayerIds2) emitToUser(uid, 'rivalUpdate', updated);
 
         res.json(updated);
+
+        const eloMsg = pointChanges.length > 0 ? ` Points have been updated based on match result.` : '';
+        prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } })
+            .then(me => createNotification(
+                request.scoreEnteredBy, 'SCORE_CONFIRMED',
+                '✅ Score confirmed!',
+                `${me.username} confirmed the match score.${eloMsg}`,
+                { rivalId: id, pointChanges, category: request.category, subCategory: request.subCategory }
+            ).catch(() => {})).catch(() => {});
     } catch (error) { next(error); }
 };
 
@@ -884,23 +879,23 @@ export const extendScoreDeadline = async (req, res, next) => {
             data: { completedAt: newCompletedAt },
         });
 
-        // Notify all participants
-        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
         const allIds = [...new Set([request.senderId, ...participants.map(p => p.id)])];
-        for (const uid of allIds) {
-            emitToUser(uid, 'rivalUpdate', updated);
-            if (uid !== req.userId) {
-                await createNotification(
-                    uid,
-                    'MATCH_CONFIRMED',
-                    `⏱️ Score deadline extended by ${hours}h`,
-                    `${me.fullName || me.username} extended the score entry window by ${hours} hours.`,
-                    { rivalId: id, category: request.category, subCategory: request.subCategory }
-                );
-            }
-        }
+        for (const uid of allIds) emitToUser(uid, 'rivalUpdate', updated);
 
         res.json({ message: `✓ Deadline extended by ${hours} hours.`, completedAt: newCompletedAt });
+
+        const notifyIds = allIds.filter(uid => uid !== req.userId);
+        prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } })
+            .then(me => {
+                for (const uid of notifyIds) {
+                    createNotification(
+                        uid, 'MATCH_CONFIRMED',
+                        `⏱️ Score deadline extended by ${hours}h`,
+                        `${me.fullName || me.username} extended the score entry window by ${hours} hours.`,
+                        { rivalId: id, category: request.category, subCategory: request.subCategory }
+                    ).catch(() => {});
+                }
+            }).catch(() => {});
     } catch (error) { next(error); }
 };
 
@@ -916,25 +911,21 @@ export const disputeScore = async (req, res, next) => {
             data: { scoreStatus: 'DISPUTED' },
         });
 
-        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
-
-        // Notify the scorer of the dispute
-        await createNotification(
-            request.scoreEnteredBy, 'SCORE_DISPUTED',
-            '⚠️ Score disputed!',
-            `${me.username} disputed the score${reason ? `: ${reason}` : '.'}`,
-            { rivalId: id, disputed: true, category: request.category, subCategory: request.subCategory }
-        );
-
         // Notify both players about admin report option
         const participants = Array.isArray(request.participants) ? request.participants : [];
         const allPlayers = [{ id: request.senderId }, ...participants].filter(p => p.id !== req.userId);
-        for (const p of allPlayers) {
-            emitToUser(p.id, 'rivalUpdate', updated);
-        }
+        for (const p of allPlayers) emitToUser(p.id, 'rivalUpdate', updated);
         emitToUser(req.userId, 'rivalUpdate', updated);
 
         res.json(updated);
+
+        prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } })
+            .then(me => createNotification(
+                request.scoreEnteredBy, 'SCORE_DISPUTED',
+                '⚠️ Score disputed!',
+                `${me.username} disputed the score${reason ? `: ${reason}` : '.'}`,
+                { rivalId: id, disputed: true, category: request.category, subCategory: request.subCategory }
+            ).catch(() => {})).catch(() => {});
     } catch (error) { next(error); }
 };
 
@@ -945,21 +936,22 @@ export const reportDispute = async (req, res, next) => {
         const request = await prisma.activityRequest.findUnique({ where: { id } });
         if (!request) return res.status(404).json({ message: 'Not found' });
 
-        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
-
-        // For now, notify both players that admin report was filed
         const participants = Array.isArray(request.participants) ? request.participants : [];
         const allIds = [request.senderId, ...participants.map(p => p.id)];
-        for (const uid of allIds) {
-            await createNotification(
-                uid, 'JOIN_REQUEST',
-                '📋 Admin report filed',
-                `${me.username} reported the score dispute${reason ? `: ${reason}` : '.'}. An admin will review this.`,
-                { rivalId: id, adminReport: true, category: request.category, subCategory: request.subCategory }
-            );
-        }
 
         res.json({ message: 'Report filed. An admin will review.' });
+
+        prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } })
+            .then(me => {
+                for (const uid of allIds) {
+                    createNotification(
+                        uid, 'JOIN_REQUEST',
+                        '📋 Admin report filed',
+                        `${me.username} reported the score dispute${reason ? `: ${reason}` : '.'}. An admin will review this.`,
+                        { rivalId: id, adminReport: true, category: request.category, subCategory: request.subCategory }
+                    ).catch(() => {});
+                }
+            }).catch(() => {});
     } catch (error) { next(error); }
 };
 
@@ -1047,7 +1039,9 @@ export const cancelRequest = async (req, res, next) => {
 
         await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
 
-        // Notify all join requesters and accepted participants
+        res.json({ message: 'Cancelled' });
+
+        // Fire-and-forget notifications
         const senderName = request.sender?.username || 'İlan sahibi';
         const notifyIds = new Set(request.joinRequests.map(jr => jr.userId));
         const parts = Array.isArray(request.participants) ? request.participants : [];
@@ -1055,14 +1049,12 @@ export const cancelRequest = async (req, res, next) => {
         notifyIds.delete(req.userId);
 
         for (const uid of notifyIds) {
-            await createNotification(uid, 'MATCH_CANCELLED',
+            createNotification(uid, 'MATCH_CANCELLED',
                 '❌ İlan İptal Edildi',
                 `${senderName} ilanı iptal etti.`,
                 { rivalId: id, subCategory: request.subCategory }
-            );
+            ).catch(() => {});
         }
-
-        res.json({ message: 'Cancelled' });
     } catch (error) { next(error); }
 };
 
@@ -1103,26 +1095,28 @@ export const cancelMatch = async (req, res, next) => {
 
             if (bothAgreed) {
                 await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+                res.json({ cancelled: true, mutual: true });
                 for (const uid of allPlayerIds) {
-                    await createNotification(uid, 'MATCH_CANCELLED',
+                    createNotification(uid, 'MATCH_CANCELLED',
                         '🤝 Maç İptal Edildi',
                         'Maç karşılıklı anlaşmayla cezasız iptal edildi.',
                         { rivalId: id, subCategory: request.subCategory }
-                    );
+                    ).catch(() => {});
                 }
-                return res.json({ cancelled: true, mutual: true });
+                return;
             }
 
             await prisma.activityRequest.update({ where: { id }, data: { mutualCancelRequests: mutualReqs } });
             const me = request.senderId === req.userId ? request.sender : (participants.find(p => p.id === req.userId) || { username: 'Rakip' });
+            res.json({ cancelled: false, mutual: true, requested: true });
             for (const uid of otherPlayerIds) {
-                await createNotification(uid, 'MUTUAL_CANCEL_REQUEST',
+                createNotification(uid, 'MUTUAL_CANCEL_REQUEST',
                     '⚠️ Karşılıklı İptal İsteği',
                     `${me.username} maçı karşılıklı iptal etmek istiyor. Sen de onaylarsan cezasız iptal edilir.`,
                     { rivalId: id, subCategory: request.subCategory }
-                );
+                ).catch(() => {});
             }
-            return res.json({ cancelled: false, mutual: true, requested: true });
+            return;
         }
 
         // Regular (unilateral) cancel
@@ -1143,27 +1137,27 @@ export const cancelMatch = async (req, res, next) => {
                     },
                 });
                 if (newCount === 5) {
-                    await createNotification(req.userId, 'LATE_CANCEL_WARNING',
+                    createNotification(req.userId, 'LATE_CANCEL_WARNING',
                         '⚠️ Son Dakika İptal Uyarısı',
                         `${request.subCategory} dalında 5 kez maçı son 5 saat içinde iptal ettiniz. Bu durum profilinizde görünür ve güvenilirliğinizi olumsuz etkiler.`,
                         { subCategory: request.subCategory }
-                    );
+                    ).catch(() => {});
                 }
             }
         }
 
+        res.json({ cancelled: true, penaltyApplied: withinPenaltyWindow });
+
         const senderName = request.sender?.username || 'Rakip';
         for (const uid of otherPlayerIds) {
-            await createNotification(uid, 'MATCH_CANCELLED',
+            createNotification(uid, 'MATCH_CANCELLED',
                 '❌ Maç İptal Edildi',
                 withinPenaltyWindow
                     ? `${senderName} maçı son 5 saat içinde iptal etti (ceza uygulandı).`
                     : `${senderName} maçı iptal etti.`,
                 { rivalId: id, subCategory: request.subCategory }
-            );
+            ).catch(() => {});
         }
-
-        res.json({ cancelled: true, penaltyApplied: withinPenaltyWindow });
     } catch (error) { next(error); }
 };
 

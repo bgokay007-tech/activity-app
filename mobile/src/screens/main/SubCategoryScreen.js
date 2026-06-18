@@ -3983,7 +3983,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         isIndoor: false,
         genderType: 'MIX',
         surface: '', isPaid: false,
-        feeType: 'INCLUDED', playerFee: '', paymentMethod: '', ibanNumber: '', ibanHolder: '',
+        feeType: 'SHARED', playerFee: '', paymentMethod: '', ibanNumber: '', ibanHolder: '',
         prize1: '', prize2: '', prize3: '', contactPhone: '', description: '',
         setsPerMatch: '3', advantageScoring: true,
         matchesBeforePlayoff: '', playoffQualifiers: '',
@@ -4219,7 +4219,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                    onPress={() => set('courtDecidedByPlayers', true)}>
+                                    onPress={() => { set('courtDecidedByPlayers', true); if (f.paymentMethod === 'CASH') set('paymentMethod', ''); }}>
                                     <Text style={[s.chipText, f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>{t.tournCourtPlayersDecide}</Text>
                                 </TouchableOpacity>
                             </View>
@@ -4428,26 +4428,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Payment options — only when paid */}
                             {f.isPaid && (<>
-                                <Text style={s.fieldLabel}>Ücret Türü</Text>
-                                {[
-                                    { key:'INCLUDED', desc:'Kort ücreti dahil fiyattır' },
-                                    { key:'SHARED',   desc:'Kort fiyatlarını oyuncular ortaklaşa karşılar' },
-                                ].map(opt => (
-                                    <TouchableOpacity key={opt.key}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.feeType===opt.key ? '#d9770615' : colors.surface2, borderRadius:10, paddingVertical:10, paddingHorizontal:10, marginBottom:6, borderWidth:1, borderColor: f.feeType===opt.key ? '#d97706' : colors.border }}
-                                        onPress={() => set('feeType', opt.key)}>
-                                        <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.feeType===opt.key ? '#fbbf24' : colors.border, backgroundColor: f.feeType===opt.key ? '#fbbf24' : 'transparent', alignItems:'center', justifyContent:'center' }}>
-                                            {f.feeType===opt.key && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#78350f' }} />}
-                                        </View>
-                                        <Text style={{ color: f.feeType===opt.key ? '#fbbf24' : colors.textMuted, fontSize:11, flex:1 }}>{opt.desc}</Text>
-                                        <TextInput
-                                            style={{ backgroundColor:'#0f172a', color:'#fff', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor: f.feeType===opt.key ? '#d97706' : colors.border, fontSize:13, width:72, textAlign:'right' }}
-                                            value={f.playerFee}
-                                            onChangeText={v => { set('feeType', opt.key); set('playerFee', v.replace(/[^0-9.]/g,'')); }}
-                                            keyboardType="numeric" maxLength={8}
-                                            placeholder="₺" placeholderTextColor={colors.textMuted} />
-                                    </TouchableOpacity>
-                                ))}
+                                <View style={{ backgroundColor:'#1e3a5f', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor:'#1e40af50' }}>
+                                    <Text style={{ color:'#93c5fd', fontSize:11, lineHeight:17 }}>
+                                        🏟️ Kortları oyuncular ortaklaşa öder.
+                                    </Text>
+                                </View>
+                                <Text style={s.fieldLabel}>Turnuva Katılım Ücreti (₺)</Text>
+                                <TextInput
+                                    style={[s.fieldInput, ti, { marginBottom:10 }]}
+                                    value={f.playerFee}
+                                    onChangeText={v => set('playerFee', v.replace(/[^0-9.]/g,''))}
+                                    keyboardType="numeric" maxLength={8}
+                                    placeholder="örn. 150"
+                                    placeholderTextColor={colors.textMuted} />
 
                                 <Text style={[s.fieldLabel, { marginTop:4 }]}>Ödeme Yöntemi</Text>
                                 {/* Online payment — disabled */}
@@ -4471,7 +4464,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                     <Text style={{ color: f.paymentMethod==='EFT' ? '#60a5fa' : '#fff', fontSize:12, fontWeight:'700' }}>🏦 EFT ile Ödeme</Text>
                                 </TouchableOpacity>
-                                {/* Cash */}
+                                {/* Cash — only when a specific court is chosen */}
+                                {!f.courtDecidedByPlayers && (
                                 <TouchableOpacity
                                     style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.paymentMethod==='CASH' ? '#16a34a15' : colors.surface2, borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor: f.paymentMethod==='CASH' ? '#16a34a' : colors.border }}
                                     onPress={() => set('paymentMethod', 'CASH')}>
@@ -4480,6 +4474,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                     <Text style={{ color: f.paymentMethod==='CASH' ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>💵 Kortta Nakit Ödeme</Text>
                                 </TouchableOpacity>
+                                )}
 
                                 {/* EFT fields */}
                                 {f.paymentMethod === 'EFT' && (<>
