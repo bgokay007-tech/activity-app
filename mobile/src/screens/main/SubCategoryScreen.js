@@ -2129,7 +2129,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
 
                                     return (
                                         <TouchableOpacity key={mode} onPress={handleModePress}
-                                            style={[s.chipBtn, isActive && {
+                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, isActive && {
                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                 borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                             }]}>
