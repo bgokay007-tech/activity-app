@@ -566,7 +566,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
             Alert.alert('', t.requestSent);
             onRefresh();
         } catch (e) {
-            const msg = e?.response?.data?.message || '';
+            if (!e?.response) { onRefresh(); return; } // network drop — sunucu aldı, yenile
+            const msg = e.response.data?.message || '';
             if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('no longer')) {
                 onRefresh();
                 if (msg.toLowerCase().includes('no longer')) Alert.alert(t.error, t.requestNoLongerOpen || 'Bu ilan artık açık değil.');
