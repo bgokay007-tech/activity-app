@@ -544,7 +544,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
     const required = item.matchType === 'DOUBLE' ? 3 : (item.teamSize || 1);
     const filled = participants.length;
     const isFull = filled >= required;
-    const mySentReq = item._myJoinStatus;
+    const [localJoinStatus, setLocalJoinStatus] = useState(null);
+    const mySentReq = localJoinStatus ?? item._myJoinStatus;
     const [detailVisible, setDetailVisible] = useState(false);
     const [editVisible, setEditVisible] = useState(false);
 
@@ -552,11 +553,21 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
         if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
     }, [autoOpen]);
 
+    // Sunucudan gelen veri local override'ı geçersiz kılar
+    useEffect(() => { setLocalJoinStatus(null); }, [item._myJoinStatus]);
+
     useEffect(() => {
-        const off = onSocket('joinRejected', ({ rivalId }) => {
-            if (rivalId === item.id) onRefresh();
+        const offRejected = onSocket('joinRejected', ({ rivalId }) => {
+            if (rivalId !== item.id) return;
+            setLocalJoinStatus(null);
+            onRefresh();
         });
-        return off;
+        const offAccepted = onSocket('joinAccepted', ({ rivalId }) => {
+            if (rivalId !== item.id) return;
+            setLocalJoinStatus('ACCEPTED');
+            onRefresh();
+        });
+        return () => { offRejected(); offAccepted(); };
     }, [item.id]);
 
     const handleJoin = async () => {
@@ -569,11 +580,12 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
             return;
         }
         try {
+            setLocalJoinStatus('PENDING'); // anlık göster
             await api.post(`/rivals/${item.id}/respond`, {});
-            Alert.alert('', t.requestSent);
             onRefresh();
         } catch (e) {
             if (!e?.response) { onRefresh(); return; } // network drop — sunucu aldı, yenile
+            setLocalJoinStatus(null); // hata varsa geri al
             const msg = e.response.data?.message || '';
             if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('no longer')) {
                 onRefresh();

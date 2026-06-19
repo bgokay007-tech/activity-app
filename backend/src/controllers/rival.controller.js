@@ -548,6 +548,8 @@ export const respondToJoin = async (req, res, next) => {
 
         // Push updated rival to creator's UI
         emitToUser(rival.senderId, 'rivalUpdate', updated);
+        // Notify the joiner that they were accepted
+        emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         // Also notify all participants of the match status
         if (isFull) {
             updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
