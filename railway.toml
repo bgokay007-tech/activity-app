@@ -2,4 +2,4 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "npx prisma migrate deploy; node src/server.js"
+startCommand = "cd backend && npx prisma migrate deploy && node src/server.js"

@@ -2,10 +2,16 @@
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["npm ci"]
+cmds = [
+  "cd backend && npm ci",
+  "cd frontend && npm ci"
+]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = [
+  "cd backend && npx prisma generate",
+  "cd frontend && npx vite build --outDir ../backend/public"
+]
 
 [start]
-cmd = "npx prisma migrate deploy; node src/server.js"
+cmd = "cd backend && npx prisma migrate deploy && node src/server.js"

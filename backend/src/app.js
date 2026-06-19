@@ -63,7 +63,7 @@ app.get('/health', (req, res) => {
 
 // Serve admin panel (frontend)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+const frontendDist = path.resolve(__dirname, '../public');
 if (fs.existsSync(frontendDist)) {
     app.use(express.static(frontendDist));
     app.get('*', (req, res, next) => {
