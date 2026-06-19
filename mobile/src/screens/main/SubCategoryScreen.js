@@ -5102,12 +5102,11 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showCityFilter, setShowCityFilter] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [cityAlertCity, setCityAlertCity] = useState(null);
-    // rivals → subscribed city array; other tabs → bool
-    const [rivalsSubCities, setRivalsSubCities] = useState([]);
-    const [cityAlertSubs, setCityAlertSubs] = useState({ tournaments: false, coaches: false, equipment: false });
-    const [cityAlertLoading, setCityAlertLoading] = useState(null);
-    const [cityPickerOpen, setCityPickerOpen] = useState(false);
-    const [cityPickerTogglingCity, setCityPickerTogglingCity] = useState(null); // city being toggled in picker
+    // Tüm sekmeler için abone olunan il listesi
+    const [tabSubCities, setTabSubCities] = useState({ rivals: [], tournaments: [], coaches: [], equipment: [] });
+    const [cityAlertLoading, setCityAlertLoading] = useState(null); // toggling tab or null
+    const [cityPickerTab, setCityPickerTab] = useState(null); // hangi sekme için picker açık
+    const [cityPickerTogglingCity, setCityPickerTogglingCity] = useState(null);
 
     // Coaches data
     const [coachListings, setCoachListings] = useState([]);
@@ -5222,59 +5221,47 @@ export default function SubCategoryScreen({ route, navigation }) {
     const onRefresh = () => { setRefreshing(true); load(); };
 
     useEffect(() => {
-        // rivals → multi-city
-        api.get(`/city-alerts/${encodeURIComponent(sub)}?tab=rivals`)
-            .then(res => {
-                if (res.data.city) setCityAlertCity(res.data.city);
-                setRivalsSubCities(res.data.subscribedCities || []);
-            })
-            .catch(() => {});
-        // other tabs → bool
-        ['tournaments', 'coaches', 'equipment'].forEach(tab => {
+        ['rivals', 'tournaments', 'coaches', 'equipment'].forEach(tab => {
             api.get(`/city-alerts/${encodeURIComponent(sub)}?tab=${tab}`)
                 .then(res => {
                     if (res.data.city) setCityAlertCity(res.data.city);
-                    setCityAlertSubs(prev => ({ ...prev, [tab]: res.data.subscribed }));
+                    setTabSubCities(prev => ({ ...prev, [tab]: res.data.subscribedCities || [] }));
                 })
                 .catch(() => {});
         });
     }, [sub]);
 
-    // Toggle a specific city for rivals tab (used in city picker)
-    const toggleRivalsCity = async (city) => {
+    // Picker'dan il toggle (herhangi bir sekme için)
+    const toggleTabCity = async (tab, city) => {
         setCityPickerTogglingCity(city);
         try {
-            const res = await api.post('/city-alerts', { subCategory: sub, tab: 'rivals', city });
-            setRivalsSubCities(res.data.subscribedCities || []);
-            if (res.data.city) setCityAlertCity(res.data.city);
-        } catch (e) {
-            const serverMsg = e?.response?.data?.message;
-            if (serverMsg) Alert.alert('', serverMsg);
-            else {
-                api.get(`/city-alerts/${encodeURIComponent(sub)}?tab=rivals`)
-                    .then(r => { setRivalsSubCities(r.data.subscribedCities || []); })
-                    .catch(() => {});
-            }
-        } finally { setCityPickerTogglingCity(null); }
-    };
-
-    // Toggle for other tabs (tournaments, coaches, equipment)
-    const toggleCityAlert = async (tab) => {
-        if (!cityAlertCity) return Alert.alert('', t.cityAlertNoCity);
-        setCityAlertLoading(tab);
-        try {
-            const res = await api.post('/city-alerts', { subCategory: sub, tab });
-            setCityAlertSubs(prev => ({ ...prev, [tab]: res.data.subscribed }));
+            const res = await api.post('/city-alerts', { subCategory: sub, tab, city });
+            setTabSubCities(prev => ({ ...prev, [tab]: res.data.subscribedCities || [] }));
             if (res.data.city) setCityAlertCity(res.data.city);
         } catch (e) {
             const serverMsg = e?.response?.data?.message;
             if (serverMsg) Alert.alert('', serverMsg);
             else {
                 api.get(`/city-alerts/${encodeURIComponent(sub)}?tab=${tab}`)
-                    .then(r => {
-                        if (r.data.city) setCityAlertCity(r.data.city);
-                        setCityAlertSubs(prev => ({ ...prev, [tab]: r.data.subscribed }));
-                    })
+                    .then(r => { setTabSubCities(prev => ({ ...prev, [tab]: r.data.subscribedCities || [] })); })
+                    .catch(() => {});
+            }
+        } finally { setCityPickerTogglingCity(null); }
+    };
+
+    // Kısa bas: profil ilini hızlıca aç/kapat
+    const quickToggleTab = async (tab) => {
+        if (!cityAlertCity) return Alert.alert('', t.cityAlertNoCity);
+        setCityAlertLoading(tab);
+        try {
+            const res = await api.post('/city-alerts', { subCategory: sub, tab, city: cityAlertCity });
+            setTabSubCities(prev => ({ ...prev, [tab]: res.data.subscribedCities || [] }));
+        } catch (e) {
+            const serverMsg = e?.response?.data?.message;
+            if (serverMsg) Alert.alert('', serverMsg);
+            else {
+                api.get(`/city-alerts/${encodeURIComponent(sub)}?tab=${tab}`)
+                    .then(r => { setTabSubCities(prev => ({ ...prev, [tab]: r.data.subscribedCities || [] })); })
                     .catch(() => {});
             }
         } finally { setCityAlertLoading(null); }
@@ -5582,6 +5569,30 @@ export default function SubCategoryScreen({ route, navigation }) {
     });
 
     // Compact filter bar rendered in each tab (single row)
+    // Ortak bildirim butonu — kısa bas profil ilini toggle, uzun bas picker açar
+    const CityAlertBtn = ({ tab }) => {
+        const cities = tabSubCities[tab] || [];
+        const active = cities.length > 0;
+        const isLoading = cityAlertLoading === tab;
+        return (
+            <TouchableOpacity
+                onPress={() => isLoading ? null : quickToggleTab(tab)}
+                onLongPress={() => setCityPickerTab(tab)}
+                delayLongPress={400}
+                disabled={isLoading}
+                style={{ paddingVertical:7, paddingHorizontal:10, borderRadius:8, backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', minWidth:44, alignItems:'center', justifyContent:'center' }}
+            >
+                {isLoading
+                    ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
+                    : <>
+                        <Text style={{ fontSize:16 }}>{active ? '🔔' : '🔕'}</Text>
+                        {active && <Text style={{ color:cfg.color, fontSize:9, fontWeight:'800', marginTop:1 }}>{cities.length} il</Text>}
+                      </>
+                }
+            </TouchableOpacity>
+        );
+    };
+
     const CompactFilter = ({ showDateChips = true }) => (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 2, paddingVertical: 2 }}>
             <TouchableOpacity
@@ -5629,29 +5640,29 @@ export default function SubCategoryScreen({ route, navigation }) {
                 currentValue={filterCity}
             />
 
-            {/* City picker for rivals notification subscription */}
-            <Modal visible={cityPickerOpen} animationType="slide" transparent onRequestClose={() => setCityPickerOpen(false)}>
+            {/* Bildirim il seçici — tüm sekmeler için ortak */}
+            <Modal visible={cityPickerTab !== null} animationType="slide" transparent onRequestClose={() => setCityPickerTab(null)}>
                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:'75%' }}>
                         <View style={{ flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor:colors.border }}>
                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }}>
                                 🔔 {sportDisplayName} — Bildirim İlleri
                             </Text>
-                            <TouchableOpacity onPress={() => setCityPickerOpen(false)}>
+                            <TouchableOpacity onPress={() => setCityPickerTab(null)}>
                                 <Text style={{ color:colors.textMuted, fontSize:20 }}>✕</Text>
                             </TouchableOpacity>
                         </View>
                         <Text style={{ color:colors.textMuted, fontSize:12, paddingHorizontal:16, paddingTop:8, paddingBottom:4 }}>
-                            Seçtiğin illerden yeni {sportDisplayName} ilanı geldiğinde bildirim alırsın
+                            Seçtiğin illerden yeni {sportDisplayName} bildirimi alırsın
                         </Text>
                         <ScrollView contentContainerStyle={{ paddingVertical:8 }}>
                             {TR_PROVINCES.map(province => {
-                                const isChecked = rivalsSubCities.includes(province);
+                                const isChecked = cityPickerTab ? (tabSubCities[cityPickerTab] || []).includes(province) : false;
                                 const isLoading = cityPickerTogglingCity === province;
                                 return (
                                     <TouchableOpacity
                                         key={province}
-                                        onPress={() => toggleRivalsCity(province)}
+                                        onPress={() => cityPickerTab && toggleTabCity(cityPickerTab, province)}
                                         disabled={cityPickerTogglingCity !== null}
                                         style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:11, borderBottomWidth:1, borderBottomColor:colors.border+'40' }}
                                     >
@@ -5701,23 +5712,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <TouchableOpacity style={[s.createBtn, { flex:1, marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createAdBtn}</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => { if (!cityAlertCity) Alert.alert('', t.cityAlertNoCity); else toggleRivalsCity(cityAlertCity); }}
-                                    onLongPress={() => setCityPickerOpen(true)}
-                                    delayLongPress={400}
-                                    style={{
-                                        paddingVertical:9, paddingHorizontal:10, borderRadius:8,
-                                        backgroundColor: rivalsSubCities.length > 0 ? cfg.color+'20' : '#ffffff10',
-                                        borderWidth:1,
-                                        borderColor: rivalsSubCities.length > 0 ? cfg.color+'60' : '#ffffff20',
-                                        alignItems:'center', justifyContent:'center', minWidth:44,
-                                    }}
-                                >
-                                    <Text style={{ fontSize:16 }}>{rivalsSubCities.length > 0 ? '🔔' : '🔕'}</Text>
-                                    {rivalsSubCities.length > 0 && (
-                                        <Text style={{ color:cfg.color, fontSize:9, fontWeight:'800', marginTop:1 }}>{rivalsSubCities.length} il</Text>
-                                    )}
-                                </TouchableOpacity>
+                                <CityAlertBtn tab="rivals" />
                             </View>
 
                             {/* Kompakt tek satır filtre */}
@@ -5806,15 +5801,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     >
                                         <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
                                     </TouchableOpacity>
-                                    {cityAlertCity && (
-                                        <TouchableOpacity
-                                            onPress={() => toggleCityAlert('tournaments')}
-                                            disabled={cityAlertLoading !== null}
-                                            style={{ paddingVertical:7, paddingHorizontal:10, borderRadius:7, backgroundColor: cityAlertSubs.tournaments ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: cityAlertSubs.tournaments ? cfg.color+'60' : '#ffffff20', minWidth:44, alignItems:'center' }}
-                                        >
-                                            <Text style={{ fontSize:16 }}>{cityAlertSubs.tournaments ? '🔔' : '🔕'}</Text>
-                                        </TouchableOpacity>
-                                    )}
+                                    <CityAlertBtn tab="tournaments" />
                                 </View>
                                 <CompactFilter showDateChips={true} />
 
@@ -5875,15 +5862,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <View style={{ flex:1 }}>
                                     <CompactFilter showDateChips={false} />
                                 </View>
-                                {cityAlertCity && (
-                                    <TouchableOpacity
-                                        onPress={() => toggleCityAlert('equipment')}
-                                        disabled={cityAlertLoading !== null}
-                                        style={{ paddingVertical:7, paddingHorizontal:10, borderRadius:7, backgroundColor: cityAlertSubs.equipment ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: cityAlertSubs.equipment ? cfg.color+'60' : '#ffffff20', minWidth:44, alignItems:'center' }}
-                                    >
-                                        <Text style={{ fontSize:16 }}>{cityAlertSubs.equipment ? '🔔' : '🔕'}</Text>
-                                    </TouchableOpacity>
-                                )}
+                                <CityAlertBtn tab="equipment" />
                             </View>
                             {/* Durum filtresi */}
                             <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
@@ -6088,15 +6067,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <>
                             <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
                                 <View style={{ flex:1 }} />
-                                {cityAlertCity && (
-                                    <TouchableOpacity
-                                        onPress={() => toggleCityAlert('coaches')}
-                                        disabled={cityAlertLoading !== null}
-                                        style={{ paddingVertical:7, paddingHorizontal:10, borderRadius:7, backgroundColor: cityAlertSubs.coaches ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: cityAlertSubs.coaches ? cfg.color+'60' : '#ffffff20', minWidth:44, alignItems:'center' }}
-                                    >
-                                        <Text style={{ fontSize:16 }}>{cityAlertSubs.coaches ? '🔔' : '🔕'}</Text>
-                                    </TouchableOpacity>
-                                )}
+                                <CityAlertBtn tab="coaches" />
                             </View>
                             <CompactFilter showDateChips={false} />
                             {loadingCoaches
