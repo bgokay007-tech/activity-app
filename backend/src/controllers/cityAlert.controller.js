@@ -49,11 +49,12 @@ export async function notifyCitySubscribers({ subCategory, category, senderCity,
     try {
         const sportName = SUB_NAMES_TR[subCategory] || subCategory;
         const subscribers = await prisma.cityAlert.findMany({
-            where: { subCategory, city: senderCity, userId: { not: senderId } },
+            where: { subCategory, city: senderCity },
             select: { userId: true },
         });
-        console.log(`[cityAlert] ${subscribers.length} subscriber(s) to notify for ${subCategory} in ${senderCity}`);
-        for (const sub of subscribers) {
+        const toNotify = subscribers.filter(s => s.userId !== senderId);
+        console.log(`[cityAlert] ${toNotify.length} subscriber(s) to notify for ${subCategory} in ${senderCity}`);
+        for (const sub of toNotify) {
             createNotification(
                 sub.userId, 'NEW_LISTING',
                 `📍 ${senderCity} — Yeni ${sportName} İlanı`,
