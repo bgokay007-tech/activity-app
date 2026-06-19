@@ -611,6 +611,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                                     {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
                                 </Text>
                             )}
+                            {(item.minRating != null || item.maxRating != null) && (
+                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>
+                                    ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
+                                </Text>
+                            )}
                         </View>
                         {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
                             <View style={{ flexDirection:'row', gap:6, marginTop:2, flexWrap:'wrap' }}>
@@ -653,13 +658,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                         <Text style={s.flexDesc}>{t.flexibleBannerDesc}</Text>
                     </View>
                 )}
-                {(item.level || item.minRating != null || item.maxRating != null) && (
+                {(item.level || item.levelDetail) && (
                     <View style={s.levelRow}>
                         {item.level && <Text style={s.levelBadge}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>}
                         {item.levelDetail && <Text style={s.levelDetail}>{item.levelDetail}</Text>}
-                        {(item.minRating != null || item.maxRating != null) && (
-                            <Text style={s.levelDetail}>⭐ {item.minRating != null ? `${item.minRating}` : '0'}–{item.maxRating != null ? `${item.maxRating}` : '5'}★</Text>
-                        )}
                     </View>
                 )}
                 {item.message && <Text style={s.cardMsg}>{item.message}</Text>}
@@ -681,20 +683,21 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                 )}
             </TouchableOpacity>
 
-            {/* ── Aksiyon butonları (sadece non-owner) ── */}
+            {/* ── Aksiyon butonu (sadece non-owner) ── */}
             {!isOwner && (
-                <View style={{ marginTop:4 }}>
+                <View style={{ alignSelf:'flex-end', marginTop:2 }}>
                     {mySentReq === 'PENDING' ? (
-                        <View style={s.waitingBox}><Text style={s.waitingText}>{t.waitingReq}</Text></View>
+                        <Text style={{ color:colors.textMuted, fontSize:11, paddingHorizontal:4 }}>{t.waitingReq}</Text>
                     ) : mySentReq === 'ACCEPTED' ? (
-                        <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40' }]}>
-                            <Text style={[s.waitingText, { color:'#4ade80' }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
-                        </View>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', paddingHorizontal:4 }}>✓ {t.requestAccepted || 'Kabul edildiniz!'}</Text>
                     ) : isFull ? (
-                        <View style={s.waitingBox}><Text style={s.waitingText}>{t.ilanFull || 'İlan doldu'}</Text></View>
+                        <Text style={{ color:colors.textMuted, fontSize:11, paddingHorizontal:4 }}>{t.ilanFull || 'Dolu'}</Text>
                     ) : (
-                        <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color }]} onPress={handleJoin}>
-                            <Text style={s.joinBtnText}>{t.joinBtn}</Text>
+                        <TouchableOpacity
+                            style={{ backgroundColor:cfg.color, borderRadius:8, paddingHorizontal:14, paddingVertical:5 }}
+                            onPress={handleJoin}
+                        >
+                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{t.joinBtn}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
