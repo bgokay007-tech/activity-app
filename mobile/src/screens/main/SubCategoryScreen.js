@@ -5179,9 +5179,14 @@ export default function SubCategoryScreen({ route, navigation }) {
             setCityAlertCity(res.data.city);
         } catch (e) {
             const serverMsg = e?.response?.data?.message;
-            const networkMsg = e?.message;
-            const code = e?.code ? ` [${e.code}]` : '';
-            Alert.alert('', serverMsg || (networkMsg ? `${networkMsg}${code}` : t.actionFailed));
+            if (serverMsg) {
+                Alert.alert('', serverMsg);
+            } else {
+                // Network error — sunucu isteği aldı olabilir, gerçek durumu çek
+                api.get(`/city-alerts/${encodeURIComponent(sub)}`)
+                    .then(r => { setCityAlertSubscribed(r.data.subscribed); setCityAlertCity(r.data.city); })
+                    .catch(() => {});
+            }
         } finally { setCityAlertLoading(false); }
     };
 
