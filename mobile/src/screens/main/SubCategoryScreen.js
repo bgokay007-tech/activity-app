@@ -4987,8 +4987,10 @@ export default function SubCategoryScreen({ route, navigation }) {
             setCityAlertSubscribed(res.data.subscribed);
             setCityAlertCity(res.data.city);
         } catch (e) {
-            const msg = e?.response?.data?.message || e?.message || t.actionFailed;
-            Alert.alert('', msg);
+            const serverMsg = e?.response?.data?.message;
+            const networkMsg = e?.message;
+            const code = e?.code ? ` [${e.code}]` : '';
+            Alert.alert('', serverMsg || (networkMsg ? `${networkMsg}${code}` : t.actionFailed));
         } finally { setCityAlertLoading(false); }
     };
 

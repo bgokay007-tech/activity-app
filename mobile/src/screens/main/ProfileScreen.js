@@ -14,6 +14,7 @@ import colors from '../../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ManageActivitiesModal from '../../components/ManageActivitiesModal';
 import RainbowLogo from '../../components/RainbowLogo';
+import CityPickerModal from '../../components/CityPickerModal';
 
 const SUB_EMOJI = {
     football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', volleyball:'🏐',
@@ -312,6 +313,9 @@ export default function ProfileScreen({ route, navigation }) {
             .catch(() => setArchiveModalMatches([]))
             .finally(() => setArchiveModalLoading(false));
     }, [selectedArchiveTournament?.id]);
+
+    // City picker (profile edit)
+    const [showCityPickerProfile, setShowCityPickerProfile] = useState(false);
 
     // Privacy picker
     const [privacyPickerField, setPrivacyPickerField] = useState(null); // 'city'|'gender'|'birthDate'
@@ -1540,13 +1544,15 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={s.menuBtnIcon}>≡</Text>
                                 </TouchableOpacity>
                             </View>
-                            <TextInput
-                                style={s.fieldInput}
-                                value={infoForm.city}
-                                onChangeText={v => setInfoForm(f => ({ ...f, city: v }))}
-                                placeholder="İstanbul, Ankara..."
-                                placeholderTextColor={colors.textMuted}
-                            />
+                            <TouchableOpacity
+                                style={[s.fieldInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                                onPress={() => setShowCityPickerProfile(true)}
+                            >
+                                <Text style={{ color: infoForm.city ? colors.text : colors.textMuted, fontSize: 14 }}>
+                                    {infoForm.city || 'İl seçin...'}
+                                </Text>
+                                <Text style={{ color: colors.textMuted, fontSize: 16 }}>▾</Text>
+                            </TouchableOpacity>
                             {infoForm.cityPrivacy === 'FRIENDS_EXCEPT' && infoForm.cityExclude.length > 0 && (
                                 <Text style={s.excludeHint}>{infoForm.cityExclude.length} arkadaş göremez</Text>
                             )}
@@ -1628,6 +1634,14 @@ export default function ProfileScreen({ route, navigation }) {
                     </View>
                 </View>
             </Modal>
+
+            {/* ── City Picker (Profile Edit) ── */}
+            <CityPickerModal
+                visible={showCityPickerProfile}
+                onClose={() => setShowCityPickerProfile(false)}
+                onSelect={city => setInfoForm(f => ({ ...f, city }))}
+                currentValue={infoForm.city}
+            />
 
             {/* ── Privacy Picker Modal ── */}
             <Modal visible={privacyPickerField !== null} animationType="slide" transparent onRequestClose={() => setPrivacyPickerField(null)}>
