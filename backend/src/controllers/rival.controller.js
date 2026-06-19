@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
-import { emitToUser } from '../config/socket.js';
+import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 
 // Fixed transfer lookup based on rating gap + score dominance
@@ -1060,6 +1060,9 @@ export const cancelRequest = async (req, res, next) => {
 
         res.json({ message: 'Cancelled' });
 
+        // Real-time: remove from all users' screens instantly
+        broadcast('rivalDeleted', { rivalId: id, subCategory: request.subCategory });
+
         // Fire-and-forget notifications
         const senderName = request.sender?.username || 'İlan sahibi';
         const notifyIds = new Set(request.joinRequests.map(jr => jr.userId));
@@ -1115,6 +1118,7 @@ export const cancelMatch = async (req, res, next) => {
             if (bothAgreed) {
                 await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
                 res.json({ cancelled: true, mutual: true });
+                for (const uid of allPlayerIds) emitToUser(uid, 'rivalDeleted', { rivalId: id, subCategory: request.subCategory });
                 for (const uid of allPlayerIds) {
                     createNotification(uid, 'MATCH_CANCELLED',
                         '🤝 Maç İptal Edildi',
@@ -1140,6 +1144,7 @@ export const cancelMatch = async (req, res, next) => {
 
         // Regular (unilateral) cancel
         await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+        for (const uid of allPlayerIds) emitToUser(uid, 'rivalDeleted', { rivalId: id, subCategory: request.subCategory });
 
         if (withinPenaltyWindow) {
             const interest = await prisma.userInterest.findFirst({
