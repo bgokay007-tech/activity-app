@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "ActivityRequest" ADD COLUMN "minRating" DOUBLE PRECISION,
+ADD COLUMN "maxRating" DOUBLE PRECISION;
