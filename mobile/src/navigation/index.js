@@ -282,18 +282,23 @@ export default function Navigation() {
     }, []);
 
     useEffect(() => {
-        if (!token || isExpoGo) return;
+        if (!token) return;
+        if (isExpoGo) { console.warn('[push] Expo Go detected — push skipped'); return; }
         (async () => {
             try {
                 const { status } = await Notifications.requestPermissionsAsync();
+                console.log('[push] permission status:', status);
                 if (status !== 'granted') return;
                 const projectId =
                     Constants.expoConfig?.extra?.eas?.projectId ??
                     Constants.easConfig?.projectId;
+                console.log('[push] projectId:', projectId);
                 if (!projectId) return;
                 const { data: pushToken } = await Notifications.getExpoPushTokenAsync({ projectId });
+                console.log('[push] token obtained:', pushToken?.substring(0, 40));
                 await api.post('/auth/push-token', { token: pushToken });
-            } catch (e) { console.warn('Push setup error:', e?.message); }
+                console.log('[push] token saved to server');
+            } catch (e) { console.warn('[push] setup error:', e?.message); }
         })();
     }, [token]);
 

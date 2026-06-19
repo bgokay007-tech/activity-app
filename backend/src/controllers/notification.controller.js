@@ -3,12 +3,21 @@ import { emitToUser } from '../config/socket.js';
 import axios from 'axios';
 
 async function sendPush(pushToken, title, body, data = {}) {
-    if (!pushToken?.startsWith('ExponentPushToken')) return;
+    if (!pushToken?.startsWith('ExponentPushToken')) {
+        console.warn('[push] invalid token:', pushToken?.substring(0, 30));
+        return;
+    }
     try {
-        await axios.post('https://exp.host/--/api/v2/push/send', {
+        const res = await axios.post('https://exp.host/--/api/v2/push/send', {
             to: pushToken, title, body, sound: 'default', data,
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-    } catch { /* push failure is non-critical */ }
+        const ticket = res.data?.data;
+        if (ticket?.status === 'error') {
+            console.error('[push] delivery error:', ticket.message, ticket.details);
+        } else {
+            console.log('[push] sent ok, id:', ticket?.id);
+        }
+    } catch (e) { console.error('[push] send failed:', e.message); }
 }
 
 export const getNotifications = async (req, res, next) => {
@@ -51,6 +60,7 @@ export async function createNotification(userId, type, title, body, data = {}) {
             prisma.user.findUnique({ where: { id: userId }, select: { pushToken: true } }),
         ]);
         emitToUser(userId, 'notification', notif);
+        console.log(`[push] user=${userId} hasToken=${!!user?.pushToken}`);
         if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type });
         return notif;
     } catch { /* non-critical */ }
