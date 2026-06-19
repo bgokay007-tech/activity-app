@@ -597,7 +597,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
             } else {
                 onRefresh();
             }
-        } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); }
+        } catch(e) {
+            if (e?.response) Alert.alert(t.error, e.response.data?.message || t.actionFailed);
+            else onRefresh(); // network drop — sunucu işlemi yaptı, listeyi yenile
+        }
     };
 
     const rival = { id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule };
