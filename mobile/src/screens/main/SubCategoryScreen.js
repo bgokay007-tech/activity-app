@@ -10,7 +10,7 @@ import { useSelector } from 'react-redux';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
-import { onSocket } from '../../services/socket';
+import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
@@ -5209,7 +5209,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             setPlayerWanted(prev => prev.filter(r => r.id !== rivalId));
             setMatchedUpcoming(prev => prev.filter(r => r.id !== rivalId));
         });
-        return () => { offUpdate(); offDeleted(); };
+        const offReconnect = onSocketReconnect(() => load());
+        return () => { offUpdate(); offDeleted(); offReconnect(); };
     }, [category, sub]);
 
     const handleNearMe = async () => {

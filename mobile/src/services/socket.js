@@ -4,16 +4,25 @@ import { BASE_URL } from './api';
 const SOCKET_URL = BASE_URL.replace('/api', '');
 
 let socket = null;
+let reconnectCallbacks = new Set();
+
+export function onSocketReconnect(cb) {
+    reconnectCallbacks.add(cb);
+    return () => reconnectCallbacks.delete(cb);
+}
 
 export function connectSocket(userId) {
-    if (socket?.connected) return;
+    if (socket) return;
     socket = io(SOCKET_URL, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         auth: { userId },
         reconnection: true,
         reconnectionDelay: 2000,
     });
-    socket.on('connect', () => console.log('[socket] connected'));
+    socket.on('connect', () => {
+        console.log('[socket] connected');
+        reconnectCallbacks.forEach(cb => cb());
+    });
     socket.on('disconnect', () => console.log('[socket] disconnected'));
 }
 
