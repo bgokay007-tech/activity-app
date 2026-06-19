@@ -259,7 +259,7 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:13 },
 });
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, onEdit }) {
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [comments, setComments] = useState([]);
@@ -451,9 +451,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {/* Katıl / İptal aksiyonu */}
                     <View style={{ marginBottom:20 }}>
                         {isOwner ? (
-                            <TouchableOpacity style={s.cancelBtn} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
-                                <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
-                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <TouchableOpacity
+                                    style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
+                                    onPress={() => { onClose(); setTimeout(onEdit, 300); }}
+                                >
+                                    <Text style={[s.cancelBtnText, { color: colors.purple }]}>✏️ Düzenle</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[s.cancelBtn, { flex: 1 }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
+                                    <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
+                                </TouchableOpacity>
+                            </View>
                         ) : mySentReq === 'PENDING' ? (
                             <View style={s.waitingBox}><Text style={s.waitingText}>{t.waitingReq}</Text></View>
                         ) : mySentReq === 'ACCEPTED' ? (
@@ -538,6 +546,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
     const isFull = filled >= required;
     const mySentReq = item._myJoinStatus;
     const [detailVisible, setDetailVisible] = useState(false);
+    const [editVisible, setEditVisible] = useState(false);
 
     useEffect(() => {
         if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
@@ -647,9 +656,17 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                             <Text style={s.joinedCount}>{t.joinedCount(filled, TEAM_SPORTS.has(sub) ? item.teamSize : required)}</Text>
                         </View>
                         {isOwner ? (
-                            <TouchableOpacity style={[s.cancelBtn, { flex:0, paddingHorizontal:12, paddingVertical:5 }]} onPress={handleCancel}>
-                                <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
-                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', gap: 5 }}>
+                                <TouchableOpacity
+                                    style={[s.cancelBtn, { flex: 0, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
+                                    onPress={() => setEditVisible(true)}
+                                >
+                                    <Text style={[s.cancelBtnText, { color: colors.purple }]}>✏️ Düzenle</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[s.cancelBtn, { flex: 0, paddingHorizontal: 10, paddingVertical: 5 }]} onPress={handleCancel}>
+                                    <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
+                                </TouchableOpacity>
+                            </View>
                         ) : (
                             mySentReq === 'PENDING' ? (
                                 <Text style={{ color:colors.textMuted, fontSize:10 }}>{t.waitingReq}</Text>
@@ -714,6 +731,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
             handleJoin={() => { setDetailVisible(false); setTimeout(handleJoin, 300); }}
             handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
             handleRespondJoin={handleRespondJoin}
+            onEdit={() => { setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
+        />
+        <EditRivalModal
+            visible={editVisible}
+            item={item}
+            onClose={() => setEditVisible(false)}
+            onSave={onRefresh}
         />
         </>
     );
@@ -798,6 +822,171 @@ const cal = StyleSheet.create({
     closeBtn:   { marginTop:12, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor: colors.border },
     closeTxt:   { color: colors.textSecondary, fontWeight:'700' },
 });
+
+// ─── Edit Rival Modal ─────────────────────────────────────────────────────────
+
+function EditRivalModal({ visible, item, onClose, onSave }) {
+    const t = useT();
+    const [form, setForm] = useState({});
+    const [saving, setSaving] = useState(false);
+    const [calVisible, setCalVisible] = useState(false);
+
+    useEffect(() => {
+        if (visible && item) {
+            setForm({
+                message:   item.message   || '',
+                matchDate: item.matchDate ? new Date(item.matchDate) : null,
+                matchTime: item.matchTime || '',
+                location:  item.location  || '',
+                courtName: item.courtName || '',
+                minRating: item.minRating != null ? String(item.minRating) : '',
+                maxRating: item.maxRating != null ? String(item.maxRating) : '',
+                matchMode: item.matchMode || 'FREE',
+            });
+        }
+    }, [visible, item?.id]);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await api.patch(`/rivals/${item.id}`, {
+                message:   form.message   || null,
+                matchDate: form.matchDate ? form.matchDate.toISOString() : null,
+                matchTime: form.matchTime || null,
+                location:  form.location  || null,
+                courtName: form.courtName || null,
+                minRating: form.minRating !== '' ? form.minRating : null,
+                maxRating: form.maxRating !== '' ? form.maxRating : null,
+                matchMode: form.matchMode || 'FREE',
+            });
+            onSave();
+            onClose();
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: colors.bg }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                    <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
+                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>✏️ İlanı Düzenle</Text>
+                    <TouchableOpacity
+                        style={[s.joinBtn, { paddingHorizontal: 16, paddingVertical: 8, opacity: saving ? 0.6 : 1 }]}
+                        onPress={handleSave}
+                        disabled={saving}
+                    >
+                        <Text style={s.joinBtnText}>{saving ? '...' : 'Kaydet'}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+                    <Text style={s.fieldLabel}>📅 Tarih</Text>
+                    <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center' }]} onPress={() => setCalVisible(true)}>
+                        <Text style={{ color: form.matchDate ? '#fff' : colors.textMuted, fontSize: 14 }}>
+                            {form.matchDate
+                                ? form.matchDate.toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'long', weekday: 'long' })
+                                : 'Tarih seçin...'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <Text style={s.fieldLabel}>🕐 Saat</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                        {TIME_OPTS.slice(0, 50).map(o => (
+                            <TouchableOpacity
+                                key={o.value || 'none'}
+                                style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, marginRight: 6, backgroundColor: form.matchTime === o.value ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchTime === o.value ? colors.purple : colors.border }}
+                                onPress={() => setForm(f => ({ ...f, matchTime: o.value }))}
+                            >
+                                <Text style={{ color: form.matchTime === o.value ? '#fff' : colors.textMuted, fontSize: 12, fontWeight: '700' }}>{o.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+
+                    <Text style={s.fieldLabel}>📍 Konum</Text>
+                    <TextInput
+                        style={s.fieldInput}
+                        value={form.location}
+                        onChangeText={v => setForm(f => ({ ...f, location: v }))}
+                        placeholder="Konum girin..."
+                        placeholderTextColor={colors.textMuted}
+                    />
+
+                    <Text style={s.fieldLabel}>🏟️ Saha Adı</Text>
+                    <TextInput
+                        style={s.fieldInput}
+                        value={form.courtName}
+                        onChangeText={v => setForm(f => ({ ...f, courtName: v }))}
+                        placeholder="Saha adı girin..."
+                        placeholderTextColor={colors.textMuted}
+                    />
+
+                    <Text style={s.fieldLabel}>💬 Mesaj</Text>
+                    <TextInput
+                        style={[s.fieldInput, { height: 80, textAlignVertical: 'top', paddingTop: 10 }]}
+                        value={form.message}
+                        onChangeText={v => setForm(f => ({ ...f, message: v }))}
+                        placeholder="Mesajınızı girin..."
+                        placeholderTextColor={colors.textMuted}
+                        multiline
+                    />
+
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 0 }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.fieldLabel}>⭐ Min Puan</Text>
+                            <TextInput
+                                style={s.fieldInput}
+                                value={form.minRating}
+                                onChangeText={v => setForm(f => ({ ...f, minRating: v }))}
+                                placeholder="0"
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="decimal-pad"
+                            />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.fieldLabel}>⭐ Max Puan</Text>
+                            <TextInput
+                                style={s.fieldInput}
+                                value={form.maxRating}
+                                onChangeText={v => setForm(f => ({ ...f, maxRating: v }))}
+                                placeholder="5"
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="decimal-pad"
+                            />
+                        </View>
+                    </View>
+
+                    <Text style={s.fieldLabel}>💰 Maç Modu</Text>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
+                        {['FREE', 'PAID'].map(mode => (
+                            <TouchableOpacity
+                                key={mode}
+                                style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: form.matchMode === mode ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchMode === mode ? colors.purple : colors.border }}
+                                onPress={() => setForm(f => ({ ...f, matchMode: mode }))}
+                            >
+                                <Text style={{ color: form.matchMode === mode ? '#fff' : colors.textMuted, fontWeight: '700' }}>
+                                    {mode === 'FREE' ? '🆓 Ücretsiz' : '💰 Ücretli'}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </ScrollView>
+
+                <CustomCalendarPicker
+                    visible={calVisible}
+                    value={form.matchDate}
+                    onSelect={date => { setForm(f => ({ ...f, matchDate: date })); setCalVisible(false); }}
+                    onClose={() => setCalVisible(false)}
+                />
+            </View>
+        </Modal>
+    );
+}
 
 // ─── Text Post Card ────────────────────────────────────────────────────────────
 

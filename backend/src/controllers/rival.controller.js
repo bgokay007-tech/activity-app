@@ -154,6 +154,37 @@ export const getCountsBySubCategory = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const updateRivalRequest = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Bu ilanı düzenleme yetkiniz yok' });
+        if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık ilanlar düzenlenebilir' });
+
+        const { message, matchDate, matchTime, location, courtName, courtAddress, minRating, maxRating, matchMode } = req.body;
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: {
+                ...(message !== undefined && { message }),
+                ...(matchDate !== undefined && { matchDate: matchDate ? new Date(matchDate) : null }),
+                ...(matchTime !== undefined && { matchTime }),
+                ...(location !== undefined && { location }),
+                ...(courtName !== undefined && { courtName }),
+                ...(courtAddress !== undefined && { courtAddress }),
+                ...(minRating !== undefined && { minRating: minRating !== '' && minRating !== null ? parseFloat(minRating) : null }),
+                ...(maxRating !== undefined && { maxRating: maxRating !== '' && maxRating !== null ? parseFloat(maxRating) : null }),
+                ...(matchMode !== undefined && { matchMode: matchMode.toUpperCase() }),
+            },
+            include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: 'PENDING' }, include: { user: { select: SENDER_SELECT } } } },
+        });
+
+        broadcast('rivalUpdate', updated);
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
 export const createRivalRequest = async (req, res, next) => {
     try {
         const {
@@ -256,10 +287,11 @@ export const createRivalRequest = async (req, res, next) => {
                             pending: true,
                         },
                     });
-                    // Notify all admins
+                    // Notify all admins (except the submitter themselves)
                     const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
                     const submitter = request.sender;
                     for (const admin of admins) {
+                        if (admin.id === req.userId) continue;
                         await createNotification(
                             admin.id,
                             'VENUE_SUBMISSION',

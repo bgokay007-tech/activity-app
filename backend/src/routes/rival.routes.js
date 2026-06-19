@@ -8,7 +8,7 @@ import {
     extendScoreDeadline, getCountsBySubCategory, abandonMatch, cancelMatch,
     getMatchComments, addMatchComment, deleteMatchComment,
     getMyUpcomingMatches, getMyMatchHistory,
-    proposeSchedule, acceptSchedule,
+    proposeSchedule, acceptSchedule, updateRivalRequest,
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -18,6 +18,7 @@ const router = Router();
 router.get('/',                      authenticate, getRivalRequests);
 router.get('/counts',                authenticate, getCountsBySubCategory);
 router.post('/',                     authenticate, createRivalRequest);
+router.patch('/:id',                 authenticate, updateRivalRequest);
 router.get('/upcoming',              authenticate, getUpcomingMatches);
 router.get('/my-upcoming',           authenticate, getMyUpcomingMatches);
 router.get('/my-history',            authenticate, getMyMatchHistory);
