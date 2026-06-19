@@ -290,6 +290,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         return off;
     }, [visible, item?.id]);
 
+    useEffect(() => {
+        if (!visible || !item?.id) return;
+        const off = onSocket('rivalUpdate', (updated) => {
+            if (updated.id !== item.id) return;
+            if (Array.isArray(updated.joinRequests)) setLocalJoinRequests(updated.joinRequests);
+            if (Array.isArray(updated.participants)) setLocalParticipants(updated.participants);
+        });
+        return off;
+    }, [visible, item?.id]);
+
     const isOwner = item.senderId === myId;
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
