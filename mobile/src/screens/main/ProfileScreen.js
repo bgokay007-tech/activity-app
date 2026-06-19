@@ -262,6 +262,21 @@ export default function ProfileScreen({ route, navigation }) {
     const [archiveModalLoading, setArchiveModalLoading] = useState(false);
     const [archiveModalTab, setArchiveModalTab] = useState('details');
 
+    // Alias editing (sport-specific display name)
+    const [aliasEditId, setAliasEditId] = useState(null);
+    const [aliasValue, setAliasValue] = useState('');
+    const [savingAlias, setSavingAlias] = useState(false);
+
+    const saveAlias = async (interestId) => {
+        setSavingAlias(true);
+        try {
+            const { data } = await api.patch(`/interests/${interestId}/alias`, { alias: aliasValue });
+            setInterests(prev => prev.map(i => i.id === interestId ? { ...i, alias: data.alias } : i));
+            setAliasEditId(null);
+        } catch { /* silent */ }
+        setSavingAlias(false);
+    };
+
     // Data saver
     const [dataSaver, setDataSaver] = useState(false);
 
@@ -830,7 +845,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             )}
                                         </View>
 
-                                        {/* Middle: navigation buttons */}
+                                        {/* Middle: navigation buttons + alias */}
                                         <View style={{ flex: 2, gap: 6 }}>
                                             <TouchableOpacity
                                                 onPress={() => openMyUpcoming(i.subCategory)}
@@ -849,6 +864,36 @@ export default function ProfileScreen({ route, navigation }) {
                                                     {(() => { const cnt = myHistory.filter(m => m.subCategory === i.subCategory).length; return cnt > 0 ? ` (${cnt})` : ''; })()}
                                                 </Text>
                                             </TouchableOpacity>
+                                            {isOwnProfile && (
+                                                aliasEditId === i.id ? (
+                                                    <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                                                        <TextInput
+                                                            value={aliasValue}
+                                                            onChangeText={setAliasValue}
+                                                            placeholder={`@${profile?.username}`}
+                                                            placeholderTextColor={colors.textMuted}
+                                                            maxLength={30}
+                                                            style={{ flex: 1, color: '#fff', fontSize: 11, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border }}
+                                                            autoFocus
+                                                        />
+                                                        <TouchableOpacity onPress={() => saveAlias(i.id)} disabled={savingAlias} style={{ backgroundColor: colors.purple, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                                                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity onPress={() => setAliasEditId(null)} style={{ backgroundColor: colors.surface, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border }}>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 11 }}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                ) : (
+                                                    <TouchableOpacity
+                                                        onPress={() => { setAliasValue(i.alias || ''); setAliasEditId(i.id); }}
+                                                        style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingVertical: 5, paddingHorizontal: 8, borderWidth: 1, borderColor: colors.border }}
+                                                    >
+                                                        <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '600' }}>
+                                                            ✏️ {i.alias ? i.alias : (t.sportAliasLabel || 'Spor Takma Adı')}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                )
+                                            )}
                                         </View>
 
                                         {/* Right: wins / losses */}
@@ -1522,13 +1567,14 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={s.menuBtnIcon}>≡</Text>
                                 </TouchableOpacity>
                             </View>
-                            <TextInput
-                                style={s.fieldInput}
-                                value={infoForm.fullName}
-                                onChangeText={v => setInfoForm(f => ({ ...f, fullName: v }))}
-                                placeholder="Adınız Soyadınız"
-                                placeholderTextColor={colors.textMuted}
-                            />
+                            <View style={[s.fieldInput, { justifyContent: 'center' }]}>
+                                <Text style={{ color: infoForm.fullName ? '#fff' : colors.textMuted, fontSize: 13 }}>
+                                    {infoForm.fullName || 'Ad soyad girilmemiş'}
+                                </Text>
+                            </View>
+                            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 8, marginTop: -4 }}>
+                                {t.sportAliasHint || 'Ad soyad değiştirilemez'}
+                            </Text>
                             {infoForm.fullNamePrivacy === 'FRIENDS_EXCEPT' && infoForm.fullNameExclude.length > 0 && (
                                 <Text style={s.excludeHint}>{infoForm.fullNameExclude.length} arkadaş göremez</Text>
                             )}

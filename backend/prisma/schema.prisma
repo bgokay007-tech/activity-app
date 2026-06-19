@@ -99,6 +99,7 @@ model UserInterest {
   wins             Int          @default(0)
   losses           Int          @default(0)
   lateCancelCount  Int          @default(0)  // unilateral cancels within 5h of match
+  alias        String?      // sport-specific display name shown in listings
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

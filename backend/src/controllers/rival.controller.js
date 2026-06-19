@@ -363,7 +363,7 @@ export const getRivalRequests = async (req, res, next) => {
                         ...SENDER_SELECT,
                         interests: {
                             where: { ...catWhere, ...(subCategory && { subCategory }) },
-                            select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true },
+                            select: { alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true },
                         },
                     },
                 },
@@ -378,7 +378,7 @@ export const getRivalRequests = async (req, res, next) => {
                                         ...catWhere,
                                         ...(subCategory && { subCategory }),
                                     },
-                                    select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true },
+                                    select: { alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true },
                                 },
                             },
                         },

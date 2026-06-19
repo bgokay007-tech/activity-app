@@ -87,7 +87,7 @@ export const getProfile = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
     try {
-        const { fullName, bio, avatar, isPublic, gender, city, birthDate,
+        const { bio, avatar, isPublic, gender, city, birthDate,
                 profilePrivacy, profileExclude,
                 fullNamePrivacy, fullNameExclude,
                 cityPrivacy, genderPrivacy, birthDatePrivacy,
@@ -101,7 +101,6 @@ export const updateProfile = async (req, res, next) => {
         const updated = await prisma.user.update({
             where: { id: req.userId },
             data: {
-                ...(fullName    !== undefined && { fullName }),
                 ...(bio         !== undefined && { bio }),
                 ...(avatar      !== undefined && { avatar }),
                 ...(resolvedIsPublic !== undefined && { isPublic: resolvedIsPublic }),

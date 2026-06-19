@@ -321,3 +321,21 @@ export const getUsersByCategory = async (req, res, next) => {
         next(error);
     }
 };
+
+export const updateAlias = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { alias } = req.body;
+
+        const interest = await prisma.userInterest.findUnique({ where: { id } });
+        if (!interest) return res.status(404).json({ message: 'Interest not found' });
+        if (interest.userId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+
+        const trimmed = alias ? alias.trim().slice(0, 30) : null;
+        const updated = await prisma.userInterest.update({
+            where: { id },
+            data: { alias: trimmed || null },
+        });
+        res.json({ alias: updated.alias });
+    } catch (error) { next(error); }
+};

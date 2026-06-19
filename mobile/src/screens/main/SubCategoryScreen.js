@@ -77,6 +77,9 @@ function getTabs(sub) {
 
 // ─── Small helpers ─────────────────────────────────────────────────────────────
 
+// Returns sport alias if set, otherwise falls back to @username
+const senderAlias = (sender) => sender?.interests?.[0]?.alias || `@${sender?.username}`;
+
 function Avatar({ name, size=40, color=colors.purple }) {
     return (
         <View style={[s.avatar, { width:size, height:size, borderRadius:size/2, backgroundColor: color+'40', borderColor: color+'60' }]}>
@@ -359,7 +362,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{item.subCategory}</Text>
-                        <Text style={{ color: colors.textMuted, fontSize:12, marginTop:1 }}>@{item.sender?.username}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:12, marginTop:1 }}>{senderAlias(item.sender)}</Text>
                     </View>
                     <ModeBadge mode={item.matchMode} />
                 </View>
@@ -399,7 +402,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:item.message ? 8 : 12, paddingBottom:12, borderBottomWidth:1, borderBottomColor: colors.border }}>
                         <Avatar name={item.sender?.username} size={34} color={cfg.color} />
                         <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
-                            <Text style={s.cardName}>@{item.sender?.username}</Text>
+                            <Text style={s.cardName}>{senderAlias(item.sender)}</Text>
                             {item.sender?.interests?.[0]?.skillRating > 0 && (
                                 <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
                             )}
@@ -647,7 +650,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                     <Avatar name={item.sender?.username} size={42} color={cfg.color} />
                     <View style={{ flex:1, minWidth:0 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                            <Text style={s.cardName} numberOfLines={1}>@{item.sender?.username}</Text>
+                            <Text style={s.cardName} numberOfLines={1}>{senderAlias(item.sender)}</Text>
                             {item.sender?.interests?.[0]?.skillRating > 0 && (
                                 <Text style={[s.ratingText, { color: cfg.color }]}>
                                     {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
