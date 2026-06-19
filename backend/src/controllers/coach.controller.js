@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { notifyCitySubscribers } from './cityAlert.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -48,6 +49,17 @@ export const createListing = async (req, res, next) => {
             include: { user: { select: USER_SELECT } },
         });
         res.status(201).json(listing);
+
+        // Notify city-alert subscribers for coaches tab (async, non-blocking)
+        notifyCitySubscribers({
+            subCategory: listing.subCategory,
+            category: listing.category,
+            senderCity: listing.city || null,
+            senderUsername: listing.user?.username || '',
+            senderId: req.userId,
+            itemId: listing.id,
+            tab: 'coaches',
+        });
     } catch (err) { next(err); }
 };
 

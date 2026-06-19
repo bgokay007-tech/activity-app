@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { notifyCitySubscribers } from './cityAlert.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -43,6 +44,18 @@ export const createListing = async (req, res, next) => {
             include: { user: { select: USER_SELECT } },
         });
         res.status(201).json(listing);
+
+        // Notify city-alert subscribers for equipment tab (async, non-blocking)
+        const creatorInfo = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }).catch(() => null);
+        notifyCitySubscribers({
+            subCategory: listing.subCategory,
+            category: listing.category,
+            senderCity: listing.city || null,
+            senderUsername: creatorInfo?.username || '',
+            senderId: req.userId,
+            itemId: listing.id,
+            tab: 'equipment',
+        });
     } catch (err) { next(err); }
 };
 

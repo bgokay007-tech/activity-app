@@ -1,6 +1,7 @@
 ﻿import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
+import { notifyCitySubscribers } from './cityAlert.controller.js';
 
 // ─── Tournament bracket helpers ───────────────────────────────────────────────
 
@@ -261,6 +262,18 @@ export const createTournament = async (req, res, next) => {
             },
         });
         res.status(201).json(tournament);
+
+        // Notify city-alert subscribers for tournaments tab (async, non-blocking)
+        const creatorInfo = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true, username: true } }).catch(() => null);
+        notifyCitySubscribers({
+            subCategory: tournament.subCategory,
+            category: tournament.category,
+            senderCity: tournament.city || creatorInfo?.city || null,
+            senderUsername: creatorInfo?.username || '',
+            senderId: req.userId,
+            itemId: tournament.id,
+            tab: 'tournaments',
+        });
     } catch (e) { next(e); }
 };
 
