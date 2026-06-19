@@ -4987,7 +4987,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             setCityAlertSubscribed(res.data.subscribed);
             setCityAlertCity(res.data.city);
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+            const msg = e?.response?.data?.message || e?.message || t.actionFailed;
+            Alert.alert('', msg);
         } finally { setCityAlertLoading(false); }
     };
 

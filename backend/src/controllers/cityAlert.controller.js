@@ -32,7 +32,10 @@ export const toggleAlert = async (req, res, next) => {
             await prisma.cityAlert.create({ data: { userId: req.userId, city: user.city, subCategory } });
             return res.json({ subscribed: true, city: user.city });
         }
-    } catch (err) { next(err); }
+    } catch (err) {
+        console.error('[toggleAlert] error:', err.message, err.code);
+        next(err);
+    }
 };
 
 // Called from rival.controller.js after a new listing is created
