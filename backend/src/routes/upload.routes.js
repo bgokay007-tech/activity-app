@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
-import { Readable } from 'stream';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
 cloudinary.config({
@@ -14,7 +13,7 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
     fileFilter: (req, file, cb) => {
-        const allowed = /image\/(jpeg|png|gif|webp)|video\/(mp4|webm|quicktime)/;
+        const allowed = /image\/(jpeg|png|gif|webp|heic|heif)|video\/(mp4|webm|quicktime)/;
         cb(null, allowed.test(file.mimetype));
     },
 });
@@ -29,16 +28,10 @@ router.post('/', authenticate, upload.single('file'), async (req, res, next) => 
 
         const result = await new Promise((resolve, reject) => {
             const stream = cloudinary.uploader.upload_stream(
-                {
-                    resource_type: isVideo ? 'video' : 'image',
-                    folder: 'activity-app',
-                },
-                (error, result) => {
-                    if (error) reject(error);
-                    else resolve(result);
-                }
+                { resource_type: isVideo ? 'video' : 'image', folder: 'activity-app' },
+                (error, result) => { if (error) reject(error); else resolve(result); }
             );
-            Readable.from(req.file.buffer).pipe(stream);
+            stream.end(req.file.buffer);
         });
 
         res.json({ url: result.secure_url, type: isVideo ? 'video' : 'image' });

@@ -427,10 +427,8 @@ export default function ProfileScreen({ route, navigation }) {
             if (result.canceled) return;
             const uri = result.assets[0].uri;
             try {
-                const filename = uri.split('/').pop() || 'avatar.jpg';
-                const ext = filename.split('.').pop()?.toLowerCase() || 'jpeg';
                 const formData = new FormData();
-                formData.append('file', { uri, type: `image/${ext}`, name: filename });
+                formData.append('file', { uri, type: 'image/jpeg', name: 'avatar.jpg' });
                 const { data: uploadData } = await api.post('/upload', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
