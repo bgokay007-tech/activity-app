@@ -5527,7 +5527,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (status !== 'granted') { Alert.alert(t.locationPermTitle, t.locationPermMsg); return; }
             const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const [geo] = await Location.reverseGeocodeAsync(loc.coords);
-            const city = geo.city || geo.subregion || geo.region || '';
+            const city = geo.region || geo.subregion || geo.city || '';
             if (city) setFilterCity(city);
             else Alert.alert(t.error, t.cityNotFoundMsg);
         } catch { Alert.alert(t.error, t.locationFailedMsg); }
