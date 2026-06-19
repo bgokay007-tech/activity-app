@@ -221,6 +221,9 @@ export const createRivalRequest = async (req, res, next) => {
 
         res.status(201).json(request);
 
+        // Real-time: show new listing instantly on all screens
+        broadcast('rivalUpdate', request);
+
         // Notify city-alert subscribers about new listing (async, non-blocking)
         prisma.user.findUnique({ where: { id: req.userId }, select: { city: true } })
             .then(u => notifyCitySubscribers({
