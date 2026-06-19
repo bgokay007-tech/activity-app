@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import fs from 'fs';
 import { CLIENT_URL } from './config/env.js';
 import uploadRoutes from './routes/upload.routes.js';
 import authRoutes from './routes/auth.routes.js';
@@ -57,6 +60,17 @@ app.use('/api/city-alerts', cityAlertRoutes);
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });
 });
+
+// Serve admin panel (frontend)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api')) return next();
+        res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+}
 
 app.use((req, res) => {
     res.status(404).json({ message: 'Route not found' });
