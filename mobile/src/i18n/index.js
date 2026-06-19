@@ -155,8 +155,8 @@ const en = {
     todayFilter: 'Today',
     weekFilter: 'This Week',
     clearFilter: 'Clear',
-    cityAlertBtn: city => `🔔 Get alerts for new listings in ${city}`,
-    cityAlertOn: city => `🔔 Alerts on for ${city} — tap to turn off`,
+    cityAlertBtn: (city, sport) => `🔔 Get alerts for new ${sport} listings in ${city}`,
+    cityAlertOn: (city, sport) => `🔔 ${sport} alerts on for ${city} — tap to turn off`,
     cityAlertNoCity: 'Set your city in your profile to receive city alerts.',
 
     // SubCategory — archive / score
@@ -581,8 +581,8 @@ const tr = {
     todayFilter: 'Bugün',
     weekFilter: 'Bu Hafta',
     clearFilter: 'Temizle',
-    cityAlertBtn: city => `🔔 ${city} şehrindeki yeni ilanlar için bildirim al`,
-    cityAlertOn: city => `🔔 ${city} bildirimleri açık — kapatmak için dokun`,
+    cityAlertBtn: (city, sport) => `🔔 ${city} şehrindeki ${sport} ilanları için bildirim al`,
+    cityAlertOn: (city, sport) => `🔔 ${city} — ${sport} bildirimleri açık`,
     cityAlertNoCity: 'Bildirim alabilmek için profil sayfanızdan şehrinizi ekleyin.',
 
     // SubCategory — archive / score

@@ -55,12 +55,12 @@ const TIME_OPTS = (() => {
 })();
 
 const SUB_CONFIG = {
-    tennis:     { name:'Tennis',     emoji:'🎾', color: colors.yellow  || '#eab308' },
-    padel:      { name:'Padel',      emoji:'🏓', color: colors.cyan    || '#06b6d4' },
-    football:   { name:'Football',   emoji:'⚽', color: colors.green   || '#16a34a' },
-    basketball: { name:'Basketball', emoji:'🏀', color:'#f97316' },
-    volleyball: { name:'Volleyball', emoji:'🏐', color:'#a855f7' },
-    default:    { name:'Sport',      emoji:'🏅', color: colors.purple },
+    tennis:     { name:'Tennis',     nameTR:'Tenis',      emoji:'🎾', color: colors.yellow  || '#eab308' },
+    padel:      { name:'Padel',      nameTR:'Padel',      emoji:'🏓', color: colors.cyan    || '#06b6d4' },
+    football:   { name:'Football',   nameTR:'Futbol',     emoji:'⚽', color: colors.green   || '#16a34a' },
+    basketball: { name:'Basketball', nameTR:'Basketbol',  emoji:'🏀', color:'#f97316' },
+    volleyball: { name:'Volleyball', nameTR:'Voleybol',   emoji:'🏐', color:'#a855f7' },
+    default:    { name:'Sport',      nameTR:'Spor',       emoji:'🏅', color: colors.purple },
 };
 
 function getConfig(sub) {
@@ -4807,8 +4807,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
     const myRating = myInterests.find(i => i.subCategory === sub)?.skillRating ?? 0;
+    const lang = useSelector(s => s.lang?.lang || 'en');
     const t = useT();
     const cfg = getConfig(sub);
+    const sportDisplayName = lang === 'tr' ? (cfg.nameTR || cfg.name) : cfg.name;
     const tabs = getTabs(sub);
 
     const [activeTab, setActiveTab] = useState(initialTab && tabs.includes(initialTab) ? initialTab : 'rivals');
@@ -5359,7 +5361,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         }}
                                     >
                                         <Text style={{ color: cityAlertSubscribed ? cfg.color : colors.textMuted, fontSize: 11 }}>
-                                            {cityAlertLoading ? '...' : cityAlertSubscribed ? t.cityAlertOn(cityAlertCity) : t.cityAlertBtn(cityAlertCity)}
+                                            {cityAlertLoading ? '...' : cityAlertSubscribed ? t.cityAlertOn(cityAlertCity, sportDisplayName) : t.cityAlertBtn(cityAlertCity, sportDisplayName)}
                                         </Text>
                                     </TouchableOpacity>
                                 )}

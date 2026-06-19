@@ -38,21 +38,28 @@ export const toggleAlert = async (req, res, next) => {
     }
 };
 
+const SUB_NAMES_TR = {
+    tennis: 'Tenis', padel: 'Padel', football: 'Futbol',
+    basketball: 'Basketbol', volleyball: 'Voleybol',
+};
+
 // Called from rival.controller.js after a new listing is created
 export async function notifyCitySubscribers({ subCategory, category, senderCity, senderUsername, senderId, rivalId }) {
-    if (!senderCity) return;
+    if (!senderCity || !senderId) return;
     try {
+        const sportName = SUB_NAMES_TR[subCategory] || subCategory;
         const subscribers = await prisma.cityAlert.findMany({
             where: { subCategory, city: senderCity, userId: { not: senderId } },
             select: { userId: true },
         });
+        console.log(`[cityAlert] ${subscribers.length} subscriber(s) to notify for ${subCategory} in ${senderCity}`);
         for (const sub of subscribers) {
             createNotification(
                 sub.userId, 'NEW_LISTING',
-                `📍 ${senderCity} — Yeni İlan`,
-                `@${senderUsername} ${subCategory} maçı arıyor.`,
+                `📍 ${senderCity} — Yeni ${sportName} İlanı`,
+                `@${senderUsername} ${sportName} maçı arıyor.`,
                 { category, subCategory, rivalId }
             ).catch(() => {});
         }
-    } catch { /* non-critical */ }
+    } catch (err) { console.error('[cityAlert] notifyCitySubscribers error:', err.message); }
 }
