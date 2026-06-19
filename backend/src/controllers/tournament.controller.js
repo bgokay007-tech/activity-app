@@ -336,14 +336,20 @@ export const joinTournament = async (req, res, next) => {
         }
 
         // Check tournament ban + rating
-        const userBan = await prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true, skillRating: true } });
+        const [userBan, userInterest] = await Promise.all([
+            prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true } }),
+            prisma.userInterest.findUnique({
+                where: { userId_category_subCategory: { userId: req.userId, category: tournament.category, subCategory: tournament.subCategory } },
+                select: { skillRating: true },
+            }),
+        ]);
         if (userBan?.tournamentBanRemaining > 0) {
             await prisma.user.update({ where: { id: req.userId }, data: { tournamentBanRemaining: { decrement: 1 } } });
             return res.status(403).json({ message: `Geç iptal cezası nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katılamazsınız.` });
         }
 
         // Check rating limits
-        const userRating = userBan?.skillRating ?? 0;
+        const userRating = userInterest?.skillRating ?? 0;
         if (tournament.minRating !== null && tournament.minRating !== undefined && userRating < tournament.minRating) {
             return res.status(403).json({ message: `Bu turnuvaya katılmak için en az ${tournament.minRating}★ dereceniz olması gerekiyor. Mevcut dereceniz: ${userRating.toFixed(2)}★` });
         }
