@@ -5537,11 +5537,13 @@ export default function SubCategoryScreen({ route, navigation }) {
     const today = new Date();
     const applyFilter = (item) => {
         if (filterCity.trim()) {
+            const q = filterCity.trim().toLowerCase();
             const loc = (item.location || '').toLowerCase();
             const court = (item.courtName || '').toLowerCase();
             const addr = (item.courtAddress || '').toLowerCase();
-            const q = filterCity.trim().toLowerCase();
-            if (!loc.includes(q) && !court.includes(q) && !addr.includes(q)) return false;
+            // Esnek programda konum boş olur; gönderenin ilini baz al
+            const senderCity = item.flexibleSchedule ? (item.sender?.city || '').toLowerCase() : '';
+            if (!loc.includes(q) && !court.includes(q) && !addr.includes(q) && !senderCity.includes(q)) return false;
         }
         if (filterDate !== 'all' && item.matchDate) {
             const d = new Date(item.matchDate);

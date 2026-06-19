@@ -111,7 +111,7 @@ async function applyCompetitivePoints(request, winnerUserId) {
 }
 
 const SENDER_SELECT = {
-    id: true, username: true, fullName: true, avatar: true,
+    id: true, username: true, fullName: true, avatar: true, city: true,
 };
 
 const REQUIRED_PARTICIPANTS = { SINGLE: 1, DOUBLE: 3 };
