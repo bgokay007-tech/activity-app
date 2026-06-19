@@ -630,7 +630,14 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                         )}
                     </View>
                     <View style={{ alignItems:'flex-end', gap:4 }}>
-                        <ModeBadge mode={item.matchMode} />
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                            {(item.minRating != null || item.maxRating != null) && (
+                                <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>
+                                    ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
+                                </Text>
+                            )}
+                            <ModeBadge mode={item.matchMode} />
+                        </View>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                             <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
                                 <Text style={[s.modeBadgeText, { color: cfg.color }]}>
@@ -639,11 +646,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                             </View>
                             <Text style={s.joinedCount}>{t.joinedCount(filled, TEAM_SPORTS.has(sub) ? item.teamSize : required)}</Text>
                         </View>
-                        {(item.minRating != null || item.maxRating != null) && (
-                            <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700', textAlign:'right' }}>
-                                ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
-                            </Text>
-                        )}
                         {isOwner ? (
                             <TouchableOpacity style={[s.cancelBtn, { flex:0, paddingHorizontal:12, paddingVertical:5 }]} onPress={handleCancel}>
                                 <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
