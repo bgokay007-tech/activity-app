@@ -429,7 +429,9 @@ export const sendJoinRequest = async (req, res, next) => {
         const existing = await prisma.rivalJoinRequest.findUnique({
             where: { rivalId_userId: { rivalId: id, userId: req.userId } },
         });
-        if (existing) return res.status(400).json({ message: 'You already sent a request', status: existing.status });
+        if (existing && existing.status !== 'REJECTED') {
+            return res.status(400).json({ message: 'You already sent a request', status: existing.status });
+        }
 
         if (request.minRating !== null || request.maxRating !== null) {
             const userInterest = await prisma.userInterest.findFirst({
@@ -443,7 +445,15 @@ export const sendJoinRequest = async (req, res, next) => {
         }
 
         const joiningTeam = Array.isArray(req.body.joiningTeam) ? req.body.joiningTeam : [];
-        await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam } });
+        if (existing?.status === 'REJECTED') {
+            // Reddedilen isteği yeniden PENDING yap
+            await prisma.rivalJoinRequest.update({
+                where: { rivalId_userId: { rivalId: id, userId: req.userId } },
+                data: { status: 'PENDING', joiningTeam },
+            });
+        } else {
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam } });
+        }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
 
@@ -487,7 +497,11 @@ export const respondToJoin = async (req, res, next) => {
 
         await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: action === 'accept' ? 'ACCEPTED' : 'REJECTED' } });
 
-        if (action !== 'accept') return res.json({ message: 'Request rejected.' });
+        if (action !== 'accept') {
+            // Reddedildiğini requester'a bildir — katıl butonu geri açılsın
+            emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
+            return res.json({ message: 'Request rejected.' });
+        }
 
         // Build participants: for COMPETITIVE team football with joiningTeam, use the full joining team;
         // otherwise fall back to single-player addition

@@ -552,6 +552,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
         if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
     }, [autoOpen]);
 
+    useEffect(() => {
+        const off = onSocket('joinRejected', ({ rivalId }) => {
+            if (rivalId === item.id) onRefresh();
+        });
+        return off;
+    }, [item.id]);
+
     const handleJoin = async () => {
         if (item.minRating != null && myRating < item.minRating) {
             Alert.alert('⚠️ Puan Limiti', `Bu ilan için en az ${item.minRating}★ puan gerekiyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
