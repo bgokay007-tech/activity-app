@@ -8,34 +8,54 @@ export const getMyAlert = async (req, res, next) => {
         const { subCategory } = req.params;
         const tab = VALID_TABS.includes(req.query.tab) ? req.query.tab : 'rivals';
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true } });
-        if (!user?.city) return res.json({ subscribed: false, city: null });
-        const alert = await prisma.cityAlert.findUnique({
-            where: { userId_subCategory_city_tab: { userId: req.userId, subCategory, city: user.city, tab } },
+
+        // Return all subscribed cities for this user/sub/tab
+        const alerts = await prisma.cityAlert.findMany({
+            where: { userId: req.userId, subCategory, tab },
+            select: { city: true },
         });
-        res.json({ subscribed: !!alert, city: user.city });
+        const subscribedCities = alerts.map(a => a.city);
+
+        res.json({
+            subscribed: user?.city ? subscribedCities.includes(user.city) : subscribedCities.length > 0,
+            city: user?.city || null,
+            subscribedCities,
+        });
     } catch (err) { next(err); }
 };
 
 export const toggleAlert = async (req, res, next) => {
     try {
-        const { subCategory, tab: rawTab } = req.body;
+        const { subCategory, tab: rawTab, city: explicitCity } = req.body;
         const tab = VALID_TABS.includes(rawTab) ? rawTab : 'rivals';
         if (!subCategory) return res.status(400).json({ message: 'subCategory gerekli' });
 
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true } });
-        if (!user?.city) return res.status(400).json({ message: 'Profilinizde şehir bilgisi bulunamadı. Profil sayfasından şehrinizi ekleyin.' });
+        const city = explicitCity || user?.city;
+        if (!city) return res.status(400).json({ message: 'Profilinizde şehir bilgisi bulunamadı. Profil sayfasından şehrinizi ekleyin.' });
 
         const existing = await prisma.cityAlert.findUnique({
-            where: { userId_subCategory_city_tab: { userId: req.userId, subCategory, city: user.city, tab } },
+            where: { userId_subCategory_city_tab: { userId: req.userId, subCategory, city, tab } },
         });
 
         if (existing) {
             await prisma.cityAlert.delete({ where: { id: existing.id } });
-            return res.json({ subscribed: false, city: user.city });
         } else {
-            await prisma.cityAlert.create({ data: { userId: req.userId, city: user.city, subCategory, tab } });
-            return res.json({ subscribed: true, city: user.city });
+            await prisma.cityAlert.create({ data: { userId: req.userId, city, subCategory, tab } });
         }
+
+        // Return updated subscribed cities list
+        const allAlerts = await prisma.cityAlert.findMany({
+            where: { userId: req.userId, subCategory, tab },
+            select: { city: true },
+        });
+        const subscribedCities = allAlerts.map(a => a.city);
+
+        return res.json({
+            subscribed: !existing,
+            city,
+            subscribedCities,
+        });
     } catch (err) {
         console.error('[toggleAlert] error:', err.message, err.code);
         next(err);
@@ -56,7 +76,6 @@ const TAB_LABELS_TR = {
     equipment: 'Ekipman İlanı',
 };
 
-// Generic: called from rival/tournament/coach/equipment controllers after a new item is created
 export async function notifyCitySubscribers({ subCategory, category, senderCity, senderUsername, senderId, itemId, tab = 'rivals' }) {
     if (!senderCity || !senderId) return;
     try {
