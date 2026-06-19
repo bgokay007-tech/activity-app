@@ -127,7 +127,12 @@ export const getCountsBySubCategory = async (req, res, next) => {
         const { category } = req.query;
         const cat = category ? category.toUpperCase() : null;
         const catWhere = cat ? { category: cat } : {};
-        const where = { status: 'OPEN', ...catWhere };
+        const now = new Date();
+        const where = {
+            status: 'OPEN',
+            ...catWhere,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        };
 
         const [rivalRows, tournRows] = await Promise.all([
             prisma.activityRequest.groupBy({
