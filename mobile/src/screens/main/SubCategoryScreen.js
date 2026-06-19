@@ -611,11 +611,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                                     {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
                                 </Text>
                             )}
-                            {(item.minRating != null || item.maxRating != null) && (
-                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>
-                                    ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
-                                </Text>
-                            )}
                         </View>
                         {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
                             <View style={{ flexDirection:'row', gap:6, marginTop:2, flexWrap:'wrap' }}>
@@ -644,10 +639,30 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                             </View>
                             <Text style={s.joinedCount}>{t.joinedCount(filled, TEAM_SPORTS.has(sub) ? item.teamSize : required)}</Text>
                         </View>
-                        {isOwner && (
+                        {(item.minRating != null || item.maxRating != null) && (
+                            <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700', textAlign:'right' }}>
+                                ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
+                            </Text>
+                        )}
+                        {isOwner ? (
                             <TouchableOpacity style={[s.cancelBtn, { flex:0, paddingHorizontal:12, paddingVertical:5 }]} onPress={handleCancel}>
                                 <Text style={s.cancelBtnText}>{t.cancelAdBtn}</Text>
                             </TouchableOpacity>
+                        ) : (
+                            mySentReq === 'PENDING' ? (
+                                <Text style={{ color:colors.textMuted, fontSize:10 }}>{t.waitingReq}</Text>
+                            ) : mySentReq === 'ACCEPTED' ? (
+                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>✓ Kabul</Text>
+                            ) : isFull ? (
+                                <Text style={{ color:colors.textMuted, fontSize:10 }}>{t.ilanFull || 'Dolu'}</Text>
+                            ) : (
+                                <TouchableOpacity
+                                    style={{ backgroundColor:cfg.color, borderRadius:8, paddingHorizontal:12, paddingVertical:5 }}
+                                    onPress={handleJoin}
+                                >
+                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{t.joinBtn}</Text>
+                                </TouchableOpacity>
+                            )
                         )}
                     </View>
                 </View>
@@ -683,25 +698,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                 )}
             </TouchableOpacity>
 
-            {/* ── Aksiyon butonu (sadece non-owner) ── */}
-            {!isOwner && (
-                <View style={{ alignSelf:'flex-end', marginTop:2 }}>
-                    {mySentReq === 'PENDING' ? (
-                        <Text style={{ color:colors.textMuted, fontSize:11, paddingHorizontal:4 }}>{t.waitingReq}</Text>
-                    ) : mySentReq === 'ACCEPTED' ? (
-                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', paddingHorizontal:4 }}>✓ {t.requestAccepted || 'Kabul edildiniz!'}</Text>
-                    ) : isFull ? (
-                        <Text style={{ color:colors.textMuted, fontSize:11, paddingHorizontal:4 }}>{t.ilanFull || 'Dolu'}</Text>
-                    ) : (
-                        <TouchableOpacity
-                            style={{ backgroundColor:cfg.color, borderRadius:8, paddingHorizontal:14, paddingVertical:5 }}
-                            onPress={handleJoin}
-                        >
-                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{t.joinBtn}</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-            )}
         </View>
 
         <RivalDetailModal
