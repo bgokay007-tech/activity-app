@@ -186,6 +186,7 @@ export const updateRivalRequest = async (req, res, next) => {
 };
 
 export const createRivalRequest = async (req, res, next) => {
+    const creatorId = req.userId; // capture before any async ops
     try {
         const {
             category, subCategory, message, level, levelDetail,
@@ -198,6 +199,7 @@ export const createRivalRequest = async (req, res, next) => {
             refereePayment,
             minRating, maxRating,
         } = req.body;
+        console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
         if (!flexibleSchedule && matchDate && matchTime) {
             const [h, m] = matchTime.split(':').map(Number);
@@ -256,12 +258,12 @@ export const createRivalRequest = async (req, res, next) => {
         broadcast('rivalUpdate', request);
 
         // Notify city-alert subscribers about new listing (async, non-blocking)
-        prisma.user.findUnique({ where: { id: req.userId }, select: { city: true } })
+        prisma.user.findUnique({ where: { id: creatorId }, select: { city: true } })
             .then(u => notifyCitySubscribers({
                 subCategory, category,
                 senderCity: u?.city || null,
                 senderUsername: request.sender?.username || '',
-                senderId: req.userId,
+                senderId: creatorId,
                 rivalId: request.id,
             }))
             .catch(() => {});
@@ -290,8 +292,9 @@ export const createRivalRequest = async (req, res, next) => {
                     // Notify all admins (except the submitter themselves)
                     const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
                     const submitter = request.sender;
+                    console.log(`[venue] creatorId=${creatorId} adminCount=${admins.length}`);
                     for (const admin of admins) {
-                        if (admin.id === req.userId) continue;
+                        if (admin.id === creatorId) { console.log(`[venue] skipping admin=${admin.id} (is creator)`); continue; }
                         await createNotification(
                             admin.id,
                             'VENUE_SUBMISSION',
