@@ -52,8 +52,9 @@ export async function notifyCitySubscribers({ subCategory, category, senderCity,
             where: { subCategory, city: senderCity },
             select: { userId: true },
         });
+        console.log(`[cityAlert] senderId=${senderId} senderCity=${senderCity} sub=${subCategory} — found ${subscribers.length} subscriber(s)`);
         const toNotify = subscribers.filter(s => s.userId !== senderId);
-        console.log(`[cityAlert] ${toNotify.length} subscriber(s) to notify for ${subCategory} in ${senderCity}`);
+        console.log(`[cityAlert] after filter: ${toNotify.length} to notify — ids: ${toNotify.map(s => s.userId).join(', ') || 'none'}`);
         for (const sub of toNotify) {
             createNotification(
                 sub.userId, 'NEW_LISTING',
