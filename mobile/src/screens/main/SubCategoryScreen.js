@@ -13,6 +13,7 @@ import api from '../../services/api';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
+import CityPickerModal from '../../components/CityPickerModal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -4857,6 +4858,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const [filterCity, setFilterCity] = useState('');
     const [filterDate, setFilterDate] = useState('all');
+    const [showCityFilter, setShowCityFilter] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [cityAlertSubscribed, setCityAlertSubscribed] = useState(false);
     const [cityAlertCity, setCityAlertCity] = useState(null);
@@ -5252,6 +5254,12 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     return (
         <View style={[s.container, { paddingTop: Platform.OS==='ios' ? 56 : 40 }]}>
+            <CityPickerModal
+                visible={showCityFilter}
+                onClose={() => setShowCityFilter(false)}
+                onSelect={setFilterCity}
+                currentValue={filterCity}
+            />
             {/* Header */}
             <View style={s.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -5287,13 +5295,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Filter Bar */}
                             <View style={s.filterBox}>
                                 <View style={s.filterInputRow}>
-                                    <TextInput
-                                        style={s.filterInput}
-                                        value={filterCity}
-                                        onChangeText={setFilterCity}
-                                        placeholder={`🔍 ${t.filterCityPh}`}
-                                        placeholderTextColor={colors.textMuted}
-                                    />
+                                    <TouchableOpacity
+                                        style={[s.filterInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                                        onPress={() => setShowCityFilter(true)}
+                                    >
+                                        <Text style={filterCity ? { color: colors.text, fontSize: 14 } : { color: colors.textMuted, fontSize: 14 }}>
+                                            {filterCity || `🔍 ${t.filterCityPh}`}
+                                        </Text>
+                                        {filterCity
+                                            ? <TouchableOpacity onPress={() => setFilterCity('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize: 16 }}>✕</Text>
+                                              </TouchableOpacity>
+                                            : <Text style={{ color: colors.textMuted, fontSize: 14 }}>▾</Text>
+                                        }
+                                    </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[s.nearBtn, locationLoading && { opacity: 0.6 }]}
                                         onPress={handleNearMe}

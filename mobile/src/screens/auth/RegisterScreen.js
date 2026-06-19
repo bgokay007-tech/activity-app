@@ -11,6 +11,7 @@ import { setLang } from '../../store/slices/langSlice';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
+import CityPickerModal from '../../components/CityPickerModal';
 
 const PASSWORD_RULES = [
     { id: 'len',     label: '8-16 karakter',        test: p => p.length >= 8 && p.length <= 16 },
@@ -210,6 +211,7 @@ export default function RegisterScreen({ navigation }) {
     });
     const [showPass, setShowPass] = useState(false);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
+    const [showCityPicker, setShowCityPicker] = useState(false);
     const [otp, setOtp] = useState('');
     const [timer, setTimer] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -366,6 +368,13 @@ export default function RegisterScreen({ navigation }) {
                 </View>
             </Modal>
 
+            <CityPickerModal
+                visible={showCityPicker}
+                onClose={() => setShowCityPicker(false)}
+                onSelect={v => set('city', v)}
+                currentValue={form.city}
+            />
+
             <ScrollView ref={scrollRef} contentContainerStyle={s.inner} keyboardShouldPersistTaps="handled">
                 {/* Language selector */}
                 <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'flex-end', marginBottom: 16 }}>
@@ -468,8 +477,12 @@ export default function RegisterScreen({ navigation }) {
 
                     {/* City */}
                     <Text style={s.label}>{t.city}</Text>
-                    <TextInput style={s.input} value={form.city} onChangeText={v => set('city', v)}
-                        placeholder="İstanbul" placeholderTextColor={colors.textMuted} />
+                    <TouchableOpacity style={[s.input, s.selectBtn]} onPress={() => setShowCityPicker(true)}>
+                        <Text style={form.city ? s.selectText : s.selectPlaceholder}>
+                            {form.city || 'İl seçin...'}
+                        </Text>
+                        <Text style={{ color: colors.textMuted, fontSize: 16 }}>▾</Text>
+                    </TouchableOpacity>
 
                     {/* Password */}
                     <Text style={s.label}>{t.password} *</Text>
