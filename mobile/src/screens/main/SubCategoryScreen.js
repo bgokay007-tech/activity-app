@@ -4293,8 +4293,8 @@ const TOURNAMENT_RULES = [
     { id: 3, text: 'Eğer mix seçimi yapıldıysa çift olarak bir erkek bir kadın katılım sağlanabilir. Partneri olmayan oyuncu bireysel katılım sağlayabilir; karşı cinsten de bireysel katılım varsa sistem tarafından rastgele takım oluşturulur. Turnuva son katılım saatine kadar eşleşmesi olmayan oyuncu turnuvaya katılım sağlayamaz.' },
     { id: 4, text: 'Mix seçimi olduysa ve çift turnuvasıysa cinsiyet ayrımı yapılmaz, takımca istenildiği gibi katılınabilir. Bireysel katılım olursa sistem rastgele çift yaparak takım oluşturur. Son başvuru saatine kadar çift olan katılımcılar katılabilir, tek kalan oyuncular katılım sağlayamaz.' },
     { id: 5, text: 'Mix seçimi olduysa çift olarak iki kadın aynı takımda olmayacak şekilde rastgele sistem tarafından sürpriz eşleştirme ile takım oluşturulur.' },
-    { id: 6, text: 'Oyuncular turnuvaya katıldıktan sonra play-offlara kadar her maçtan sonra ELO puanı en yakın oyuncu ile eşleşir. Çift katılımda çiftlerin ELO ortalaması baz alınır. Her maç sonrası ve herkesin eşit maç sayısını tamamladıktan sonra yeni ELO puanı belirlendikten sonra eşleşmeler sistem tarafından atanır.' },
-    { id: 7, text: 'Bireysel ya da çift turnuvası ise rakipler sistem tarafından rastgele eşleştirilir.' },
+    { id: 6, text: 'Bireysel ya da çift turnuvası ise rakipler sistem tarafından rastgele eşleştirilir.' },
+    { id: 7, text: 'Oyuncular turnuvaya katıldıktan sonra play-offlara kadar her maçtan sonra ELO puanı en yakın oyuncu ile eşleşir. Çift katılımda çiftlerin ELO ortalaması baz alınır. Her maç sonrası ve herkesin eşit maç sayısını tamamladıktan sonra yeni ELO puanı belirlendikten sonra eşleşmeler sistem tarafından atanır.' },
 ];
 
 function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
