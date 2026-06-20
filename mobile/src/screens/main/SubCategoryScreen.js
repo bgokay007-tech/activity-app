@@ -2757,7 +2757,8 @@ const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
 function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated }) {
     const myPart = item.participants?.[0];
-    const myStatus = myPart?.status ?? null;
+    const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
+    useEffect(() => { setMyStatus(myPart?.status ?? null); }, [myPart?.status]);
     const isCreator = item.creatorId === myId;
     const typeLabels = TOURN_TYPE_LABELS(t);
     const [showRules, setShowRules] = useState(false);
@@ -2873,10 +2874,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         ? prev
                         : [...prev, participant]
                 );
+                if (participant.userId === myId) setMyStatus('ACCEPTED');
             }
         });
         return off;
-    }, [item.id, isCreator]);
+    }, [item.id, isCreator, myId]);
 
     // Real-time: when a participant requests cancel, show it instantly in creator's modal
     useEffect(() => {
@@ -2893,7 +2895,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status, reason });
             setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status } : r));
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+            if (!e?.response) {
+                // Ağ kopması — sunucu işlemi yapmış olabilir; gerçek durumu almak için yenile
+                fetchRequests();
+                return;
+            }
+            Alert.alert('', e.response.data?.message || t.actionFailed);
         }
     };
 
@@ -4306,7 +4313,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const [f, setF] = useState(INIT);
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [showRules, setShowRules] = useState(false);
     const [citySuggestions, setCitySuggestions] = useState([]);
     const [districtSuggestions, setDistrictSuggestions] = useState([]);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
@@ -4840,19 +4846,69 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 ))}
                             </View>
 
-                            {/* Type rules — collapsible */}
-                            <TouchableOpacity
-                                style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:10, borderWidth:1, borderColor: colors.border, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}
-                                onPress={() => setShowRules(v => !v)}
-                                activeOpacity={0.7}>
-                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'800' }}>📋 {t.tournRulesLabel} — {TOURN_TYPE_LABELS(t)[f.type]}</Text>
-                                <Text style={{ color: cfg.color, fontSize:12, fontWeight:'900' }}>{showRules ? '▲' : '▼'}</Text>
-                            </TouchableOpacity>
-                            {showRules && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:-10, marginBottom:10, borderWidth:1, borderColor: colors.border, borderTopWidth:0, borderTopLeftRadius:0, borderTopRightRadius:0 }}>
-                                    <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17 }}>{t['tournRules' + f.type]}</Text>
+                            {/* ─── Turnuva Kuralları ─── */}
+                            <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor: colors.border }}>
+                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800', marginBottom:8 }}>📋 {t.tournRulesLabel}</Text>
+
+                                {/* Maç Sıklığı */}
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>Maç Sıklığı</Text>
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                    {[
+                                        { v:'WEEKLY_1', label:'📅 Haftada 1' },
+                                        { v:'WEEKLY_2', label:'📅 Haftada 2' },
+                                        { v:'FLEXIBLE', label:'🔓 Esnek'     },
+                                    ].map(opt => (
+                                        <TouchableOpacity key={opt.v} onPress={() => set('matchFrequency', opt.v)}
+                                            style={{ flex:1, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1.5,
+                                                borderColor: f.matchFrequency === opt.v ? cfg.color : colors.border,
+                                                backgroundColor: f.matchFrequency === opt.v ? cfg.color+'22' : 'transparent' }}>
+                                            <Text style={{ color: f.matchFrequency === opt.v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>{opt.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
                                 </View>
-                            )}
+
+                                {/* Eşleştirme Türü */}
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>Eşleştirme</Text>
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                    {[
+                                        { v:'ELO',    label:'🎯 ELO'      },
+                                        { v:'RANDOM', label:'🎲 Rastgele' },
+                                        { v:'SEEDED', label:'🏆 Sıralı'   },
+                                    ].map(opt => (
+                                        <TouchableOpacity key={opt.v} onPress={() => set('matchmakingType', opt.v)}
+                                            style={{ flex:1, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1.5,
+                                                borderColor: f.matchmakingType === opt.v ? cfg.color : colors.border,
+                                                backgroundColor: f.matchmakingType === opt.v ? cfg.color+'22' : 'transparent' }}>
+                                            <Text style={{ color: f.matchmakingType === opt.v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>{opt.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* Joker açıklaması */}
+                                {f.matchFrequency === 'WEEKLY_1' && (
+                                    <View style={{ backgroundColor:'#1e40af18', borderRadius:8, padding:10, borderWidth:1, borderColor:'#1e40af40' }}>
+                                        <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800', marginBottom:4 }}>🃏 Joker Hakkı</Text>
+                                        <Text style={{ color:'#93c5fd', fontSize:11, lineHeight:17 }}>
+                                            Her katılımcının <Text style={{ fontWeight:'900' }}>1 joker hakkı</Text> vardır.{'\n'}
+                                            İstediği maçta kullanabilir → o maç için <Text style={{ fontWeight:'900' }}>+10 gün</Text> ek süre verilir.
+                                        </Text>
+                                    </View>
+                                )}
+                                {f.matchFrequency === 'WEEKLY_2' && (
+                                    <View style={{ backgroundColor:'#1e40af18', borderRadius:8, padding:10, borderWidth:1, borderColor:'#1e40af40' }}>
+                                        <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800', marginBottom:4 }}>🃏 Joker Hakkı</Text>
+                                        <Text style={{ color:'#93c5fd', fontSize:11, lineHeight:17 }}>
+                                            Her katılımcının <Text style={{ fontWeight:'900' }}>2 joker hakkı</Text> vardır.{'\n'}
+                                            İstediği maçlarda kullanabilir → her kullanımda <Text style={{ fontWeight:'900' }}>+14 gün</Text> ek süre verilir.
+                                        </Text>
+                                    </View>
+                                )}
+                                {f.matchFrequency === 'FLEXIBLE' && (
+                                    <Text style={{ color: colors.textMuted, fontSize:11, lineHeight:16 }}>
+                                        🔓 Maç süreleri serbest — joker hakkı ve deadline uygulanmaz.
+                                    </Text>
+                                )}
+                            </View>
 
                             {/* Gender | Sets — side by side */}
                             <View style={{ flexDirection:'row', gap:6, alignItems:'flex-end', marginBottom:8 }}>
@@ -4947,53 +5003,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
-                            </View>
-
-                            {/* ─── Turnuva Kuralları ─── */}
-                            <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:10, borderWidth:1, borderColor: colors.border }}>
-                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'900', marginBottom:10 }}>⚙️ Turnuva Kuralları</Text>
-
-                                {/* Maç Sıklığı */}
-                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>Maç Sıklığı</Text>
-                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
-                                    {[
-                                        { v:'WEEKLY_1', label:'📅 Haftada 1' },
-                                        { v:'WEEKLY_2', label:'📅 Haftada 2' },
-                                        { v:'FLEXIBLE', label:'🔓 Esnek'     },
-                                    ].map(opt => (
-                                        <TouchableOpacity key={opt.v} onPress={() => set('matchFrequency', opt.v)}
-                                            style={{ flex:1, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1.5,
-                                                borderColor: f.matchFrequency === opt.v ? cfg.color : colors.border,
-                                                backgroundColor: f.matchFrequency === opt.v ? cfg.color+'22' : 'transparent' }}>
-                                            <Text style={{ color: f.matchFrequency === opt.v ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>{opt.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                {/* Joker açıklaması */}
-                                {f.matchFrequency === 'WEEKLY_1' && (
-                                    <View style={{ backgroundColor:'#1e40af18', borderRadius:8, padding:10, borderWidth:1, borderColor:'#1e40af40' }}>
-                                        <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800', marginBottom:4 }}>🃏 Joker Hakkı</Text>
-                                        <Text style={{ color:'#93c5fd', fontSize:11, lineHeight:17 }}>
-                                            Her katılımcının <Text style={{ fontWeight:'900' }}>1 joker hakkı</Text> vardır.{'\n'}
-                                            İstediği maçta kullanabilir → o maç için <Text style={{ fontWeight:'900' }}>+10 gün</Text> ek süre verilir.
-                                        </Text>
-                                    </View>
-                                )}
-                                {f.matchFrequency === 'WEEKLY_2' && (
-                                    <View style={{ backgroundColor:'#1e40af18', borderRadius:8, padding:10, borderWidth:1, borderColor:'#1e40af40' }}>
-                                        <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800', marginBottom:4 }}>🃏 Joker Hakkı</Text>
-                                        <Text style={{ color:'#93c5fd', fontSize:11, lineHeight:17 }}>
-                                            Her katılımcının <Text style={{ fontWeight:'900' }}>2 joker hakkı</Text> vardır.{'\n'}
-                                            İstediği maçlarda kullanabilir → her kullanımda <Text style={{ fontWeight:'900' }}>+14 gün</Text> ek süre verilir.
-                                        </Text>
-                                    </View>
-                                )}
-                                {f.matchFrequency === 'FLEXIBLE' && (
-                                    <Text style={{ color: colors.textMuted, fontSize:11, lineHeight:16 }}>
-                                        🔓 Maç süreleri serbest — joker hakkı ve deadline uygulanmaz.
-                                    </Text>
-                                )}
                             </View>
 
                             {/* Contact phone */}
