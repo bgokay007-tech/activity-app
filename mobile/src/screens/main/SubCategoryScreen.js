@@ -4287,6 +4287,12 @@ const TOURN_TYPES   = ['1', '2', '3'];
 const TOURN_SCOPES  = ['YEREL', 'ULUSAL', 'ULUSLARARASI'];
 const TOURN_GENDERS = ['KADIN', 'ERKEK', 'MIX'];
 
+const TOURNAMENT_RULES = [
+    { id: 1, text: 'Oyuncular turnuvaya bireysel olarak katılır.' },
+    { id: 2, text: 'Oyuncular turnuvaya çift olarak katılım sağlar.' },
+    { id: 3, text: 'Oyuncular turnuvaya katıldıktan sonra play-offlara kadar her maçtan sonra ELO puanı en yakın oyuncu ile eşleşir. Çift katılımda çiftlerin ELO ortalaması baz alınır.' },
+];
+
 function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const t = useT();
     const cfg = getConfig(sub);
@@ -4308,6 +4314,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         prize1: '', prize2: '', prize3: '', contactPhone: '', description: '',
         setsPerMatch: '3', advantageScoring: true,
         matchesBeforePlayoff: '', playoffQualifiers: '',
+        rules: [],
     };
 
     const [f, setF] = useState(INIT);
@@ -4445,6 +4452,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 eventEndTime: f.eventEndTime || undefined,
                 endDate: fmtISO(f.regEndDate),
                 endTime: f.regEndTime || undefined,
+                rules: f.rules,
                 description: f.description.trim() || undefined,
             });
             reset();
@@ -4908,6 +4916,37 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         🔓 Maç süreleri serbest — joker hakkı ve deadline uygulanmaz.
                                     </Text>
                                 )}
+
+                                {/* Seçilebilir kural maddeleri */}
+                                <View style={{ marginTop:10, borderTopWidth:1, borderTopColor: colors.border, paddingTop:10 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:8 }}>Uygulanacak Kurallar</Text>
+                                    {TOURNAMENT_RULES.map(rule => {
+                                        const selected = f.rules.includes(rule.id);
+                                        return (
+                                            <TouchableOpacity
+                                                key={rule.id}
+                                                onPress={() => set('rules', selected
+                                                    ? f.rules.filter(r => r !== rule.id)
+                                                    : [...f.rules, rule.id]
+                                                )}
+                                                style={{ flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:8,
+                                                    backgroundColor: selected ? cfg.color+'15' : 'transparent',
+                                                    borderRadius:8, padding:8, borderWidth:1,
+                                                    borderColor: selected ? cfg.color : colors.border }}>
+                                                <View style={{ width:18, height:18, borderRadius:4, borderWidth:2,
+                                                    borderColor: selected ? cfg.color : colors.border,
+                                                    backgroundColor: selected ? cfg.color : 'transparent',
+                                                    alignItems:'center', justifyContent:'center', marginTop:1, flexShrink:0 }}>
+                                                    {selected && <Text style={{ color:'#fff', fontSize:11, fontWeight:'900', lineHeight:14 }}>✓</Text>}
+                                                </View>
+                                                <Text style={{ color: selected ? '#fff' : colors.textSecondary, fontSize:12, lineHeight:18, flex:1 }}>
+                                                    <Text style={{ fontWeight:'900', color: selected ? cfg.color : colors.textMuted }}>{rule.id}. </Text>
+                                                    {rule.text}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
                             </View>
 
                             {/* Gender | Sets — side by side */}
