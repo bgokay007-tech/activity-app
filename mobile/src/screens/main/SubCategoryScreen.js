@@ -4300,7 +4300,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         eventStartDate: null, eventStartTime: '',
         eventEndDate:   null, eventEndTime:   '',
         regEndDate: null, regEndTime: '',
-        courtDecidedByPlayers: false,
+        courtDecidedByPlayers: true,
         courtSearchText: '', courtResults: [], selectedCourt: null,
         showManualCourt: false, manualCourtName: '', manualCourtCity: '',
         isIndoor: false,
