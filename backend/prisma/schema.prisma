@@ -458,11 +458,13 @@ model TournamentMatch {
   p1Name       String?
   p2Id         String?
   p2Name       String?
-  score        Json?    // {sets:[{p1:X,p2:Y},...], winner:'p1'|'p2', p1Sets:N, p2Sets:N, p1Games:N, p2Games:N}
-  status       String    @default("PENDING") // PENDING | COMPLETED | BYE
-  winnerId     String?
-  deadline     DateTime? // computed from matchFrequency when tournament starts
-  createdAt    DateTime  @default(now())
+  score              Json?     // {sets:[{p1:X,p2:Y},...], winner:'p1'|'p2', p1Sets:N, p2Sets:N, p1Games:N, p2Games:N}
+  status             String    @default("PENDING") // PENDING | COMPLETED | BYE | FORFEIT
+  winnerId           String?
+  deadline           DateTime?
+  p1JokerRequested   Boolean   @default(false)
+  p2JokerRequested   Boolean   @default(false)
+  createdAt          DateTime  @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 }
@@ -477,6 +479,8 @@ model TournamentParticipant {
   note            String?
   cancelRequested Boolean   @default(false)
   cancelReason    String?
+  jokerUsed       Boolean   @default(false)
+  jokerUsedAt     DateTime?
   acceptedAt      DateTime?
   createdAt       DateTime  @default(now())
 

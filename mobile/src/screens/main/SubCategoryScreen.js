@@ -3535,6 +3535,29 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Skor Gir</Text>
                                                                 </TouchableOpacity>
                                                             )}
+                                                            {/* Joker butonu — sadece Bireysel Rekabetçi, oyuncu kendi maçı */}
+                                                            {item.type === '1' && isReady && (match.p1Id === myId || match.p2Id === myId) && !isEntering && (() => {
+                                                                const myJokerRequested = match.p1Id === myId ? match.p1JokerRequested : match.p2JokerRequested;
+                                                                const otherJokerRequested = match.p1Id === myId ? match.p2JokerRequested : match.p1JokerRequested;
+                                                                if (myJokerRequested) return null; // zaten talep edildi
+                                                                return (
+                                                                    <TouchableOpacity
+                                                                        onPress={async () => {
+                                                                            try {
+                                                                                const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/joker`);
+                                                                                Alert.alert('🃏 Joker', data.message);
+                                                                                fetchMatches();
+                                                                            } catch (e) {
+                                                                                Alert.alert('Hata', e?.response?.data?.message || 'Joker kullanılamadı.');
+                                                                            }
+                                                                        }}
+                                                                        style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60' }}>
+                                                                        <Text style={{ color: otherJokerRequested ? '#c084fc' : '#93c5fd', fontSize:10, fontWeight:'700' }}>
+                                                                            {otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker'}
+                                                                        </Text>
+                                                                    </TouchableOpacity>
+                                                                );
+                                                            })()}
                                                             {isDone && isCreator && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
@@ -4849,6 +4872,25 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </TouchableOpacity>
                                 ))}
                             </View>
+
+                            {/* Bireysel Rekabetçi kuralları */}
+                            {f.type === '1' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Bireysel Rekabetçi Kuralları</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
+                                        'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                                        'İki oyuncu da joker talep ederse deadline +7 gün uzar, joker hakkı tüketilmez (hava, kort vs. zorunluluk sayılır).',
+                                        'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
+                                    ].map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
 
 
                             {/* Gender | Sets — side by side */}

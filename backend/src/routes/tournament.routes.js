@@ -23,6 +23,7 @@ import {
     rematchTournament,
     requestTournamentPermission,
     getTournamentPermissionStatus,
+    useJoker,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -48,6 +49,7 @@ router.post('/:id/start',                               startTournament);
 router.post('/:id/rematch',                             rematchTournament);
 router.get('/:id/matches',                   getTournamentMatches);
 router.patch('/:id/matches/:matchId/score',  enterTournamentMatchScore);
+router.post('/:id/matches/:matchId/joker',   useJoker);
 router.patch('/:id',                         updateTournament);
 router.delete('/:id',                        deleteTournament);
 
