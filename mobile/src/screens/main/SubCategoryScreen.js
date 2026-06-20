@@ -4288,7 +4288,7 @@ const TOURN_SCOPES  = ['YEREL', 'ULUSAL', 'ULUSLARARASI'];
 const TOURN_GENDERS = ['KADIN', 'ERKEK', 'MIX'];
 
 const TOURNAMENT_RULES = [
-    { id: 1, text: 'Oyuncular turnuvaya bireysel olarak katılır.' },
+    { id: 1, text: 'Oyuncular turnuvaya bireysel olarak katılım sağlar.' },
     { id: 2, text: 'Oyuncular turnuvaya çift olarak katılım sağlar.' },
     { id: 3, text: 'Oyuncular turnuvaya katıldıktan sonra play-offlara kadar her maçtan sonra ELO puanı en yakın oyuncu ile eşleşir. Çift katılımda çiftlerin ELO ortalaması baz alınır.' },
 ];
