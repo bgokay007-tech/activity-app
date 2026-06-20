@@ -4295,6 +4295,7 @@ const TOURNAMENT_RULES = [
     { id: 5, text: 'Mix seçimi olduysa çift olarak iki kadın aynı takımda olmayacak şekilde rastgele sistem tarafından sürpriz eşleştirme ile takım oluşturulur.' },
     { id: 6, text: 'Bireysel ya da çift turnuvası ise rakipler sistem tarafından rastgele eşleştirilir.' },
     { id: 7, text: 'Oyuncular turnuvaya katıldıktan sonra play-offlara kadar her maçtan sonra ELO puanı en yakın oyuncu ile eşleşir. Çift katılımda çiftlerin ELO ortalaması baz alınır. Her maç sonrası ve herkesin eşit maç sayısını tamamladıktan sonra yeni ELO puanı belirlendikten sonra eşleşmeler sistem tarafından atanır.' },
+    { id: 8, text: 'Oyuncular turnuva başlama saatindeki ELO puanına göre en yakın oyuncularla belirlenen maç sayısı kadar her defasında farklı oyuncu ile eşleştirmeler yapılır.' },
 ];
 
 function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
