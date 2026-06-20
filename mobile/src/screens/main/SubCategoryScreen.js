@@ -4298,6 +4298,7 @@ const TOURNAMENT_RULES = [
     { id: 8, text: 'Oyuncular turnuva başlama saatindeki ELO puanına göre en yakın oyuncularla belirlenen maç sayısı kadar her defasında farklı oyuncu ile eşleştirmeler yapılır.' },
     { id: 9, text: 'Turnuva belirli saat aralığında ise joker hakkı olmaksızın maçlar bittikçe oyuncular yeni maçlara hazır bir şekilde beklerler.' },
     { id: 10, text: 'Oyuncular turnuva başlama saati baz alınarak haftada bir maç yapmakla mükelleftir. Her oyuncunun play-offlara kadar bir joker hakkı bulunmaktadır. Kullandığı maç için 10 gün kesin süre tanınır; maç yarıda kalır ve devamı 10 günü aşarsa joker hakkını kullanan oyuncu kaybetmiş sayılır.' },
+    { id: 11, text: 'Oyuncular turnuva başlama saati baz alınarak haftada iki maç yapmakla mükelleftir. Her oyuncunun play-offlara kadar iki joker hakkı bulunmaktadır. Kullandığı maç için 10 gün kesin süre tanınır; maç yarıda kalır ve devamı 10 günü aşarsa joker hakkını kullanan oyuncu kaybetmiş sayılır.' },
 ];
 
 function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
