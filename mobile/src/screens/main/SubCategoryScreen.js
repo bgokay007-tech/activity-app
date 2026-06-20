@@ -4287,20 +4287,7 @@ const TOURN_TYPES   = ['1', '2', '3'];
 const TOURN_SCOPES  = ['YEREL', 'ULUSAL', 'ULUSLARARASI'];
 const TOURN_GENDERS = ['KADIN', 'ERKEK', 'MIX'];
 
-const TOURNAMENT_RULES = [
-    { id: 1, text: 'Oyuncular turnuvaya bireysel olarak katılım sağlar.' },
-    { id: 2, text: 'Oyuncular turnuvaya çift olarak katılım sağlar.' },
-    { id: 3, text: 'Eğer mix seçimi yapıldıysa çift olarak bir erkek bir kadın katılım sağlanabilir. Partneri olmayan oyuncu bireysel katılım sağlayabilir; karşı cinsten de bireysel katılım varsa sistem tarafından rastgele takım oluşturulur. Turnuva son katılım saatine kadar eşleşmesi olmayan oyuncu turnuvaya katılım sağlayamaz.' },
-    { id: 4, text: 'Mix seçimi olduysa ve çift turnuvasıysa cinsiyet ayrımı yapılmaz, takımca istenildiği gibi katılınabilir. Bireysel katılım olursa sistem rastgele çift yaparak takım oluşturur. Son başvuru saatine kadar çift olan katılımcılar katılabilir, tek kalan oyuncular katılım sağlayamaz.' },
-    { id: 5, text: 'Mix seçimi olduysa çift olarak iki kadın aynı takımda olmayacak şekilde rastgele sistem tarafından sürpriz eşleştirme ile takım oluşturulur.' },
-    { id: 6, text: 'Bireysel ya da çift turnuvası ise rakipler sistem tarafından rastgele eşleştirilir.' },
-    { id: 7, text: 'Oyuncular turnuvaya katıldıktan sonra play-offlara kadar her maçtan sonra ELO puanı en yakın oyuncu ile eşleşir. Çift katılımda çiftlerin ELO ortalaması baz alınır. Her maç sonrası ve herkesin eşit maç sayısını tamamladıktan sonra yeni ELO puanı belirlendikten sonra eşleşmeler sistem tarafından atanır.' },
-    { id: 8, text: 'Oyuncular turnuva başlama saatindeki ELO puanına göre en yakın oyuncularla belirlenen maç sayısı kadar her defasında farklı oyuncu ile eşleştirmeler yapılır.' },
-    { id: 9, text: 'Turnuva belirli saat aralığında ise joker hakkı olmaksızın maçlar bittikçe oyuncular yeni maçlara hazır bir şekilde beklerler.' },
-    { id: 10, text: 'Oyuncular turnuva başlama saati baz alınarak haftada bir maç yapmakla mükelleftir. Her oyuncunun play-offlara kadar bir joker hakkı bulunmaktadır. Kullandığı maç için 10 gün kesin süre tanınır; maç yarıda kalır ve devamı 10 günü aşarsa joker hakkını kullanan oyuncu kaybetmiş sayılır.' },
-    { id: 11, text: 'Oyuncular turnuva başlama saati baz alınarak haftada iki maç yapmakla mükelleftir. Her oyuncunun play-offlara kadar iki joker hakkı bulunmaktadır. Kullandığı maç için 10 gün kesin süre tanınır; maç yarıda kalır ve devamı 10 günü aşarsa joker hakkını kullanan oyuncu kaybetmiş sayılır.' },
-    { id: 12, text: 'Oyuncular lig usulü maçlarda oyuncu sayısının yarısından bir fazla kadar maç ayarlanır ve o eşleşmeler güncel ELO puanına en yakın her defasında farklı oyuncular ile eşleşir.' },
-];
+const TOURNAMENT_RULES = [];
 
 function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const t = useT();
