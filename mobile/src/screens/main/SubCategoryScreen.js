@@ -83,7 +83,7 @@ function getConfig(sub) {
 function getTabs(sub) {
     if (sub === 'football' || sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', ...(sub==='football' ? ['referee'] : []), 'media'];
-    if (sub === 'tennis')
+    if (sub === 'tennis' || sub === 'padel')
         return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'news', 'posts', 'archive'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
 }
@@ -2216,10 +2216,16 @@ const DURATIONS_FULL = [
 ];
 
 const TENNIS_SURFACES = [
-    { id: 'HARD',   label: 'Sert Zemin', emoji: '🔵' },
-    { id: 'CLAY',   label: 'Toprak',     emoji: '🟤' },
-    { id: 'GRASS',  label: 'Çim',        emoji: '🟩' },
-    { id: 'CARPET', label: 'Suni',       emoji: '🟥' },
+    { id: 'HARD',      label: 'Sert Zemin', emoji: '🔵' },
+    { id: 'CLAY',      label: 'Toprak',     emoji: '🟤' },
+    { id: 'GRASS',     label: 'Çim',        emoji: '🟩' },
+    { id: 'CARPET',    label: 'Suni',       emoji: '🟥' },
+];
+const PADEL_SURFACES = [
+    { id: 'ARTIFICIAL', label: 'Suni Çim',     emoji: '🟩' },
+    { id: 'HARD',       label: 'Sert Zemin',   emoji: '🔵' },
+    { id: 'GLASS',      label: 'Cam',          emoji: '⬜' },
+    { id: 'INDOOR',     label: 'Kapalı Salon', emoji: '🏛️' },
 ];
 
 function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
@@ -2227,6 +2233,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isFootball  = sub === 'football';
     const isVolleyball = sub === 'volleyball';
+    const isPadel     = sub === 'padel';
     const teamSizes   = isFootball ? FOOTBALL_SIZES : isVolleyball ? VOLLEYBALL_SIZES : [];
     const cfg         = getConfig(sub);
 
@@ -2339,7 +2346,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         finally { setSubmitting(false); }
     };
 
-    const courtSurfaces = isFootball ? FOOTBALL_SURFACES : isVolleyball ? VOLLEYBALL_SURFACES : TENNIS_SURFACES;
+    const courtSurfaces = isFootball ? FOOTBALL_SURFACES : isVolleyball ? VOLLEYBALL_SURFACES : isPadel ? PADEL_SURFACES : TENNIS_SURFACES;
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -2359,12 +2366,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         <View style={{ flex:1 }}>
                                             <Text style={s.fieldLabel}>{t.modLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:0 }]}>
-                                                {(sub === 'tennis' ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
-                                                    const isActive = sub === 'tennis'
+                                                {((sub === 'tennis' || sub === 'padel') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
+                                                    const isActive = (sub === 'tennis' || sub === 'padel')
                                                         ? (f.matchMode === mode || f.matchMode === 'BOTH')
                                                         : f.matchMode === mode;
                                                     const handleModePress = () => {
-                                                        if (sub !== 'tennis' || !f.flexibleSchedule) { set('matchMode', mode); return; }
+                                                        if ((sub !== 'tennis' && sub !== 'padel') || !f.flexibleSchedule) { set('matchMode', mode); return; }
                                                         if (mode === 'PRACTICE') {
                                                             if (f.matchMode === 'PRACTICE') return;
                                                             set('matchMode', f.matchMode === 'BOTH' ? 'COMPETITIVE' : 'BOTH');
@@ -2399,7 +2406,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             </View>
                                         </View>
                                     </View>
-                                    {sub === 'tennis' && f.flexibleSchedule && (
+                                    {(sub === 'tennis' || sub === 'padel') && f.flexibleSchedule && (
                                         <Text style={s.modeHint}>{t.multiSelectHint}</Text>
                                     )}
                                     {(f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
@@ -4717,12 +4724,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             </TouchableOpacity>
                                         </View>
                                     )}
-                                    {/* Surface (tennis) */}
-                                    {sub === 'tennis' && (
+                                    {/* Surface (tennis / padel) */}
+                                    {(sub === 'tennis' || sub === 'padel') && (
                                         <>
                                             <Text style={s.fieldLabel}>{t.tournSurfaceLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:8 }]}>
-                                                {TENNIS_SURFACES.map(sf => (
+                                                {(sub === 'padel' ? PADEL_SURFACES : TENNIS_SURFACES).map(sf => (
                                                     <TouchableOpacity key={sf.id}
                                                         style={[s.chip, { paddingVertical:5, paddingHorizontal:8 }, f.surface === sf.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                                         onPress={() => set('surface', f.surface === sf.id ? '' : sf.id)}>
