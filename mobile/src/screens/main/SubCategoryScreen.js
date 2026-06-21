@@ -2176,7 +2176,7 @@ function TimeGridModal({ visible, title, value, onSelect, onClose }) {
 
 const tg = StyleSheet.create({
     overlay:        { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    box:            { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:20, paddingBottom:40, maxHeight:'80%' },
+    box:            { flex:1, backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:20, paddingBottom:40, maxHeight:'80%' },
     header:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 },
     title:          { color:'#fff', fontSize:16, fontWeight:'900' },
     close:          { color: colors.textMuted, fontSize:22 },
