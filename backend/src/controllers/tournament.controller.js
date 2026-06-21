@@ -287,6 +287,52 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
     }));
 }
 
+export const regenCurrentGroupRound = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+        const isCreator = tournament.creatorId === req.userId;
+        if (!isCreator) {
+            const u = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+            if (!u?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        const allGroupMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id, phase: 'GROUP' },
+        });
+        if (allGroupMatches.length === 0) return res.status(400).json({ message: 'GROUP maç yok' });
+
+        const maxRound = Math.max(...allGroupMatches.map(m => m.round));
+        if (maxRound <= 1) return res.status(400).json({ message: '1. turdan sonraki bir tur yok' });
+
+        const currentRoundMatches = allGroupMatches.filter(m => m.round === maxRound);
+        const hasPlayed = currentRoundMatches.some(m => m.status === 'COMPLETED' || m.status === 'FORFEIT');
+        if (hasPlayed) return res.status(400).json({ message: 'Bu turun bazı maçları oynanmış, silinemez' });
+
+        // Önceki turlardan oynanan çiftler
+        const playedPairKeys = allGroupMatches
+            .filter(m => m.round < maxRound && m.p1Id && m.p2Id)
+            .map(m => [m.p1Id, m.p2Id].sort().join('|'));
+
+        // Mevcut yanlış turu sil
+        await prisma.tournamentMatch.deleteMany({ where: { tournamentId: id, phase: 'GROUP', round: maxRound } });
+
+        // Doğru oyuncularla yeniden üret (generateNextEloRound round 1 ID'lerini kullanır)
+        const newMatches = await generateNextEloRound(tournament, maxRound, playedPairKeys);
+        if (newMatches.length === 0) return res.status(400).json({ message: 'Eşleşecek oyuncu bulunamadı' });
+
+        await prisma.tournamentMatch.createMany({ data: newMatches });
+
+        const updated = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
 export const createTournament = async (req, res, next) => {
     try {
         const creator = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });

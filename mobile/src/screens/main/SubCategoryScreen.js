@@ -3019,6 +3019,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         ]);
     };
 
+    const handleRegenRound = () => {
+        Alert.alert('Turu Yeniden Oluştur', 'Mevcut PENDING tur silinip 1. turdaki oyuncularla yeniden eşleştirilecek. Onaylıyor musunuz?', [
+            { text: 'İptal', style: 'cancel' },
+            { text: 'Yeniden Oluştur', style: 'destructive', onPress: async () => {
+                try {
+                    const { data } = await api.post(`/tournaments/${item.id}/regen-round`);
+                    setTournMatches(Array.isArray(data) ? data : []);
+                    Alert.alert('✅', 'Tur yeniden oluşturuldu!');
+                } catch (e) {
+                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                }
+            }},
+        ]);
+    };
+
     const handleRematch = () => {
         Alert.alert('Tekrar Eşleştir', 'Tamamlanmamış maçlar silinip ELO\'ya göre yeniden eşleştirilecek. Onaylıyor musunuz?', [
             { text: 'İptal', style: 'cancel' },
@@ -3359,6 +3374,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}
                                 onPress={handleRematch}>
                                 <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🔀 Tekrar{'\n'}Eşleştir</Text>
+                            </TouchableOpacity>
+                        )}
+                        {item.status === 'IN_PROGRESS' && item.type === '1' && (
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#7c3aed50' }}
+                                onPress={handleRegenRound}>
+                                <Text style={{ color:'#a78bfa', fontSize:10, fontWeight:'700' }}>🔁 Turu{'\n'}Düzelt</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity

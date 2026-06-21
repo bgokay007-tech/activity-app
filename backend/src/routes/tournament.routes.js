@@ -24,6 +24,7 @@ import {
     requestTournamentPermission,
     getTournamentPermissionStatus,
     useJoker,
+    regenCurrentGroupRound,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -50,6 +51,7 @@ router.post('/:id/rematch',                             rematchTournament);
 router.get('/:id/matches',                   getTournamentMatches);
 router.patch('/:id/matches/:matchId/score',  enterTournamentMatchScore);
 router.post('/:id/matches/:matchId/joker',   useJoker);
+router.post('/:id/regen-round',              regenCurrentGroupRound);
 router.patch('/:id',                         updateTournament);
 router.delete('/:id',                        deleteTournament);
 
