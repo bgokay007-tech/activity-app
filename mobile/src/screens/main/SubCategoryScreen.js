@@ -2187,7 +2187,7 @@ const tg = StyleSheet.create({
 });
 
 function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
-    const ratings = ['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'];
+    const ratings = ['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0','9.5','10.0'];
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={tg.overlay}>
@@ -2200,6 +2200,7 @@ function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
                         data={ratings}
                         keyExtractor={item => item === '' ? 'none' : item}
                         numColumns={4}
+                        style={{ flex: 1 }}
                         columnWrapperStyle={{ gap:8, marginBottom:8 }}
                         showsVerticalScrollIndicator={false}
                         renderItem={({ item }) => (
@@ -2208,7 +2209,7 @@ function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
                                 onPress={() => { onSelect(item); onClose(); }}
                             >
                                 <Text style={[tg.cellText, value === item && tg.cellTextActive]}>
-                                    {item === '' ? 'Yok' : `${item} ★`}
+                                    {item === '' ? 'Serbest' : `${item} ★`}
                                 </Text>
                             </TouchableOpacity>
                         )}
