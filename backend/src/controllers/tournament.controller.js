@@ -1515,7 +1515,10 @@ export const useJoker = async (req, res, next) => {
     try {
         const { id, matchId } = req.params;
 
-        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        const tournament = await prisma.tournament.findUnique({
+            where: { id },
+            include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
+        });
         if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
         if (tournament.type !== '1') return res.status(400).json({ message: 'Joker hakkı sadece Bireysel Rekabetçi turnuvalarda kullanılabilir.' });
 
@@ -1537,12 +1540,24 @@ export const useJoker = async (req, res, next) => {
         const newDeadline = new Date(match.deadline || new Date());
         newDeadline.setDate(newDeadline.getDate() + 7);
 
+        const emitMatchUpdate = async () => {
+            const allMatches = await prisma.tournamentMatch.findMany({
+                where: { tournamentId: id },
+                orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+            });
+            for (const p of tournament.participants) {
+                if (p.userId) emitToUser(p.userId, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
+            }
+            return allMatches;
+        };
+
         if (otherJokerRequested) {
             // Karşılıklı joker (Rule 4): +7 gün, hiçbiri tüketilmez
             await prisma.tournamentMatch.update({
                 where: { id: matchId },
                 data: { p1JokerRequested: false, p2JokerRequested: false, deadline: newDeadline },
             });
+            await emitMatchUpdate();
             return res.json({ mutual: true, message: 'Karşılıklı joker kabul edildi — deadline 7 gün uzatıldı, joker hakkınız korundu.', deadline: newDeadline });
         } else {
             // Tek joker: +7 gün, joker tükenir
@@ -1557,6 +1572,7 @@ export const useJoker = async (req, res, next) => {
                     data: { jokerUsed: true, jokerUsedAt: new Date() },
                 }),
             ]);
+            await emitMatchUpdate();
             return res.json({ mutual: false, message: 'Joker hakkınız kullanıldı — deadline 7 gün uzatıldı.', deadline: newDeadline });
         }
     } catch (e) { next(e); }
