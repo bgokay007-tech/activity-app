@@ -4179,7 +4179,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             </TouchableOpacity>
             {showRules && (
                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:6, borderWidth:1, borderColor: colors.border }}>
-                    <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17 }}>{t['tournRules' + item.type]}</Text>
+                    {item.type === '1' ? (
+                        [
+                            'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
+                            'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
+                            'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                            'İki oyuncu da joker talep ederse deadline +7 gün uzar, joker hakkı tüketilmez (hava, kort vs. zorunluluk sayılır).',
+                            'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
+                        ].map((kural, i) => (
+                            <View key={i} style={{ flexDirection:'row', gap:8, marginBottom: i < 4 ? 6 : 0 }}>
+                                <Text style={{ color: infoColor, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                            </View>
+                        ))
+                    ) : (
+                        <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17 }}>{t['tournRules' + item.type]}</Text>
+                    )}
                 </View>
             )}
 
