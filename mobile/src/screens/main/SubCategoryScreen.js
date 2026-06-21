@@ -3539,11 +3539,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         </View>
                                                         <View style={{ alignItems:'flex-end', gap:3 }}>
                                                             {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:10 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
-                                                            {match.deadline && !isDone && (
-                                                                <Text style={{ color: new Date(match.deadline) < new Date() ? '#f87171' : '#fbbf24', fontSize:9, fontWeight:'700' }}>
-                                                                    ⏳ {new Date(match.deadline).toLocaleDateString('tr-TR')}
-                                                                </Text>
-                                                            )}
+                                                            {match.deadline && !isDone && (() => {
+                                                                const dl = new Date(match.deadline);
+                                                                const overdue = dl < new Date();
+                                                                const dateStr = dl.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
+                                                                const timeStr = dl.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+                                                                const dayLabel = item.type === '1' && match.round ? `${match.round * 7}. Gün · ` : '';
+                                                                return (
+                                                                    <Text style={{ color: overdue ? '#f87171' : '#fbbf24', fontSize:9, fontWeight:'700' }}>
+                                                                        ⏳ {dayLabel}{dateStr} {timeStr}
+                                                                    </Text>
+                                                                );
+                                                            })()}
                                                             {isDone && match.score && (
                                                                 <Text style={{ color:'#94a3b8', fontSize:11 }}>
                                                                     {(match.score.sets||[]).map(s=>`${s.p1}-${s.p2}`).join(', ')}
