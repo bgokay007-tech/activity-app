@@ -2922,6 +2922,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         return off;
     }, [item.id]);
 
+    // Real-time: a match score was entered → update matches instantly
+    useEffect(() => {
+        const off = onSocket('tournament:match_scored', ({ tournamentId, matches }) => {
+            if (tournamentId !== item.id) return;
+            setTournMatches(Array.isArray(matches) ? matches : []);
+        });
+        return off;
+    }, [item.id]);
+
     const updateRequest = async (userId, status, reason) => {
         try {
             await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status, reason });

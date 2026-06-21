@@ -1495,6 +1495,14 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             where: { tournamentId: id },
             orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
         });
+
+        // Real-time: notify all participants so they see the updated matches without refresh
+        for (const p of tournament.participants) {
+            if (p.userId) {
+                emitToUser(p.userId, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
+            }
+        }
+
         res.json(allMatches);
     } catch (e) { next(e); }
 };
