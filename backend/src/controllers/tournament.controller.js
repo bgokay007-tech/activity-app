@@ -200,7 +200,7 @@ function computeStandings(players, matches, tournamentType) {
 }
 
 /** Bireysel Rekabetçi (type '1'): DB'den güncel ELO alarak sonraki GROUP turunu oluşturur.
- *  Daha önce eşleşmiş çiftleri tekrar eşleştirmez. Deadline = şimdi + 7 gün.
+ *  Daha önce eşleşmiş çiftleri tekrar eşleştirmez. Deadline = eventDate + round*7 gün.
  */
 async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
     const participants = await prisma.tournamentParticipant.findMany({
@@ -249,8 +249,18 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
         }
     }
 
-    const deadline = new Date();
-    deadline.setDate(deadline.getDate() + 7);
+    let baseDate;
+    if (tournament.eventDate) {
+        baseDate = new Date(tournament.eventDate);
+        if (tournament.eventTime) {
+            const [h, m] = tournament.eventTime.split(':').map(Number);
+            baseDate.setHours(h, m, 0, 0);
+        }
+    } else {
+        baseDate = new Date();
+    }
+    const deadline = new Date(baseDate);
+    deadline.setDate(deadline.getDate() + nextRound * 7);
 
     return roundPairs.map((pair, idx) => ({
         tournamentId: tournament.id,
