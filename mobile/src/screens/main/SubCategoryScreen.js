@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
@@ -3543,78 +3543,78 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const isDone = match.status === 'COMPLETED';
                                             const isReady = match.status === 'PENDING' && match.p1Id && match.p2Id;
                                             const isTBD = match.status === 'PENDING' && (!match.p1Id || !match.p2Id);
-                                                            const isEntering = scoreEntry?.matchId === match.id;
-                                                            const mSets = match.score?.sets || [];
-                                                            const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
-                                                            const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
-                                                            return (
-                                                                <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
-                                                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                                                                        <View style={{ flex:1 }}>
-                                                                            {(() => {
-                                                                                const sc = match.score;
-                                                                                const rB = sc?.p1RatingBefore;
-                                                                                const rA = sc?.p1RatingAfter;
-                                                                                const hasRating = rB != null && rA != null;
-                                                                                const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
-                                                                                const isW = isDone && match.winnerId === match.p1Id;
-                                                                                const eloStr = hasRating
-                                                                                    ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
-                                                                                    : (match.p1Id && skillRatingMap[match.p1Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
-                                                                                return (
-                                                                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                                                                            {match.p1Name || 'TBD'}{eloStr}
-                                                                                        </Text>
-                                                                                        {isDone && mSets.length > 0 && (
-                                                                                            <View style={{ flexDirection:'row', gap:5, paddingLeft:4 }}>
-                                                                                                {mSets.map((s,i) => <Text key={i} style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:14, fontWeight:'900', minWidth:18, textAlign:'center' }}>{s.p1}</Text>)}
-                                                                                                <Text style={{ color: isW ? '#4ade80' : '#475569', fontSize:11, fontWeight:'800', minWidth:14, textAlign:'center' }}>{p1SW}</Text>
-                                                                                            </View>
-                                                                                        )}
-                                                                                    </View>
-                                                                                );
-                                                                            })()}
-                                                                            <Text style={{ color: colors.textMuted, fontSize:10 }}>vs</Text>
-                                                                            {(() => {
-                                                                                const sc = match.score;
-                                                                                const rB = sc?.p2RatingBefore;
-                                                                                const rA = sc?.p2RatingAfter;
-                                                                                const hasRating = rB != null && rA != null;
-                                                                                const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
-                                                                                const isW = isDone && match.winnerId === match.p2Id;
-                                                                                const eloStr = hasRating
-                                                                                    ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
-                                                                                    : (match.p2Id && skillRatingMap[match.p2Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
-                                                                                return (
-                                                                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                                                                            {match.p2Name || 'TBD'}{eloStr}
-                                                                                        </Text>
-                                                                                        {isDone && mSets.length > 0 && (
-                                                                                            <View style={{ flexDirection:'row', gap:5, paddingLeft:4 }}>
-                                                                                                {mSets.map((s,i) => <Text key={i} style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:14, fontWeight:'900', minWidth:18, textAlign:'center' }}>{s.p2}</Text>)}
-                                                                                                <Text style={{ color: isW ? '#4ade80' : '#475569', fontSize:11, fontWeight:'800', minWidth:14, textAlign:'center' }}>{p2SW}</Text>
-                                                                                            </View>
-                                                                                        )}
-                                                                                    </View>
-                                                                                );
-                                                                            })()}
-                                                                        </View>
-                                                                        <View style={{ alignItems:'flex-end', gap:3 }}>
-                                                                            {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:10 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
-                                                                            {match.deadline && !isDone && (() => {
-                                                                                const dl = new Date(match.deadline);
-                                                                                const overdue = dl < new Date();
-                                                                                const dateStr = dl.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
-                                                                                const timeStr = dl.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-                                                                                const dayLabel = item.type === '1' && match.round ? `${match.round * 7}. Gün · ` : '';
-                                                                                return (
-                                                                                    <Text style={{ color: overdue ? '#f87171' : '#fbbf24', fontSize:9, fontWeight:'700' }}>
-                                                                                        {'⏳'} {dayLabel}{dateStr} {timeStr}
-                                                                                    </Text>
-                                                                                );
-                                                                            })()}
+                                            const isEntering = scoreEntry?.matchId === match.id;
+                                            const mSets = match.score?.sets || [];
+                                            const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
+                                            const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
+                                            return (
+                                                <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
+                                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                        <View style={{ flex:1 }}>
+                                                            {(() => {
+                                                                const sc = match.score;
+                                                                const rB = sc?.p1RatingBefore;
+                                                                const rA = sc?.p1RatingAfter;
+                                                                const hasRating = rB != null && rA != null;
+                                                                const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
+                                                                const isW = isDone && match.winnerId === match.p1Id;
+                                                                const eloStr = hasRating
+                                                                    ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                    : (match.p1Id && skillRatingMap[match.p1Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
+                                                                return (
+                                                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                                                                            {match.p1Name || 'TBD'}{eloStr}
+                                                                        </Text>
+                                                                        {isDone && mSets.length > 0 && (
+                                                                            <View style={{ flexDirection:'row', gap:5, paddingLeft:4 }}>
+                                                                                {mSets.map((s,i) => <Text key={i} style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:14, fontWeight:'900', minWidth:18, textAlign:'center' }}>{s.p1}</Text>)}
+                                                                                <Text style={{ color: isW ? '#4ade80' : '#475569', fontSize:11, fontWeight:'800', minWidth:14, textAlign:'center' }}>{p1SW}</Text>
+                                                                            </View>
+                                                                        )}
+                                                                    </View>
+                                                                );
+                                                            })()}
+                                                            <Text style={{ color: colors.textMuted, fontSize:10 }}>vs</Text>
+                                                            {(() => {
+                                                                const sc = match.score;
+                                                                const rB = sc?.p2RatingBefore;
+                                                                const rA = sc?.p2RatingAfter;
+                                                                const hasRating = rB != null && rA != null;
+                                                                const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
+                                                                const isW = isDone && match.winnerId === match.p2Id;
+                                                                const eloStr = hasRating
+                                                                    ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                    : (match.p2Id && skillRatingMap[match.p2Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
+                                                                return (
+                                                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                                                                            {match.p2Name || 'TBD'}{eloStr}
+                                                                        </Text>
+                                                                        {isDone && mSets.length > 0 && (
+                                                                            <View style={{ flexDirection:'row', gap:5, paddingLeft:4 }}>
+                                                                                {mSets.map((s,i) => <Text key={i} style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:14, fontWeight:'900', minWidth:18, textAlign:'center' }}>{s.p2}</Text>)}
+                                                                                <Text style={{ color: isW ? '#4ade80' : '#475569', fontSize:11, fontWeight:'800', minWidth:14, textAlign:'center' }}>{p2SW}</Text>
+                                                                            </View>
+                                                                        )}
+                                                                    </View>
+                                                                );
+                                                            })()}
+                                                        </View>
+                                                        <View style={{ alignItems:'flex-end', gap:3 }}>
+                                                            {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:10 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
+                                                            {match.deadline && !isDone && (() => {
+                                                                const dl = new Date(match.deadline);
+                                                                const overdue = dl < new Date();
+                                                                const dateStr = dl.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
+                                                                const timeStr = dl.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+                                                                const dayLabel = item.type === '1' && match.round ? `${match.round * 7}. Gün · ` : '';
+                                                                return (
+                                                                    <Text style={{ color: overdue ? '#f87171' : '#fbbf24', fontSize:9, fontWeight:'700' }}>
+                                                                        {'⏳'} {dayLabel}{dateStr} {timeStr}
+                                                                    </Text>
+                                                                );
+                                                            })()}
                                                             {isReady && (isCreator || myIsAdmin || match.p1Id === myId || match.p2Id === myId) && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
@@ -3625,7 +3625,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {item.type === '1' && isReady && (match.p1Id === myId || match.p2Id === myId) && !isEntering && (() => {
                                                                 const myJokerRequested = match.p1Id === myId ? match.p1JokerRequested : match.p2JokerRequested;
                                                                 const otherJokerRequested = match.p1Id === myId ? match.p2JokerRequested : match.p1JokerRequested;
-                                                                if (myJokerRequested) return null; // zaten talep edildi
+                                                                if (myJokerRequested) return null;
                                                                 return (
                                                                     <TouchableOpacity
                                                                         onPress={async () => {
