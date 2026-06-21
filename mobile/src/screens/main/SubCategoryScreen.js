@@ -3019,6 +3019,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         ]);
     };
 
+    const handleFixDeadlines = async () => {
+        try {
+            const { data } = await api.post(`/tournaments/${item.id}/fix-deadlines`);
+            setTournMatches(Array.isArray(data.matches) ? data.matches : []);
+            Alert.alert('✅', `${data.fixed} maçın süresi turnuva başlangıcına göre düzeltildi.`);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
     const handleRegenRound = () => {
         Alert.alert('Turu Yeniden Oluştur', 'Mevcut PENDING tur silinip 1. turdaki oyuncularla yeniden eşleştirilecek. Onaylıyor musunuz?', [
             { text: 'İptal', style: 'cancel' },
@@ -3377,11 +3387,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </TouchableOpacity>
                         )}
                         {item.status === 'IN_PROGRESS' && item.type === '1' && (
-                            <TouchableOpacity
-                                style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#7c3aed50' }}
-                                onPress={handleRegenRound}>
-                                <Text style={{ color:'#a78bfa', fontSize:10, fontWeight:'700' }}>🔁 Turu{'\n'}Düzelt</Text>
-                            </TouchableOpacity>
+                            <>
+                                <TouchableOpacity
+                                    style={{ backgroundColor:'#0e7490' + '30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#0e7490' + '60' }}
+                                    onPress={handleFixDeadlines}>
+                                    <Text style={{ color:'#67e8f9', fontSize:10, fontWeight:'700' }}>⏱️ Süre{'\n'}Düzelt</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#7c3aed50' }}
+                                    onPress={handleRegenRound}>
+                                    <Text style={{ color:'#a78bfa', fontSize:10, fontWeight:'700' }}>🔁 Turu{'\n'}Düzelt</Text>
+                                </TouchableOpacity>
+                            </>
                         )}
                         <TouchableOpacity
                             style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}

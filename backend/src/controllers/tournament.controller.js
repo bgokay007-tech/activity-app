@@ -287,6 +287,47 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
     }));
 }
 
+export const fixGroupDeadlines = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+        const isCreator = tournament.creatorId === req.userId;
+        if (!isCreator) {
+            const u = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+            if (!u?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
+        }
+        if (!tournament.eventDate) return res.status(400).json({ message: 'Turnuvada başlangıç tarihi yok' });
+
+        const base = new Date(tournament.eventDate);
+        if (tournament.eventTime) {
+            const [h, m] = tournament.eventTime.split(':').map(Number);
+            base.setHours(h, m, 0, 0);
+        }
+
+        const groupMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id, phase: 'GROUP' },
+        });
+
+        const updates = groupMatches
+            .filter(m => m.round)
+            .map(m => {
+                const deadline = new Date(base);
+                deadline.setDate(deadline.getDate() + m.round * 7);
+                return prisma.tournamentMatch.update({ where: { id: m.id }, data: { deadline } });
+            });
+
+        await Promise.all(updates);
+
+        const updated = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+        res.json({ fixed: updates.length, matches: updated });
+    } catch (error) { next(error); }
+};
+
 export const regenCurrentGroupRound = async (req, res, next) => {
     try {
         const { id } = req.params;
