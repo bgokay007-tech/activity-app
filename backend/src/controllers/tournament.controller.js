@@ -203,8 +203,19 @@ function computeStandings(players, matches, tournamentType) {
  *  Daha önce eşleşmiş çiftleri tekrar eşleştirmez. Deadline = eventDate + round*7 gün.
  */
 async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
+    // 1. turdaki oyuncu ID'lerini al — sonradan eklenen katılımcılar dahil edilmez
+    const round1Matches = await prisma.tournamentMatch.findMany({
+        where: { tournamentId: tournament.id, phase: 'GROUP', round: 1 },
+        select: { p1Id: true, p2Id: true },
+    });
+    const originalPlayerIds = new Set();
+    round1Matches.forEach(m => {
+        if (m.p1Id) originalPlayerIds.add(m.p1Id);
+        if (m.p2Id) originalPlayerIds.add(m.p2Id);
+    });
+
     const participants = await prisma.tournamentParticipant.findMany({
-        where: { tournamentId: tournament.id, status: 'ACCEPTED' },
+        where: { tournamentId: tournament.id, status: 'ACCEPTED', userId: { in: [...originalPlayerIds] } },
         include: {
             user: {
                 select: {
