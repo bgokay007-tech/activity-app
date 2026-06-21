@@ -1130,9 +1130,10 @@ export const startTournament = async (req, res, next) => {
             });
         }
 
-        // Notify real (non-manual) participants
+        // Notify real (non-manual) participants + socket push for instant UI update
         for (const p of mainList) {
             if (p.userId && p.userId !== req.userId) {
+                emitToUser(p.userId, 'tournament:started', { tournamentId: id });
                 await createNotification(
                     p.userId, 'TOURNAMENT_STARTED', '🏆 Turnuva Başladı',
                     `"${tournament.name}" turnuvası başladı! Eşleşmelerinizi kontrol edin.`,

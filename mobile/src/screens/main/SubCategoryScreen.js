@@ -2913,6 +2913,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         return off;
     }, [item.id, isCreator]);
 
+    // Real-time: tournament started by creator → refresh card so Maçlar butonu görünsün
+    useEffect(() => {
+        const off = onSocket('tournament:started', ({ tournamentId }) => {
+            if (tournamentId !== item.id) return;
+            onUpdated?.();
+        });
+        return off;
+    }, [item.id]);
+
     const updateRequest = async (userId, status, reason) => {
         try {
             await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status, reason });
@@ -3453,18 +3462,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#a855f750', maxWidth:120 }}>
                                 <Text style={{ color:'#c084fc', fontSize:10, flexWrap:'wrap' }}>{t.tournJoinPending}</Text>
                             </View>
-                            <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onCancelJoin(item.id)}>
-                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournCancelJoinBtn}</Text>
-                            </TouchableOpacity>
+                            {!isEventStarted() && (
+                                <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onCancelJoin(item.id)}>
+                                    <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournCancelJoinBtn}</Text>
+                                </TouchableOpacity>
+                            )}
                         </>)}
                         {myStatus === 'ACCEPTED' && !myPart?.cancelRequested && (
                             <View style={{ gap:4 }}>
                                 <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
                                     <Text style={{ color:'#4ade80', fontSize:10 }}>{t.tournJoinAccepted}</Text>
                                 </View>
-                                <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }} onPress={handleCancelAttempt}>
-                                    <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>İptal</Text>
-                                </TouchableOpacity>
+                                {!isEventStarted() && (
+                                    <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }} onPress={handleCancelAttempt}>
+                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>İptal</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         )}
                         {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (
