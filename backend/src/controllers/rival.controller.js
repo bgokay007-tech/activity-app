@@ -469,13 +469,6 @@ export const sendJoinRequest = async (req, res, next) => {
 
         res.status(201).json({ message: '✓ Join request sent! Waiting for the organizer to accept.' });
 
-        createNotification(
-            request.senderId,
-            'JOIN_REQUEST',
-            '⚔️ New Join Request',
-            `${me.fullName || me.username} wants to join your ${request.matchType === 'DOUBLE' ? 'double' : 'single'} match in ${request.subCategory}.`,
-            { rivalId: id, fromUserId: req.userId, fromUsername: me.username, category: request.category, subCategory: request.subCategory }
-        ).catch(() => {});
     } catch (error) { next(error); }
 };
 

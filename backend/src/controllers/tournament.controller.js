@@ -446,15 +446,6 @@ export const joinTournament = async (req, res, next) => {
             include: { user: { select: { id: true, username: true, fullName: true } } },
         });
 
-        if (tournament.creatorId !== req.userId) {
-            await createNotification(
-                tournament.creatorId,
-                "TOURNAMENT_JOIN",
-                "🏾 Yeni Katılım İsteği",
-                `${participant.user.fullName || participant.user.username} "${tournament.name}" turnuvasına katılmak istiyor.`,
-                { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
-            );
-        }
 
         res.status(201).json(participant);
     } catch (e) { next(e); }
