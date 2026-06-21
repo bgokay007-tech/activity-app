@@ -546,9 +546,27 @@ export const joinTournament = async (req, res, next) => {
 
         const participant = await prisma.tournamentParticipant.create({
             data: { tournamentId: id, userId: req.userId, note, status: "PENDING", acceptedAt: null },
-            include: { user: { select: { id: true, username: true, fullName: true } } },
+            include: {
+                user: {
+                    select: {
+                        id: true, username: true, fullName: true, avatar: true,
+                        interests: {
+                            where: { category: tournament.category, subCategory: tournament.subCategory },
+                            select: { skillRating: true, level: true },
+                        },
+                    },
+                },
+            },
         });
 
+        emitToUser(tournament.creatorId, 'tournament:join_requested', { tournamentId: id, participant });
+        createNotification(
+            tournament.creatorId,
+            'TOURNAMENT_JOIN_REQUEST',
+            '📬 Katılım İsteği',
+            `${participant.user?.fullName || participant.user?.username} "${tournament.name}" turnuvasına katılmak istiyor.`,
+            { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+        ).catch(() => {});
 
         res.status(201).json(participant);
     } catch (e) { next(e); }

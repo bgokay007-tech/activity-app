@@ -2798,7 +2798,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [editMatches, setEditMatches] = useState(String(item.matchesBeforePlayoff || ''));
     const [editQualifiers, setEditQualifiers] = useState(String(item.playoffQualifiers || ''));
     const [editSetsPerMatch, setEditSetsPerMatch] = useState(String(item.setsPerMatch || 3));
-    const [editAdvantageScoring, setEditAdvantageScoring] = useState(item.advantageScoring !== false);
+    const [editAdvantageScoring, setEditAdvantageScoring] = useState(item.advantageScoring !== undefined ? item.advantageScoring : null);
     const [editLocation, setEditLocation] = useState(item.location || '');
     const [editSurface, setEditSurface] = useState(item.surface || '');
     const [editIsIndoor, setEditIsIndoor] = useState(!!item.isIndoor);
@@ -2909,6 +2909,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         const off = onSocket('tournament:cancel_requested', ({ tournamentId, userId }) => {
             if (tournamentId !== item.id) return;
             setRequests(prev => prev.map(r => r.userId === userId ? { ...r, cancelRequested: true } : r));
+        });
+        return off;
+    }, [item.id, isCreator]);
+
+    // Real-time: a participant sent a join request → add to creator's list instantly
+    useEffect(() => {
+        if (!isCreator) return;
+        const off = onSocket('tournament:join_requested', ({ tournamentId, participant }) => {
+            if (tournamentId !== item.id) return;
+            setRequests(prev => prev.some(r => r.userId === participant.userId) ? prev : [...prev, participant]);
         });
         return off;
     }, [item.id, isCreator]);
@@ -3393,7 +3403,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {item.advantageScoring !== undefined && (
                                 <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>
-                                        {item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
+                                        {item.advantageScoring === null ? t.tournFreeScoring : item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
                                     </Text>
                                 </View>
                             )}
@@ -3867,9 +3877,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>Avantaj Puanı</Text>
-                                        <Switch value={editAdvantageScoring} onValueChange={setEditAdvantageScoring} trackColor={{ true: infoColor }} />
+                                    <Text style={{ color: colors.textMuted, fontSize:13, marginBottom:6 }}>Sayı Sistemi</Text>
+                                    <View style={{ flexDirection:'row', gap:6, marginBottom:14 }}>
+                                        {[{v:true,l:'⚡ Avantajlı'},{v:false,l:'🎯 Karar Puanı'},{v:null,l:'🔓 Serbest'}].map(({v,l}) => (
+                                            <TouchableOpacity key={String(v)} onPress={() => setEditAdvantageScoring(v)}
+                                                style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, backgroundColor: editAdvantageScoring === v ? infoColor+'30' : colors.surface2, borderColor: editAdvantageScoring === v ? infoColor : colors.border }}>
+                                                <Text style={{ color: editAdvantageScoring === v ? infoColor : colors.textMuted, fontSize:10, fontWeight:editAdvantageScoring===v?'800':'500' }}>{l}</Text>
+                                            </TouchableOpacity>
+                                        ))}
                                     </View>
                                     <Text style={s.fieldLabel}>Play-Off Öncesi Maç Sayısı</Text>
                                     <View style={{ flexDirection:'row', gap:10, alignItems:'center', marginBottom:14 }}>
@@ -5104,14 +5119,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <Text style={s.fieldLabel}>{t.tournScoringLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
                                         <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.advantageScoring && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.advantageScoring === true && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                             onPress={() => set('advantageScoring', true)}>
-                                            <Text style={[s.chipText, f.advantageScoring && { color: cfg.color, fontWeight:'800' }]}>{t.tournAdvantage}</Text>
+                                            <Text style={[s.chipText, f.advantageScoring === true && { color: cfg.color, fontWeight:'800' }]}>{t.tournAdvantage}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.advantageScoring && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.advantageScoring === false && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                             onPress={() => set('advantageScoring', false)}>
-                                            <Text style={[s.chipText, !f.advantageScoring && { color: cfg.color, fontWeight:'800' }]}>{t.tournDeciding}</Text>
+                                            <Text style={[s.chipText, f.advantageScoring === false && { color: cfg.color, fontWeight:'800' }]}>{t.tournDeciding}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.advantageScoring === null && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('advantageScoring', null)}>
+                                            <Text style={[s.chipText, f.advantageScoring === null && { color: cfg.color, fontWeight:'800' }]}>{t.tournFreeScoring}</Text>
                                         </TouchableOpacity>
                                     </View>
                                     <View style={{ flexDirection:'row', gap:6 }}>

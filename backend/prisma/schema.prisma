@@ -418,7 +418,7 @@ model Tournament {
   minPlayers           Int          @default(2)
   maxPlayers           Int          @default(32)
   setsPerMatch         Int?         // 1 | 3 | 5
-  advantageScoring     Boolean      @default(true)   // true=avantajlı, false=karar puanı
+  advantageScoring     Boolean?     @default(true)   // true=avantajlı, false=karar puanı, null=serbest
   matchesBeforePlayoff Int?         // play-off öncesi kaç maç
   playoffQualifiers    Int?         // play-off'a kaç kişi kalır
   location       String?
