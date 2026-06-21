@@ -83,12 +83,17 @@ async function applyCompetitivePoints(request, winnerUserId) {
 
     const updates = [];
     for (const wi of winnerInterests) {
+        const ptsAfter = wi.totalPoints + transfer;
+        const ratingRaw = parseFloat((ptsAfter / 100 * 5).toFixed(2));
+        const bonusPts  = wi.totalPoints < 100 && ptsAfter >= 100 ? 40 : 0;
+        const ptsFinal  = ptsAfter + bonusPts;
+        const skillRatingFinal = parseFloat((ptsFinal / 100 * 5).toFixed(2));
         updates.push(prisma.userInterest.update({
             where: { id: wi.id },
             data: {
-                totalPoints: wi.totalPoints + transfer,
+                totalPoints: ptsFinal,
                 wins: wi.wins + 1,
-                skillRating: Math.min(5, parseFloat(((wi.totalPoints + transfer) / 100 * 5).toFixed(2))),
+                skillRating: skillRatingFinal,
             },
         }));
     }
@@ -890,7 +895,7 @@ export const confirmScore = async (req, res, next) => {
             ratingSnapshot[i.userId] = {
                 username: userMap[i.userId]?.username || '',
                 skillRating_before: i.skillRating,
-                skillRating_after: parseFloat((Math.min(5, ptsAfter / 100 * 5)).toFixed(2)),
+                skillRating_after: parseFloat((ptsAfter / 100 * 5).toFixed(2)),
                 change: change?.change || 0,
             };
         }

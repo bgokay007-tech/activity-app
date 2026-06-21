@@ -1362,7 +1362,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
                 const divisor = tournament.type === "1" ? 2 : 1;
                 const ratingStep = parseFloat((transfer * 0.05 / divisor).toFixed(3));
-                const wRatingAfter = Math.min(5, parseFloat((wi.skillRating + ratingStep).toFixed(3)));
+                let wRatingAfter = parseFloat((wi.skillRating + ratingStep).toFixed(3));
+                if (wi.skillRating < 5 && wRatingAfter >= 5) wRatingAfter = parseFloat((wRatingAfter + 2).toFixed(3));
                 const lRatingAfter = Math.max(0, parseFloat((li.skillRating - ratingStep).toFixed(3)));
 
                 await Promise.all([

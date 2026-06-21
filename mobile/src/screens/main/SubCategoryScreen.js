@@ -90,6 +90,8 @@ function getTabs(sub) {
 
 // ─── Small helpers ─────────────────────────────────────────────────────────────
 
+const starEmoji = (rating) => rating > 5 ? '⭐⭐⭐' : '⭐';
+
 // Returns sport alias if set, otherwise falls back to @username
 const senderAlias = (sender) => sender?.interests?.[0]?.alias || `@${sender?.username}`;
 
@@ -1211,6 +1213,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const submitScore = async () => {
         if (!hasAnyInput) { Alert.alert('', t.missingScore); return; }
+        if (match.subCategory === 'tennis' || match.subCategory === 'padel') {
+            for (const r of sets) {
+                const p1 = parseInt(r.my) || 0, p2 = parseInt(r.opp) || 0;
+                if (p1 === 0 && p2 === 0) continue;
+                const hi = Math.max(p1, p2), lo = Math.min(p1, p2);
+                const valid = (hi === 6 && lo <= 4) || (hi === 7 && (lo === 5 || lo === 6));
+                if (!valid) {
+                    Alert.alert('Geçersiz Set Skoru', `${p1}-${p2} geçersiz. Tenis/Padel setinde kazanan 6 (max 6-4) veya 7-5/7-6 ile bitmelidir.`);
+                    return;
+                }
+            }
+        }
         setSubmitting(true);
         try {
             const apiSets = sets.map(r => ({
@@ -2759,7 +2773,7 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
 
 const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t.tournType3 });
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
-const SURFACE_LABEL = { CLAY:'Toprak', HARD:'Sert Zemin', GRASS:'Çim', CARPET:'Suni Zemin', HALI_SAHA:'Halı Saha', CIM_SAHA:'Çim Saha', FUTSAL:'Futsal', SOKAK:'Sokak', INDOOR:'Kapalı Salon', BEACH:'Plaj' };
+const SURFACE_LABEL = { CLAY:'Toprak', HARD:'Sert Zemin', GRASS:'Çim', CARPET:'Suni Zemin', ARTIFICIAL:'Suni Çim', GLASS:'Cam', INDOOR:'Kapalı Salon', HALI_SAHA:'Halı Saha', CIM_SAHA:'Çim Saha', FUTSAL:'Futsal', SOKAK:'Sokak', BEACH:'Plaj' };
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
 function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated }) {
@@ -3095,6 +3109,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const submitScore = async () => {
         if (!scoreEntry) return;
         const sets = scoreSets.map(s => ({ p1: parseInt(s.p1) || 0, p2: parseInt(s.p2) || 0 }));
+        if (item.subCategory === 'tennis' || item.subCategory === 'padel') {
+            for (const s of sets) {
+                if (s.p1 === 0 && s.p2 === 0) continue;
+                const hi = Math.max(s.p1, s.p2), lo = Math.min(s.p1, s.p2);
+                const valid = (hi === 6 && lo <= 4) || (hi === 7 && (lo === 5 || lo === 6));
+                if (!valid) {
+                    Alert.alert('Geçersiz Set Skoru', `${s.p1}-${s.p2} geçersiz. Tenis/Padel setinde kazanan 6 (max 6-4) veya 7-5/7-6 ile bitmelidir.`);
+                    return;
+                }
+            }
+        }
         let p1Wins = 0, p2Wins = 0;
         for (const s of sets) {
             if (s.p1 > s.p2) p1Wins++; else if (s.p2 > s.p1) p2Wins++;
@@ -3514,7 +3539,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {standings.map((row, i) => (
                                 <View key={row.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < standings.length-1 ? 1 : 0, borderBottomColor: colors.border+'30' }}>
                                     <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>
-                                        {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ⭐ ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
+                                        {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ${starEmoji(Number(skillRatingMap[row.id]))} ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
                                     </Text>
                                     {[row.played, row.won, row.lost, (() => { const d = row.setsWon - row.setsLost; return (d >= 0 ? "+" : "") + d; })(), row.points].map((v,j) => (
                                         <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
@@ -3566,8 +3591,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
                                                                 const isW = isDone && match.winnerId === match.p1Id;
                                                                 const eloStr = hasRating
-                                                                    ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
-                                                                    : (match.p1Id && skillRatingMap[match.p1Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
+                                                                    ? `  ${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                    : (match.p1Id && skillRatingMap[match.p1Id] != null ? `  ${starEmoji(Number(skillRatingMap[match.p1Id]))} ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
                                                                 return (
                                                                     <View style={{ flexDirection:'row', alignItems:'center' }}>
                                                                         <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>
@@ -3591,8 +3616,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
                                                                 const isW = isDone && match.winnerId === match.p2Id;
                                                                 const eloStr = hasRating
-                                                                    ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
-                                                                    : (match.p2Id && skillRatingMap[match.p2Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
+                                                                    ? `  ${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                    : (match.p2Id && skillRatingMap[match.p2Id] != null ? `  ${starEmoji(Number(skillRatingMap[match.p2Id]))} ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
                                                                 return (
                                                                     <View style={{ flexDirection:'row', alignItems:'center' }}>
                                                                         <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>
@@ -3998,7 +4023,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 </View>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                     {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
                                                 </View>
                                                 {r.cancelRequested && (
@@ -4024,7 +4049,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     </View>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                         {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
                                                     </View>
                                                     {r.cancelRequested && (
@@ -4096,7 +4121,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || r.user?.fullName || r.user?.username}</Text>
                                                 {r.manualName
                                                     ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
-                                                    : <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    : <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                 }
                                                 {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti (24s kuralı)</Text>}
                                             </View>
@@ -4170,7 +4195,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 </View>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                 </View>
                                             </View>
                                         ))}
@@ -4185,7 +4210,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     </View>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                     </View>
                                                 </View>
                                             ))}
@@ -4219,7 +4244,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </View>
                                             <View style={{ flex:1 }}>
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ⭐ ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                             </View>
                                         </View>
                                     );
