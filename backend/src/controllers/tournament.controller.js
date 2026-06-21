@@ -1545,8 +1545,9 @@ export const useJoker = async (req, res, next) => {
                 where: { tournamentId: id },
                 orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
             });
-            for (const p of tournament.participants) {
-                if (p.userId) emitToUser(p.userId, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
+            const matchPlayers = [match.p1Id, match.p2Id].filter(Boolean);
+            for (const userId of matchPlayers) {
+                emitToUser(userId, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
             }
             return allMatches;
         };
