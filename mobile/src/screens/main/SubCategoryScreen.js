@@ -3682,20 +3682,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const myJokerRequested = match.p1Id === myId ? match.p1JokerRequested : match.p2JokerRequested;
                                                                 const otherJokerRequested = match.p1Id === myId ? match.p2JokerRequested : match.p1JokerRequested;
                                                                 if (myJokerRequested) return null;
+                                                                const jokerLabel = otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker';
+                                                                const confirmMsg = otherJokerRequested
+                                                                    ? 'Rakibiniz de joker istedi. Karşılıklı joker kabul edilecek ve süre 7 gün uzatılacak, joker hakkınız korunacak. Emin misiniz?'
+                                                                    : 'Joker hakkınızı bu maç için kullanmak istediğinizden emin misiniz? Süre 7 gün uzatılacak ve joker hakkınız tükenecek.';
                                                                 return (
                                                                     <TouchableOpacity
-                                                                        onPress={async () => {
-                                                                            try {
-                                                                                const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/joker`);
-                                                                                Alert.alert('🃏 Joker', data.message);
-                                                                                fetchMatches();
-                                                                            } catch (e) {
-                                                                                Alert.alert('Hata', e?.response?.data?.message || 'Joker kullanılamadı.');
-                                                                            }
-                                                                        }}
+                                                                        onPress={() => Alert.alert(jokerLabel, confirmMsg, [
+                                                                            { text: 'Vazgeç', style: 'cancel' },
+                                                                            { text: 'Evet, Kullan', style: 'destructive', onPress: async () => {
+                                                                                try {
+                                                                                    const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/joker`);
+                                                                                    await fetchMatches();
+                                                                                    Alert.alert('🃏 Joker', data.message);
+                                                                                } catch (e) {
+                                                                                    Alert.alert('Hata', e?.response?.data?.message || 'Joker kullanılamadı.');
+                                                                                }
+                                                                            }},
+                                                                        ])}
                                                                         style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60' }}>
                                                                         <Text style={{ color: otherJokerRequested ? '#c084fc' : '#93c5fd', fontSize:9, fontWeight:'700' }}>
-                                                                            {otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker'}
+                                                                            {jokerLabel}
                                                                         </Text>
                                                                     </TouchableOpacity>
                                                                 );
