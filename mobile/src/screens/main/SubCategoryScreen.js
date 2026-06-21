@@ -3037,7 +3037,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     const openScoreEntry = (match) => {
         setScoreEntry({ matchId: match.id, p1Name: match.p1Name, p2Name: match.p2Name });
-        setScoreSets(Array.from({ length: numSets }, () => ({ p1: '', p2: '' })));
+        const initialCount = numSets >= 3 ? 2 : numSets;
+        setScoreSets(Array.from({ length: initialCount }, () => ({ p1: '', p2: '' })));
+    };
+
+    const updateTournSet = (si, field, val) => {
+        setScoreSets(prev => {
+            if (numSets < 3) {
+                return prev.map((s, i) => i === si ? { ...s, [field]: val.replace(/[^0-9]/, '') } : s);
+            }
+            if (si < 2) {
+                const updated = prev.slice(0, 2).map((s, i) => i === si ? { ...s, [field]: val.replace(/[^0-9]/, '') } : s);
+                let p1W = 0, p2W = 0;
+                updated.forEach(s => {
+                    const p1 = parseInt(s.p1) || 0, p2 = parseInt(s.p2) || 0;
+                    if (p1 > p2) p1W++; else if (p2 > p1) p2W++;
+                });
+                if (p1W === 1 && p2W === 1) return [...updated, { p1: '', p2: '' }];
+                return updated;
+            }
+            return prev.map((s, i) => i === si ? { ...s, [field]: val.replace(/[^0-9]/, '') } : s);
+        });
     };
 
     const submitScore = async () => {
@@ -3575,16 +3595,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             </View>
                                                             {scoreSets.map((set, si) => (
                                                                 <View key={si} style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
-                                                                    <Text style={{ color: colors.textMuted, fontSize:11, width:54 }}>{si+1}. Set</Text>
+                                                                    <Text style={{ color: si === 2 ? '#f59e0b' : colors.textMuted, fontSize:11, width:54 }}>{si === 2 ? '🔥 3.' : `${si+1}.`} Set</Text>
                                                                     <TextInput
                                                                         style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
                                                                         value={set.p1}
-                                                                        onChangeText={v => setScoreSets(prev => prev.map((s,i2) => i2===si ? {...s, p1:v.replace(/[^0-9]/,'')} : s))}
+                                                                        onChangeText={v => updateTournSet(si, 'p1', v)}
                                                                         keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
                                                                     <TextInput
                                                                         style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
                                                                         value={set.p2}
-                                                                        onChangeText={v => setScoreSets(prev => prev.map((s,i2) => i2===si ? {...s, p2:v.replace(/[^0-9]/,'')} : s))}
+                                                                        onChangeText={v => updateTournSet(si, 'p2', v)}
                                                                         keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
                                                                 </View>
                                                             ))}
