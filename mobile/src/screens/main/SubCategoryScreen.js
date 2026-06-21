@@ -3552,13 +3552,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                                         <View style={{ flex:1 }}>
                                                                             {(() => {
-                                                                                const rA = match.score?.p1RatingAfter;
+                                                                                const sc = match.score;
+                                                                                const rB = sc?.p1RatingBefore;
+                                                                                const rA = sc?.p1RatingAfter;
+                                                                                const hasRating = rB != null && rA != null;
+                                                                                const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
                                                                                 const isW = isDone && match.winnerId === match.p1Id;
-                                                                                const elo = rA != null ? rA : (match.p1Id && skillRatingMap[match.p1Id] != null ? Number(skillRatingMap[match.p1Id]) : null);
+                                                                                const eloStr = hasRating
+                                                                                    ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                                    : (match.p1Id && skillRatingMap[match.p1Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
                                                                                 return (
                                                                                     <View style={{ flexDirection:'row', alignItems:'center' }}>
                                                                                         <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                                                                            {match.p1Name || 'TBD'}{elo != null ? `  ⭐${elo.toFixed(2)}` : ''}
+                                                                                            {match.p1Name || 'TBD'}{eloStr}
                                                                                         </Text>
                                                                                         {isDone && mSets.length > 0 && (
                                                                                             <View style={{ flexDirection:'row', gap:5, paddingLeft:4 }}>
@@ -3571,13 +3577,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                             })()}
                                                                             <Text style={{ color: colors.textMuted, fontSize:10 }}>vs</Text>
                                                                             {(() => {
-                                                                                const rA = match.score?.p2RatingAfter;
+                                                                                const sc = match.score;
+                                                                                const rB = sc?.p2RatingBefore;
+                                                                                const rA = sc?.p2RatingAfter;
+                                                                                const hasRating = rB != null && rA != null;
+                                                                                const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
                                                                                 const isW = isDone && match.winnerId === match.p2Id;
-                                                                                const elo = rA != null ? rA : (match.p2Id && skillRatingMap[match.p2Id] != null ? Number(skillRatingMap[match.p2Id]) : null);
+                                                                                const eloStr = hasRating
+                                                                                    ? `  ⭐ ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                                    : (match.p2Id && skillRatingMap[match.p2Id] != null ? `  ⭐ ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
                                                                                 return (
                                                                                     <View style={{ flexDirection:'row', alignItems:'center' }}>
                                                                                         <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                                                                            {match.p2Name || 'TBD'}{elo != null ? `  ⭐${elo.toFixed(2)}` : ''}
+                                                                                            {match.p2Name || 'TBD'}{eloStr}
                                                                                         </Text>
                                                                                         {isDone && mSets.length > 0 && (
                                                                                             <View style={{ flexDirection:'row', gap:5, paddingLeft:4 }}>
