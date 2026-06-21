@@ -970,10 +970,18 @@ export const updateTournament = async (req, res, next) => {
 export const deleteTournament = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        const tournament = await prisma.tournament.findUnique({
+            where: { id },
+            include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
+        });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.creatorId !== req.userId && !req.isAdmin) return res.status(403).json({ message: 'Not authorized' });
         await prisma.tournament.delete({ where: { id } });
+        for (const p of tournament.participants) {
+            if (p.userId && p.userId !== req.userId) {
+                emitToUser(p.userId, 'tournament:deleted', { tournamentId: id });
+            }
+        }
         res.json({ message: 'Tournament deleted' });
     } catch (e) { next(e); }
 };

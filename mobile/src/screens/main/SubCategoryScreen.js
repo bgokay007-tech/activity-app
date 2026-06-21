@@ -5621,6 +5621,14 @@ export default function SubCategoryScreen({ route, navigation }) {
         ]);
     }, [loadTournaments, t]);
 
+    // Real-time: tournament deleted by creator → remove from list instantly
+    useEffect(() => {
+        const off = onSocket('tournament:deleted', ({ tournamentId }) => {
+            setTournaments(prev => prev.filter(t => t.id !== tournamentId));
+        });
+        return off;
+    }, []);
+
     // Real-time updates via socket
     useEffect(() => {
         const offUpdate = onSocket('rivalUpdate', (updated) => {
