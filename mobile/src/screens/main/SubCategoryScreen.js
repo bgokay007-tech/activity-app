@@ -2156,8 +2156,9 @@ function TimeGridModal({ visible, title, value, onSelect, onClose }) {
                         data={times}
                         keyExtractor={item => item}
                         numColumns={4}
+                        style={{ flex: 1 }}
                         columnWrapperStyle={{ gap: 8, marginBottom: 8 }}
-                        showsVerticalScrollIndicator={false}
+                        showsVerticalScrollIndicator={true}
                         renderItem={({ item }) => (
                             <TouchableOpacity
                                 style={[tg.cell, value === item && tg.cellActive]}
