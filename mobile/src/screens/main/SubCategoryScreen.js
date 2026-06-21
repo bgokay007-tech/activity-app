@@ -5247,6 +5247,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
+    const [tournSubTab, setTournSubTab] = useState('open');
     const [archiveTournaments, setArchiveTournaments] = useState([]);
     const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
     const [selectedArchiveTournament, setSelectedArchiveTournament] = useState(null);
@@ -5940,6 +5941,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'tournaments' && (() => {
                         const inProgress = filteredTournaments.filter(t => t.status === 'IN_PROGRESS');
                         const open = filteredTournaments.filter(t => t.status === 'OPEN');
+                        const shown = tournSubTab === 'open' ? open : inProgress;
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -5968,34 +5970,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                     <CityAlertBtn tab="tournaments" />
                                 </View>
+
+                                {/* Sub-tab: Açık İlanlar / Devam Eden */}
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                    {[
+                                        { key:'open',       label:`📋 Açık İlanlar`, count: open.length },
+                                        { key:'inprogress', label:`🏆 Devam Eden`,    count: inProgress.length },
+                                    ].map(st => (
+                                        <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
+                                            style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: tournSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: tournSubTab===st.key ? cfg.color : colors.border }}>
+                                            <Text style={{ color: tournSubTab===st.key ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>
+                                                {st.label}{st.count > 0 ? `  ${st.count}` : ''}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
                                 <CompactFilter showDateChips={true} />
 
                                 {loadingTournaments
                                     ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
                                     : (<>
-                                        {inProgress.length > 0 && (
-                                            <>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:8, marginBottom:4 }}>
-                                                    <View style={{ flex:1, height:1, backgroundColor:'#16a34a40' }} />
-                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>🏆 Devam Eden Turnuvalar</Text>
-                                                    <View style={{ flex:1, height:1, backgroundColor:'#16a34a40' }} />
-                                                </View>
-                                                {inProgress.map(renderCard)}
-                                            </>
+                                        {shown.map(renderCard)}
+                                        {shown.length === 0 && (
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? 'Açık turnuva ilanı yok' : 'Devam eden turnuva yok'} />
                                         )}
-                                        {open.length > 0 && (
-                                            <>
-                                                {inProgress.length > 0 && (
-                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:12, marginBottom:4 }}>
-                                                        <View style={{ flex:1, height:1, backgroundColor: cfg.color+'40' }} />
-                                                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>📋 Açık Turnuvalar</Text>
-                                                        <View style={{ flex:1, height:1, backgroundColor: cfg.color+'40' }} />
-                                                    </View>
-                                                )}
-                                                {open.map(renderCard)}
-                                            </>
-                                        )}
-                                        {tournaments.length === 0 && <EmptyState emoji="🏆" text={t.emptyTournaments} />}
                                     </>)
                                 }
                             </>
