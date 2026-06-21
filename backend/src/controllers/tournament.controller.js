@@ -1143,10 +1143,34 @@ export const rematchTournament = async (req, res, next) => {
 export const getTournamentMatches = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const matches = await prisma.tournamentMatch.findMany({
-            where: { tournamentId: id },
-            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
-        });
+        const [tournament, rawMatches] = await Promise.all([
+            prisma.tournament.findUnique({ where: { id }, select: { type: true, eventDate: true, eventTime: true } }),
+            prisma.tournamentMatch.findMany({ where: { tournamentId: id }, orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }] }),
+        ]);
+
+        // Tip '1' turnuvalar: eventDate + round*7 gün baz alınarak yanlış deadline'ları düzelt
+        let matches = rawMatches;
+        if (tournament?.type === '1' && tournament.eventDate) {
+            const base = new Date(tournament.eventDate);
+            if (tournament.eventTime) {
+                const [h, m] = tournament.eventTime.split(':').map(Number);
+                base.setHours(h, m, 0, 0);
+            }
+            const fixes = [];
+            matches = rawMatches.map(m => {
+                if (m.phase !== 'GROUP' || m.status !== 'PENDING' || !m.round) return m;
+                const correct = new Date(base);
+                correct.setDate(correct.getDate() + m.round * 7);
+                const current = m.deadline ? new Date(m.deadline) : null;
+                if (!current || Math.abs(current.getTime() - correct.getTime()) > 60 * 1000) {
+                    fixes.push(prisma.tournamentMatch.update({ where: { id: m.id }, data: { deadline: correct } }));
+                    return { ...m, deadline: correct };
+                }
+                return m;
+            });
+            if (fixes.length > 0) await Promise.all(fixes);
+        }
+
         res.json(matches);
     } catch (e) { next(e); }
 };
