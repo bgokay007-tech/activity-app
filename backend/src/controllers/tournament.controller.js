@@ -3,6 +3,14 @@ import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 
+// Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
+function tournamentBaseDate(tournament) {
+    if (!tournament.eventDate) return new Date();
+    const dateStr = new Date(tournament.eventDate).toISOString().split('T')[0];
+    const timeStr = tournament.eventTime || '00:00';
+    return new Date(`${dateStr}T${timeStr}:00+03:00`);
+}
+
 // ─── Tournament bracket helpers ───────────────────────────────────────────────
 
 function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
@@ -260,16 +268,7 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
         }
     }
 
-    let baseDate;
-    if (tournament.eventDate) {
-        baseDate = new Date(tournament.eventDate);
-        if (tournament.eventTime) {
-            const [h, m] = tournament.eventTime.split(':').map(Number);
-            baseDate.setHours(h, m, 0, 0);
-        }
-    } else {
-        baseDate = new Date();
-    }
+    const baseDate = tournamentBaseDate(tournament);
     const deadline = new Date(baseDate);
     deadline.setDate(deadline.getDate() + nextRound * 7);
 
@@ -300,11 +299,7 @@ export const fixGroupDeadlines = async (req, res, next) => {
         }
         if (!tournament.eventDate) return res.status(400).json({ message: 'Turnuvada başlangıç tarihi yok' });
 
-        const base = new Date(tournament.eventDate);
-        if (tournament.eventTime) {
-            const [h, m] = tournament.eventTime.split(':').map(Number);
-            base.setHours(h, m, 0, 0);
-        }
+        const base = tournamentBaseDate(tournament);
 
         const groupMatches = await prisma.tournamentMatch.findMany({
             where: { tournamentId: id, phase: 'GROUP' },
@@ -1081,16 +1076,7 @@ export const startTournament = async (req, res, next) => {
         const freq   = tournament.matchFrequency  || 'FLEXIBLE';
         const daysPerRound = freq === 'WEEKLY_1' ? 7 : freq === 'WEEKLY_2' ? 4 : null;
 
-        let baseDate;
-        if (tournament.eventDate) {
-            baseDate = new Date(tournament.eventDate);
-            if (tournament.eventTime) {
-                const [h, m] = tournament.eventTime.split(':').map(Number);
-                baseDate.setHours(h, m, 0, 0);
-            }
-        } else {
-            baseDate = new Date();
-        }
+        const baseDate = tournamentBaseDate(tournament);
 
         let matches;
 
@@ -1249,11 +1235,7 @@ export const getTournamentMatches = async (req, res, next) => {
         // Tip '1' turnuvalar: eventDate + round*7 gün baz alınarak yanlış deadline'ları düzelt
         let matches = rawMatches;
         if (tournament?.type === '1' && tournament.eventDate) {
-            const base = new Date(tournament.eventDate);
-            if (tournament.eventTime) {
-                const [h, m] = tournament.eventTime.split(':').map(Number);
-                base.setHours(h, m, 0, 0);
-            }
+            const base = tournamentBaseDate(tournament);
             const fixes = [];
             matches = rawMatches.map(m => {
                 if (m.phase !== 'GROUP' || m.status !== 'PENDING' || !m.round) return m;
