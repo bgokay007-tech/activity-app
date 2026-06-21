@@ -83,7 +83,7 @@ export async function notifyCitySubscribers({ subCategory, category, senderCity,
         const tabLabel  = TAB_LABELS_TR[tab] || tab;
 
         const subscribers = await prisma.cityAlert.findMany({
-            where: { subCategory, city: senderCity, tab },
+            where: { subCategory, city: { equals: senderCity, mode: 'insensitive' }, tab },
             select: { userId: true },
         });
         console.log(`[cityAlert] tab=${tab} senderId=${senderId} senderCity=${senderCity} sub=${subCategory} — found ${subscribers.length} subscriber(s)`);

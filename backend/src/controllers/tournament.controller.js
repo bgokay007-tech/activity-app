@@ -725,6 +725,8 @@ export const cancelJoin = async (req, res, next) => {
             await _promoteOnCancel(id, tournament);
         }
 
+        emitToUser(tournament.creatorId, 'tournament:join_cancelled', { tournamentId: id, userId: req.userId });
+
         res.json({ message: 'Registration cancelled' });
     } catch (e) { next(e); }
 };

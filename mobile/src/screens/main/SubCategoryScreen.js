@@ -2480,11 +2480,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                     <View style={{ flexDirection:'row', gap:6 }}>
                                         <TouchableOpacity style={{ flex:1, backgroundColor:colors.surface2, borderRadius:10, padding:3, borderWidth:1, borderColor: f.minRating ? colors.purple+'80' : colors.border, alignItems:'center' }} onPress={() => setRatingPickerTarget('min')}>
                                             <Text style={s.triLabel}>{t.minRatingLabel}</Text>
-                                            <Text style={[s.triValue, !f.minRating && s.triPlaceholder]}>{f.minRating ? `${f.minRating} ★` : '—'}</Text>
+                                            <Text style={[s.triValue, !f.minRating && s.triPlaceholder]}>{f.minRating ? `${f.minRating} ★` : 'Serbest'}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={{ flex:1, backgroundColor:colors.surface2, borderRadius:10, padding:3, borderWidth:1, borderColor: f.maxRating ? colors.purple+'80' : colors.border, alignItems:'center' }} onPress={() => setRatingPickerTarget('max')}>
                                             <Text style={s.triLabel}>{t.maxRatingLabel}</Text>
-                                            <Text style={[s.triValue, !f.maxRating && s.triPlaceholder]}>{f.maxRating ? `${f.maxRating} ★` : '—'}</Text>
+                                            <Text style={[s.triValue, !f.maxRating && s.triPlaceholder]}>{f.maxRating ? `${f.maxRating} ★` : 'Serbest'}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -2909,6 +2909,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         const off = onSocket('tournament:cancel_requested', ({ tournamentId, userId }) => {
             if (tournamentId !== item.id) return;
             setRequests(prev => prev.map(r => r.userId === userId ? { ...r, cancelRequested: true } : r));
+        });
+        return off;
+    }, [item.id, isCreator]);
+
+    // Real-time: a participant cancelled their join request → remove from creator's list
+    useEffect(() => {
+        if (!isCreator) return;
+        const off = onSocket('tournament:join_cancelled', ({ tournamentId, userId }) => {
+            if (tournamentId !== item.id) return;
+            setRequests(prev => prev.filter(r => r.userId !== userId));
         });
         return off;
     }, [item.id, isCreator]);
@@ -5139,7 +5149,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Alt Derece</Text>
                                     <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: f.minRating ? cfg.color : colors.border }}>
                                         <Text style={{ color: f.minRating ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                            {f.minRating ? `${f.minRating}★` : '—'}
+                                            {f.minRating ? `${f.minRating}★` : 'Serbest'}
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
@@ -5147,7 +5157,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Üst Derece</Text>
                                     <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: f.maxRating ? cfg.color : colors.border }}>
                                         <Text style={{ color: f.maxRating ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                            {f.maxRating ? `${f.maxRating}★` : '—'}
+                                            {f.maxRating ? `${f.maxRating}★` : 'Serbest'}
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
