@@ -3548,7 +3548,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                             const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                             return (
-                                                <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
+                                                <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:3, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
                                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                         <View style={{ flex:1 }}>
                                                             {(() => {
@@ -3617,7 +3617,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             })()}
                                                             {isReady && (isCreator || myIsAdmin || match.p1Id === myId || match.p2Id === myId) && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                    style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
+                                                                    style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
                                                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>Skor Gir</Text>
                                                                 </TouchableOpacity>
                                                             )}
@@ -3637,7 +3637,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                                 Alert.alert('Hata', e?.response?.data?.message || 'Joker kullanılamadı.');
                                                                             }
                                                                         }}
-                                                                        style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60' }}>
+                                                                        style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60' }}>
                                                                         <Text style={{ color: otherJokerRequested ? '#c084fc' : '#93c5fd', fontSize:9, fontWeight:'700' }}>
                                                                             {otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker'}
                                                                         </Text>
@@ -3646,7 +3646,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             })()}
                                                             {isDone && isCreator && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                    style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:6, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
+                                                                    style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
                                                                     <Text style={{ color:'#fbbf24', fontSize:12 }}>✏️</Text>
                                                                     <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>Düzelt</Text>
                                                                 </TouchableOpacity>
@@ -6667,7 +6667,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                         const p1SW2 = mSets2.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                                                         const p2SW2 = mSets2.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                                                         return (
-                                                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
+                                                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:3, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
                                                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                                                     <View style={{ flex:1 }}>
                                                                                         <View style={{ flexDirection:'row', alignItems:'center' }}>
