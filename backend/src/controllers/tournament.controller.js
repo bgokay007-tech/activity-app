@@ -1392,7 +1392,10 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             const interests = [...existing, ...created];
             const wi = interests.find(i => i.userId === winnerId_e);
             const li = interests.find(i => i.userId === loserId_e);
-            if (wi && li) {
+            // Taraflardan biri bu kategoride hiç oynamamışsa (derecesi bilinmiyor),
+            // rakibinin puanını bilinmeyen bir seviyeye göre değiştirmek anlamsız —
+            // hiçbir tarafın puanı artmaz/azalmaz.
+            if (wi && li && missing.length === 0) {
                 const ratingDiff = Math.abs(wi.skillRating - li.skillRating);
                 let winnerGames = 0, totalGames = 0;
                 for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
