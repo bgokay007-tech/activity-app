@@ -424,6 +424,14 @@ export default function ProfileScreen({ route, navigation }) {
         finally { setLoadingPerms(false); }
     };
 
+    // Opened from a "Turnuva İzin Talebi" notification tap
+    useEffect(() => {
+        if (route?.params?.openTournamentPermissions) {
+            openAdminPanel();
+            navigation.setParams({ openTournamentPermissions: undefined });
+        }
+    }, [route?.params?.openTournamentPermissions]);
+
     const handlePermApprove = async (userId) => {
         try {
             await api.patch(`/admin/tournament-permissions/${userId}/approve`);

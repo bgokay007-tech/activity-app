@@ -99,6 +99,8 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('rivals');
         } else if (type === 'MATCH_COMMENT') {
             goToSub('rivals');
+        } else if (type === 'TOURNAMENT_PERMISSION_REQUEST') {
+            navigation.push('Profile', { openTournamentPermissions: true });
         } else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') {
             goToSub('tournaments');
         } else if (data.category && data.subCategory) {
