@@ -94,7 +94,7 @@ export async function notifyCitySubscribers({ subCategory, category, senderCity,
                 sub.userId, 'NEW_LISTING',
                 `📍 ${senderCity} — Yeni ${sportName} ${tabLabel}`,
                 `@${senderUsername} yeni bir ${sportName} ${tabLabel.toLowerCase()} ekledi.`,
-                { category, subCategory, rivalId: itemId }
+                { category, subCategory, rivalId: itemId, tab }
             ).catch(() => {});
         }
     } catch (err) { console.error('[cityAlert] notifyCitySubscribers error:', err.message); }
