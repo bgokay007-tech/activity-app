@@ -1,6 +1,5 @@
 import prisma from '../config/prisma.js';
 import bcrypt from 'bcryptjs';
-import { createNotification } from './notification.controller.js';
 
 const DEMO_TENNIS_PLAYERS = [
     { username: 'demo_t_rafael',  fullName: 'Rafael Moreno',    level: 'PRO',          skillRating: 4.90, wins: 31, losses: 2  },
@@ -197,14 +196,9 @@ export const seedOneTournamentJoin = async (req, res, next) => {
             },
         });
 
-        // Notify tournament creator
-        await createNotification(
-            tournament.creatorId,
-            'TOURNAMENT_JOIN',
-            '🎾 New Join Request',
-            `${demo.fullName} wants to join "${tournament.name}"`,
-            { tournamentId, userId: user.id, category: tournament.category.toLowerCase(), subCategory: tournament.subCategory },
-        );
+        // No notification/push here on purpose — this fires once per demo player (up to 40x
+        // in a row) when seeding test participants, which would otherwise flood the creator
+        // with real push notifications for fake joins.
 
         res.status(201).json({ participant, remaining: DEMO_TENNIS_PLAYERS.length - idx - 1 });
     } catch (error) {
