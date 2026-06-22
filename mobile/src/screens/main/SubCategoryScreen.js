@@ -3737,7 +3737,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     </TouchableOpacity>
                                                                 );
                                                             })()}
-                                                            {isDone && isCreator && !isEntering && (
+                                                            {isDone && (isCreator || myIsAdmin) && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
                                                                     <Text style={{ color:'#fbbf24', fontSize:12 }}>✏️</Text>
