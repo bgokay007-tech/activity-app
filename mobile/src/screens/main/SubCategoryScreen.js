@@ -2783,6 +2783,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
     useEffect(() => { setMyStatus(myPart?.status ?? null); }, [myPart?.status]);
     const isCreator = item.creatorId === myId;
+    const [collapsed, setCollapsed] = useState(item.status === 'IN_PROGRESS');
     const typeLabels = TOURN_TYPE_LABELS(t);
     const [showRules, setShowRules] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -3324,7 +3325,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             {/* Header */}
             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                 <View style={{ flex:1, gap:2 }}>
-                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{item.name}</Text>
+                    {item.status === 'IN_PROGRESS' ? (
+                        <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => setCollapsed(c => !c)}>
+                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{item.name}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:13 }}>{collapsed ? '▶' : '▼'}</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{item.name}</Text>
+                    )}
+                    {!collapsed && (<>
                     <Text style={{ color: colors.textMuted, fontSize:11 }}>
                         {SCOPE_EMOJI[item.scope] || '📍'} {item.city || ''}{item.city && ' · '}{typeLabels[item.type] || item.type}
                         {item.genderType ? ` · ${t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType}` : ''}
@@ -3427,7 +3436,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             )}
                         </View>
                     )}
+                    </>)}
                 </View>
+                {!collapsed && (
                 <View style={{ alignItems:'flex-end', gap:4 }}>
                     <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : infoColor + '50' }}>
                         <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : infoColor, fontSize:10, fontWeight:'800' }}>
@@ -3535,6 +3546,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </TouchableOpacity>
                     </>)}
                 </View>
+                )}
             </View>
 
         {/* IN_PROGRESS / COMPLETED: matches modal open button */}
