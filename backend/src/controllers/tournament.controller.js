@@ -447,10 +447,12 @@ export const createTournament = async (req, res, next) => {
 
         // Notify city-alert subscribers for tournaments tab (async, non-blocking)
         const creatorInfo = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true, username: true } }).catch(() => null);
+        // tournament.city can be "İl / İlçe" (district appended) — alerts subscribe by plain province only
+        const province = (tournament.city || creatorInfo?.city || '').split('/')[0].trim() || null;
         notifyCitySubscribers({
             subCategory: tournament.subCategory,
             category: tournament.category,
-            senderCity: tournament.city || creatorInfo?.city || null,
+            senderCity: province,
             senderUsername: creatorInfo?.username || '',
             senderId: req.userId,
             itemId: tournament.id,
