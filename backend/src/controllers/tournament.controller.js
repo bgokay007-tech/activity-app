@@ -477,7 +477,14 @@ export const getTournaments = async (req, res, next) => {
             },
         });
 
-        const where = { status: { notIn: ['CANCELLED', 'COMPLETED'] } };
+        // Completed tournaments drop off the live list for everyone except their creator,
+        // who still needs access to correct match scores after the tournament auto-completes.
+        const where = {
+            OR: [
+                { status: { notIn: ['CANCELLED', 'COMPLETED'] } },
+                { status: 'COMPLETED', creatorId: req.userId },
+            ],
+        };
         if (category)    where.category    = category;
         if (subCategory) where.subCategory = subCategory;
 
@@ -1325,7 +1332,9 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             },
         });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        if (tournament.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Tournament not in progress' });
+        // COMPLETED allowed too — creator may still need to correct a score after the
+        // tournament auto-completed when its last pending match was scored.
+        if (!['IN_PROGRESS', 'COMPLETED'].includes(tournament.status)) return res.status(400).json({ message: 'Tournament not in progress' });
 
         const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
         if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Match not found' });
@@ -1344,6 +1353,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         }
         const winnerId = winner === 'p1' ? match.p1Id : match.p2Id;
         const loserId  = winner === 'p1' ? match.p2Id : match.p1Id;
+        const isCorrection = match.status === 'COMPLETED';
 
         // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5)
         let p1EloDelta = 0, p2EloDelta = 0;
@@ -1460,7 +1470,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         }
 
         // Bireysel Rekabetçi (type '1'): dinamik tur yönetimi
-        if (tournament.type === '1' && match.phase === 'GROUP') {
+        // Sadece ilk skor girişinde — bir düzeltme zaten oluşturulmuş turu tekrar oluşturmasın
+        if (!isCorrection && tournament.type === '1' && match.phase === 'GROUP') {
             const allGroupMatches = await prisma.tournamentMatch.findMany({
                 where: { tournamentId: id, phase: 'GROUP' },
             });
@@ -1538,7 +1549,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const pendingCount = await prisma.tournamentMatch.count({
             where: { tournamentId: id, status: 'PENDING' },
         });
-        if (pendingCount === 0) {
+        if (pendingCount === 0 && tournament.status !== 'COMPLETED') {
             await prisma.tournament.update({
                 where: { id },
                 data: { status: 'COMPLETED', completedAt: new Date() },

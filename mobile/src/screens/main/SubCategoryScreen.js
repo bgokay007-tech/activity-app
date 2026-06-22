@@ -3429,9 +3429,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     )}
                 </View>
                 <View style={{ alignItems:'flex-end', gap:4 }}>
-                    <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : infoColor + '50' }}>
-                        <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : infoColor, fontSize:10, fontWeight:'800' }}>
-                            {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : t.tournStatusOpen}
+                    <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : infoColor + '50' }}>
+                        <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : infoColor, fontSize:10, fontWeight:'800' }}>
+                            {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : t.tournStatusOpen}
                         </Text>
                     </View>
                     {isCreator ? (<>
@@ -3537,8 +3537,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </View>
             </View>
 
-        {/* IN_PROGRESS: matches modal open button */}
-        {item.status === 'IN_PROGRESS' && (
+        {/* IN_PROGRESS / COMPLETED: matches modal open button */}
+        {(item.status === 'IN_PROGRESS' || item.status === 'COMPLETED') && (
             <TouchableOpacity
                 style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
                 onPress={() => { fetchMatches(); if (!isCreator && participants.length === 0) fetchParticipants(); setShowMatchesModal(true); }}>
@@ -5981,7 +5981,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'tournaments' && (() => {
                         const inProgress = filteredTournaments.filter(t => t.status === 'IN_PROGRESS');
                         const open = filteredTournaments.filter(t => t.status === 'OPEN');
-                        const shown = tournSubTab === 'open' ? open : inProgress;
+                        const completed = filteredTournaments.filter(t => t.status === 'COMPLETED');
+                        const shown = tournSubTab === 'open' ? open : tournSubTab === 'inprogress' ? inProgress : completed;
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -6016,6 +6017,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {[
                                         { key:'open',       label:`📋 Açık İlanlar`, count: open.length },
                                         { key:'inprogress', label:`🏆 Devam Eden`,    count: inProgress.length },
+                                        ...(completed.length > 0 ? [{ key:'completed', label:`✅ Tamamlanan`, count: completed.length }] : []),
                                     ].map(st => (
                                         <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
                                             style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: tournSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: tournSubTab===st.key ? cfg.color : colors.border }}>
@@ -6033,7 +6035,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (<>
                                         {shown.map(renderCard)}
                                         {shown.length === 0 && (
-                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? 'Açık turnuva ilanı yok' : 'Devam eden turnuva yok'} />
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? 'Açık turnuva ilanı yok' : tournSubTab === 'inprogress' ? 'Devam eden turnuva yok' : 'Tamamlanan turnuva yok'} />
                                         )}
                                     </>)
                                 }
