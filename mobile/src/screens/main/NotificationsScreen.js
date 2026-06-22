@@ -69,9 +69,9 @@ export default function NotificationsScreen({ navigation }) {
         markRead(item.id);
         const data = item.data || {};
         const type = item.type;
-        const goToSub = (tab = 'rivals') => {
+        const goToSub = (tab = 'rivals', tournSubTab = null) => {
             if (!data.category || !data.subCategory) return;
-            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null });
+            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab });
         };
 
         if (type === 'MESSAGE') {
@@ -103,6 +103,8 @@ export default function NotificationsScreen({ navigation }) {
             navigation.push('Profile', { openTournamentPermissions: true });
         } else if (type === 'NEW_LISTING') {
             goToSub(data.tab || 'rivals');
+        } else if (type === 'TOURNAMENT_STARTED') {
+            goToSub('tournaments', 'inprogress');
         } else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') {
             goToSub('tournaments');
         } else if (data.category && data.subCategory) {

@@ -5237,7 +5237,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
-    const { category, sub, initialTab, highlightRivalId } = route.params;
+    const { category, sub, initialTab, highlightRivalId, initialTournSubTab } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -5287,7 +5287,13 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
-    const [tournSubTab, setTournSubTab] = useState('open');
+    const [tournSubTab, setTournSubTab] = useState(['open','inprogress','completed'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
+
+    useEffect(() => {
+        if (['open','inprogress','completed'].includes(route.params?.initialTournSubTab)) {
+            setTournSubTab(route.params.initialTournSubTab);
+        }
+    }, [route.params?.initialTournSubTab]);
     const [archiveTournaments, setArchiveTournaments] = useState([]);
     const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
     const [selectedArchiveTournament, setSelectedArchiveTournament] = useState(null);
