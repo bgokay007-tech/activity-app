@@ -1598,13 +1598,15 @@ export const useJoker = async (req, res, next) => {
         };
 
         if (otherJokerRequested) {
-            // Karşılıklı joker (Rule 4): +7 gün, hiçbiri tüketilmez
+            // Karşılıklı joker: rakip zaten joker kullanıp deadline'ı +7 uzatmıştı (kendi hakkını tüketerek).
+            // Bu tıklama üstüne tekrar +7 EKLEMEZ — sadece bu tarafın da kabul ettiğini işaretler
+            // ve kendi joker hakkını HİÇ tüketmeden (korunmuş kalır) talebi kapatır.
             await prisma.tournamentMatch.update({
                 where: { id: matchId },
-                data: { p1JokerRequested: false, p2JokerRequested: false, deadline: newDeadline },
+                data: { p1JokerRequested: false, p2JokerRequested: false },
             });
             await emitMatchUpdate();
-            return res.json({ mutual: true, message: 'Karşılıklı joker kabul edildi — deadline 7 gün uzatıldı, joker hakkınız korundu.', deadline: newDeadline });
+            return res.json({ mutual: true, message: 'Karşılıklı joker onaylandı — rakibinizin uzattığı süre geçerli, kendi joker hakkınız tüketilmedi.', deadline: match.deadline });
         } else {
             // Tek joker: +7 gün, joker tükenir
             const field = isP1 ? 'p1JokerRequested' : 'p2JokerRequested';
