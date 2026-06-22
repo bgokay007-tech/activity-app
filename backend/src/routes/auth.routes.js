@@ -14,7 +14,10 @@ router.post('/verify-otp', verifyOtp);
 router.post('/push-token', authenticate, async (req, res) => {
     const { token } = req.body;
     if (!token) return res.status(400).json({ message: 'token required' });
-    await prisma.user.update({ where: { id: req.userId }, data: { pushToken: token } });
+    await prisma.$transaction([
+        prisma.user.updateMany({ where: { pushToken: token, id: { not: req.userId } }, data: { pushToken: null } }),
+        prisma.user.update({ where: { id: req.userId }, data: { pushToken: token } }),
+    ]);
     res.json({ ok: true });
 });
 

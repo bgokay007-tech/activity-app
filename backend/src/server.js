@@ -6,6 +6,7 @@ import { setIO } from './config/socket.js';
 import { startCleanupJob } from './jobs/cleanupRivals.js';
 import { startAutoCompleteJob } from './jobs/autoCompleteMatches.js';
 import { startTournamentCleanupJob } from './jobs/cleanupTournaments.js';
+import { startTournamentAutoStartJob } from './jobs/autoStartTournaments.js';
 import prisma from './config/prisma.js';
 
 async function ensureTables() {
@@ -48,5 +49,6 @@ ensureTables().then(() => {
         startCleanupJob();
         startAutoCompleteJob();
         startTournamentCleanupJob();
+        startTournamentAutoStartJob();
     });
 });

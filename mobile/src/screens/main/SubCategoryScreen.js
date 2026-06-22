@@ -3240,6 +3240,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         return Date.now() >= eventStart.getTime();
     };
 
+    const isRegEnded = () => {
+        if (!item.endDate) return false;
+        const regEnd = new Date(item.endDate);
+        if (item.endTime) {
+            const [h, m] = item.endTime.split(':').map(Number);
+            regEnd.setHours(h, m, 0, 0);
+        }
+        return Date.now() >= regEnd.getTime();
+    };
+
     const handleCancelAttempt = () => {
         if (myStatus === 'ACCEPTED' && isEventWithin24h()) {
             setShowCancelModal(true);
@@ -3482,7 +3492,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
                         </TouchableOpacity>
                     </>) : (<>
-                        {myStatus === null && ['OPEN', 'IN_PROGRESS'].includes(item.status) && !isEventStarted() && (
+                        {myStatus === null && ['OPEN', 'IN_PROGRESS'].includes(item.status) && !isEventStarted() && !isRegEnded() && (
                             <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournJoinBtn}</Text>
                             </TouchableOpacity>
@@ -6018,7 +6028,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                                 <CompactFilter showDateChips={true} />
 
-                                {loadingTournaments
+                                {(loadingTournaments && tournaments.length === 0)
                                     ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
                                     : (<>
                                         {shown.map(renderCard)}

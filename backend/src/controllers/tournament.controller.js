@@ -4,7 +4,7 @@ import { emitToUser } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
-function tournamentBaseDate(tournament) {
+export function tournamentBaseDate(tournament) {
     if (!tournament.eventDate) return new Date();
     const dateStr = new Date(tournament.eventDate).toISOString().split('T')[0];
     const timeStr = tournament.eventTime || '00:00';
@@ -503,6 +503,17 @@ export const joinTournament = async (req, res, next) => {
 
         if (!['OPEN', 'IN_PROGRESS'].includes(tournament.status)) {
             return res.status(400).json({ message: 'Bu turnuvaya katılım mümkün değil' });
+        }
+        if (tournament.endDate) {
+            const regEnd = new Date(tournament.endDate);
+            if (tournament.endTime) {
+                const [h, m] = tournament.endTime.split(':').map(Number);
+                regEnd.setUTCHours(h, m, 0, 0);
+                regEnd.setTime(regEnd.getTime() - 3 * 60 * 60 * 1000); // Turkey UTC+3
+            }
+            if (regEnd.getTime() <= Date.now()) {
+                return res.status(400).json({ message: 'Son başvuru tarihi ve saati geçtiği için bu turnuvaya katılım isteği gönderilemez' });
+            }
         }
         if (tournament.status === 'IN_PROGRESS') {
             // Allow join only until the event actually starts
@@ -1058,6 +1069,125 @@ export const completeTournament = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Shared by the manual "/start" route and the auto-start job. `actorUserId` is the
+// creator when started manually (skipped in the notify loop since they already know);
+// pass null for the auto-start job so every accepted participant — creator included — gets notified.
+// Throws an Error with a `.status` for expected validation failures (caller decides how to surface it).
+export async function runStartTournament(tournament, { actorUserId = null } = {}) {
+    const { id } = tournament;
+
+    const rawParticipants = await prisma.tournamentParticipant.findMany({
+        where: { tournamentId: id, status: 'ACCEPTED' },
+        include: {
+            user: {
+                select: {
+                    id: true, username: true, fullName: true,
+                    interests: {
+                        where: { category: tournament.category, subCategory: tournament.subCategory },
+                        select: { skillRating: true },
+                    },
+                },
+            },
+        },
+        orderBy: [{ acceptedAt: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    // Main list = first maxPlayers accepted (by acceptance order); waitlist = the rest
+    if (!tournament.maxPlayers) {
+        throw Object.assign(new Error('Lütfen turnuva başlatmadan önce maksimum oyuncu sayısını (AS kadro) belirleyin.'), { status: 400 });
+    }
+    const mainList = rawParticipants.slice(0, tournament.maxPlayers);
+
+    const players = mainList.map(p => ({
+        id: p.userId || p.id,
+        fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
+        username: p.userId ? (p.user?.username || null) : p.manualName,
+        skillRating: p.userId ? (p.user?.interests?.[0]?.skillRating || 0) : 0,
+    }));
+
+    if (players.length < (tournament.minPlayers || 2)) {
+        throw Object.assign(new Error(`En az ${tournament.minPlayers || 2} oyuncu gerekli`), { status: 400 });
+    }
+
+    const mmType = tournament.matchmakingType || 'ELO';
+    const freq   = tournament.matchFrequency  || 'FLEXIBLE';
+    const daysPerRound = freq === 'WEEKLY_1' ? 7 : freq === 'WEEKLY_2' ? 4 : null;
+
+    const baseDate = tournamentBaseDate(tournament);
+
+    let matches;
+
+    if (tournament.type === '1') {
+        // Bireysel Rekabetçi: sadece round 1 oluştur, sonraki turlar dinamik
+        matches = eloBasedMatches(players, id, 1);
+        const deadline = new Date(baseDate);
+        deadline.setDate(deadline.getDate() + 7);
+        matches = matches.map(m => ({ ...m, deadline }));
+    } else if (tournament.type === '2') {
+        // Tek eleme
+        const playoffPlayers = mmType === 'RANDOM'
+            ? shuffle(players)
+            : [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
+        matches = singleElimMatches(playoffPlayers, id, 1, 'PLAYOFF');
+    } else {
+        // Diğer türler
+        const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
+        if (mmType === 'RANDOM') {
+            matches = randomMatches(players, id, matchesPerPlayer);
+        } else if (mmType === 'SEEDED') {
+            matches = seededMatches(players, id, matchesPerPlayer);
+        } else {
+            matches = eloBasedMatches(players, id, matchesPerPlayer);
+        }
+        if (daysPerRound) {
+            matches = matches.map(m => {
+                const d = new Date(baseDate);
+                d.setDate(d.getDate() + (m.round || 1) * daysPerRound);
+                return { ...m, deadline: d };
+            });
+        }
+    }
+
+    await prisma.$transaction([
+        prisma.tournamentMatch.createMany({ data: matches }),
+        prisma.tournament.update({ where: { id }, data: { status: 'IN_PROGRESS', startedAt: new Date() } }),
+    ]);
+
+    // Auto-advance BYEs in round 1
+    const byeMatches = await prisma.tournamentMatch.findMany({
+        where: { tournamentId: id, status: 'BYE', round: tournament.type === '2' ? 1 : undefined },
+    });
+    for (const bye of byeMatches) {
+        if (bye.phase !== 'PLAYOFF') continue; // RR BYEs don't need bracket advancement
+        const slot = bye.matchIndex % 2 === 0 ? 'p1' : 'p2';
+        const winnerName = bye.p1Id === bye.winnerId ? bye.p1Name : bye.p2Name;
+        await prisma.tournamentMatch.updateMany({
+            where: { tournamentId: id, round: bye.round + 1, matchIndex: Math.floor(bye.matchIndex / 2), phase: 'PLAYOFF' },
+            data: slot === 'p1' ? { p1Id: bye.winnerId, p1Name: winnerName } : { p2Id: bye.winnerId, p2Name: winnerName },
+        });
+    }
+
+    // Notify real (non-manual) participants + socket push for instant UI update
+    for (const p of mainList) {
+        if (p.userId && p.userId !== actorUserId) {
+            emitToUser(p.userId, 'tournament:started', { tournamentId: id });
+            await createNotification(
+                p.userId, 'TOURNAMENT_STARTED', '🏆 Turnuva Başladı',
+                `"${tournament.name}" turnuvası başladı! Eşleşmelerinizi kontrol edin.`,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+            );
+        }
+    }
+
+    return prisma.tournament.findUnique({
+        where: { id },
+        include: {
+            creator: { select: { id: true, username: true, fullName: true } },
+            _count: { select: { participants: { where: { status: 'ACCEPTED' } } } },
+        },
+    });
+}
+
 export const startTournament = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -1067,118 +1197,12 @@ export const startTournament = async (req, res, next) => {
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not authorized' });
         if (tournament.status !== 'OPEN') return res.status(400).json({ message: 'Tournament already started or completed' });
 
-        const rawParticipants = await prisma.tournamentParticipant.findMany({
-            where: { tournamentId: id, status: 'ACCEPTED' },
-            include: {
-                user: {
-                    select: {
-                        id: true, username: true, fullName: true,
-                        interests: {
-                            where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true },
-                        },
-                    },
-                },
-            },
-            orderBy: [{ acceptedAt: 'asc' }, { createdAt: 'asc' }],
-        });
-
-        // Main list = first maxPlayers accepted (by acceptance order); waitlist = the rest
-        if (!tournament.maxPlayers) {
-            return res.status(400).json({ message: 'LÃ¼tfen turnuva baÅŸlatmadan Ã¶nce maksimum oyuncu sayÄ±sÄ±nÄ± (AS kadro) belirleyin.' });
-        }
-        const mainList = rawParticipants.slice(0, tournament.maxPlayers);
-
-        const players = mainList.map(p => ({
-            id: p.userId || p.id,
-            fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
-            username: p.userId ? (p.user?.username || null) : p.manualName,
-            skillRating: p.userId ? (p.user?.interests?.[0]?.skillRating || 0) : 0,
-        }));
-
-        if (players.length < (tournament.minPlayers || 2)) {
-            return res.status(400).json({ message: `En az ${tournament.minPlayers || 2} oyuncu gerekli` });
-        }
-
-        const mmType = tournament.matchmakingType || 'ELO';
-        const freq   = tournament.matchFrequency  || 'FLEXIBLE';
-        const daysPerRound = freq === 'WEEKLY_1' ? 7 : freq === 'WEEKLY_2' ? 4 : null;
-
-        const baseDate = tournamentBaseDate(tournament);
-
-        let matches;
-
-        if (tournament.type === '1') {
-            // Bireysel Rekabetçi: sadece round 1 oluştur, sonraki turlar dinamik
-            matches = eloBasedMatches(players, id, 1);
-            const deadline = new Date(baseDate);
-            deadline.setDate(deadline.getDate() + 7);
-            matches = matches.map(m => ({ ...m, deadline }));
-        } else if (tournament.type === '2') {
-            // Tek eleme
-            const playoffPlayers = mmType === 'RANDOM'
-                ? shuffle(players)
-                : [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
-            matches = singleElimMatches(playoffPlayers, id, 1, 'PLAYOFF');
-        } else {
-            // Diğer türler
-            const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
-            if (mmType === 'RANDOM') {
-                matches = randomMatches(players, id, matchesPerPlayer);
-            } else if (mmType === 'SEEDED') {
-                matches = seededMatches(players, id, matchesPerPlayer);
-            } else {
-                matches = eloBasedMatches(players, id, matchesPerPlayer);
-            }
-            if (daysPerRound) {
-                matches = matches.map(m => {
-                    const d = new Date(baseDate);
-                    d.setDate(d.getDate() + (m.round || 1) * daysPerRound);
-                    return { ...m, deadline: d };
-                });
-            }
-        }
-
-        await prisma.$transaction([
-            prisma.tournamentMatch.createMany({ data: matches }),
-            prisma.tournament.update({ where: { id }, data: { status: 'IN_PROGRESS', startedAt: new Date() } }),
-        ]);
-
-        // Auto-advance BYEs in round 1
-        const byeMatches = await prisma.tournamentMatch.findMany({
-            where: { tournamentId: id, status: 'BYE', round: tournament.type === '2' ? 1 : undefined },
-        });
-        for (const bye of byeMatches) {
-            if (bye.phase !== 'PLAYOFF') continue; // RR BYEs don't need bracket advancement
-            const slot = bye.matchIndex % 2 === 0 ? 'p1' : 'p2';
-            const winnerName = bye.p1Id === bye.winnerId ? bye.p1Name : bye.p2Name;
-            await prisma.tournamentMatch.updateMany({
-                where: { tournamentId: id, round: bye.round + 1, matchIndex: Math.floor(bye.matchIndex / 2), phase: 'PLAYOFF' },
-                data: slot === 'p1' ? { p1Id: bye.winnerId, p1Name: winnerName } : { p2Id: bye.winnerId, p2Name: winnerName },
-            });
-        }
-
-        // Notify real (non-manual) participants + socket push for instant UI update
-        for (const p of mainList) {
-            if (p.userId && p.userId !== req.userId) {
-                emitToUser(p.userId, 'tournament:started', { tournamentId: id });
-                await createNotification(
-                    p.userId, 'TOURNAMENT_STARTED', '🏆 Turnuva Başladı',
-                    `"${tournament.name}" turnuvası başladı! Eşleşmelerinizi kontrol edin.`,
-                    { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
-                );
-            }
-        }
-
-        const updated = await prisma.tournament.findUnique({
-            where: { id },
-            include: {
-                creator: { select: { id: true, username: true, fullName: true } },
-                _count: { select: { participants: { where: { status: 'ACCEPTED' } } } },
-            },
-        });
+        const updated = await runStartTournament(tournament, { actorUserId: req.userId });
         res.json(updated);
-    } catch (e) { next(e); }
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ message: e.message });
+        next(e);
+    }
 };
 
 export const rematchTournament = async (req, res, next) => {
