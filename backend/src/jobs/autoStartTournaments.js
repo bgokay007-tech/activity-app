@@ -6,7 +6,7 @@ async function autoStartDueTournaments() {
         const now = new Date();
 
         const candidates = await prisma.tournament.findMany({
-            where: { status: 'OPEN', eventDate: { not: null }, maxPlayers: { not: null } },
+            where: { status: 'OPEN', eventDate: { not: null } },
         });
 
         const due = candidates.filter(t => tournamentBaseDate(t).getTime() <= now.getTime());
