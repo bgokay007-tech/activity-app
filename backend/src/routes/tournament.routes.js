@@ -28,6 +28,8 @@ import {
     fixGroupDeadlines,
     getTournamentChat,
     sendTournamentChatMessage,
+    getChatNotifyPref,
+    setChatNotifyPref,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -58,6 +60,8 @@ router.post('/:id/regen-round',              regenCurrentGroupRound);
 router.post('/:id/fix-deadlines',            fixGroupDeadlines);
 router.get('/:id/chat',                      getTournamentChat);
 router.post('/:id/chat',                     sendTournamentChatMessage);
+router.get('/:id/chat/notify',                getChatNotifyPref);
+router.patch('/:id/chat/notify',              setChatNotifyPref);
 router.patch('/:id',                         updateTournament);
 router.delete('/:id',                        deleteTournament);
 

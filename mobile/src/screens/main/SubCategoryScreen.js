@@ -2890,6 +2890,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } finally { setSendingChat(false); }
     };
 
+    const [chatNotifyEnabled, setChatNotifyEnabled] = useState(false);
+    const [togglingChatNotify, setTogglingChatNotify] = useState(false);
+
+    const fetchChatNotifyPref = useCallback(async () => {
+        try {
+            const { data } = await api.get(`/tournaments/${item.id}/chat/notify`);
+            setChatNotifyEnabled(!!data.enabled);
+        } catch { /* silent */ }
+    }, [item.id]);
+
+    const toggleChatNotify = async () => {
+        const next = !chatNotifyEnabled;
+        setTogglingChatNotify(true);
+        try {
+            await api.patch(`/tournaments/${item.id}/chat/notify`, { enabled: next });
+            setChatNotifyEnabled(next);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setTogglingChatNotify(false); }
+    };
+
     useEffect(() => {
         const off = onSocket('tournament:chat_message', ({ tournamentId, message }) => {
             if (tournamentId !== item.id) return;
@@ -3533,7 +3554,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <View style={{ flexDirection:'row', gap:6 }}>
                             <TouchableOpacity
                                 style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
-                                onPress={() => { fetchChat(); setShowChatModal(true); }}>
+                                onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
                                 <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
                                     {'Mesajlar'.split('').join('\n')}
                                 </Text>
@@ -3586,7 +3607,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {myStatus === 'ACCEPTED' && (
                                 <TouchableOpacity
                                     style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
-                                    onPress={() => { fetchChat(); setShowChatModal(true); }}>
+                                    onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
                                     <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
                                         {'Mesajlar'.split('').join('\n')}
                                     </Text>
@@ -4432,7 +4453,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <View style={{ backgroundColor:'#0f172a', borderTopLeftRadius:20, borderTopRightRadius:20, padding:16, height:520 }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>💬 Turnuva Sohbeti</Text>
-                                <TouchableOpacity onPress={() => setShowChatModal(false)}><Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text></TouchableOpacity>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:14 }}>
+                                    <TouchableOpacity onPress={toggleChatNotify} disabled={togglingChatNotify}>
+                                        <Text style={{ fontSize:20, opacity: togglingChatNotify ? 0.5 : 1 }}>{chatNotifyEnabled ? '🔔' : '🔕'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setShowChatModal(false)}><Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text></TouchableOpacity>
+                                </View>
                             </View>
                             {loadingChat ? (
                                 <ActivityIndicator color="#4ade80" style={{ marginTop:30 }} />

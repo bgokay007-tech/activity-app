@@ -69,6 +69,7 @@ model User {
   blockedBy        Block[] @relation("blocked")
   sentMessages     Message[]
   tournamentMessages TournamentMessage[]
+  tournamentChatNotifyPrefs TournamentChatNotify[]
   conversations1   Conversation[] @relation("convUser1")
   conversations2   Conversation[] @relation("convUser2")
   storyViews       StoryView[]
@@ -449,6 +450,7 @@ model Tournament {
   participants     TournamentParticipant[]
   tournamentMatches TournamentMatch[]
   messages         TournamentMessage[]
+  chatNotifyPrefs  TournamentChatNotify[]
 }
 
 // TURNUVA GRUP SOHBETI — turnuva sahibi + AS/yedek olarak onaylanmis tum katilimcilar
@@ -461,6 +463,19 @@ model TournamentMessage {
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   sender       User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+// Turnuva sohbeti icin kisi bazli bildirim tercihi — varsayilan kapali, kullanici acarsa bildirim gider
+model TournamentChatNotify {
+  id           String  @id @default(uuid())
+  tournamentId String
+  userId       String
+  enabled      Boolean @default(false)
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
 }
 
 model TournamentMatch {
