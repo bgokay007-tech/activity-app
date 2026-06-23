@@ -440,7 +440,11 @@ export default function ProfileScreen({ route, navigation }) {
                 if (isOwnProfile && Array.isArray(upcomingRes.data)) setMyUpcoming(upcomingRes.data);
                 if (isOwnProfile && Array.isArray(historyRes.data)) setMyHistory(historyRes.data);
                 if (isOwnProfile) dispatch(setUser(profileRes.data));
-                if (!isOwnProfile) setFriendStatus(profileRes.data?.friendStatus || 'NONE');
+                if (!isOwnProfile) {
+                    api.get(`/friends/status/${userId}`)
+                        .then(({ data }) => setFriendStatus({ status: data.status || 'NONE', isSender: data.isSender, friendshipId: data.friendshipId }))
+                        .catch(() => setFriendStatus({ status: 'NONE' }));
+                }
             } catch (e) { console.warn(e?.message); }
             finally { setLoading(false); }
         };
@@ -682,13 +686,30 @@ export default function ProfileScreen({ route, navigation }) {
 
     const handleFriendAction = async () => {
         try {
-            if (friendStatus === 'NONE') {
-                await api.post(`/friends/request/${userId}`);
-                setFriendStatus('PENDING');
-            } else if (friendStatus === 'PENDING') {
-                await api.delete(`/friends/cancel/${userId}`);
-                setFriendStatus('NONE');
+            if (!friendStatus || friendStatus.status === 'NONE' || friendStatus.status === 'REJECTED') {
+                const { data } = await api.post(`/friends/request/${userId}`);
+                setFriendStatus({ status: 'PENDING', isSender: true, friendshipId: data.id });
+            } else if (friendStatus.status === 'PENDING' && friendStatus.isSender) {
+                await api.delete(`/friends/unfriend/${userId}`);
+                setFriendStatus({ status: 'NONE' });
+            } else if (friendStatus.status === 'FRIENDS') {
+                Alert.alert(t.friendsBtn, t.unfriendConfirm || 'Arkadaşlıktan çıkarılsın mı?', [
+                    { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                    { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
+                        try { await api.delete(`/friends/unfriend/${userId}`); setFriendStatus({ status: 'NONE' }); }
+                        catch (e) { console.warn(e?.message); }
+                    } },
+                ]);
             }
+        } catch (e) { console.warn(e?.message); }
+    };
+
+    const handleRespondFriendRequest = async (action) => {
+        if (!friendStatus?.friendshipId) return;
+        try {
+            await api.patch(`/friends/request/${friendStatus.friendshipId}`, { action });
+            setFriendStatus({ status: action === 'accept' ? 'FRIENDS' : 'NONE' });
+            if (action === 'accept') setFriendCount(c => c + 1);
         } catch (e) { console.warn(e?.message); }
     };
 
@@ -867,14 +888,25 @@ export default function ProfileScreen({ route, navigation }) {
                     {/* Action buttons */}
                     {!isOwnProfile && (
                         <View style={s.actionRow}>
-                            <TouchableOpacity
-                                style={[s.actionBtn, friendStatus === 'FRIENDS' && s.actionBtnActive]}
-                                onPress={handleFriendAction}
-                            >
-                                <Text style={s.actionBtnText}>
-                                    {friendStatus === 'FRIENDS' ? t.friendsBtn : friendStatus === 'PENDING' ? t.pendingBtn : t.addFriendBtn}
-                                </Text>
-                            </TouchableOpacity>
+                            {friendStatus?.status === 'PENDING' && !friendStatus.isSender ? (
+                                <>
+                                    <TouchableOpacity style={[s.actionBtn, s.actionBtnActive]} onPress={() => handleRespondFriendRequest('accept')}>
+                                        <Text style={s.actionBtnText}>✓ {t.acceptBtn || 'Kabul Et'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={s.actionBtn} onPress={() => handleRespondFriendRequest('reject')}>
+                                        <Text style={s.actionBtnText}>✕ {t.rejectBtn || 'Reddet'}</Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : (
+                                <TouchableOpacity
+                                    style={[s.actionBtn, friendStatus?.status === 'FRIENDS' && s.actionBtnActive]}
+                                    onPress={handleFriendAction}
+                                >
+                                    <Text style={s.actionBtnText}>
+                                        {friendStatus?.status === 'FRIENDS' ? t.friendsBtn : friendStatus?.status === 'PENDING' ? t.pendingBtn : t.addFriendBtn}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity style={[s.actionBtn, s.msgBtn]} onPress={sendMessage}>
                                 <Text style={s.actionBtnText}>{t.messageBtnProfile}</Text>
                             </TouchableOpacity>

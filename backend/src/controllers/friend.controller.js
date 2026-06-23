@@ -18,7 +18,10 @@ export const sendRequest = async (req, res, next) => {
         const existing = await prisma.friendship.findFirst({
             where: { OR: [{ senderId: req.userId, receiverId }, { senderId: receiverId, receiverId: req.userId }] },
         });
-        if (existing) return res.status(400).json({ message: 'Request already exists', status: existing.status });
+        if (existing && existing.status !== 'REJECTED') {
+            return res.status(400).json({ message: 'Request already exists', status: existing.status });
+        }
+        if (existing) await prisma.friendship.delete({ where: { id: existing.id } });
 
         const friendship = await prisma.friendship.create({
             data: { senderId: req.userId, receiverId },
