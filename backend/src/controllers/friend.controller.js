@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
+import { getRelation, canAccess } from '../utils/privacy.js';
 
 const FRIEND_SELECT = {
     id: true, username: true, fullName: true, avatar: true, isPublic: true,
@@ -123,6 +124,17 @@ export const unblockUser = async (req, res, next) => {
 export const getFriendsOf = async (req, res, next) => {
     try {
         const { userId } = req.params;
+        if (userId !== req.userId) {
+            const owner = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { friendsListPrivacy: true, friendsListExclude: true },
+            });
+            if (!owner) return res.status(404).json({ message: 'User not found' });
+            const { isFriend, isFollower } = await getRelation(userId, req.userId);
+            if (!canAccess({ ownerId: userId, viewerId: req.userId, mode: owner.friendsListPrivacy, list: owner.friendsListExclude, isFriend, isFollower })) {
+                return res.json([]);
+            }
+        }
         const friendships = await prisma.friendship.findMany({
             where: {
                 OR: [{ senderId: userId }, { receiverId: userId }],

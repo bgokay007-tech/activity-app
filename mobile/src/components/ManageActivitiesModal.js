@@ -11,7 +11,7 @@ import useT from '../hooks/useT';
 
 const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball']);
 
-export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange }) {
+export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const CATEGORY_TABS = [
@@ -86,7 +86,12 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                     <View style={s.box}>
                         {/* Header */}
                         <View style={s.header}>
-                            <Text style={s.title}>{t.manageTitle}</Text>
+                            <Text style={[s.title, { flex: 1 }]}>{t.manageTitle}</Text>
+                            {onPrivacyPress && (
+                                <TouchableOpacity onPress={onPrivacyPress} style={{ marginRight: 14 }}>
+                                    <Text style={{ fontSize: 18 }}>{privacyEmojiIcon || '🔒'}</Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
                         </View>
 

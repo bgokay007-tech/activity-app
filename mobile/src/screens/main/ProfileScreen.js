@@ -70,15 +70,19 @@ const GRID_GAP = 2;
 const CELL_SIZE = (SCREEN_W - GRID_GAP * 2) / 3;
 
 const PRIVACY_OPTIONS = [
-    { key: 'PUBLIC',         label: '🌍 Herkese Açık' },
-    { key: 'FRIENDS',        label: '👥 Sadece Arkadaşlarım' },
-    { key: 'FRIENDS_EXCEPT', label: '🚫 Seçili Arkadaşlar Hariç' },
+    { key: 'PUBLIC',           label: '🌍 Herkese Açık' },
+    { key: 'FRIENDS',          label: '👥 Sadece Arkadaşlarım' },
+    { key: 'FOLLOWERS',        label: '🔔 Takipçilerim' },
+    { key: 'FRIENDS_EXCEPT',   label: '🚫 Seçili Arkadaşlar Hariç' },
+    { key: 'FRIENDS_SELECTED', label: '✅ Sadece Seçili Arkadaşlar' },
 ];
 
 function privacyEmoji(p) {
-    if (p === 'PUBLIC')         return '🌍';
-    if (p === 'FRIENDS')        return '👥';
-    if (p === 'FRIENDS_EXCEPT') return '🚫';
+    if (p === 'PUBLIC')           return '🌍';
+    if (p === 'FRIENDS')          return '👥';
+    if (p === 'FOLLOWERS')        return '🔔';
+    if (p === 'FRIENDS_EXCEPT')   return '🚫';
+    if (p === 'FRIENDS_SELECTED') return '✅';
     return '🔒';
 }
 
@@ -312,6 +316,10 @@ export default function ProfileScreen({ route, navigation }) {
         fullNamePrivacy: 'PUBLIC', fullNameExclude: [],
         cityPrivacy: 'PUBLIC', genderPrivacy: 'PUBLIC', birthDatePrivacy: 'PUBLIC',
         cityExclude: [], genderExclude: [], birthDateExclude: [],
+        postsPrivacy: 'PUBLIC', postsExclude: [],
+        reelsPrivacy: 'PUBLIC', reelsExclude: [],
+        friendsListPrivacy: 'PUBLIC', friendsListExclude: [],
+        activitiesPrivacy: 'PUBLIC', activitiesExclude: [],
     });
     const [savingInfo, setSavingInfo] = useState(false);
 
@@ -409,6 +417,16 @@ export default function ProfileScreen({ route, navigation }) {
     const [loadingFriends, setLoadingFriends] = useState(false);
 
     const userId = targetUserId || myUser?.id;
+
+    // Gizlilik liste seçici hangi yoldan açılırsa açılsın arkadaş listesini yüklesin
+    useEffect(() => {
+        if (!excludePickerField || friends.length > 0) return;
+        setLoadingFriends(true);
+        api.get('/friends')
+            .then(({ data }) => setFriends(Array.isArray(data) ? data : []))
+            .catch(() => {})
+            .finally(() => setLoadingFriends(false));
+    }, [excludePickerField]);
 
     // Karşı taraf arkadaşlık isteğine kabul/red verince, bu profil açıksa sayfa yenilemeden güncelle
     useEffect(() => {
@@ -545,6 +563,14 @@ export default function ProfileScreen({ route, navigation }) {
                         cityExclude:      p?.cityExclude      || [],
                         genderExclude:    p?.genderExclude    || [],
                         birthDateExclude: p?.birthDateExclude || [],
+                        postsPrivacy:       p?.postsPrivacy       || 'PUBLIC',
+                        postsExclude:       p?.postsExclude       || [],
+                        reelsPrivacy:       p?.reelsPrivacy       || 'PUBLIC',
+                        reelsExclude:       p?.reelsExclude       || [],
+                        friendsListPrivacy: p?.friendsListPrivacy || 'PUBLIC',
+                        friendsListExclude: p?.friendsListExclude || [],
+                        activitiesPrivacy:  p?.activitiesPrivacy  || 'PUBLIC',
+                        activitiesExclude:  p?.activitiesExclude  || [],
                     });
                 }
                 if (isOwnProfile && Array.isArray(upcomingRes.data)) setMyUpcoming(upcomingRes.data);
@@ -864,23 +890,27 @@ export default function ProfileScreen({ route, navigation }) {
         } catch (e) { console.warn(e?.message); }
     };
 
-    const pickPrivacy = (field, value) => {
+    const pickPrivacy = async (field, value) => {
         setInfoForm(f => ({ ...f, [`${field}Privacy`]: value }));
         setPrivacyPickerField(null);
-        if (value === 'FRIENDS_EXCEPT') {
+        if (value === 'FRIENDS_EXCEPT' || value === 'FRIENDS_SELECTED') {
             setExcludePickerField(field);
         }
+        try {
+            const { data } = await api.patch('/users/me', { [`${field}Privacy`]: value });
+            setProfile(p => ({ ...p, ...data }));
+        } catch (e) { console.warn(e?.message); }
     };
 
-    const toggleExclude = (field, friendId) => {
-        setInfoForm(prev => {
-            const key = `${field}Exclude`;
-            const list = prev[key] || [];
-            const updated = list.includes(friendId)
-                ? list.filter(id => id !== friendId)
-                : [...list, friendId];
-            return { ...prev, [key]: updated };
-        });
+    const toggleExclude = async (field, friendId) => {
+        const key = `${field}Exclude`;
+        const list = infoForm[key] || [];
+        const updated = list.includes(friendId) ? list.filter(id => id !== friendId) : [...list, friendId];
+        setInfoForm(prev => ({ ...prev, [key]: updated }));
+        try {
+            const { data } = await api.patch('/users/me', { [key]: updated });
+            setProfile(p => ({ ...p, ...data }));
+        } catch (e) { console.warn(e?.message); }
     };
 
     if (loading) {
@@ -1663,14 +1693,21 @@ export default function ProfileScreen({ route, navigation }) {
                 interests={interests}
                 onClose={() => setManageOpen(false)}
                 onInterestsChange={(updated) => setInterests(updated)}
+                privacyEmojiIcon={privacyEmoji(infoForm.activitiesPrivacy)}
+                onPrivacyPress={() => { setManageOpen(false); setPrivacyPickerField('activities'); }}
             />
 
             {/* ── Gönderiler modalı ── */}
             <Modal visible={showPostsModal} animationType="slide" transparent onRequestClose={() => setShowPostsModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
-                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>🔥 {t.postsLabel}</Text>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🔥 {t.postsLabel}</Text>
+                            {isOwnProfile && (
+                                <TouchableOpacity onPress={() => setPrivacyPickerField('posts')}>
+                                    <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.postsPrivacy)}</Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity onPress={() => setShowPostsModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
                         {isOwnProfile && (
@@ -1706,8 +1743,13 @@ export default function ProfileScreen({ route, navigation }) {
             <Modal visible={showReelsModal} animationType="slide" transparent onRequestClose={() => setShowReelsModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
-                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>🎬 {t.reels}</Text>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🎬 {t.reels}</Text>
+                            {isOwnProfile && (
+                                <TouchableOpacity onPress={() => setPrivacyPickerField('reels')}>
+                                    <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.reelsPrivacy)}</Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity onPress={() => setShowReelsModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
                         {isOwnProfile && (
@@ -1743,8 +1785,13 @@ export default function ProfileScreen({ route, navigation }) {
             <Modal visible={showFriendsListModal} animationType="slide" transparent onRequestClose={() => setShowFriendsListModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'85%', padding:20 }}>
-                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>👥 {t.friendsLabel}</Text>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>👥 {t.friendsLabel}</Text>
+                            {isOwnProfile && (
+                                <TouchableOpacity onPress={() => setPrivacyPickerField('friendsList')}>
+                                    <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.friendsListPrivacy)}</Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity onPress={() => setShowFriendsListModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
 
@@ -1889,8 +1936,13 @@ export default function ProfileScreen({ route, navigation }) {
             <Modal visible={showActivitiesViewModal} animationType="slide" transparent onRequestClose={() => setShowActivitiesViewModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
-                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>🏃 Sporlar</Text>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🏃 Sporlar</Text>
+                            {isOwnProfile && (
+                                <TouchableOpacity onPress={() => setPrivacyPickerField('activities')}>
+                                    <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.activitiesPrivacy)}</Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity onPress={() => setShowActivitiesViewModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false}>
@@ -2295,13 +2347,13 @@ export default function ProfileScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             );
                         })}
-                        {privacyPickerField && infoForm[`${privacyPickerField}Privacy`] === 'FRIENDS_EXCEPT' && (
+                        {privacyPickerField && (infoForm[`${privacyPickerField}Privacy`] === 'FRIENDS_EXCEPT' || infoForm[`${privacyPickerField}Privacy`] === 'FRIENDS_SELECTED') && (
                             <TouchableOpacity
                                 style={[s.saveBtn, { marginTop: 12 }]}
                                 onPress={() => { setPrivacyPickerField(null); setExcludePickerField(privacyPickerField); }}
                             >
                                 <Text style={s.saveBtnText}>
-                                    Hariç tutulacakları seç ({infoForm[`${privacyPickerField}Exclude`]?.length || 0})
+                                    {infoForm[`${privacyPickerField}Privacy`] === 'FRIENDS_SELECTED' ? 'Dahil edilecekleri seç' : 'Hariç tutulacakları seç'} ({infoForm[`${privacyPickerField}Exclude`]?.length || 0})
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -2314,13 +2366,17 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={s.modalOverlay}>
                     <View style={[s.modalBox, { maxHeight: '75%' }]}>
                         <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>🚫 Görmesini İstemiyorum</Text>
+                            <Text style={s.modalTitle}>
+                                {infoForm[`${excludePickerField}Privacy`] === 'FRIENDS_SELECTED' ? '✅ Görebilecekler' : '🚫 Görmesini İstemiyorum'}
+                            </Text>
                             <TouchableOpacity onPress={() => setExcludePickerField(null)}>
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
                         <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 14 }}>
-                            Seçtiğin arkadaşlar bu bilgini göremez.
+                            {infoForm[`${excludePickerField}Privacy`] === 'FRIENDS_SELECTED'
+                                ? 'Seçtiğin arkadaşlar bu bilgiyi görebilir, diğerleri göremez.'
+                                : 'Seçtiğin arkadaşlar bu bilgini göremez.'}
                         </Text>
                         {loadingFriends ? (
                             <ActivityIndicator color={colors.purple} style={{ marginVertical: 20 }} />

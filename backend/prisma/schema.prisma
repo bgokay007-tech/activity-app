@@ -47,7 +47,9 @@ model User {
   cards            ActivityCard[]
   courts           Court[]
   gender           String?  // MALE | FEMALE | OTHER
-  profilePrivacy   String   @default("PUBLIC")  // PUBLIC | FRIENDS | FRIENDS_EXCEPT
+  // Gizlilik modlari: PUBLIC | FRIENDS | FOLLOWERS | FRIENDS_EXCEPT | FRIENDS_SELECTED
+  // *Exclude alani moda gore yeniden yorumlanir: FRIENDS_EXCEPT -> haric tutulanlar, FRIENDS_SELECTED -> sadece dahil edilenler
+  profilePrivacy   String   @default("PUBLIC")
   profileExclude   Json     @default("[]")        // [userId, ...]
   fullNamePrivacy  String   @default("PUBLIC")
   fullNameExclude  Json     @default("[]")
@@ -57,6 +59,14 @@ model User {
   cityExclude      Json     @default("[]")
   genderExclude    Json     @default("[]")
   birthDateExclude Json     @default("[]")
+  postsPrivacy        String @default("PUBLIC")
+  postsExclude        Json   @default("[]")
+  reelsPrivacy        String @default("PUBLIC")
+  reelsExclude        Json   @default("[]")
+  friendsListPrivacy  String @default("PUBLIC")
+  friendsListExclude  Json   @default("[]")
+  activitiesPrivacy   String @default("PUBLIC")
+  activitiesExclude   Json   @default("[]")
   isAdmin                Boolean  @default(false)
   lateCancelCount        Int      @default(0)
   tournamentBanRemaining Int      @default(0)

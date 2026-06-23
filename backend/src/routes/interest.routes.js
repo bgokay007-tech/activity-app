@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
     getCategories,
     getUserInterests,
+    getInterestsOf,
     addInterest,
     removeInterest,
     getUsersByCategory,
@@ -18,6 +19,7 @@ const router = Router();
 
 router.get('/categories', getCategories);
 router.get('/my', authenticate, getUserInterests);
+router.get('/user/:userId', authenticate, getInterestsOf);
 router.post('/add', authenticate, addInterest);
 router.delete('/:id', authenticate, removeInterest);
 router.get('/users', authenticate, getUsersByCategory);

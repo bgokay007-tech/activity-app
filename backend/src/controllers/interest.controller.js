@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { getQuestions, calculateLevel } from '../config/assessments.js';
+import { getRelation, canAccess } from '../utils/privacy.js';
 
 // Kategorilerin alt dalları
 export const SUBCATEGORIES = {
@@ -76,6 +77,31 @@ export const getUserInterests = async (req, res, next) => {
     try {
         const interests = await prisma.userInterest.findMany({
             where: { userId: req.userId },
+            include: { skills: true },
+        });
+        res.json(interests);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Başka bir kullanıcının ilgi alanlarını getir — sahibinin gizlilik ayarına tabi
+export const getInterestsOf = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        if (userId !== req.userId) {
+            const owner = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { activitiesPrivacy: true, activitiesExclude: true },
+            });
+            if (!owner) return res.status(404).json({ message: 'User not found' });
+            const { isFriend, isFollower } = await getRelation(userId, req.userId);
+            if (!canAccess({ ownerId: userId, viewerId: req.userId, mode: owner.activitiesPrivacy, list: owner.activitiesExclude, isFriend, isFollower })) {
+                return res.json([]);
+            }
+        }
+        const interests = await prisma.userInterest.findMany({
+            where: { userId },
             include: { skills: true },
         });
         res.json(interests);

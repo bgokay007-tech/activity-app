@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { Prisma } from '@prisma/client';
 import Anthropic from '@anthropic-ai/sdk';
+import { getRelation, canAccess } from '../utils/privacy.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -141,6 +142,21 @@ export const getUserPosts = async (req, res, next) => {
         const isOwner = userId === req.userId;
         const { archive } = req.query;
         const now = new Date();
+
+        // POST/REEL gorunurlugu sahibinin gizlilik ayarina tabi (STORY vb. etkilenmez)
+        if (!isOwner && (type === 'POST' || type === 'REEL')) {
+            const owner = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { postsPrivacy: true, postsExclude: true, reelsPrivacy: true, reelsExclude: true },
+            });
+            if (!owner) return res.status(404).json({ message: 'User not found' });
+            const { isFriend, isFollower } = await getRelation(userId, req.userId);
+            const mode = type === 'POST' ? owner.postsPrivacy : owner.reelsPrivacy;
+            const list = type === 'POST' ? owner.postsExclude : owner.reelsExclude;
+            if (!canAccess({ ownerId: userId, viewerId: req.userId, mode, list, isFriend, isFollower })) {
+                return res.json([]);
+            }
+        }
 
         const storyFilter = type === 'STORY'
             ? archive === 'true'

@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
+import { getRelation, canAccess } from '../utils/privacy.js';
 
 export const getProfile = async (req, res, next) => {
     try {
@@ -16,6 +17,10 @@ export const getProfile = async (req, res, next) => {
                 fullNamePrivacy: true, fullNameExclude: true,
                 cityPrivacy: true, genderPrivacy: true, birthDatePrivacy: true,
                 cityExclude: true, genderExclude: true, birthDateExclude: true,
+                postsPrivacy: true, postsExclude: true,
+                reelsPrivacy: true, reelsExclude: true,
+                friendsListPrivacy: true, friendsListExclude: true,
+                activitiesPrivacy: true, activitiesExclude: true,
                 interests: {
                     select: { id: true, category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true },
                     orderBy: { totalPoints: 'desc' },
@@ -33,30 +38,15 @@ export const getProfile = async (req, res, next) => {
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         const isOwner = targetId === req.userId;
-
-        // Check friendship once (used for both profile access and field visibility)
-        let isFriend = false;
-        if (!isOwner) {
-            const friendship = await prisma.friendship.findFirst({
-                where: {
-                    status: 'ACCEPTED',
-                    OR: [
-                        { senderId: req.userId, receiverId: targetId },
-                        { senderId: targetId, receiverId: req.userId },
-                    ],
-                },
-            });
-            isFriend = !!friendship;
-        }
+        const { isFriend, isFollower } = await getRelation(targetId, req.userId);
 
         // Profile-level access check (replaces isPublic gate)
         if (!isOwner) {
-            const pp = user.profilePrivacy || 'PUBLIC';
-            const canAccessProfile =
-                pp === 'PUBLIC' ||
-                (pp === 'FRIENDS' && isFriend) ||
-                (pp === 'FRIENDS_EXCEPT' && isFriend && !(user.profileExclude || []).includes(req.userId));
-
+            const canAccessProfile = canAccess({
+                ownerId: targetId, viewerId: req.userId,
+                mode: user.profilePrivacy || 'PUBLIC', list: user.profileExclude,
+                isFriend, isFollower,
+            });
             if (!canAccessProfile) {
                 return res.json({
                     id: user.id, username: user.username,
@@ -67,13 +57,9 @@ export const getProfile = async (req, res, next) => {
 
         const friendCount = user._count.sentFriendReqs + user._count.receivedFriendReqs;
 
-        const checkField = (privacy, excludeList) => {
-            if (isOwner) return true;
-            if (privacy === 'PUBLIC') return true;
-            if (privacy === 'FRIENDS') return isFriend;
-            if (privacy === 'FRIENDS_EXCEPT') return isFriend && !(excludeList || []).includes(req.userId);
-            return false;
-        };
+        const checkField = (privacy, excludeList) => isOwner || canAccess({
+            ownerId: targetId, viewerId: req.userId, mode: privacy, list: excludeList, isFriend, isFollower,
+        });
 
         res.json({
             ...user,
@@ -92,7 +78,11 @@ export const updateProfile = async (req, res, next) => {
                 profilePrivacy, profileExclude,
                 fullNamePrivacy, fullNameExclude,
                 cityPrivacy, genderPrivacy, birthDatePrivacy,
-                cityExclude, genderExclude, birthDateExclude } = req.body;
+                cityExclude, genderExclude, birthDateExclude,
+                postsPrivacy, postsExclude,
+                reelsPrivacy, reelsExclude,
+                friendsListPrivacy, friendsListExclude,
+                activitiesPrivacy, activitiesExclude } = req.body;
 
         // Sync isPublic with profilePrivacy
         const resolvedIsPublic = profilePrivacy !== undefined
@@ -118,6 +108,14 @@ export const updateProfile = async (req, res, next) => {
                 ...(cityExclude      !== undefined && { cityExclude }),
                 ...(genderExclude    !== undefined && { genderExclude }),
                 ...(birthDateExclude !== undefined && { birthDateExclude }),
+                ...(postsPrivacy        !== undefined && { postsPrivacy }),
+                ...(postsExclude        !== undefined && { postsExclude }),
+                ...(reelsPrivacy        !== undefined && { reelsPrivacy }),
+                ...(reelsExclude        !== undefined && { reelsExclude }),
+                ...(friendsListPrivacy  !== undefined && { friendsListPrivacy }),
+                ...(friendsListExclude  !== undefined && { friendsListExclude }),
+                ...(activitiesPrivacy   !== undefined && { activitiesPrivacy }),
+                ...(activitiesExclude   !== undefined && { activitiesExclude }),
             },
             select: {
                 id: true, username: true, fullName: true,
@@ -127,6 +125,10 @@ export const updateProfile = async (req, res, next) => {
                 fullNamePrivacy: true, fullNameExclude: true,
                 cityPrivacy: true, genderPrivacy: true, birthDatePrivacy: true,
                 cityExclude: true, genderExclude: true, birthDateExclude: true,
+                postsPrivacy: true, postsExclude: true,
+                reelsPrivacy: true, reelsExclude: true,
+                friendsListPrivacy: true, friendsListExclude: true,
+                activitiesPrivacy: true, activitiesExclude: true,
             },
         });
         res.json(updated);
