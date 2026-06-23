@@ -482,6 +482,7 @@ model TournamentParticipant {
   cancelReason    String?
   jokerUsed       Boolean   @default(false)
   jokerUsedAt     DateTime?
+  mutualJokerUsed Boolean   @default(false)  // karsilikli joker onayi - turnuva basina 1 kez
   acceptedAt      DateTime?
   createdAt       DateTime  @default(now())
 

@@ -4381,7 +4381,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
                             'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
                             'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                            'İki oyuncu da aynı maç için joker isterse süre tekrar +7 uzamaz; ilk kullanan oyuncunun joker hakkı tükenir, kabul eden diğer oyuncunun hakkı korunur.',
+                            'İki oyuncu da aynı maç için joker isterse süre tekrar +7 uzamaz; ilk kullanan oyuncunun joker hakkı tükenir, karşılıklı jokeri onaylayan oyuncu kendi joker hakkını korur. Karşılıklı joker onayı, turnuvaya katılan her oyuncu için tek kullanımlıktır.',
                             'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
                         ].map((kural, i) => (
                             <View key={i} style={{ flexDirection:'row', gap:8, marginBottom: i < 4 ? 6 : 0 }}>
@@ -5093,7 +5093,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
                                         'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
                                         'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker isterse süre tekrar +7 uzamaz; ilk kullanan oyuncunun joker hakkı tükenir, kabul eden diğer oyuncunun hakkı korunur.',
+                                        'İki oyuncu da aynı maç için joker isterse süre tekrar +7 uzamaz; ilk kullanan oyuncunun joker hakkı tükenir, karşılıklı jokeri onaylayan oyuncu kendi joker hakkını korur. Karşılıklı joker onayı, turnuvaya katılan her oyuncu için tek kullanımlıktır.',
                                         'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
                                     ].map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:6 }}>

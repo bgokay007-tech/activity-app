@@ -1590,7 +1590,6 @@ export const useJoker = async (req, res, next) => {
             where: { tournamentId: id, userId: req.userId, status: 'ACCEPTED' },
         });
         if (!participant) return res.status(404).json({ message: 'Katılımcı bulunamadı.' });
-        if (participant.jokerUsed) return res.status(400).json({ message: 'Joker hakkınızı daha önce kullandınız.' });
 
         const otherJokerRequested = isP1 ? match.p2JokerRequested : match.p1JokerRequested;
         const newDeadline = new Date(match.deadline || new Date());
@@ -1609,16 +1608,27 @@ export const useJoker = async (req, res, next) => {
         };
 
         if (otherJokerRequested) {
-            // Karşılıklı joker: rakip zaten joker kullanıp deadline'ı +7 uzatmıştı (kendi hakkını tüketerek).
+            // Karşılıklı joker onayı: rakip zaten joker kullanıp deadline'ı +7 uzatmıştı (kendi hakkını tüketerek).
             // Bu tıklama üstüne tekrar +7 EKLEMEZ — sadece bu tarafın da kabul ettiğini işaretler
             // ve kendi joker hakkını HİÇ tüketmeden (korunmuş kalır) talebi kapatır.
-            await prisma.tournamentMatch.update({
-                where: { id: matchId },
-                data: { p1JokerRequested: false, p2JokerRequested: false },
-            });
+            // Bu onay hakkı da kendi başına turnuva boyunca oyuncu başına 1 kez kullanılabilir.
+            if (participant.mutualJokerUsed) {
+                return res.status(400).json({ message: 'Karşılıklı joker onay hakkınızı bu turnuvada daha önce kullandınız.' });
+            }
+            await prisma.$transaction([
+                prisma.tournamentMatch.update({
+                    where: { id: matchId },
+                    data: { p1JokerRequested: false, p2JokerRequested: false },
+                }),
+                prisma.tournamentParticipant.update({
+                    where: { id: participant.id },
+                    data: { mutualJokerUsed: true },
+                }),
+            ]);
             await emitMatchUpdate();
             return res.json({ mutual: true, message: 'Karşılıklı joker onaylandı — rakibinizin uzattığı süre geçerli, kendi joker hakkınız tüketilmedi.', deadline: match.deadline });
         } else {
+            if (participant.jokerUsed) return res.status(400).json({ message: 'Joker hakkınızı daha önce kullandınız.' });
             // Tek joker: +7 gün, joker tükenir
             const field = isP1 ? 'p1JokerRequested' : 'p2JokerRequested';
             await prisma.$transaction([
