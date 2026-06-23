@@ -460,9 +460,14 @@ export default function ProfileScreen({ route, navigation }) {
                 setProfile(data);
                 if (isOwnProfile) dispatch(setUser(data));
             }).catch(() => {});
+            if (!isOwnProfile) {
+                api.get(`/friends/status/${userId}`)
+                    .then(({ data }) => setFriendStatus({ status: data.status || 'NONE', isSender: data.isSender, friendshipId: data.friendshipId }))
+                    .catch(() => {});
+            }
         });
         return unsubscribe;
-    }, [navigation, userId]);
+    }, [navigation, userId, isOwnProfile]);
 
     const handleLogout = () => {
         Alert.alert(t.logoutTitle, t.logoutMsg, [
@@ -916,7 +921,7 @@ export default function ProfileScreen({ route, navigation }) {
 
                 {/* ── Activities / Interests ── */}
                 <View style={s.section}>
-                    <Text style={s.sectionTitle}>{t.branchesSection}</Text>
+                    <Text style={s.sectionTitle}>{isOwnProfile ? t.branchesSection : (lang === 'tr' ? '🏅 Sporlar' : '🏅 Sports')}</Text>
                     {interests.length > 0 ? (
                         <View style={{ gap: 10 }}>
                             {interests.map(i => {
