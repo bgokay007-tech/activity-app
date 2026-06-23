@@ -934,7 +934,7 @@ export default function ProfileScreen({ route, navigation }) {
                         <Text style={s.backBtn}>{t.back}</Text>
                     </TouchableOpacity>
                 ) : (
-                    <Text style={s.topBarUsername}>@{profile?.username}</Text>
+                    <View style={{ minWidth: 60 }} />
                 )}
 
                 {/* Center — animated logo */}
