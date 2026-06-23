@@ -2778,7 +2778,7 @@ const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' }
 const SURFACE_LABEL = { CLAY:'Toprak', HARD:'Sert Zemin', GRASS:'Çim', CARPET:'Suni Zemin', ARTIFICIAL:'Suni Çim', GLASS:'Cam', INDOOR:'Kapalı Salon', HALI_SAHA:'Halı Saha', CIM_SAHA:'Çim Saha', FUTSAL:'Futsal', SOKAK:'Sokak', BEACH:'Plaj' };
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
-function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated }) {
+function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened }) {
     const myPart = item.participants?.[0];
     const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
     useEffect(() => { setMyStatus(myPart?.status ?? null); }, [myPart?.status]);
@@ -2910,6 +2910,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setTogglingChatNotify(false); }
     };
+
+    // Mesaj bildirimine tıklanınca bu turnuvanın sohbeti otomatik açılsın
+    useEffect(() => {
+        if (openChatTournamentId && openChatTournamentId === item.id) {
+            fetchChat();
+            fetchChatNotifyPref();
+            setShowChatModal(true);
+            onChatOpened?.();
+        }
+    }, [openChatTournamentId, item.id]);
 
     useEffect(() => {
         const off = onSocket('tournament:chat_message', ({ tournamentId, message }) => {
@@ -5385,7 +5395,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
-    const { category, sub, initialTab, highlightRivalId, initialTournSubTab } = route.params;
+    const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -5473,6 +5483,15 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [tournaments, setTournaments] = useState([]);
     const [loadingTournaments, setLoadingTournaments] = useState(false);
     const [profileUserId, setProfileUserId] = useState(null);
+
+    // Mesaj bildirimine tıklanınca doğru alt sekmeye geçip ilgili kartın render olmasını sağla
+    useEffect(() => {
+        if (!openChatTournamentId || tournaments.length === 0) return;
+        const target = tournaments.find(tn => tn.id === openChatTournamentId);
+        if (target) {
+            setTournSubTab(target.status === 'OPEN' ? 'open' : target.status === 'COMPLETED' ? 'completed' : 'inprogress');
+        }
+    }, [openChatTournamentId, tournaments]);
 
     // Comments modal — lifted out of UpcomingCard so it renders outside ScrollView
     const [commentMatch, setCommentMatch] = useState(null);
@@ -6149,6 +6168,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 onCancelJoin={handleCancelJoinTournament}
                                 onDelete={handleDeleteTournament}
                                 onUpdated={loadTournaments}
+                                openChatTournamentId={openChatTournamentId}
+                                onChatOpened={() => navigation.setParams({ openChatTournamentId: undefined })}
                             />
                         );
                         return (

@@ -70,9 +70,9 @@ export default function NotificationsScreen({ navigation }) {
         markRead(item.id);
         const data = item.data || {};
         const type = item.type;
-        const goToSub = (tab = 'rivals', tournSubTab = null) => {
+        const goToSub = (tab = 'rivals', tournSubTab = null, openChatTournamentId = null) => {
             if (!data.category || !data.subCategory) return;
-            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab });
+            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab, openChatTournamentId });
         };
 
         if (type === 'MESSAGE') {
@@ -106,6 +106,8 @@ export default function NotificationsScreen({ navigation }) {
             goToSub(data.tab || 'rivals');
         } else if (type === 'TOURNAMENT_STARTED') {
             goToSub('tournaments', 'inprogress');
+        } else if (type === 'TOURNAMENT_CHAT_MESSAGE') {
+            goToSub('tournaments', null, data.tournamentId || null);
         } else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') {
             goToSub('tournaments');
         } else if (data.category && data.subCategory) {
