@@ -26,6 +26,8 @@ import {
     useJoker,
     regenCurrentGroupRound,
     fixGroupDeadlines,
+    getTournamentChat,
+    sendTournamentChatMessage,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -54,6 +56,8 @@ router.patch('/:id/matches/:matchId/score',  enterTournamentMatchScore);
 router.post('/:id/matches/:matchId/joker',   useJoker);
 router.post('/:id/regen-round',              regenCurrentGroupRound);
 router.post('/:id/fix-deadlines',            fixGroupDeadlines);
+router.get('/:id/chat',                      getTournamentChat);
+router.post('/:id/chat',                     sendTournamentChatMessage);
 router.patch('/:id',                         updateTournament);
 router.delete('/:id',                        deleteTournament);
 

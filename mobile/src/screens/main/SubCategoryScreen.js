@@ -2861,6 +2861,43 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [scoreSets, setScoreSets] = useState([]);
     const [submittingScore, setSubmittingScore] = useState(false);
 
+    // Turnuva grup sohbeti — sahip + AS/yedek onaylanmış katılımcılar
+    const [showChatModal, setShowChatModal] = useState(false);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [loadingChat, setLoadingChat] = useState(false);
+    const [chatInput, setChatInput] = useState('');
+    const [sendingChat, setSendingChat] = useState(false);
+
+    const fetchChat = useCallback(async () => {
+        setLoadingChat(true);
+        try {
+            const { data } = await api.get(`/tournaments/${item.id}/chat`);
+            setChatMessages(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingChat(false); }
+    }, [item.id]);
+
+    const sendChatMessage = async () => {
+        const content = chatInput.trim();
+        if (!content) return;
+        setSendingChat(true);
+        try {
+            const { data } = await api.post(`/tournaments/${item.id}/chat`, { content });
+            setChatMessages(prev => [...prev, data]);
+            setChatInput('');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSendingChat(false); }
+    };
+
+    useEffect(() => {
+        const off = onSocket('tournament:chat_message', ({ tournamentId, message }) => {
+            if (tournamentId !== item.id) return;
+            setChatMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message]);
+        });
+        return off;
+    }, [item.id]);
+
     const fetchRequests = useCallback(async () => {
         setLoadingRequests(true);
         try {
@@ -3494,6 +3531,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </>
                         )}
                         <TouchableOpacity
+                            style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
+                            onPress={() => { fetchChat(); setShowChatModal(true); }}>
+                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
+                                {'Mesajlar'.split('').join('\n')}
+                            </Text>
+                            <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
                             style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
                             onPress={() => { fetchRequests(); setShowListModal(true); }}>
                             {requests.length > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{requests.length}</Text>}
@@ -3534,6 +3579,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <View style={{ backgroundColor:'#f59e0b15', borderRadius:6, paddingHorizontal:6, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40' }}>
                                 <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ İptal onay bekliyor</Text>
                             </View>
+                        )}
+                        {myStatus === 'ACCEPTED' && (
+                            <TouchableOpacity
+                                style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
+                                onPress={() => { fetchChat(); setShowChatModal(true); }}>
+                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
+                                    {'Mesajlar'.split('').join('\n')}
+                                </Text>
+                                <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
+                            </TouchableOpacity>
                         )}
                         <TouchableOpacity
                             style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
@@ -3726,7 +3781,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 if (myJokerRequested) return null;
                                                                 const jokerLabel = otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker';
                                                                 const confirmMsg = otherJokerRequested
-                                                                    ? 'Rakibiniz joker kullanarak süreyi zaten 7 gün uzattı. Onaylarsanız mevcut süre geçerli olur ve kendi joker hakkınız tüketilmez. Emin misiniz?'
+                                                                    ? 'Rakibiniz joker kullanarak süreyi zaten 7 gün uzattı. Onaylarsanız karşılıklı sayılır — süre tekrar uzamaz ama iki tarafın da joker hakkı tükenmez. Emin misiniz?'
                                                                     : 'Joker hakkınızı bu maç için kullanmak istediğinizden emin misiniz? Süre 7 gün uzatılacak ve joker hakkınız tükenecek.';
                                                                 return (
                                                                     <TouchableOpacity
@@ -4366,6 +4421,57 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </View>
             </Modal>
 
+            {/* Turnuva grup sohbeti — sahip + AS/yedek onaylanmış katılımcılar */}
+            <Modal visible={showChatModal} animationType="slide" transparent onRequestClose={() => setShowChatModal(false)}>
+                <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                        <View style={{ backgroundColor:'#0f172a', borderTopLeftRadius:20, borderTopRightRadius:20, padding:16, height:520 }}>
+                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>💬 Turnuva Sohbeti</Text>
+                                <TouchableOpacity onPress={() => setShowChatModal(false)}><Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text></TouchableOpacity>
+                            </View>
+                            {loadingChat ? (
+                                <ActivityIndicator color="#4ade80" style={{ marginTop:30 }} />
+                            ) : (
+                                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingBottom:10 }}>
+                                    {chatMessages.length === 0
+                                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz mesaj yok</Text>
+                                        : chatMessages.map(m => {
+                                            const mine = (m.sender?.id || m.senderId) === myId;
+                                            return (
+                                                <View key={m.id} style={{ marginBottom:10, alignItems: mine ? 'flex-end' : 'flex-start' }}>
+                                                    {!mine && <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>{m.sender?.fullName || m.sender?.username}</Text>}
+                                                    <View style={{ backgroundColor: mine ? '#16a34a30' : '#1e293b', borderRadius:10, paddingHorizontal:10, paddingVertical:7, maxWidth:'80%', borderWidth:1, borderColor: mine ? '#16a34a50' : colors.border }}>
+                                                        <Text style={{ color:'#fff', fontSize:13 }}>{m.content}</Text>
+                                                    </View>
+                                                </View>
+                                            );
+                                        })
+                                    }
+                                </ScrollView>
+                            )}
+                            <View style={{ flexDirection:'row', gap:8, marginTop:8, alignItems:'flex-end' }}>
+                                <TextInput
+                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:10, paddingHorizontal:12, paddingVertical:9, borderWidth:1, borderColor: colors.border, fontSize:13, maxHeight:80 }}
+                                    placeholder="Mesaj yaz..."
+                                    placeholderTextColor="#475569"
+                                    value={chatInput}
+                                    onChangeText={setChatInput}
+                                    multiline
+                                    maxLength={500}
+                                />
+                                <TouchableOpacity
+                                    onPress={sendChatMessage}
+                                    disabled={sendingChat || !chatInput.trim()}
+                                    style={{ backgroundColor:'#16a34a', borderRadius:10, paddingHorizontal:14, paddingVertical:10, opacity: (sendingChat || !chatInput.trim()) ? 0.5 : 1 }}>
+                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{sendingChat ? '...' : 'Gönder'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
+            </Modal>
+
             {item.description && <Text style={{ color: colors.textSecondary, fontSize:12, marginTop:6 }}>{item.description}</Text>}
 
             {/* Rules toggle */}
@@ -4381,7 +4487,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
                             'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
                             'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                            'İki oyuncu da aynı maç için joker isterse süre tekrar +7 uzamaz; ilk kullanan oyuncunun joker hakkı tükenir, karşılıklı jokeri onaylayan oyuncu kendi joker hakkını korur. Karşılıklı joker onayı, turnuvaya katılan her oyuncu için tek kullanımlıktır.',
+                            'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
                             'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
                         ].map((kural, i) => (
                             <View key={i} style={{ flexDirection:'row', gap:8, marginBottom: i < 4 ? 6 : 0 }}>
@@ -5093,7 +5199,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
                                         'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
                                         'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker isterse süre tekrar +7 uzamaz; ilk kullanan oyuncunun joker hakkı tükenir, karşılıklı jokeri onaylayan oyuncu kendi joker hakkını korur. Karşılıklı joker onayı, turnuvaya katılan her oyuncu için tek kullanımlıktır.',
+                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
                                         'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
                                     ].map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:6 }}>

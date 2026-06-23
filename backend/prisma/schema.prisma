@@ -68,6 +68,7 @@ model User {
   blockedUsers     Block[] @relation("blocker")
   blockedBy        Block[] @relation("blocked")
   sentMessages     Message[]
+  tournamentMessages TournamentMessage[]
   conversations1   Conversation[] @relation("convUser1")
   conversations2   Conversation[] @relation("convUser2")
   storyViews       StoryView[]
@@ -447,6 +448,19 @@ model Tournament {
   creator          User         @relation("tournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   participants     TournamentParticipant[]
   tournamentMatches TournamentMatch[]
+  messages         TournamentMessage[]
+}
+
+// TURNUVA GRUP SOHBETI — turnuva sahibi + AS/yedek olarak onaylanmis tum katilimcilar
+model TournamentMessage {
+  id           String   @id @default(uuid())
+  tournamentId String
+  senderId     String
+  content      String
+  createdAt    DateTime @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  sender       User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
 }
 
 model TournamentMatch {

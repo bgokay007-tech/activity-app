@@ -1608,13 +1608,17 @@ export const useJoker = async (req, res, next) => {
         };
 
         if (otherJokerRequested) {
-            // Karşılıklı joker onayı: rakip zaten joker kullanıp deadline'ı +7 uzatmıştı (kendi hakkını tüketerek).
-            // Bu tıklama üstüne tekrar +7 EKLEMEZ — sadece bu tarafın da kabul ettiğini işaretler
-            // ve kendi joker hakkını HİÇ tüketmeden (korunmuş kalır) talebi kapatır.
-            // Bu onay hakkı da kendi başına turnuva boyunca oyuncu başına 1 kez kullanılabilir.
+            // Karşılıklı joker: rakip ilk tıkladığında tek kullanım sayılıp deadline +7 uzamış ve
+            // kendi hakkı tüketilmişti. Bu tarafın da onaylamasıyla durum "karşılıklı" oluyor:
+            // süre tekrar +7 EKLENMEZ (toplam hep +7 kalır) ve iki tarafın da joker hakkı geri verilir/korunur.
+            // Onay hakkı kendi başına turnuva boyunca oyuncu başına 1 kez kullanılabilir.
             if (participant.mutualJokerUsed) {
                 return res.status(400).json({ message: 'Karşılıklı joker onay hakkınızı bu turnuvada daha önce kullandınız.' });
             }
+            const otherUserId = isP1 ? match.p2Id : match.p1Id;
+            const otherParticipant = await prisma.tournamentParticipant.findFirst({
+                where: { tournamentId: id, userId: otherUserId, status: 'ACCEPTED' },
+            });
             await prisma.$transaction([
                 prisma.tournamentMatch.update({
                     where: { id: matchId },
@@ -1624,9 +1628,13 @@ export const useJoker = async (req, res, next) => {
                     where: { id: participant.id },
                     data: { mutualJokerUsed: true },
                 }),
+                ...(otherParticipant ? [prisma.tournamentParticipant.update({
+                    where: { id: otherParticipant.id },
+                    data: { jokerUsed: false, jokerUsedAt: null },
+                })] : []),
             ]);
             await emitMatchUpdate();
-            return res.json({ mutual: true, message: 'Karşılıklı joker onaylandı — rakibinizin uzattığı süre geçerli, kendi joker hakkınız tüketilmedi.', deadline: match.deadline });
+            return res.json({ mutual: true, message: 'Karşılıklı joker onaylandı — süre +7 gün (tekrar eklenmedi), iki tarafın da joker hakkı tükenmedi.', deadline: match.deadline });
         } else {
             if (participant.jokerUsed) return res.status(400).json({ message: 'Joker hakkınızı daha önce kullandınız.' });
             // Tek joker: +7 gün, joker tükenir
@@ -1644,6 +1652,60 @@ export const useJoker = async (req, res, next) => {
             await emitMatchUpdate();
             return res.json({ mutual: false, message: 'Joker hakkınız kullanıldı — deadline 7 gün uzatıldı.', deadline: newDeadline });
         }
+    } catch (e) { next(e); }
+};
+
+// Turnuva grup sohbeti — sadece turnuva sahibi ve AS/yedek olarak onaylanmış (ACCEPTED) katılımcılar
+export const getTournamentChat = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { creatorId: true } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
+
+        if (tournament.creatorId !== req.userId) {
+            const participant = await prisma.tournamentParticipant.findFirst({
+                where: { tournamentId: id, userId: req.userId, status: 'ACCEPTED' },
+            });
+            if (!participant) return res.status(403).json({ message: 'Bu turnuvanın sohbetine erişiminiz yok.' });
+        }
+
+        const messages = await prisma.tournamentMessage.findMany({
+            where: { tournamentId: id },
+            include: { sender: { select: { id: true, username: true, fullName: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' },
+            take: 200,
+        });
+        res.json(messages);
+    } catch (e) { next(e); }
+};
+
+export const sendTournamentChatMessage = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { content } = req.body;
+        if (!content || !content.trim()) return res.status(400).json({ message: 'Mesaj boş olamaz.' });
+
+        const tournament = await prisma.tournament.findUnique({
+            where: { id },
+            include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
+        });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
+
+        const isCreator = tournament.creatorId === req.userId;
+        const isParticipant = tournament.participants.some(p => p.userId === req.userId);
+        if (!isCreator && !isParticipant) return res.status(403).json({ message: 'Bu turnuvanın sohbetine erişiminiz yok.' });
+
+        const message = await prisma.tournamentMessage.create({
+            data: { tournamentId: id, senderId: req.userId, content: content.trim().slice(0, 1000) },
+            include: { sender: { select: { id: true, username: true, fullName: true, avatar: true } } },
+        });
+
+        const recipientIds = new Set([tournament.creatorId, ...tournament.participants.map(p => p.userId).filter(Boolean)]);
+        for (const uid of recipientIds) {
+            emitToUser(uid, 'tournament:chat_message', { tournamentId: id, message });
+        }
+
+        res.status(201).json(message);
     } catch (e) { next(e); }
 };
 
