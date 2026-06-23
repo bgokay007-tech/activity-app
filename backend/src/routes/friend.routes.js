@@ -2,13 +2,14 @@ import { Router } from 'express';
 import {
     sendRequest, respondRequest, unfriend,
     blockUser, unblockUser,
-    getFriends, getPendingRequests, getBlockList, getFriendshipStatus,
+    getFriends, getFriendsOf, getPendingRequests, getBlockList, getFriendshipStatus,
 } from '../controllers/friend.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
 router.get('/',                     authenticate, getFriends);
+router.get('/list/:userId',         authenticate, getFriendsOf);
 router.get('/requests',             authenticate, getPendingRequests);
 router.get('/blocked',              authenticate, getBlockList);
 router.get('/status/:userId',       authenticate, getFriendshipStatus);

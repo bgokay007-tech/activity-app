@@ -280,6 +280,15 @@ export default function ProfileScreen({ route, navigation }) {
 
     // Reel count
     const [reelCount, setReelCount] = useState(0);
+    const [reels, setReels] = useState([]);
+
+    // Profil kartlarinin (Gonderiler/Reels/Arkadaslar/Aktiviteler) modal gorunumleri
+    const [showPostsModal, setShowPostsModal] = useState(false);
+    const [showReelsModal, setShowReelsModal] = useState(false);
+    const [showFriendsListModal, setShowFriendsListModal] = useState(false);
+    const [showActivitiesViewModal, setShowActivitiesViewModal] = useState(false);
+    const [friendsList, setFriendsList] = useState([]);
+    const [loadingFriendsList, setLoadingFriendsList] = useState(false);
 
     // Create post/reel
     const [createReelOpen, setCreateReelOpen] = useState(false);
@@ -393,6 +402,16 @@ export default function ProfileScreen({ route, navigation }) {
 
     const userId = targetUserId || myUser?.id;
 
+    const openFriendsList = useCallback(async () => {
+        setShowFriendsListModal(true);
+        setLoadingFriendsList(true);
+        try {
+            const { data } = await api.get(isOwnProfile ? '/friends' : `/friends/list/${userId}`);
+            setFriendsList(Array.isArray(data) ? data : []);
+        } catch { setFriendsList([]); }
+        finally { setLoadingFriendsList(false); }
+    }, [isOwnProfile, userId]);
+
     useEffect(() => {
         const load = async () => {
             try {
@@ -408,7 +427,9 @@ export default function ProfileScreen({ route, navigation }) {
                 setProfile(profileRes.data);
                 setInterests(intRes.data);
                 setStories(storiesRes.data);
-                setReelCount(Array.isArray(reelsRes.data) ? reelsRes.data.length : 0);
+                const reelsList = Array.isArray(reelsRes.data) ? reelsRes.data : [];
+                setReels(reelsList);
+                setReelCount(reelsList.length);
                 const postsList = Array.isArray(postsRes.data) ? postsRes.data : [];
                 setPosts(postsList);
                 setPostCount(postsList.length);
@@ -883,10 +904,10 @@ export default function ProfileScreen({ route, navigation }) {
 
                     {/* 2×2 stat grid */}
                     <View style={s.statGrid}>
-                        <StatCard emoji="🔥" label={t.postsLabel}      count={postCount}        onAdd={isOwnProfile ? handleCreatePost : null} onPress={() => navigation.navigate('UserPosts', { userId, username: profile?.username })} />
-                        <StatCard emoji="🎬" label={t.reels}            count={reelCount}        onAdd={isOwnProfile ? handleCreateReel : null} />
-                        <StatCard emoji="👥" label={t.friendsLabel}     count={friendCount}      onAdd={isOwnProfile ? () => setShowAddFriendModal(true) : null} />
-                        <StatCard emoji="🏃" label={t.activitiesLabel}  count={interests.length} onAdd={isOwnProfile ? () => setManageOpen(true) : null} />
+                        <StatCard emoji="🔥" label={t.postsLabel}      count={postCount}        onAdd={isOwnProfile ? handleCreatePost : null} onPress={() => setShowPostsModal(true)} />
+                        <StatCard emoji="🎬" label={t.reels}            count={reelCount}        onAdd={isOwnProfile ? handleCreateReel : null} onPress={() => setShowReelsModal(true)} />
+                        <StatCard emoji="👥" label={t.friendsLabel}     count={friendCount}      onAdd={isOwnProfile ? () => setShowAddFriendModal(true) : null} onPress={openFriendsList} />
+                        <StatCard emoji="🏃" label={t.activitiesLabel}  count={interests.length} onAdd={isOwnProfile ? () => setManageOpen(true) : null} onPress={() => isOwnProfile ? setManageOpen(true) : setShowActivitiesViewModal(true)} />
                     </View>
 
 
@@ -1494,6 +1515,126 @@ export default function ProfileScreen({ route, navigation }) {
                 onClose={() => setManageOpen(false)}
                 onInterestsChange={(updated) => setInterests(updated)}
             />
+
+            {/* ── Gönderiler modalı ── */}
+            <Modal visible={showPostsModal} animationType="slide" transparent onRequestClose={() => setShowPostsModal(false)}>
+                <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>🔥 {t.postsLabel}</Text>
+                            <TouchableOpacity onPress={() => setShowPostsModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {posts.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz gönderi yok</Text>
+                            ) : (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                                    {posts.map(p => (
+                                        <View key={p.id} style={{ width:'31.5%', aspectRatio:1, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
+                                            {p.imageUrl || p.videoUrl
+                                                ? <Image source={{ uri: p.imageUrl || p.videoUrl }} style={{ width:'100%', height:'100%' }} />
+                                                : <View style={{ flex:1, padding:6, justifyContent:'center' }}>
+                                                    <Text style={{ color: colors.textSecondary, fontSize:10 }} numberOfLines={4}>{p.content}</Text>
+                                                  </View>
+                                            }
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Reels modalı ── */}
+            <Modal visible={showReelsModal} animationType="slide" transparent onRequestClose={() => setShowReelsModal(false)}>
+                <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>🎬 {t.reels}</Text>
+                            <TouchableOpacity onPress={() => setShowReelsModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {reels.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz reels yok</Text>
+                            ) : (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                                    {reels.map(r => (
+                                        <View key={r.id} style={{ width:'31.5%', aspectRatio:9/16, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
+                                            {r.imageUrl || r.videoUrl
+                                                ? <Image source={{ uri: r.imageUrl || r.videoUrl }} style={{ width:'100%', height:'100%' }} />
+                                                : <View style={{ flex:1, padding:6, justifyContent:'center' }}>
+                                                    <Text style={{ color: colors.textSecondary, fontSize:10 }} numberOfLines={4}>{r.content}</Text>
+                                                  </View>
+                                            }
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Arkadaşlar listesi modalı ── */}
+            <Modal visible={showFriendsListModal} animationType="slide" transparent onRequestClose={() => setShowFriendsListModal(false)}>
+                <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>👥 {t.friendsLabel}</Text>
+                            <TouchableOpacity onPress={() => setShowFriendsListModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {loadingFriendsList ? (
+                                <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                            ) : friendsList.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz arkadaş yok</Text>
+                            ) : friendsList.map(f => (
+                                <TouchableOpacity
+                                    key={f.id}
+                                    style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}
+                                    onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
+                                    {f.avatar
+                                        ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
+                                        : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: colors.purple, fontWeight:'800' }}>{(f.username?.[0] || '?').toUpperCase()}</Text>
+                                          </View>
+                                    }
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Aktiviteler görüntüleme modalı (başkasının profili) ── */}
+            <Modal visible={showActivitiesViewModal} animationType="slide" transparent onRequestClose={() => setShowActivitiesViewModal(false)}>
+                <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>🏃 Sporlar</Text>
+                            <TouchableOpacity onPress={() => setShowActivitiesViewModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {interests.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz spor eklenmemiş</Text>
+                            ) : interests.map(i => (
+                                <View key={i.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ fontSize:22, marginRight:10 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{i.subCategory}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.levelTr?.[i.level] || i.level}{i.skillRating ? `  ${Number(i.skillRating).toFixed(2)}★` : ''}</Text>
+                                    </View>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
 
             {/* ── Admin Paneli — Turnuva İzin Talepleri ── */}
             <Modal visible={showAdminPanel} animationType="slide" transparent onRequestClose={() => setShowAdminPanel(false)}>

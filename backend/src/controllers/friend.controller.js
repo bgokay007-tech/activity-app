@@ -114,6 +114,26 @@ export const unblockUser = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const getFriendsOf = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        const friendships = await prisma.friendship.findMany({
+            where: {
+                OR: [{ senderId: userId }, { receiverId: userId }],
+                status: 'ACCEPTED',
+            },
+            include: {
+                sender:   { select: FRIEND_SELECT },
+                receiver: { select: FRIEND_SELECT },
+            },
+        });
+        const friends = friendships.map(f =>
+            f.senderId === userId ? f.receiver : f.sender
+        );
+        res.json(friends);
+    } catch (error) { next(error); }
+};
+
 export const getFriends = async (req, res, next) => {
     try {
         const friendships = await prisma.friendship.findMany({
