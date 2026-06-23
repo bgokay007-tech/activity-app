@@ -66,6 +66,48 @@ export const createListing = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
+export const updateListing = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const listing = await prisma.coachListing.findUnique({ where: { id } });
+        if (!listing || listing.userId !== req.userId)
+            return res.status(403).json({ message: 'Forbidden' });
+
+        const {
+            credentialLevel, certName, certificateUrl, experience,
+            achievements, achievementUrls, cvUrl,
+            individual, group, priceIndividual, priceGroup, maxGroupSize,
+            location, city, days, timeFrom, timeTo, description,
+        } = req.body;
+
+        const updated = await prisma.coachListing.update({
+            where: { id },
+            data: {
+                ...(credentialLevel !== undefined && { credentialLevel }),
+                ...(certName !== undefined && { certName }),
+                ...(certificateUrl !== undefined && { certificateUrl }),
+                ...(experience !== undefined && { experience: Number(experience) || 0 }),
+                ...(achievements !== undefined && { achievements }),
+                ...(achievementUrls !== undefined && { achievementUrls }),
+                ...(cvUrl !== undefined && { cvUrl }),
+                ...(individual !== undefined && { individual: Boolean(individual) }),
+                ...(group !== undefined && { group: Boolean(group) }),
+                ...(priceIndividual !== undefined && { priceIndividual: Number(priceIndividual) || 0 }),
+                ...(priceGroup !== undefined && { priceGroup: Number(priceGroup) || 0 }),
+                ...(maxGroupSize !== undefined && { maxGroupSize: Number(maxGroupSize) || 4 }),
+                ...(location !== undefined && { location }),
+                ...(city !== undefined && { city }),
+                ...(days !== undefined && { days }),
+                ...(timeFrom !== undefined && { timeFrom }),
+                ...(timeTo !== undefined && { timeTo }),
+                ...(description !== undefined && { description }),
+            },
+            include: { user: { select: USER_SELECT } },
+        });
+        res.json(updated);
+    } catch (err) { next(err); }
+};
+
 export const deleteListing = async (req, res, next) => {
     try {
         const { id } = req.params;
