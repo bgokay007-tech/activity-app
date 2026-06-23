@@ -1673,6 +1673,13 @@ export default function ProfileScreen({ route, navigation }) {
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>🔥 {t.postsLabel}</Text>
                             <TouchableOpacity onPress={() => setShowPostsModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
+                        {isOwnProfile && (
+                            <TouchableOpacity
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:11, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
+                                onPress={() => { setShowPostsModal(false); handleCreatePost(); }}>
+                                <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>+ Gönderi Ekle</Text>
+                            </TouchableOpacity>
+                        )}
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {posts.length === 0 ? (
                                 <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz gönderi yok</Text>
@@ -1703,6 +1710,13 @@ export default function ProfileScreen({ route, navigation }) {
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>🎬 {t.reels}</Text>
                             <TouchableOpacity onPress={() => setShowReelsModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
+                        {isOwnProfile && (
+                            <TouchableOpacity
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:11, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
+                                onPress={() => { setShowReelsModal(false); handleCreateReel(); }}>
+                                <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>+ Reels Ekle</Text>
+                            </TouchableOpacity>
+                        )}
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {reels.length === 0 ? (
                                 <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz reels yok</Text>
