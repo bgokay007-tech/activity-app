@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { createNotification } from './notification.controller.js';
 
 const FRIEND_SELECT = {
     id: true, username: true, fullName: true, avatar: true, isPublic: true,
@@ -22,6 +23,15 @@ export const sendRequest = async (req, res, next) => {
         const friendship = await prisma.friendship.create({
             data: { senderId: req.userId, receiverId },
         });
+
+        const sender = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+        createNotification(
+            receiverId, 'FRIEND_REQUEST',
+            '👥 Arkadaşlık İsteği',
+            `${sender?.fullName || sender?.username} size arkadaşlık isteği gönderdi.`,
+            { senderId: req.userId, senderUsername: sender?.username },
+        ).catch(() => {});
+
         res.status(201).json(friendship);
     } catch (error) { next(error); }
 };
@@ -39,6 +49,17 @@ export const respondRequest = async (req, res, next) => {
             where: { id },
             data: { status: action === 'accept' ? 'ACCEPTED' : 'REJECTED' },
         });
+
+        if (action === 'accept') {
+            const accepter = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+            createNotification(
+                friendship.senderId, 'FRIEND_ACCEPTED',
+                '🤝 Arkadaşlık İsteği Kabul Edildi',
+                `${accepter?.fullName || accepter?.username} arkadaşlık isteğinizi kabul etti.`,
+                { senderId: req.userId, senderUsername: accepter?.username },
+            ).catch(() => {});
+        }
+
         res.json(updated);
     } catch (error) { next(error); }
 };
