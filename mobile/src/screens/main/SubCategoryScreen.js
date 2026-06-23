@@ -3530,23 +3530,25 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </TouchableOpacity>
                             </>
                         )}
-                        <TouchableOpacity
-                            style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
-                            onPress={() => { fetchChat(); setShowChatModal(true); }}>
-                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
-                                {'Mesajlar'.split('').join('\n')}
-                            </Text>
-                            <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
-                            onPress={() => { fetchRequests(); setShowListModal(true); }}>
-                            {requests.length > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{requests.length}</Text>}
-                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
-                                {'Başvurular'.split('').join('\n')}
-                            </Text>
-                            <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
-                        </TouchableOpacity>
+                        <View style={{ flexDirection:'row', gap:6 }}>
+                            <TouchableOpacity
+                                style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
+                                onPress={() => { fetchChat(); setShowChatModal(true); }}>
+                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
+                                    {'Mesajlar'.split('').join('\n')}
+                                </Text>
+                                <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
+                                onPress={() => { fetchRequests(); setShowListModal(true); }}>
+                                {requests.length > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{requests.length}</Text>}
+                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
+                                    {'Başvurular'.split('').join('\n')}
+                                </Text>
+                                <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
+                            </TouchableOpacity>
+                        </View>
                     </>) : (<>
                         {myStatus === null && ['OPEN', 'IN_PROGRESS'].includes(item.status) && !isEventStarted() && !isRegEnded() && (
                             <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
@@ -3580,25 +3582,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ İptal onay bekliyor</Text>
                             </View>
                         )}
-                        {myStatus === 'ACCEPTED' && (
+                        <View style={{ flexDirection:'row', gap:6 }}>
+                            {myStatus === 'ACCEPTED' && (
+                                <TouchableOpacity
+                                    style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
+                                    onPress={() => { fetchChat(); setShowChatModal(true); }}>
+                                    <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
+                                        {'Mesajlar'.split('').join('\n')}
+                                    </Text>
+                                    <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity
-                                style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
-                                onPress={() => { fetchChat(); setShowChatModal(true); }}>
-                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
-                                    {'Mesajlar'.split('').join('\n')}
+                                style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
+                                onPress={() => { fetchParticipants(); setShowListModal(true); }}>
+                                {participantCount > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{participantCount}</Text>}
+                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
+                                    {'Katılımcı'.split('').join('\n')}
                                 </Text>
-                                <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
+                                <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
                             </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                            style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
-                            onPress={() => { fetchParticipants(); setShowListModal(true); }}>
-                            {participantCount > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{participantCount}</Text>}
-                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
-                                {'Katılımcı'.split('').join('\n')}
-                            </Text>
-                            <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
-                        </TouchableOpacity>
+                        </View>
                     </>)}
                 </View>
                 )}
