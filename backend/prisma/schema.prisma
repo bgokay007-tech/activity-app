@@ -321,6 +321,7 @@ model ActivityRequest {
   courtLat        Float?
   courtLng        Float?
   isCourtReserved    Boolean      @default(false)
+  courtFeePerPerson  Int?
   flexibleSchedule   Boolean      @default(false)
   matchDate          DateTime?
   matchTime       String?

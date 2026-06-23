@@ -405,6 +405,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         {item.courtName && (
                             <Text style={{ color:'#60a5fa', fontSize:13, marginTop:6 }}>🏟️ {item.courtName}</Text>
                         )}
+                        {item.courtFeePerPerson > 0 && (
+                            <Text style={{ color:'#4ade80', fontSize:12, marginTop:3 }}>💰 {item.courtFeePerPerson}₺ / {t.perPerson}</Text>
+                        )}
                         {item.level && (
                             <View style={[s.levelRow, { marginTop:6, justifyContent:'center' }]}>
                                 <Text style={s.levelBadge}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
@@ -687,6 +690,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, onUserPress, autoOp
                         </Text>
                         {item.courtName && (
                             <Text style={{ fontSize:11, marginTop:2, color:'#60a5fa' }}>🏟️ {item.courtName}</Text>
+                        )}
+                        {item.courtFeePerPerson > 0 && (
+                            <Text style={{ fontSize:11, marginTop:2, color:'#4ade80' }}>💰 {item.courtFeePerPerson}₺ / {t.perPerson}</Text>
                         )}
                     </View>
                     <View style={{ alignItems:'flex-end', gap:4 }}>
@@ -2262,6 +2268,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         showManualCourt: false,
         manualCourtName: '', manualCity: '', manualAddress: '',
         surface: '', venueType: '', courtReserved: false,
+        courtFeePerPerson: '',
         message: '',
         minRating: '', maxRating: '',
     };
@@ -2342,6 +2349,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                 surface:   f.surface || undefined,
                 venueType: f.venueType || undefined,
                 isCourtReserved: f.courtReserved,
+                courtFeePerPerson: f.courtFeePerPerson !== '' ? parseInt(f.courtFeePerPerson, 10) : undefined,
                 message:   f.message || undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
@@ -2620,6 +2628,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             <TextInput style={s.fieldInput} value={f.manualAddress}
                                                 onChangeText={v => set('manualAddress', v)}
                                                 placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} />
+                                        </View>
+                                    )}
+
+                                    {/* Kişi Başı Kort Ücreti */}
+                                    {(f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)) && (
+                                        <View style={{ marginBottom:10 }}>
+                                            <Text style={s.fieldLabel}>{t.courtFeeLabel}</Text>
+                                            <TextInput
+                                                style={s.fieldInput}
+                                                value={f.courtFeePerPerson}
+                                                onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
+                                                placeholder={t.courtFeePh}
+                                                placeholderTextColor={colors.textMuted}
+                                                keyboardType="numeric"
+                                            />
                                         </View>
                                     )}
 

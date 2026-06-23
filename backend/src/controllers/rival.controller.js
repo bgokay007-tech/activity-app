@@ -198,7 +198,7 @@ export const createRivalRequest = async (req, res, next) => {
             location, courtName, courtAddress, courtLat, courtLng,
             isCourtReserved, flexibleSchedule, matchDate, matchTime,
             matchType = 'SINGLE', matchMode = 'PRACTICE',
-            surface, teamSize = 1,
+            surface, teamSize = 1, courtFeePerPerson,
             senderTeam, // COMPETITIVE football: [{id,username,fullName,skillRating}]
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
             refereePayment,
@@ -252,6 +252,7 @@ export const createRivalRequest = async (req, res, next) => {
                 ...(refereePayment && { refereePayment }),
                 ...(minRating !== undefined && minRating !== null && minRating !== '' && { minRating: parseFloat(minRating) }),
                 ...(maxRating !== undefined && maxRating !== null && maxRating !== '' && { maxRating: parseFloat(maxRating) }),
+                ...(courtFeePerPerson !== undefined && courtFeePerPerson !== null && { courtFeePerPerson: parseInt(courtFeePerPerson, 10) }),
                 status: 'OPEN',
             },
             include: { sender: { select: SENDER_SELECT } },
