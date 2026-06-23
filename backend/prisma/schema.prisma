@@ -161,7 +161,11 @@ model CoachListing {
   // Kimlik / Belge
   credentialLevel String   // CERTIFIED | LICENSED | CLUB_COACH | INDEPENDENT | AMATEUR
   certName        String?  // "ITF Level 2", "PTR Professional" vb.
+  certificateUrl  String?  // yuklenen belge/sertifika dosyasi (pdf veya foto)
   experience      Int      @default(0) // years
+  achievements    String?  // basarilar - yazili bilgi
+  achievementUrls Json     @default("[]") // basari belgesi/foto dosyalari
+  cvUrl           String?  // yuklenen CV dosyasi
 
   // Ders tipleri
   individual      Boolean  @default(true)

@@ -22,7 +22,8 @@ export const createListing = async (req, res, next) => {
     try {
         const {
             category, subCategory,
-            credentialLevel, certName, experience,
+            credentialLevel, certName, certificateUrl, experience,
+            achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize,
             location, city, days, timeFrom, timeTo, description,
         } = req.body;
@@ -34,7 +35,9 @@ export const createListing = async (req, res, next) => {
             data: {
                 userId: req.userId,
                 category, subCategory,
-                credentialLevel, certName, experience: Number(experience) || 0,
+                credentialLevel, certName, certificateUrl,
+                experience: Number(experience) || 0,
+                achievements, achievementUrls: achievementUrls || [], cvUrl,
                 individual: Boolean(individual),
                 group: Boolean(group),
                 priceIndividual: Number(priceIndividual) || 0,

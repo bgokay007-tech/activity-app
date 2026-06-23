@@ -5473,6 +5473,19 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Coaches data
     const [coachListings, setCoachListings] = useState([]);
     const [loadingCoaches, setLoadingCoaches] = useState(false);
+    const [coachSubTab, setCoachSubTab] = useState('listings'); // 'listings' | 'cvs'
+    const [showCreateCoach, setShowCreateCoach] = useState(false);
+    const [submittingCoach, setSubmittingCoach] = useState(false);
+    const [uploadingCoachMedia, setUploadingCoachMedia] = useState(false);
+    const [coachForm, setCoachForm] = useState({
+        credentialLevel: 'INDEPENDENT', certName: '', experience: '',
+        achievements: '', individual: true, group: false,
+        priceIndividual: '', priceGroup: '', maxGroupSize: '4',
+        location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+    });
+    const [coachCertImage, setCoachCertImage] = useState(null);
+    const [coachCvImage, setCoachCvImage] = useState(null);
+    const [coachAchievementImages, setCoachAchievementImages] = useState([]);
 
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
@@ -5728,6 +5741,74 @@ export default function SubCategoryScreen({ route, navigation }) {
         const task = InteractionManager.runAfterInteractions(() => { loadCoaches(); });
         return () => task.cancel();
     }, [loadCoaches]);
+
+    const pickCoachSingleImage = async (setter) => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+        if (!result.canceled) setter(result.assets[0].uri);
+    };
+
+    const pickCoachAchievementImages = async () => {
+        if (coachAchievementImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85,
+            selectionLimit: 5 - coachAchievementImages.length,
+        });
+        if (!result.canceled) {
+            setCoachAchievementImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+    };
+
+    const uploadCoachImage = async (uri, name) => {
+        const form = new FormData();
+        form.append('file', { uri, name, type: 'image/jpeg' });
+        const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+        return data.url;
+    };
+
+    const resetCoachForm = () => {
+        setCoachForm({
+            credentialLevel: 'INDEPENDENT', certName: '', experience: '',
+            achievements: '', individual: true, group: false,
+            priceIndividual: '', priceGroup: '', maxGroupSize: '4',
+            location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+        });
+        setCoachCertImage(null);
+        setCoachCvImage(null);
+        setCoachAchievementImages([]);
+    };
+
+    const submitCoach = async () => {
+        if (!coachForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
+        setSubmittingCoach(true);
+        try {
+            setUploadingCoachMedia(true);
+            const certificateUrl = coachCertImage ? await uploadCoachImage(coachCertImage, 'cert.jpg') : undefined;
+            const cvUrl = coachCvImage ? await uploadCoachImage(coachCvImage, 'cv.jpg') : undefined;
+            const achievementUrls = [];
+            for (const uri of coachAchievementImages) {
+                achievementUrls.push(await uploadCoachImage(uri, 'achievement.jpg'));
+            }
+            setUploadingCoachMedia(false);
+
+            await api.post('/coaches', {
+                ...coachForm,
+                category, subCategory: sub,
+                experience: parseInt(coachForm.experience) || 0,
+                priceIndividual: parseInt(coachForm.priceIndividual) || 0,
+                priceGroup: parseInt(coachForm.priceGroup) || 0,
+                maxGroupSize: parseInt(coachForm.maxGroupSize) || 4,
+                certificateUrl, cvUrl, achievementUrls,
+            });
+            setShowCreateCoach(false);
+            resetCoachForm();
+            loadCoaches();
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setSubmittingCoach(false); setUploadingCoachMedia(false); }
+    };
 
     const loadEquipment = useCallback(async () => {
         if (activeTab !== 'equipment') return;
@@ -6396,6 +6477,113 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </View>
                                 </View>
                             </Modal>
+
+                            {/* ── Antrenör İlanı Oluştur ── */}
+                            <Modal visible={showCreateCoach} animationType="slide" transparent onRequestClose={() => setShowCreateCoach(false)}>
+                                <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
+                                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20 }}>
+                                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎓 Antrenör İlanı Oluştur</Text>
+
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+                                                {[
+                                                    { key:'CERTIFIED', label:'Sertifikalı' },
+                                                    { key:'LICENSED', label:'Lisanslı' },
+                                                    { key:'CLUB_COACH', label:'Kulüp Antrenörü' },
+                                                    { key:'INDEPENDENT', label:'Bağımsız' },
+                                                    { key:'AMATEUR', label:'Amatör' },
+                                                ].map(lvl => (
+                                                    <TouchableOpacity key={lvl.key} onPress={() => setCoachForm(f => ({...f, credentialLevel:lvl.key}))}
+                                                        style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, backgroundColor: coachForm.credentialLevel===lvl.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.credentialLevel===lvl.key ? cfg.color : colors.border }}>
+                                                        <Text style={{ color: coachForm.credentialLevel===lvl.key ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>{lvl.label}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                            <TextInput placeholder="Belge/Sertifika adı (örn. ITF Level 2)" placeholderTextColor={colors.textMuted} value={coachForm.certName} onChangeText={v => setCoachForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCertImage)}
+                                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:9, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
+                                                <Text style={{ fontSize:14 }}>📜</Text>
+                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCertImage ? 'Belge Fotoğrafı Seçildi ✓' : 'Belge Fotoğrafı Yükle (opsiyonel)'}</Text>
+                                            </TouchableOpacity>
+                                            <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={coachForm.experience} onChangeText={v => setCoachForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Ders Tipleri & Ücret</Text>
+                                            <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                                <TouchableOpacity onPress={() => setCoachForm(f => ({...f, individual: !f.individual}))}
+                                                    style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: coachForm.individual ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.individual ? cfg.color : colors.border }}>
+                                                    <Text style={{ color: coachForm.individual ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>Bireysel Ders</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => setCoachForm(f => ({...f, group: !f.group}))}
+                                                    style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: coachForm.group ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.group ? cfg.color : colors.border }}>
+                                                    <Text style={{ color: coachForm.group ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>Grup Dersi</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            {coachForm.individual && (
+                                                <TextInput placeholder="Bireysel ders ücreti (₺/saat)" placeholderTextColor={colors.textMuted} value={coachForm.priceIndividual} onChangeText={v => setCoachForm(f=>({...f,priceIndividual:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            )}
+                                            {coachForm.group && (
+                                                <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                                    <TextInput placeholder="Grup ücreti (₺/kişi)" placeholderTextColor={colors.textMuted} value={coachForm.priceGroup} onChangeText={v => setCoachForm(f=>({...f,priceGroup:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                                    <TextInput placeholder="Maks. grup" placeholderTextColor={colors.textMuted} value={coachForm.maxGroupSize} onChangeText={v => setCoachForm(f=>({...f,maxGroupSize:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ width:100, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                                </View>
+                                            )}
+
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginTop:6, marginBottom:6 }}>Yer / Zaman</Text>
+                                            <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder="Şehir" placeholderTextColor={colors.textMuted} value={coachForm.city} onChangeText={v => setCoachForm(f=>({...f,city:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                                                <TextInput placeholder="Başlangıç saati (09:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeFrom} onChangeText={v => setCoachForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                                <TextInput placeholder="Bitiş saati (21:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeTo} onChangeText={v => setCoachForm(f=>({...f,timeTo:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                            </View>
+
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Başarılar</Text>
+                                            <TextInput placeholder="Başarılarınız (örn. 2023 Bölge Şampiyonu)" placeholderTextColor={colors.textMuted} value={coachForm.achievements} onChangeText={v => setCoachForm(f=>({...f,achievements:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
+                                            {coachAchievementImages.length > 0 && (
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                                    {coachAchievementImages.map((uri, idx) => (
+                                                        <View key={idx} style={{ marginRight:8, position:'relative' }}>
+                                                            <Image source={{ uri }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                            <TouchableOpacity onPress={() => setCoachAchievementImages(prev => prev.filter((_,i) => i !== idx))}
+                                                                style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))}
+                                                </ScrollView>
+                                            )}
+                                            {coachAchievementImages.length < 5 && (
+                                                <TouchableOpacity onPress={pickCoachAchievementImages}
+                                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:9, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                                    <Text style={{ fontSize:14 }}>🏆</Text>
+                                                    <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>Başarı Fotoğrafı Ekle {coachAchievementImages.length > 0 ? `(${coachAchievementImages.length}/5)` : ''}</Text>
+                                                </TouchableOpacity>
+                                            )}
+
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>CV</Text>
+                                            <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCvImage)}
+                                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:9, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
+                                                <Text style={{ fontSize:14 }}>📄</Text>
+                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCvImage ? 'CV Fotoğrafı Seçildi ✓' : 'CV Fotoğrafı Yükle (opsiyonel)'}</Text>
+                                            </TouchableOpacity>
+
+                                            <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.description} onChangeText={v => setCoachForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+
+                                            <View style={{ flexDirection:'row', gap:8 }}>
+                                                <TouchableOpacity onPress={() => { setShowCreateCoach(false); resetCoachForm(); }} style={{ flex:1, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={submitCoach} disabled={submittingCoach || uploadingCoachMedia} style={{ flex:2, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
+                                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
+                                                        {uploadingCoachMedia ? 'Yükleniyor...' : submittingCoach ? '...' : 'İlanı Yayınla'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </ScrollView>
+                                    </View>
+                                </View>
+                            </Modal>
+
                             {/* İlan detay Modal */}
                             <Modal visible={!!selectedEquipment} animationType="slide" transparent onRequestClose={() => setSelectedEquipment(null)}>
                                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
@@ -6444,18 +6632,53 @@ export default function SubCategoryScreen({ route, navigation }) {
                     })()}
 
 
-                    {activeTab === 'coaches' && (
+                    {activeTab === 'coaches' && (() => {
+                        const coachesWithCv = filteredCoaches.filter(c => c.cvUrl);
+                        const shown = coachSubTab === 'cvs' ? coachesWithCv : filteredCoaches;
+                        return (
                         <>
                             <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
-                                <View style={{ flex:1 }} />
+                                <TouchableOpacity
+                                    style={[s.createBtn, { flex:1, marginBottom:0, borderColor: cfg.color + '60' }]}
+                                    onPress={() => setShowCreateCoach(true)}>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]}>+ Antrenör İlanı Oluştur</Text>
+                                </TouchableOpacity>
                                 <CityAlertBtn tab="coaches" />
                             </View>
+
+                            <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                {[
+                                    { key:'listings', label:'📋 Antrenör İlanları', count: filteredCoaches.length },
+                                    { key:'cvs',       label:'📄 CV\'ler',           count: coachesWithCv.length },
+                                ].map(st => (
+                                    <TouchableOpacity key={st.key} onPress={() => setCoachSubTab(st.key)}
+                                        style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
+                                        <Text style={{ color: coachSubTab===st.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>
+                                            {st.label}{st.count > 0 ? `  ${st.count}` : ''}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
                             <CompactFilter showDateChips={false} />
                             {loadingCoaches
                                 ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
-                                : filteredCoaches.length === 0
-                                    ? <EmptyState emoji="🎓" text={coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches} />
-                                    : filteredCoaches.map(c => (
+                                : shown.length === 0
+                                    ? <EmptyState emoji="🎓" text={coachSubTab === 'cvs' ? 'Henüz CV yüklenmemiş' : (coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches)} />
+                                    : coachSubTab === 'cvs'
+                                        ? shown.map(c => (
+                                            <View key={c.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:12, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                                <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{c.user?.fullName || c.user?.username}</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.credentialLevel}{c.experience > 0 ? ` · ${c.experience} yıl deneyim` : ''}</Text>
+                                                </View>
+                                                <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))
+                                        : shown.map(c => (
                                         <View key={c.id} style={{ backgroundColor:colors.surface2, borderRadius:12, padding:12, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
                                                 <Text style={{ fontSize:22 }}>🎓</Text>
@@ -6472,13 +6695,35 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3 }}><Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Grup {c.priceGroup > 0 ? `${c.priceGroup}₺` : ''}</Text></View>}
                                                 {c.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.experience} yıl deneyim</Text>}
                                             </View>
+                                            {(c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {c.city && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
+                                            {c.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements}</Text>}
+                                            {(c.certificateUrl || c.cvUrl || (c.achievementUrls || []).length > 0) && (
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                                                    {c.certificateUrl && (
+                                                        <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                    {(c.achievementUrls || []).length > 0 && (
+                                                        <TouchableOpacity onPress={() => Linking.openURL(c.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({c.achievementUrls.length})</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                    {c.cvUrl && (
+                                                        <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            )}
                                         </View>
                                     ))
                             }
                         </>
-                    )}
+                        );
+                    })()}
 
                     {/* ── ARCHIVE ── */}
                     {activeTab === 'archive' && (
