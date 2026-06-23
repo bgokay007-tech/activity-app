@@ -1417,10 +1417,22 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 else                          transfer = dominant ? 1 : 0.5;
 
                 const divisor = tournament.type === "1" ? 2 : 1;
-                const ratingStep = parseFloat((transfer * 0.05 / divisor).toFixed(3));
-                let wRatingAfter = parseFloat((wi.skillRating + ratingStep).toFixed(3));
-                if (wi.skillRating < 5 && wRatingAfter >= 5) wRatingAfter = parseFloat((wRatingAfter + 2).toFixed(3));
-                const lRatingAfter = Math.max(0, parseFloat((li.skillRating - ratingStep).toFixed(3)));
+                let ratingStep = parseFloat((transfer * 0.05 / divisor).toFixed(3));
+
+                // Algoritma 2: ratingDiff'e göre çarpan uygula (kim kazanırsa kazansın)
+                if (ratingDiff < 0.25)       ratingStep = parseFloat((ratingStep * 3/4).toFixed(4));
+                else if (ratingDiff < 0.75)  ratingStep = parseFloat((ratingStep * 1/2).toFixed(4));
+                else if (ratingDiff < 1.5)   ratingStep = parseFloat((ratingStep * 1/4).toFixed(4));
+                // 1.5+ → değişiklik yok
+
+                // Algoritma 3: düşük ELO'lu kazanırsa kazanan iki kat alır
+                const lowerRatedWon = wi.skillRating < li.skillRating;
+                const wStep = lowerRatedWon ? parseFloat((ratingStep * 2).toFixed(4)) : ratingStep;
+                const lStep = ratingStep;
+
+                let wRatingAfter = parseFloat((wi.skillRating + wStep).toFixed(4));
+                if (wi.skillRating < 5 && wRatingAfter >= 5) wRatingAfter = parseFloat((wRatingAfter + 2).toFixed(4));
+                const lRatingAfter = Math.max(0, parseFloat((li.skillRating - lStep).toFixed(4)));
 
                 await Promise.all([
                     prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1, skillRating: wRatingAfter } }),
