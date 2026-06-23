@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getMe, sendOtp, verifyOtp } from '../controllers/auth.controller.js';
+import { register, login, getMe, sendOtp, verifyOtp, forgotPassword, resetPassword } from '../controllers/auth.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import prisma from '../config/prisma.js';
 
@@ -10,6 +10,8 @@ router.post('/login', login);
 router.get('/me', authenticate, getMe);
 router.post('/send-otp', sendOtp);
 router.post('/verify-otp', verifyOtp);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 router.post('/push-token', authenticate, async (req, res) => {
     const { token } = req.body;

@@ -199,6 +199,59 @@ export const login = async (req, res, next) => {
     }
 };
 
+export const forgotPassword = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'E-posta gerekli' });
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) return res.status(404).json({ message: 'Bu e-posta ile kayıtlı hesap bulunamadı' });
+
+        const code = generateOtp();
+        const key = `reset:${email}`;
+        otpStore.set(key, { code, expiresAt: Date.now() + 10 * 60 * 1000, verified: false });
+        console.log(`[RESET OTP] ${key} → ${code}`);
+
+        let emailSent = false;
+        if (process.env.BREVO_API_KEY) {
+            try {
+                await sendEmailOtp(email, code);
+                emailSent = true;
+            } catch (e) {
+                console.error('[RESET Mail Error]', e.message);
+            }
+        }
+
+        res.json({
+            message: emailSent ? 'Kod gönderildi' : 'Kod oluşturuldu (geliştirici modu)',
+            ...(!emailSent && { devCode: code }),
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const resetPassword = async (req, res, next) => {
+    try {
+        const { email, code, newPassword } = req.body;
+        if (!email || !code || !newPassword) return res.status(400).json({ message: 'Eksik parametre' });
+        if (newPassword.length < 6) return res.status(400).json({ message: 'Şifre en az 6 karakter olmalı' });
+
+        const key = `reset:${email}`;
+        const entry = otpStore.get(key);
+        if (!entry || Date.now() > entry.expiresAt) return res.status(400).json({ message: 'OTP süresi dolmuş, yeniden gönder' });
+        if (entry.code !== String(code)) return res.status(400).json({ message: 'Yanlış doğrulama kodu' });
+
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await prisma.user.update({ where: { email }, data: { password: hashedPassword } });
+        otpStore.delete(key);
+
+        res.json({ message: 'Şifre başarıyla güncellendi' });
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const getMe = async (req, res, next) => {
     try {
         const user = await prisma.user.findUnique({
