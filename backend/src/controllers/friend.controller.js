@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
+import { emitToUser } from '../config/socket.js';
 
 const FRIEND_SELECT = {
     id: true, username: true, fullName: true, avatar: true, isPublic: true,
@@ -62,6 +63,11 @@ export const respondRequest = async (req, res, next) => {
                 { senderId: req.userId, senderUsername: accepter?.username },
             ).catch(() => {});
         }
+
+        // Açık olan profil ekranı (varsa) sayfa yenilemeye gerek kalmadan güncellensin
+        emitToUser(friendship.senderId, 'friend:status_changed', {
+            otherUserId: req.userId, status: updated.status, friendshipId: updated.id,
+        });
 
         res.json(updated);
     } catch (error) { next(error); }

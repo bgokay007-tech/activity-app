@@ -10,6 +10,7 @@ import { logout, setUser } from '../../store/slices/authSlice';
 import { setLang } from '../../store/slices/langSlice';
 import useT from '../../hooks/useT';
 import api from '../../services/api';
+import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ManageActivitiesModal from '../../components/ManageActivitiesModal';
@@ -408,6 +409,17 @@ export default function ProfileScreen({ route, navigation }) {
     const [loadingFriends, setLoadingFriends] = useState(false);
 
     const userId = targetUserId || myUser?.id;
+
+    // Karşı taraf arkadaşlık isteğine kabul/red verince, bu profil açıksa sayfa yenilemeden güncelle
+    useEffect(() => {
+        if (isOwnProfile) return;
+        const off = onSocket('friend:status_changed', (data) => {
+            if (data.otherUserId !== userId) return;
+            setFriendStatus({ status: data.status, isSender: true, friendshipId: data.friendshipId });
+            if (data.status === 'ACCEPTED') setFriendCount(c => c + 1);
+        });
+        return off;
+    }, [userId, isOwnProfile]);
 
     const openFriendsList = useCallback(async () => {
         setShowFriendsListModal(true);
@@ -1033,7 +1045,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     onPress={handleFriendAction}
                                 >
                                     <Text style={s.actionBtnText}>
-                                        {friendStatus?.status === 'ACCEPTED' ? '✓ ' + t.friendsBtn : friendStatus?.status === 'PENDING' ? t.pendingBtn : t.addFriendBtn}
+                                        {friendStatus?.status === 'ACCEPTED' ? '✓✓ ' + t.friendsBtn : friendStatus?.status === 'PENDING' ? t.pendingBtn : t.addFriendBtn}
                                     </Text>
                                 </TouchableOpacity>
                             )}
