@@ -1443,16 +1443,20 @@ export default function ProfileScreen({ route, navigation }) {
                                 <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Kullanıcı bulunamadı</Text>
                             ) : friendSearchResults.map(u => (
                                 <View key={u.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
-                                    {u.avatar
-                                        ? <Image source={{ uri: u.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
-                                        : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
-                                            <Text style={{ color: colors.purple, fontWeight:'800' }}>{(u.username?.[0] || '?').toUpperCase()}</Text>
-                                          </View>
-                                    }
-                                    <View style={{ flex:1 }}>
-                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{u.username}</Text>
-                                    </View>
+                                    <TouchableOpacity
+                                        style={{ flex:1, flexDirection:'row', alignItems:'center' }}
+                                        onPress={() => { setShowAddFriendModal(false); navigation.push('Profile', { userId: u.id }); }}>
+                                        {u.avatar
+                                            ? <Image source={{ uri: u.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
+                                            : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ color: colors.purple, fontWeight:'800' }}>{(u.username?.[0] || '?').toUpperCase()}</Text>
+                                              </View>
+                                        }
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>@{u.username}</Text>
+                                        </View>
+                                    </TouchableOpacity>
                                     <View style={{ flexDirection:'row', gap:6 }}>
                                         <TouchableOpacity
                                             disabled={friendActionLoading === `${u.id}_friend`}
