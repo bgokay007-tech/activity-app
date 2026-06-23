@@ -212,6 +212,59 @@ export default function ProfileScreen({ route, navigation }) {
     const [loadingPerms, setLoadingPerms] = useState(false);
     const [friendStatus, setFriendStatus] = useState(null);
 
+    // Arkadaş ara & ekle modali
+    const [showAddFriendModal, setShowAddFriendModal] = useState(false);
+    const [friendSearchQuery, setFriendSearchQuery] = useState('');
+    const [friendSearchResults, setFriendSearchResults] = useState([]);
+    const [searchingFriends, setSearchingFriends] = useState(false);
+    const [friendActionLoading, setFriendActionLoading] = useState(null); // `${userId}_${action}`
+
+    const runFriendSearch = useCallback(async (q) => {
+        if (!q || q.trim().length < 2) { setFriendSearchResults([]); return; }
+        setSearchingFriends(true);
+        try {
+            const { data } = await api.get(`/users/search?q=${encodeURIComponent(q.trim())}`);
+            setFriendSearchResults(Array.isArray(data) ? data : []);
+        } catch { setFriendSearchResults([]); }
+        finally { setSearchingFriends(false); }
+    }, []);
+
+    useEffect(() => {
+        if (!showAddFriendModal) return;
+        const task = setTimeout(() => runFriendSearch(friendSearchQuery), 400);
+        return () => clearTimeout(task);
+    }, [friendSearchQuery, showAddFriendModal, runFriendSearch]);
+
+    const handleSendFriendRequest = async (targetUser) => {
+        const key = `${targetUser.id}_friend`;
+        setFriendActionLoading(key);
+        try {
+            await api.post(`/friends/request/${targetUser.id}`);
+            Alert.alert('', `${targetUser.fullName || targetUser.username} kullanıcısına arkadaşlık isteği gönderildi.`);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setFriendActionLoading(null); }
+    };
+
+    const handleFollow = async (targetUser) => {
+        const key = `${targetUser.id}_follow`;
+        setFriendActionLoading(key);
+        try {
+            await api.post(`/users/${targetUser.id}/follow`);
+            Alert.alert('', `${targetUser.fullName || targetUser.username} takip ediliyor.`);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setFriendActionLoading(null); }
+    };
+
+    const handleSendMessageRequest = (targetUser) => {
+        setShowAddFriendModal(false);
+        navigation.push('Chat', {
+            other: { id: targetUser.id, username: targetUser.username },
+            conversation: { id: null },
+        });
+    };
+
     // Stories
     const [stories, setStories] = useState([]);
     const [archivedStories, setArchivedStories] = useState([]);
@@ -806,7 +859,7 @@ export default function ProfileScreen({ route, navigation }) {
                     <View style={s.statGrid}>
                         <StatCard emoji="🔥" label={t.postsLabel}      count={postCount}        onAdd={isOwnProfile ? handleCreatePost : null} onPress={() => navigation.navigate('UserPosts', { userId, username: profile?.username })} />
                         <StatCard emoji="🎬" label={t.reels}            count={reelCount}        onAdd={isOwnProfile ? handleCreateReel : null} />
-                        <StatCard emoji="👥" label={t.friendsLabel}     count={friendCount}      onAdd={isOwnProfile ? () => Alert.alert(t.addFriendAlertTitle, t.addFriendAlertMsg) : null} />
+                        <StatCard emoji="👥" label={t.friendsLabel}     count={friendCount}      onAdd={isOwnProfile ? () => setShowAddFriendModal(true) : null} />
                         <StatCard emoji="🏃" label={t.activitiesLabel}  count={interests.length} onAdd={isOwnProfile ? () => setManageOpen(true) : null} />
                     </View>
 
@@ -1327,6 +1380,69 @@ export default function ProfileScreen({ route, navigation }) {
                                 </>
                             );
                         })()}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Arkadaş Ara & Ekle ── */}
+            <Modal visible={showAddFriendModal} animationType="slide" transparent onRequestClose={() => setShowAddFriendModal(false)}>
+                <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>Arkadaş Ara</Text>
+                            <TouchableOpacity onPress={() => { setShowAddFriendModal(false); setFriendSearchQuery(''); setFriendSearchResults([]); }}>
+                                <Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <TextInput
+                            style={{ backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:14, paddingVertical:11, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
+                            placeholder="İsim veya kullanıcı adı yazın..."
+                            placeholderTextColor={colors.textMuted}
+                            value={friendSearchQuery}
+                            onChangeText={setFriendSearchQuery}
+                            autoFocus
+                        />
+                        <ScrollView style={{ marginTop:14 }} showsVerticalScrollIndicator={false}>
+                            {searchingFriends ? (
+                                <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                            ) : friendSearchQuery.trim().length < 2 ? (
+                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>En az 2 karakter yazın</Text>
+                            ) : friendSearchResults.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Kullanıcı bulunamadı</Text>
+                            ) : friendSearchResults.map(u => (
+                                <View key={u.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                    {u.avatar
+                                        ? <Image source={{ uri: u.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
+                                        : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: colors.purple, fontWeight:'800' }}>{(u.username?.[0] || '?').toUpperCase()}</Text>
+                                          </View>
+                                    }
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{u.username}</Text>
+                                    </View>
+                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                        <TouchableOpacity
+                                            disabled={friendActionLoading === `${u.id}_friend`}
+                                            onPress={() => handleSendFriendRequest(u)}
+                                            style={{ backgroundColor: colors.purple + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:7, borderWidth:1, borderColor: colors.purple + '50', opacity: friendActionLoading === `${u.id}_friend` ? 0.5 : 1 }}>
+                                            <Text style={{ fontSize:15 }}>👥</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            disabled={friendActionLoading === `${u.id}_follow`}
+                                            onPress={() => handleFollow(u)}
+                                            style={{ backgroundColor:'#2563eb20', borderRadius:8, paddingHorizontal:8, paddingVertical:7, borderWidth:1, borderColor:'#2563eb50', opacity: friendActionLoading === `${u.id}_follow` ? 0.5 : 1 }}>
+                                            <Text style={{ fontSize:15 }}>🔔</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => handleSendMessageRequest(u)}
+                                            style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:8, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            <Text style={{ fontSize:15 }}>💬</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>

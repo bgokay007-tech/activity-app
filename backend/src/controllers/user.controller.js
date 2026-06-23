@@ -132,6 +132,43 @@ export const updateProfile = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const followUser = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        if (userId === req.userId) return res.status(400).json({ message: 'Kendinizi takip edemezsiniz.' });
+
+        const blocked = await prisma.block.findFirst({
+            where: { OR: [{ blockerId: req.userId, blockedId: userId }, { blockerId: userId, blockedId: req.userId }] },
+        });
+        if (blocked) return res.status(403).json({ message: 'Bu kullanıcıyı takip edemezsiniz.' });
+
+        const follow = await prisma.follow.upsert({
+            where: { followerId_followingId: { followerId: req.userId, followingId: userId } },
+            update: {},
+            create: { followerId: req.userId, followingId: userId },
+        });
+        res.status(201).json(follow);
+    } catch (error) { next(error); }
+};
+
+export const unfollowUser = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        await prisma.follow.deleteMany({ where: { followerId: req.userId, followingId: userId } });
+        res.json({ message: 'Unfollowed' });
+    } catch (error) { next(error); }
+};
+
+export const getFollowStatus = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        const follow = await prisma.follow.findUnique({
+            where: { followerId_followingId: { followerId: req.userId, followingId: userId } },
+        });
+        res.json({ following: !!follow });
+    } catch (error) { next(error); }
+};
+
 export const searchUsers = async (req, res, next) => {
     try {
         const { q, subCategory, category } = req.query;
