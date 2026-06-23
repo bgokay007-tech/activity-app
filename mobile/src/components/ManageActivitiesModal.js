@@ -135,12 +135,14 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                 <ActivityIndicator size="small" color={activeColor} />
                                             ) : existing ? (
                                                 <View style={s.addedBtns}>
-                                                    <TouchableOpacity
-                                                        style={[s.assessBtn, { borderColor: activeColor + '60' }]}
-                                                        onPress={() => setAssessTarget({ interestId: existing.id, subCategory: sub.id })}
-                                                    >
-                                                        <Text style={[s.assessBtnText, { color: activeColor }]}>{t.assessBtn}</Text>
-                                                    </TouchableOpacity>
+                                                    {((existing.wins || 0) + (existing.losses || 0)) < 3 && (
+                                                        <TouchableOpacity
+                                                            style={[s.assessBtn, { borderColor: activeColor + '60' }]}
+                                                            onPress={() => setAssessTarget({ interestId: existing.id, subCategory: sub.id })}
+                                                        >
+                                                            <Text style={[s.assessBtnText, { color: activeColor }]}>{t.assessBtn}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
                                                     <TouchableOpacity
                                                         style={s.removeBtn}
                                                         onPress={() => handleRemove(existing.id, activeTab, sub.id)}

@@ -188,7 +188,7 @@ export const saveAssessment = async (req, res, next) => {
 
         const updated = await prisma.userInterest.update({
             where: { id },
-            data: { level, skillRating, totalPoints },
+            data: { level, skillRating, totalPoints, assessmentCompleted: true },
         });
 
         res.json({ interest: updated, totalScore, maxScore, level, skillRating, totalPoints });

@@ -510,6 +510,14 @@ export const joinTournament = async (req, res, next) => {
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
 
+        const myInterest = await prisma.userInterest.findUnique({
+            where: { userId_category_subCategory: { userId: req.userId, category: tournament.category, subCategory: tournament.subCategory } },
+            select: { assessmentCompleted: true },
+        });
+        if (!myInterest?.assessmentCompleted) {
+            return res.status(403).json({ message: 'Bu spor dalında maçlara katılabilmek için önce derecelendirme anketini tamamlamanız gerekiyor.' });
+        }
+
         if (!['OPEN', 'IN_PROGRESS'].includes(tournament.status)) {
             return res.status(400).json({ message: 'Bu turnuvaya katılım mümkün değil' });
         }

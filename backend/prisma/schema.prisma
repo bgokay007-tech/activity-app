@@ -95,6 +95,7 @@ model UserInterest {
   subCategory  String       // futbol, basketbol, resim, müzik, fps, rpg vb.
   level        String       @default("BEGINNER")
   skillRating  Float        @default(0)   // 0.00 – 5.00, from assessment
+  assessmentCompleted Boolean @default(false)  // anket tamamlanmadan maca katilamaz
   totalPoints  Int          @default(0)
   wins             Int          @default(0)
   losses           Int          @default(0)
