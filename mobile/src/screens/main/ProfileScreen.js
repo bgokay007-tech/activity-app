@@ -463,18 +463,42 @@ export default function ProfileScreen({ route, navigation }) {
         } catch (e) { console.warn(e?.message); }
     };
 
-    const handleRemoveFollower = async (followerUser) => {
-        try {
-            await api.delete(`/users/${followerUser.id}/follower`);
-            setFollowersList(prev => prev.filter(f => f.id !== followerUser.id));
-        } catch (e) { console.warn(e?.message); }
+    const handleRemoveFollower = (followerUser) => {
+        Alert.alert('Takipçi Kaldır', `${followerUser.fullName || followerUser.username} takipçilikten kaldırılsın mı?`, [
+            { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+            { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
+                try {
+                    await api.delete(`/users/${followerUser.id}/follower`);
+                    setFollowersList(prev => prev.filter(f => f.id !== followerUser.id));
+                } catch (e) { console.warn(e?.message); }
+            } },
+        ]);
     };
 
-    const handleUnfollowFromList = async (followingUser) => {
-        try {
-            await api.delete(`/users/${followingUser.id}/follow`);
-            setFollowingList(prev => prev.filter(f => f.id !== followingUser.id));
-        } catch (e) { console.warn(e?.message); }
+    const handleUnfollowFromList = (followingUser) => {
+        Alert.alert('Takibi Bırak', `${followingUser.fullName || followingUser.username} takipten çıkarılsın mı?`, [
+            { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+            { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
+                try {
+                    await api.delete(`/users/${followingUser.id}/follow`);
+                    setFollowingList(prev => prev.filter(f => f.id !== followingUser.id));
+                } catch (e) { console.warn(e?.message); }
+            } },
+        ]);
+    };
+
+    const handleRemoveFriendFromList = (friendUser) => {
+        Alert.alert(t.friendsBtn || 'Arkadaşlıktan Çık', `${friendUser.fullName || friendUser.username} arkadaşlıktan çıkarılsın mı?`, [
+            { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+            { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
+                try {
+                    await api.delete(`/friends/unfriend/${friendUser.id}`);
+                    setFriendsList(prev => prev.filter(f => f.id !== friendUser.id));
+                    setFriendCount(c => Math.max(0, c - 1));
+                    if (friendUser.id === userId) setFriendStatus({ status: 'NONE' });
+                } catch (e) { console.warn(e?.message); }
+            } },
+        ]);
     };
 
     useEffect(() => {
@@ -1740,21 +1764,27 @@ export default function ProfileScreen({ route, navigation }) {
                                 ) : friendsList.length === 0 ? (
                                     <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz arkadaş yok</Text>
                                 ) : friendsList.map(f => (
-                                    <TouchableOpacity
-                                        key={f.id}
-                                        style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}
-                                        onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
-                                        {f.avatar
-                                            ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
-                                            : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
-                                                <Text style={{ color: colors.purple, fontWeight:'800' }}>{(f.username?.[0] || '?').toUpperCase()}</Text>
-                                              </View>
-                                        }
-                                        <View style={{ flex:1 }}>
-                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
-                                        </View>
-                                    </TouchableOpacity>
+                                    <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                        <TouchableOpacity
+                                            style={{ flex:1, flexDirection:'row', alignItems:'center' }}
+                                            onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
+                                            {f.avatar
+                                                ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
+                                                : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
+                                                    <Text style={{ color: colors.purple, fontWeight:'800' }}>{(f.username?.[0] || '?').toUpperCase()}</Text>
+                                                  </View>
+                                            }
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                        {isOwnProfile && (
+                                            <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleRemoveFriendFromList(f)}>
+                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Arkadaşlıktan Çık</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
                                 ))
                             )}
 
