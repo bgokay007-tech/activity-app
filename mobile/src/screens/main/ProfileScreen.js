@@ -211,6 +211,8 @@ export default function ProfileScreen({ route, navigation }) {
     const [permRequests, setPermRequests] = useState([]);
     const [loadingPerms, setLoadingPerms] = useState(false);
     const [friendStatus, setFriendStatus] = useState(null);
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [followLoading, setFollowLoading] = useState(false);
 
     // Arkadaş ara & ekle modali
     const [showAddFriendModal, setShowAddFriendModal] = useState(false);
@@ -465,6 +467,9 @@ export default function ProfileScreen({ route, navigation }) {
                     api.get(`/friends/status/${userId}`)
                         .then(({ data }) => setFriendStatus({ status: data.status || 'NONE', isSender: data.isSender, friendshipId: data.friendshipId }))
                         .catch(() => setFriendStatus({ status: 'NONE' }));
+                    api.get(`/users/${userId}/follow-status`)
+                        .then(({ data }) => setIsFollowing(!!data.following))
+                        .catch(() => {});
                 }
             } catch (e) { console.warn(e?.message); }
             finally { setLoading(false); }
@@ -485,10 +490,28 @@ export default function ProfileScreen({ route, navigation }) {
                 api.get(`/friends/status/${userId}`)
                     .then(({ data }) => setFriendStatus({ status: data.status || 'NONE', isSender: data.isSender, friendshipId: data.friendshipId }))
                     .catch(() => {});
+                api.get(`/users/${userId}/follow-status`)
+                    .then(({ data }) => setIsFollowing(!!data.following))
+                    .catch(() => {});
             }
         });
         return unsubscribe;
     }, [navigation, userId, isOwnProfile]);
+
+    const handleToggleFollow = async () => {
+        setFollowLoading(true);
+        try {
+            if (isFollowing) {
+                await api.delete(`/users/${userId}/follow`);
+                setIsFollowing(false);
+            } else {
+                await api.post(`/users/${userId}/follow`);
+                setIsFollowing(true);
+            }
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setFollowLoading(false); }
+    };
 
     const handleLogout = () => {
         Alert.alert(t.logoutTitle, t.logoutMsg, [
@@ -718,11 +741,11 @@ export default function ProfileScreen({ route, navigation }) {
             } else if (friendStatus.status === 'PENDING' && friendStatus.isSender) {
                 await api.delete(`/friends/unfriend/${userId}`);
                 setFriendStatus({ status: 'NONE' });
-            } else if (friendStatus.status === 'FRIENDS') {
+            } else if (friendStatus.status === 'ACCEPTED') {
                 Alert.alert(t.friendsBtn, t.unfriendConfirm || 'Arkadaşlıktan çıkarılsın mı?', [
                     { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
                     { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
-                        try { await api.delete(`/friends/unfriend/${userId}`); setFriendStatus({ status: 'NONE' }); }
+                        try { await api.delete(`/friends/unfriend/${userId}`); setFriendStatus({ status: 'NONE' }); setFriendCount(c => Math.max(0, c - 1)); }
                         catch (e) { console.warn(e?.message); }
                     } },
                 ]);
@@ -734,7 +757,7 @@ export default function ProfileScreen({ route, navigation }) {
         if (!friendStatus?.friendshipId) return;
         try {
             await api.patch(`/friends/request/${friendStatus.friendshipId}`, { action });
-            setFriendStatus({ status: action === 'accept' ? 'FRIENDS' : 'NONE' });
+            setFriendStatus({ status: action === 'accept' ? 'ACCEPTED' : 'NONE' });
             if (action === 'accept') setFriendCount(c => c + 1);
         } catch (e) { console.warn(e?.message); }
     };
@@ -797,6 +820,14 @@ export default function ProfileScreen({ route, navigation }) {
                 {isOwnProfile ? (
                     <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
                         <Text style={s.logoutText}>{t.logoutBtn}</Text>
+                    </TouchableOpacity>
+                ) : friendStatus?.status === 'ACCEPTED' ? (
+                    <TouchableOpacity onPress={handleFriendAction} style={s.logoutBtn}>
+                        <Text style={s.logoutText}>✕ {t.unfriendBtn || 'Arkadaşlıktan Çık'}</Text>
+                    </TouchableOpacity>
+                ) : friendStatus?.status === 'PENDING' && friendStatus.isSender ? (
+                    <TouchableOpacity onPress={handleFriendAction} style={s.logoutBtn}>
+                        <Text style={s.logoutText}>⏳ {t.pendingBtn || 'Bekliyor'}</Text>
                     </TouchableOpacity>
                 ) : (
                     <Text style={s.topBarUsername}>{profile?.username}</Text>
@@ -925,14 +956,21 @@ export default function ProfileScreen({ route, navigation }) {
                                 </>
                             ) : (
                                 <TouchableOpacity
-                                    style={[s.actionBtn, friendStatus?.status === 'FRIENDS' && s.actionBtnActive]}
+                                    style={[s.actionBtn, friendStatus?.status === 'ACCEPTED' && s.actionBtnActive]}
                                     onPress={handleFriendAction}
                                 >
                                     <Text style={s.actionBtnText}>
-                                        {friendStatus?.status === 'FRIENDS' ? t.friendsBtn : friendStatus?.status === 'PENDING' ? t.pendingBtn : t.addFriendBtn}
+                                        {friendStatus?.status === 'ACCEPTED' ? '✓ ' + t.friendsBtn : friendStatus?.status === 'PENDING' ? t.pendingBtn : t.addFriendBtn}
                                     </Text>
                                 </TouchableOpacity>
                             )}
+                            <TouchableOpacity
+                                style={[s.actionBtn, isFollowing && s.actionBtnActive]}
+                                disabled={followLoading}
+                                onPress={handleToggleFollow}
+                            >
+                                <Text style={s.actionBtnText}>{isFollowing ? '🔔 Takip Ediliyor' : '🔔 Takip Et'}</Text>
+                            </TouchableOpacity>
                             <TouchableOpacity style={[s.actionBtn, s.msgBtn]} onPress={sendMessage}>
                                 <Text style={s.actionBtnText}>{t.messageBtnProfile}</Text>
                             </TouchableOpacity>
