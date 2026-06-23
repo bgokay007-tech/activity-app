@@ -13,6 +13,8 @@ const TYPE_ICON = {
     JOIN_DECLINED: '🚫',
     FRIEND_REQUEST: '👥',
     FRIEND_ACCEPTED: '🤝',
+    FOLLOW_REQUEST: '🔔',
+    FOLLOW_ACCEPTED: '✅',
     MESSAGE: '💬',
     SCORE_SUBMITTED: '📊',
     SCORE_CONFIRMED: '🏆',
@@ -84,7 +86,7 @@ export default function NotificationsScreen({ navigation }) {
             } else {
                 navigation.navigate('MessagesTab');
             }
-        } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED') {
+        } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED' || type === 'FOLLOW_REQUEST' || type === 'FOLLOW_ACCEPTED') {
             if (data.senderId) {
                 navigation.push('Profile', { userId: data.senderId });
             } else {

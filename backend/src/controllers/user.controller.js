@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { createNotification } from './notification.controller.js';
 
 export const getProfile = async (req, res, next) => {
     try {
@@ -132,6 +133,9 @@ export const updateProfile = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+const FOLLOW_SELECT = { id: true, username: true, fullName: true, avatar: true };
+
+// Takip isteği gönder — karşı taraf kabul etmeden takipçi sayılmaz
 export const followUser = async (req, res, next) => {
     try {
         const { userId } = req.params;
@@ -142,15 +146,31 @@ export const followUser = async (req, res, next) => {
         });
         if (blocked) return res.status(403).json({ message: 'Bu kullanıcıyı takip edemezsiniz.' });
 
-        const follow = await prisma.follow.upsert({
+        const existing = await prisma.follow.findUnique({
             where: { followerId_followingId: { followerId: req.userId, followingId: userId } },
-            update: {},
-            create: { followerId: req.userId, followingId: userId },
         });
+        if (existing && existing.status !== 'REJECTED') {
+            return res.status(400).json({ message: 'Takip isteği zaten var', status: existing.status });
+        }
+        if (existing) await prisma.follow.delete({ where: { id: existing.id } });
+
+        const follow = await prisma.follow.create({
+            data: { followerId: req.userId, followingId: userId },
+        });
+
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+        createNotification(
+            userId, 'FOLLOW_REQUEST',
+            '🔔 Takip İsteği',
+            `${me?.fullName || me?.username} sizi takip etmek istiyor.`,
+            { senderId: req.userId, senderUsername: me?.username },
+        ).catch(() => {});
+
         res.status(201).json(follow);
     } catch (error) { next(error); }
 };
 
+// Kendi gönderdiğim takip isteğini geri çek / takip ettiğim birini takipten çık
 export const unfollowUser = async (req, res, next) => {
     try {
         const { userId } = req.params;
@@ -159,13 +179,95 @@ export const unfollowUser = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Beni takip eden birini sil (onay vermeden reddet ya da zaten kabul ettiğimi çıkar)
+export const removeFollower = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        await prisma.follow.deleteMany({ where: { followerId: userId, followingId: req.userId } });
+        res.json({ message: 'Removed' });
+    } catch (error) { next(error); }
+};
+
+// Bana gelen takip isteğine kabul/red cevabı ver
+export const respondFollowRequest = async (req, res, next) => {
+    try {
+        const { userId } = req.params; // istegi gonderen (follower)
+        const { action } = req.body; // 'accept' | 'reject'
+
+        const follow = await prisma.follow.findUnique({
+            where: { followerId_followingId: { followerId: userId, followingId: req.userId } },
+        });
+        if (!follow) return res.status(404).json({ message: 'Takip isteği bulunamadı.' });
+
+        const updated = await prisma.follow.update({
+            where: { id: follow.id },
+            data: { status: action === 'accept' ? 'ACCEPTED' : 'REJECTED' },
+        });
+
+        if (action === 'accept') {
+            const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+            createNotification(
+                userId, 'FOLLOW_ACCEPTED',
+                '✅ Takip İsteği Kabul Edildi',
+                `${me?.fullName || me?.username} takip isteğinizi kabul etti.`,
+                { senderId: req.userId, senderUsername: me?.username },
+            ).catch(() => {});
+        }
+
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
+// req.userId ile :userId arasindaki her iki yonlu takip durumu
 export const getFollowStatus = async (req, res, next) => {
     try {
         const { userId } = req.params;
-        const follow = await prisma.follow.findUnique({
-            where: { followerId_followingId: { followerId: req.userId, followingId: userId } },
+        const [outgoing, incoming] = await Promise.all([
+            prisma.follow.findUnique({ where: { followerId_followingId: { followerId: req.userId, followingId: userId } } }),
+            prisma.follow.findUnique({ where: { followerId_followingId: { followerId: userId, followingId: req.userId } } }),
+        ]);
+        res.json({
+            // ben onu takip ediyor muyum / istek durumum
+            outgoing: { status: outgoing?.status || 'NONE' },
+            // o beni takip ediyor mu / bana istek gonderdi mi
+            incoming: { status: incoming?.status || 'NONE' },
         });
-        res.json({ following: !!follow });
+    } catch (error) { next(error); }
+};
+
+export const getFollowers = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        const rows = await prisma.follow.findMany({
+            where: { followingId: userId, status: 'ACCEPTED' },
+            include: { follower: { select: FOLLOW_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(rows.map(r => r.follower));
+    } catch (error) { next(error); }
+};
+
+export const getFollowing = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        const rows = await prisma.follow.findMany({
+            where: { followerId: userId, status: 'ACCEPTED' },
+            include: { following: { select: FOLLOW_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(rows.map(r => r.following));
+    } catch (error) { next(error); }
+};
+
+// Bana gelen, henuz cevaplanmamis takip istekleri
+export const getPendingFollowRequests = async (req, res, next) => {
+    try {
+        const rows = await prisma.follow.findMany({
+            where: { followingId: req.userId, status: 'PENDING' },
+            include: { follower: { select: FOLLOW_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(rows.map(r => ({ id: r.id, ...r.follower })));
     } catch (error) { next(error); }
 };
 

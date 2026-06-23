@@ -211,7 +211,7 @@ export default function ProfileScreen({ route, navigation }) {
     const [permRequests, setPermRequests] = useState([]);
     const [loadingPerms, setLoadingPerms] = useState(false);
     const [friendStatus, setFriendStatus] = useState(null);
-    const [isFollowing, setIsFollowing] = useState(false);
+    const [followStatus, setFollowStatus] = useState({ outgoing: 'NONE', incoming: 'NONE' });
     const [followLoading, setFollowLoading] = useState(false);
 
     // Arkadaş ara & ekle modali
@@ -253,7 +253,7 @@ export default function ProfileScreen({ route, navigation }) {
         setFriendActionLoading(key);
         try {
             await api.post(`/users/${targetUser.id}/follow`);
-            Alert.alert('', `${targetUser.fullName || targetUser.username} takip ediliyor.`);
+            Alert.alert('', `${targetUser.fullName || targetUser.username} kullanıcısına takip isteği gönderildi.`);
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setFriendActionLoading(null); }
@@ -291,6 +291,11 @@ export default function ProfileScreen({ route, navigation }) {
     const [showActivitiesViewModal, setShowActivitiesViewModal] = useState(false);
     const [friendsList, setFriendsList] = useState([]);
     const [loadingFriendsList, setLoadingFriendsList] = useState(false);
+    const [friendsModalTab, setFriendsModalTab] = useState('friends'); // 'friends' | 'following' | 'followers'
+    const [followingList, setFollowingList] = useState([]);
+    const [followersList, setFollowersList] = useState([]);
+    const [pendingFollowReqs, setPendingFollowReqs] = useState([]);
+    const [loadingFollowLists, setLoadingFollowLists] = useState(false);
 
     // Create post/reel
     const [createReelOpen, setCreateReelOpen] = useState(false);
@@ -406,6 +411,7 @@ export default function ProfileScreen({ route, navigation }) {
 
     const openFriendsList = useCallback(async () => {
         setShowFriendsListModal(true);
+        setFriendsModalTab('friends');
         setLoadingFriendsList(true);
         try {
             const { data } = await api.get(isOwnProfile ? '/friends' : `/friends/list/${userId}`);
@@ -413,6 +419,51 @@ export default function ProfileScreen({ route, navigation }) {
         } catch { setFriendsList([]); }
         finally { setLoadingFriendsList(false); }
     }, [isOwnProfile, userId]);
+
+    const loadFollowTab = useCallback(async (tab) => {
+        setLoadingFollowLists(true);
+        try {
+            if (tab === 'following') {
+                const { data } = await api.get(`/users/${userId}/following`);
+                setFollowingList(Array.isArray(data) ? data : []);
+            } else if (tab === 'followers') {
+                const reqs = isOwnProfile ? await api.get('/users/follow-requests').catch(() => ({ data: [] })) : { data: [] };
+                setPendingFollowReqs(Array.isArray(reqs.data) ? reqs.data : []);
+                const { data } = await api.get(`/users/${userId}/followers`);
+                setFollowersList(Array.isArray(data) ? data : []);
+            }
+        } catch { /* silent */ }
+        finally { setLoadingFollowLists(false); }
+    }, [userId, isOwnProfile]);
+
+    const switchFriendsModalTab = (tab) => {
+        setFriendsModalTab(tab);
+        if (tab !== 'friends') loadFollowTab(tab);
+    };
+
+    const handleRespondFollowReqInList = async (req, action) => {
+        try {
+            await api.patch(`/users/${req.id}/follow`, { action });
+            setPendingFollowReqs(prev => prev.filter(r => r.id !== req.id));
+            if (action === 'accept') {
+                setFollowersList(prev => [req, ...prev]);
+            }
+        } catch (e) { console.warn(e?.message); }
+    };
+
+    const handleRemoveFollower = async (followerUser) => {
+        try {
+            await api.delete(`/users/${followerUser.id}/follower`);
+            setFollowersList(prev => prev.filter(f => f.id !== followerUser.id));
+        } catch (e) { console.warn(e?.message); }
+    };
+
+    const handleUnfollowFromList = async (followingUser) => {
+        try {
+            await api.delete(`/users/${followingUser.id}/follow`);
+            setFollowingList(prev => prev.filter(f => f.id !== followingUser.id));
+        } catch (e) { console.warn(e?.message); }
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -468,7 +519,7 @@ export default function ProfileScreen({ route, navigation }) {
                         .then(({ data }) => setFriendStatus({ status: data.status || 'NONE', isSender: data.isSender, friendshipId: data.friendshipId }))
                         .catch(() => setFriendStatus({ status: 'NONE' }));
                     api.get(`/users/${userId}/follow-status`)
-                        .then(({ data }) => setIsFollowing(!!data.following))
+                        .then(({ data }) => setFollowStatus({ outgoing: data.outgoing?.status || 'NONE', incoming: data.incoming?.status || 'NONE' }))
                         .catch(() => {});
                 }
             } catch (e) { console.warn(e?.message); }
@@ -491,7 +542,7 @@ export default function ProfileScreen({ route, navigation }) {
                     .then(({ data }) => setFriendStatus({ status: data.status || 'NONE', isSender: data.isSender, friendshipId: data.friendshipId }))
                     .catch(() => {});
                 api.get(`/users/${userId}/follow-status`)
-                    .then(({ data }) => setIsFollowing(!!data.following))
+                    .then(({ data }) => setFollowStatus({ outgoing: data.outgoing?.status || 'NONE', incoming: data.incoming?.status || 'NONE' }))
                     .catch(() => {});
             }
         });
@@ -501,16 +552,23 @@ export default function ProfileScreen({ route, navigation }) {
     const handleToggleFollow = async () => {
         setFollowLoading(true);
         try {
-            if (isFollowing) {
+            if (followStatus.outgoing === 'ACCEPTED' || followStatus.outgoing === 'PENDING') {
                 await api.delete(`/users/${userId}/follow`);
-                setIsFollowing(false);
+                setFollowStatus(s => ({ ...s, outgoing: 'NONE' }));
             } else {
                 await api.post(`/users/${userId}/follow`);
-                setIsFollowing(true);
+                setFollowStatus(s => ({ ...s, outgoing: 'PENDING' }));
             }
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setFollowLoading(false); }
+    };
+
+    const handleRespondFollowRequest = async (action) => {
+        try {
+            await api.patch(`/users/${userId}/follow`, { action });
+            setFollowStatus(s => ({ ...s, incoming: action === 'accept' ? 'ACCEPTED' : 'REJECTED' }));
+        } catch (e) { console.warn(e?.message); }
     };
 
     const handleLogout = () => {
@@ -942,6 +1000,21 @@ export default function ProfileScreen({ route, navigation }) {
                     </View>
 
 
+                    {/* Gelen takip isteği */}
+                    {!isOwnProfile && followStatus.incoming === 'PENDING' && (
+                        <View style={[s.actionRow, { marginBottom: 8 }]}>
+                            <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1, alignSelf: 'center' }}>
+                                🔔 {profile?.fullName || profile?.username} sizi takip etmek istiyor
+                            </Text>
+                            <TouchableOpacity style={[s.actionBtn, s.actionBtnActive]} onPress={() => handleRespondFollowRequest('accept')}>
+                                <Text style={s.actionBtnText}>✓</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={s.actionBtn} onPress={() => handleRespondFollowRequest('reject')}>
+                                <Text style={s.actionBtnText}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     {/* Action buttons */}
                     {!isOwnProfile && (
                         <View style={s.actionRow}>
@@ -965,11 +1038,13 @@ export default function ProfileScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
-                                style={[s.actionBtn, isFollowing && s.actionBtnActive]}
+                                style={[s.actionBtn, followStatus.outgoing === 'ACCEPTED' && s.actionBtnActive]}
                                 disabled={followLoading}
                                 onPress={handleToggleFollow}
                             >
-                                <Text style={s.actionBtnText}>{isFollowing ? '🔔 Takip Ediliyor' : '🔔 Takip Et'}</Text>
+                                <Text style={s.actionBtnText}>
+                                    {followStatus.outgoing === 'ACCEPTED' ? '✓ Takip Ediliyor' : followStatus.outgoing === 'PENDING' ? '⏳ İstek Gönderildi' : '🔔 Takip Et'}
+                                </Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[s.actionBtn, s.msgBtn]} onPress={sendMessage}>
                                 <Text style={s.actionBtnText}>{t.messageBtnProfile}</Text>
@@ -1617,33 +1692,138 @@ export default function ProfileScreen({ route, navigation }) {
             {/* ── Arkadaşlar listesi modalı ── */}
             <Modal visible={showFriendsListModal} animationType="slide" transparent onRequestClose={() => setShowFriendsListModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'85%', padding:20 }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>👥 {t.friendsLabel}</Text>
                             <TouchableOpacity onPress={() => setShowFriendsListModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            {loadingFriendsList ? (
-                                <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
-                            ) : friendsList.length === 0 ? (
-                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz arkadaş yok</Text>
-                            ) : friendsList.map(f => (
+
+                        {isOwnProfile && (
+                            <TouchableOpacity
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:11, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
+                                onPress={() => { setShowFriendsListModal(false); setShowAddFriendModal(true); }}>
+                                <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>🔎 Arkadaş Ara</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        <View style={{ flexDirection:'row', gap:6, marginBottom:12 }}>
+                            {[
+                                { key:'friends', label:'Arkadaşlar' },
+                                { key:'following', label:'Takip Ettiklerim' },
+                                { key:'followers', label:'Takipçilerim' },
+                            ].map(tab => (
                                 <TouchableOpacity
-                                    key={f.id}
-                                    style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}
-                                    onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
-                                    {f.avatar
-                                        ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
-                                        : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
-                                            <Text style={{ color: colors.purple, fontWeight:'800' }}>{(f.username?.[0] || '?').toUpperCase()}</Text>
-                                          </View>
-                                    }
-                                    <View style={{ flex:1 }}>
-                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
-                                    </View>
+                                    key={tab.key}
+                                    style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: friendsModalTab===tab.key ? colors.purple : colors.surface2, borderWidth:1, borderColor: friendsModalTab===tab.key ? colors.purple : colors.border }}
+                                    onPress={() => switchFriendsModalTab(tab.key)}>
+                                    <Text style={{ color: friendsModalTab===tab.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>{tab.label}</Text>
                                 </TouchableOpacity>
                             ))}
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {friendsModalTab === 'friends' && (
+                                loadingFriendsList ? (
+                                    <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                                ) : friendsList.length === 0 ? (
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz arkadaş yok</Text>
+                                ) : friendsList.map(f => (
+                                    <TouchableOpacity
+                                        key={f.id}
+                                        style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}
+                                        onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
+                                        {f.avatar
+                                            ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
+                                            : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ color: colors.purple, fontWeight:'800' }}>{(f.username?.[0] || '?').toUpperCase()}</Text>
+                                              </View>
+                                        }
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))
+                            )}
+
+                            {friendsModalTab === 'following' && (
+                                loadingFollowLists ? (
+                                    <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                                ) : followingList.length === 0 ? (
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz kimseyi takip etmiyorsun</Text>
+                                ) : followingList.map(f => (
+                                    <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                        <TouchableOpacity style={{ flex:1, flexDirection:'row', alignItems:'center' }} onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
+                                            {f.avatar
+                                                ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
+                                                : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
+                                                    <Text style={{ color: colors.purple, fontWeight:'800' }}>{(f.username?.[0] || '?').toUpperCase()}</Text>
+                                                  </View>
+                                            }
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                        {isOwnProfile && (
+                                            <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleUnfollowFromList(f)}>
+                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Takipten Çık</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                ))
+                            )}
+
+                            {friendsModalTab === 'followers' && (
+                                loadingFollowLists ? (
+                                    <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                                ) : (
+                                    <>
+                                        {pendingFollowReqs.length > 0 && (
+                                            <View style={{ marginBottom: 12 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>⏳ Bekleyen İstekler</Text>
+                                                {pendingFollowReqs.map(req => (
+                                                    <View key={req.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.purple + '40' }}>
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{req.fullName || req.username}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>@{req.username}</Text>
+                                                        </View>
+                                                        <TouchableOpacity style={[s.actionBtn, s.actionBtnActive, { marginRight:6 }]} onPress={() => handleRespondFollowReqInList(req, 'accept')}>
+                                                            <Text style={s.actionBtnText}>✓</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity style={s.actionBtn} onPress={() => handleRespondFollowReqInList(req, 'reject')}>
+                                                            <Text style={s.actionBtnText}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        )}
+                                        {followersList.length === 0 ? (
+                                            <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:10 }}>Henüz takipçin yok</Text>
+                                        ) : followersList.map(f => (
+                                            <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                                <TouchableOpacity style={{ flex:1, flexDirection:'row', alignItems:'center' }} onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
+                                                    {f.avatar
+                                                        ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
+                                                        : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
+                                                            <Text style={{ color: colors.purple, fontWeight:'800' }}>{(f.username?.[0] || '?').toUpperCase()}</Text>
+                                                          </View>
+                                                    }
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                                {isOwnProfile && (
+                                                    <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleRemoveFollower(f)}>
+                                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Kaldır</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        ))}
+                                    </>
+                                )
+                            )}
                         </ScrollView>
                     </View>
                 </View>
