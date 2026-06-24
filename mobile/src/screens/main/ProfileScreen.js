@@ -241,7 +241,8 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
                             {/* ── Eylem butonları ── */}
                             <View style={fc.halfRow}>
-                                <View style={fc.rightCol}>
+                                {/* Sol: Yaklaşan / Arşiv / Takma Ad */}
+                                <View style={fc.actionCol}>
                                     <TouchableOpacity onPress={onUpcoming} style={fc.actionBtn}>
                                         <Text style={[fc.actionTxt, { color: '#4ade80' }]}>⏰ {lang==='tr' ? 'Yaklaşan Maçlar' : 'Upcoming'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
                                     </TouchableOpacity>
@@ -271,6 +272,16 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                             </TouchableOpacity>
                                         )
                                     )}
+                                </View>
+
+                                {/* Sağ: Başarılar / Hedefler */}
+                                <View style={fc.actionCol}>
+                                    <TouchableOpacity style={fc.actionBtn}>
+                                        <Text style={[fc.actionTxt, { color: '#f59e0b' }]}>🏆 {lang==='tr' ? 'Başarılar' : 'Achievements'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={fc.actionBtn}>
+                                        <Text style={[fc.actionTxt, { color: '#38bdf8' }]}>🎯 {lang==='tr' ? 'Hedefler' : 'Goals'}</Text>
+                                    </TouchableOpacity>
                                 </View>
                             </View>
 
@@ -333,6 +344,7 @@ const fc = StyleSheet.create({
     miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 1, borderColor: '#ffffff15', minWidth: 68 },
     halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
     rightCol: { flex: 1, gap: 3 },
+    actionCol: { flex: 1, gap: 3 },
     statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
     statBigNum: { fontSize: 16, fontWeight: '900' },
     statSmLbl: { color: '#6b7280', fontSize: 7, fontWeight: '700', letterSpacing: 0.5 },
