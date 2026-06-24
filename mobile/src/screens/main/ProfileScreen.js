@@ -338,7 +338,7 @@ const fc = StyleSheet.create({
     smallEmoji: { fontSize: 20 },
     smallSportName: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
     halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
-    leftCol: { flex: 1, gap: 3 },
+    leftCol: { width: 90, gap: 3 },
     rightCol: { flex: 1, gap: 3 },
     statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
     statBigNum: { fontSize: 16, fontWeight: '900' },
