@@ -222,9 +222,9 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     {item.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>@{item.alias}</Text> : null}
                                 </View>
                                 {[
-                                    { type: 'win',  count: winsCount,   label: lang==='tr' ? 'G' : 'W', color: '#4ade80' },
-                                    { type: 'loss', count: lossesCount, label: lang==='tr' ? 'M' : 'L', color: '#f87171' },
-                                    { type: 'draw', count: drawsCount,  label: lang==='tr' ? 'B' : 'D', color: '#facc15' },
+                                    { type: 'win',  count: winsCount,   label: lang==='tr' ? 'Galibiyet' : 'Wins',   color: '#4ade80' },
+                                    { type: 'loss', count: lossesCount, label: lang==='tr' ? 'Mağlubiyet' : 'Losses', color: '#f87171' },
+                                    { type: 'draw', count: drawsCount,  label: lang==='tr' ? 'Beraberlik' : 'Draws',  color: '#facc15' },
                                 ].map(({ type, count, label, color }) => (
                                     <TouchableOpacity key={type} onPress={() => setMatchListType(type)} style={fc.miniStatBtn}>
                                         <Text style={{ color, fontSize: 13, fontWeight: '900' }}>{count}</Text>
@@ -324,7 +324,7 @@ const fc = StyleSheet.create({
     topRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#ffffff10' },
     smallEmoji: { fontSize: 18 },
     smallSportName: { color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
-    miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 6, borderWidth: 1, borderColor: '#ffffff15' },
+    miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 1, borderColor: '#ffffff15', minWidth: 68 },
     halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
     rightCol: { flex: 1, gap: 3 },
     statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
