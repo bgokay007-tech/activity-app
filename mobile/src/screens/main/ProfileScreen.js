@@ -20,7 +20,59 @@ import CityPickerModal from '../../components/CityPickerModal';
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
 
-function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile }) {
+const LEVEL_RANGES = { beginner:[0,1], intermediate:[1,2], advanced:[2,3], expert:[3,4], professional:[4,5] };
+const LEVEL_COLORS_CARD = { beginner:'#4ade80', intermediate:'#facc15', advanced:'#f97316', expert:'#a855f7', professional:'#ef4444' };
+
+function calcLevelAccuracy(level, skillRating, wins, losses) {
+    const range = LEVEL_RANGES[level];
+    if (!range) return null;
+    const [min, max] = range;
+    const eloAcc = Math.min(100, Math.max(0, ((skillRating - min) / (max - min)) * 100));
+    const total = (wins || 0) + (losses || 0);
+    const winRate = total > 0 ? ((wins || 0) / total) * 100 : 50;
+    return Math.round(eloAcc * 0.7 + winRate * 0.3);
+}
+
+function EloGraph({ matches, userId }) {
+    if (!matches || matches.length === 0) return (
+        <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+            <Text style={{ color: '#6b7280', fontSize: 11 }}>— Henüz maç yok —</Text>
+        </View>
+    );
+    const deltas = matches.slice(-14).map(m => {
+        const s = m.score || {};
+        if (m.p1Id === userId) return s.p1EloDelta ?? 0;
+        if (m.p2Id === userId) return s.p2EloDelta ?? 0;
+        return s.p1EloDelta ?? s.winnerEloDelta ?? 0;
+    });
+    const maxAbs = Math.max(...deltas.map(Math.abs), 0.01);
+    const BAR_H = 40;
+    return (
+        <View>
+            <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700', marginBottom: 6 }}>
+                {`ELO ${deltas.length > 0 ? (deltas[deltas.length-1] >= 0 ? '▲' : '▼') : ''} SON ${deltas.length} MAÇ`}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_H * 2 + 2 }}>
+                {deltas.map((d, idx) => {
+                    const h = Math.max(3, Math.round((Math.abs(d) / maxAbs) * BAR_H));
+                    const isPos = d >= 0;
+                    return (
+                        <View key={idx} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', height: BAR_H * 2 + 2 }}>
+                            {isPos ? (
+                                <View style={{ position: 'absolute', bottom: BAR_H + 1, width: '100%', height: h, backgroundColor: '#4ade80', borderRadius: 2, opacity: 0.85 }} />
+                            ) : (
+                                <View style={{ position: 'absolute', top: BAR_H + 1, width: '100%', height: h, backgroundColor: '#f87171', borderRadius: 2, opacity: 0.85 }} />
+                            )}
+                            <View style={{ position: 'absolute', top: BAR_H, width: '100%', height: 1, backgroundColor: '#ffffff15' }} />
+                        </View>
+                    );
+                })}
+            </View>
+        </View>
+    );
+}
+
+function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
 
@@ -35,15 +87,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
         });
     };
 
-    const rotateY = flipAnim.interpolate({
-        inputRange: [0, 0.5, 1],
-        outputRange: ['0deg', '90deg', '0deg'],
-    });
+    const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
 
     if (!item) return null;
 
-    const LEVEL_COLORS_CARD = { beginner: '#4ade80', intermediate: '#facc15', advanced: '#f97316', expert: '#a855f7', professional: '#ef4444' };
     const levelColor = LEVEL_COLORS_CARD[item.level] || '#a855f7';
+    const accuracy = item.level ? calcLevelAccuracy(item.level, item.skillRating || 0, item.wins || 0, item.losses || 0) : null;
     const isEditingAlias = aliasEditId === item.id;
 
     const BottomBtns = () => (
@@ -63,88 +112,89 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 {!isBack ? (
                     /* ── Ön Yüz ── */
                     <View style={fc.face}>
-                        {/* Header */}
-                        <View style={fc.cardHeader}>
-                            <Text style={fc.cardHeaderText}>⚡ AcTiViTy</Text>
-                            {item.level && (
-                                <View style={[fc.levelBadge, { backgroundColor: levelColor + '30', borderColor: levelColor }]}>
-                                    <Text style={[fc.levelText, { color: levelColor }]}>{t?.levelTr?.[item.level] || item.level?.toUpperCase()}</Text>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+
+                            {/* Sol üst: emoji + spor adı */}
+                            <View style={fc.topRow}>
+                                <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>
+                                <Text style={fc.smallSportName}>{item.subCategory?.toUpperCase()}</Text>
+                            </View>
+
+                            {/* Sağ: istatistikler */}
+                            <View style={fc.statsBlock}>
+                                <View style={fc.statRow}>
+                                    <Text style={fc.statRowLbl}>{lang === 'tr' ? 'GALİBİYET' : 'WINS'}</Text>
+                                    <Text style={[fc.statRowNum, { color: '#4ade80' }]}>{item.wins || 0}</Text>
                                 </View>
-                            )}
-                        </View>
-
-                        {/* Emoji */}
-                        <View style={fc.emojiBox}>
-                            <Text style={fc.bigEmoji}>{item.emoji || '🏅'}</Text>
-                        </View>
-                        <Text style={fc.sportName}>{item.subCategory?.toUpperCase()}</Text>
-
-                        {/* Stats */}
-                        <View style={fc.statsRow}>
-                            <View style={fc.statBox}>
-                                <Text style={fc.statNum}>{item.wins || 0}</Text>
-                                <Text style={fc.statLbl}>{lang === 'tr' ? 'GALİBİYET' : 'WINS'}</Text>
-                            </View>
-                            <View style={fc.divider} />
-                            <View style={fc.statBox}>
-                                <Text style={[fc.statNum, { color: '#f87171' }]}>{item.losses || 0}</Text>
-                                <Text style={fc.statLbl}>{lang === 'tr' ? 'MAĞLUBİYET' : 'LOSSES'}</Text>
-                            </View>
-                            <View style={fc.divider} />
-                            <View style={fc.statBox}>
-                                <Text style={[fc.statNum, { color: '#facc15' }]}>{Number(item.skillRating || 0).toFixed(2)}</Text>
-                                <Text style={fc.statLbl}>ELO ★</Text>
-                            </View>
-                        </View>
-
-                        {/* Butonlar */}
-                        <View style={{ width: '100%', gap: 8, marginTop: 16 }}>
-                            <TouchableOpacity onPress={onUpcoming}
-                                style={{ backgroundColor: '#16a34a15', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#16a34a30' }}>
-                                <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '700' }}>
-                                    ⏰ {t?.myUpcomingBtn || 'Yaklaşan Maçlar'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={onArchive}
-                                style={{ backgroundColor: '#a855f715', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#a855f730' }}>
-                                <Text style={{ color: '#a855f7', fontSize: 13, fontWeight: '700' }}>
-                                    🗃️ {t?.matchArchiveBtn || 'Maç Arşivi'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}
-                                </Text>
-                            </TouchableOpacity>
-
-                            {/* Alias */}
-                            {isOwnProfile && (
-                                isEditingAlias ? (
-                                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                                        <TextInput
-                                            value={aliasValue}
-                                            onChangeText={setAliasValue}
-                                            placeholder={`@${profile?.username}`}
-                                            placeholderTextColor="#6b7280"
-                                            maxLength={30}
-                                            style={{ flex: 1, color: '#fff', fontSize: 13, backgroundColor: '#ffffff10', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#ffffff20' }}
-                                            autoFocus
-                                        />
-                                        <TouchableOpacity onPress={onSaveAlias} disabled={savingAlias}
-                                            style={{ backgroundColor: '#a855f7', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
-                                            <Text style={{ color: '#fff', fontWeight: '700' }}>✓</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={onCancelAlias}
-                                            style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
-                                            <Text style={{ color: '#9ca3af' }}>✕</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity onPress={onEditAlias}
-                                        style={{ backgroundColor: '#ffffff08', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#ffffff15' }}>
-                                        <Text style={{ color: '#9ca3af', fontSize: 12, fontWeight: '600' }}>
-                                            ✏️ {item.alias ? `@${item.alias}` : (t?.sportAliasLabel || 'Spor Takma Adı')}
+                                <View style={fc.statRow}>
+                                    <Text style={fc.statRowLbl}>{lang === 'tr' ? 'MAĞLUBİYET' : 'LOSSES'}</Text>
+                                    <Text style={[fc.statRowNum, { color: '#f87171' }]}>{item.losses || 0}</Text>
+                                </View>
+                                <View style={fc.statRow}>
+                                    <Text style={fc.statRowLbl}>ELO ★</Text>
+                                    <Text style={[fc.statRowNum, { color: '#facc15' }]}>{Number(item.skillRating || 0).toFixed(2)}</Text>
+                                </View>
+                                {accuracy !== null && (
+                                    <View style={{ marginTop: 10 }}>
+                                        <View style={[fc.statRow, { marginBottom: 6 }]}>
+                                            <Text style={fc.statRowLbl}>{lang === 'tr' ? 'SEVİYE DOĞRULUĞU' : 'LEVEL ACCURACY'}</Text>
+                                            <Text style={[fc.statRowNum, { color: levelColor }]}>{accuracy}%</Text>
+                                        </View>
+                                        <View style={fc.progressTrack}>
+                                            <View style={[fc.progressFill, { width: `${accuracy}%`, backgroundColor: levelColor }]} />
+                                        </View>
+                                        <Text style={[fc.levelLabel, { color: levelColor }]}>
+                                            {t?.levelTr?.[item.level] || item.level}
                                         </Text>
-                                    </TouchableOpacity>
-                                )
-                            )}
-                        </View>
+                                    </View>
+                                )}
+                            </View>
 
+                            {/* Butonlar */}
+                            <View style={{ gap: 8, marginTop: 18 }}>
+                                <TouchableOpacity onPress={onUpcoming}
+                                    style={fc.actionBtn}>
+                                    <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '700' }}>
+                                        ⏰ {t?.myUpcomingBtn || 'Yaklaşan Maçlar'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={onArchive}
+                                    style={[fc.actionBtn, { borderColor: '#a855f730' }]}>
+                                    <Text style={{ color: '#a855f7', fontSize: 13, fontWeight: '700' }}>
+                                        🗃️ {t?.matchArchiveBtn || 'Maç Arşivi'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}
+                                    </Text>
+                                </TouchableOpacity>
+                                {isOwnProfile && (
+                                    isEditingAlias ? (
+                                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                                            <TextInput value={aliasValue} onChangeText={setAliasValue}
+                                                placeholder={`@${profile?.username}`} placeholderTextColor="#6b7280" maxLength={30} autoFocus
+                                                style={{ flex: 1, color: '#fff', fontSize: 13, backgroundColor: '#ffffff10', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#ffffff20' }} />
+                                            <TouchableOpacity onPress={onSaveAlias} disabled={savingAlias}
+                                                style={{ backgroundColor: '#a855f7', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                                                <Text style={{ color: '#fff', fontWeight: '700' }}>✓</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={onCancelAlias}
+                                                style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
+                                                <Text style={{ color: '#9ca3af' }}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : (
+                                        <TouchableOpacity onPress={onEditAlias} style={[fc.actionBtn, { borderColor: '#ffffff15' }]}>
+                                            <Text style={{ color: '#9ca3af', fontSize: 12, fontWeight: '600' }}>
+                                                ✏️ {item.alias ? `@${item.alias}` : (t?.sportAliasLabel || 'Spor Takma Adı')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )
+                                )}
+                            </View>
+
+                            {/* ELO Grafiği */}
+                            <View style={fc.graphBox}>
+                                <EloGraph matches={item.historyMatches || []} userId={userId} />
+                            </View>
+
+                        </ScrollView>
                         <BottomBtns />
                     </View>
                 ) : (
@@ -167,22 +217,22 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 }
 
 const fc = StyleSheet.create({
-    card: { position: 'absolute', top: 0, left: 0, width: SW, height: SH, elevation: 20, shadowColor: '#a855f7', shadowOpacity: 0.6, shadowRadius: 20 },
-    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 28, paddingTop: 60, paddingBottom: 100, alignItems: 'center', justifyContent: 'center' },
-    backFace: { backgroundColor: '#0f0f1a', justifyContent: 'center' },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 20 },
-    cardHeaderText: { color: '#a855f7', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
-    levelBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1 },
-    levelText: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-    emojiBox: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#a855f720', borderWidth: 2, borderColor: '#a855f740', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-    bigEmoji: { fontSize: 60 },
-    sportName: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: 3, marginBottom: 16 },
-    statsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff08', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 20, gap: 16, width: '100%', justifyContent: 'center', marginBottom: 4 },
-    statBox: { alignItems: 'center', flex: 1 },
-    statNum: { color: '#4ade80', fontSize: 26, fontWeight: '900' },
-    statLbl: { color: '#6b7280', fontSize: 8, fontWeight: '700', marginTop: 4 },
-    divider: { width: 1, height: 40, backgroundColor: '#ffffff15' },
-    btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', position: 'absolute', bottom: 36, left: 20, right: 20 },
+    card: { position: 'absolute', top: 0, left: 0, width: SW, height: SH, elevation: 20 },
+    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 20, paddingTop: 52 },
+    backFace: { backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' },
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 },
+    smallEmoji: { fontSize: 22 },
+    smallSportName: { color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase' },
+    statsBlock: { backgroundColor: '#ffffff06', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#ffffff10' },
+    statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#ffffff08' },
+    statRowLbl: { color: '#6b7280', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+    statRowNum: { fontSize: 18, fontWeight: '900' },
+    progressTrack: { height: 6, backgroundColor: '#ffffff15', borderRadius: 3, overflow: 'hidden' },
+    progressFill: { height: 6, borderRadius: 3 },
+    levelLabel: { fontSize: 10, fontWeight: '700', marginTop: 4, textAlign: 'right' },
+    actionBtn: { backgroundColor: '#ffffff06', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#16a34a30' },
+    graphBox: { marginTop: 18, backgroundColor: '#ffffff06', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#ffffff10' },
+    btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', position: 'absolute', bottom: 36, left: 20, right: 20 },
     backBtn: { backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3, borderWidth: 1, borderColor: '#ffffff20' },
     backBtnText: { color: '#9ca3af', fontSize: 11, fontWeight: '700' },
     flipBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#a855f730', borderWidth: 1, borderColor: '#a855f760', justifyContent: 'center', alignItems: 'center' },
@@ -1320,6 +1370,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             emoji: SUB_EMOJI[i.subCategory] || '🏅',
                                             upcomingCount,
                                             archiveCount: myHistory.filter(m => m.subCategory === i.subCategory).length,
+                                            historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
                                         })}
                                         style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, gap: 6 }}
                                     >
@@ -1837,6 +1888,7 @@ export default function ProfileScreen({ route, navigation }) {
                 onEditAlias={() => cardModalItem && (setAliasValue(cardModalItem.alias || ''), setAliasEditId(cardModalItem.id))}
                 onUpcoming={() => { setCardModalItem(null); cardModalItem && openMyUpcoming(cardModalItem.subCategory); }}
                 onArchive={() => { setCardModalItem(null); cardModalItem && openMyArchive(cardModalItem.subCategory); }}
+                userId={myUser?.id}
             />
 
             {/* ── Gönderiler modalı ── */}
