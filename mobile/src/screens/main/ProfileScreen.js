@@ -332,12 +332,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
 const fc = StyleSheet.create({
     card: { position: 'absolute', top: 0, left: 0, width: SW, height: SH, elevation: 20 },
-    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 16, paddingTop: 48 },
+    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 3, paddingTop: 48 },
     backFace: { backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' },
     topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
     smallEmoji: { fontSize: 20 },
     smallSportName: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
-    halfRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+    halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
     leftCol: { flex: 1, gap: 3 },
     rightCol: { flex: 1, gap: 3 },
     statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
