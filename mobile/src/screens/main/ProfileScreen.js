@@ -172,6 +172,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [matchListType, setMatchListType] = useState(null);
+    const [showEloModal, setShowEloModal] = useState(false);
 
     useEffect(() => {
         if (!visible) { flipAnim.setValue(0); setIsBack(false); setMatchListType(null); }
@@ -222,10 +223,10 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1}>@{item.alias}</Text> : null}
                                 </View>
                                 {item.skillRating > 0 && (
-                                    <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 7, borderWidth: 1, borderColor: '#facc1540' }}>
+                                    <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 7, borderWidth: 1, borderColor: '#facc1540' }}>
                                         <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
                                         <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
-                                    </View>
+                                    </TouchableOpacity>
                                 )}
                                 {[
                                     { type: 'win',  count: winsCount,   label: lang==='tr' ? 'Galibiyet' : 'Wins',   color: '#4ade80' },
@@ -298,13 +299,28 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 </View>
                             )}
 
-                            {/* ── ELO Çizgi Grafiği ── */}
-                            <View style={fc.graphBox}>
-                                <EloLineGraph matches={matches} userId={userId} />
-                            </View>
-
                         </ScrollView>
                         <BottomBtns />
+
+                        {/* ELO Grafik Modali */}
+                        <Modal visible={showEloModal} transparent animationType="slide" onRequestClose={() => setShowEloModal(false)}>
+                            <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
+                                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36, borderWidth: 1, borderColor: '#a855f730' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                        <View>
+                                            <Text style={{ color: '#facc15', fontSize: 16, fontWeight: '900' }}>ELO ★ {Number(item.skillRating || 0).toFixed(2)}</Text>
+                                            <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{lang === 'tr' ? 'Puan Geçmişi' : 'Rating History'}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => setShowEloModal(false)}>
+                                            <Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={fc.graphBox}>
+                                        <EloLineGraph matches={matches} userId={userId} />
+                                    </View>
+                                </View>
+                            </View>
+                        </Modal>
                     </View>
                 ) : (
                     /* ── Arka Yüz ── */
