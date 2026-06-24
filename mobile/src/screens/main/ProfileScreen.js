@@ -217,9 +217,9 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             {/* ── Tek satır: emoji + isim + G/M/B butonları ── */}
                             <View style={fc.topRow}>
                                 <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={fc.smallSportName}>{item.subCategory?.toUpperCase()}</Text>
-                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>@{item.alias}</Text> : null}
+                                <View style={{ flexShrink: 1 }}>
+                                    <Text style={fc.smallSportName} numberOfLines={1}>{item.subCategory?.toUpperCase()}</Text>
+                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1}>@{item.alias}</Text> : null}
                                 </View>
                                 {item.skillRating > 0 && (
                                     <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 7, borderWidth: 1, borderColor: '#facc1540' }}>
@@ -338,10 +338,10 @@ const fc = StyleSheet.create({
     card: { position: 'absolute', top: 0, left: 0, width: SW, height: SH, elevation: 20 },
     face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 3, paddingTop: 48 },
     backFace: { backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' },
-    topRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#ffffff10' },
-    smallEmoji: { fontSize: 18 },
-    smallSportName: { color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
-    miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 1, borderColor: '#ffffff15', minWidth: 68 },
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 6, borderWidth: 1, borderColor: '#ffffff10', flexWrap: 'nowrap' },
+    smallEmoji: { fontSize: 16 },
+    smallSportName: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' },
+    miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 3, borderWidth: 1, borderColor: '#ffffff15' },
     halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
     rightCol: { flex: 1, gap: 3 },
     actionCol: { flex: 1, gap: 3 },
