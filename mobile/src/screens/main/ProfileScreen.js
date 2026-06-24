@@ -20,7 +20,7 @@ import CityPickerModal from '../../components/CityPickerModal';
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
 
-function SportCardFlipModal({ item, visible, onClose, lang }) {
+function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
 
@@ -44,6 +44,18 @@ function SportCardFlipModal({ item, visible, onClose, lang }) {
 
     const LEVEL_COLORS_CARD = { beginner: '#4ade80', intermediate: '#facc15', advanced: '#f97316', expert: '#a855f7', professional: '#ef4444' };
     const levelColor = LEVEL_COLORS_CARD[item.level] || '#a855f7';
+    const isEditingAlias = aliasEditId === item.id;
+
+    const BottomBtns = () => (
+        <View style={fc.btnRow}>
+            <TouchableOpacity style={fc.backBtn} onPress={onClose}>
+                <Text style={fc.backBtnText}>← {lang === 'tr' ? 'Geri' : 'Back'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={fc.flipBtn} onPress={handleFlip}>
+                <Text style={fc.flipBtnText}>🔄</Text>
+            </TouchableOpacity>
+        </View>
+    );
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -51,22 +63,23 @@ function SportCardFlipModal({ item, visible, onClose, lang }) {
                 {!isBack ? (
                     /* ── Ön Yüz ── */
                     <View style={fc.face}>
+                        {/* Header */}
                         <View style={fc.cardHeader}>
                             <Text style={fc.cardHeaderText}>⚡ AcTiViTy</Text>
                             {item.level && (
                                 <View style={[fc.levelBadge, { backgroundColor: levelColor + '30', borderColor: levelColor }]}>
-                                    <Text style={[fc.levelText, { color: levelColor }]}>{item.level?.toUpperCase()}</Text>
+                                    <Text style={[fc.levelText, { color: levelColor }]}>{t?.levelTr?.[item.level] || item.level?.toUpperCase()}</Text>
                                 </View>
                             )}
                         </View>
 
+                        {/* Emoji */}
                         <View style={fc.emojiBox}>
                             <Text style={fc.bigEmoji}>{item.emoji || '🏅'}</Text>
                         </View>
-
                         <Text style={fc.sportName}>{item.subCategory?.toUpperCase()}</Text>
-                        {item.alias && <Text style={fc.alias}>@{item.alias}</Text>}
 
+                        {/* Stats */}
                         <View style={fc.statsRow}>
                             <View style={fc.statBox}>
                                 <Text style={fc.statNum}>{item.wins || 0}</Text>
@@ -85,14 +98,54 @@ function SportCardFlipModal({ item, visible, onClose, lang }) {
                         </View>
 
                         {/* Butonlar */}
-                        <View style={fc.btnRow}>
-                            <TouchableOpacity style={fc.backBtn} onPress={onClose}>
-                                <Text style={fc.backBtnText}>← {lang === 'tr' ? 'Geri' : 'Back'}</Text>
+                        <View style={{ width: '100%', gap: 8, marginTop: 16 }}>
+                            <TouchableOpacity onPress={onUpcoming}
+                                style={{ backgroundColor: '#16a34a15', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#16a34a30' }}>
+                                <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '700' }}>
+                                    ⏰ {t?.myUpcomingBtn || 'Yaklaşan Maçlar'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}
+                                </Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={fc.flipBtn} onPress={handleFlip}>
-                                <Text style={fc.flipBtnText}>🔄</Text>
+                            <TouchableOpacity onPress={onArchive}
+                                style={{ backgroundColor: '#a855f715', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#a855f730' }}>
+                                <Text style={{ color: '#a855f7', fontSize: 13, fontWeight: '700' }}>
+                                    🗃️ {t?.matchArchiveBtn || 'Maç Arşivi'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}
+                                </Text>
                             </TouchableOpacity>
+
+                            {/* Alias */}
+                            {isOwnProfile && (
+                                isEditingAlias ? (
+                                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                                        <TextInput
+                                            value={aliasValue}
+                                            onChangeText={setAliasValue}
+                                            placeholder={`@${profile?.username}`}
+                                            placeholderTextColor="#6b7280"
+                                            maxLength={30}
+                                            style={{ flex: 1, color: '#fff', fontSize: 13, backgroundColor: '#ffffff10', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#ffffff20' }}
+                                            autoFocus
+                                        />
+                                        <TouchableOpacity onPress={onSaveAlias} disabled={savingAlias}
+                                            style={{ backgroundColor: '#a855f7', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                                            <Text style={{ color: '#fff', fontWeight: '700' }}>✓</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={onCancelAlias}
+                                            style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
+                                            <Text style={{ color: '#9ca3af' }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : (
+                                    <TouchableOpacity onPress={onEditAlias}
+                                        style={{ backgroundColor: '#ffffff08', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#ffffff15' }}>
+                                        <Text style={{ color: '#9ca3af', fontSize: 12, fontWeight: '600' }}>
+                                            ✏️ {item.alias ? `@${item.alias}` : (t?.sportAliasLabel || 'Spor Takma Adı')}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )
+                            )}
                         </View>
+
+                        <BottomBtns />
                     </View>
                 ) : (
                     /* ── Arka Yüz ── */
@@ -105,16 +158,7 @@ function SportCardFlipModal({ item, visible, onClose, lang }) {
                             ))}
                         </View>
                         <Text style={fc.backComingSoon}>{lang === 'tr' ? '✨ Yakında' : '✨ Coming Soon'}</Text>
-
-                        {/* Butonlar */}
-                        <View style={fc.btnRow}>
-                            <TouchableOpacity style={fc.backBtn} onPress={onClose}>
-                                <Text style={fc.backBtnText}>← {lang === 'tr' ? 'Geri' : 'Back'}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={fc.flipBtn} onPress={handleFlip}>
-                                <Text style={fc.flipBtnText}>🔄</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <BottomBtns />
                     </View>
                 )}
             </Animated.View>
@@ -124,21 +168,20 @@ function SportCardFlipModal({ item, visible, onClose, lang }) {
 
 const fc = StyleSheet.create({
     card: { position: 'absolute', top: 0, left: 0, width: SW, height: SH, elevation: 20, shadowColor: '#a855f7', shadowOpacity: 0.6, shadowRadius: 20 },
-    face: { flex: 1, backgroundColor: '#1a1a2e', padding: 28, alignItems: 'center', justifyContent: 'center' },
-    backFace: { backgroundColor: '#0f0f1a' },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 24, position: 'absolute', top: 52, left: 28, right: 28 },
+    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 28, paddingTop: 60, paddingBottom: 100, alignItems: 'center', justifyContent: 'center' },
+    backFace: { backgroundColor: '#0f0f1a', justifyContent: 'center' },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 20 },
     cardHeaderText: { color: '#a855f7', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
     levelBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1 },
     levelText: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-    emojiBox: { width: 160, height: 160, borderRadius: 80, backgroundColor: '#a855f720', borderWidth: 2, borderColor: '#a855f740', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-    bigEmoji: { fontSize: 80 },
-    sportName: { color: '#fff', fontSize: 32, fontWeight: '900', letterSpacing: 3, marginBottom: 6 },
-    alias: { color: '#a855f7', fontSize: 14, fontWeight: '700', marginBottom: 24 },
-    statsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff08', borderRadius: 16, paddingVertical: 18, paddingHorizontal: 24, gap: 16, width: '100%', justifyContent: 'center' },
+    emojiBox: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#a855f720', borderWidth: 2, borderColor: '#a855f740', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+    bigEmoji: { fontSize: 60 },
+    sportName: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: 3, marginBottom: 16 },
+    statsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff08', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 20, gap: 16, width: '100%', justifyContent: 'center', marginBottom: 4 },
     statBox: { alignItems: 'center', flex: 1 },
-    statNum: { color: '#4ade80', fontSize: 30, fontWeight: '900' },
-    statLbl: { color: '#6b7280', fontSize: 9, fontWeight: '700', marginTop: 4 },
-    divider: { width: 1, height: 44, backgroundColor: '#ffffff15' },
+    statNum: { color: '#4ade80', fontSize: 26, fontWeight: '900' },
+    statLbl: { color: '#6b7280', fontSize: 8, fontWeight: '700', marginTop: 4 },
+    divider: { width: 1, height: 40, backgroundColor: '#ffffff15' },
     btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', position: 'absolute', bottom: 48, left: 28, right: 28 },
     backBtn: { backgroundColor: '#ffffff10', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 1, borderColor: '#ffffff20' },
     backBtnText: { color: '#9ca3af', fontSize: 14, fontWeight: '700' },
@@ -1270,93 +1313,27 @@ export default function ProfileScreen({ route, navigation }) {
                                 const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
                                 const levelColor = LEVEL_COLORS[i.level] || colors.purple;
                                 return (
-                                    <View key={i.id}>
                                     <TouchableOpacity
-                                        onPress={() => setCardModalItem({ ...i, emoji: SUB_EMOJI[i.subCategory] || '🏅' })}
-                                        style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, backgroundColor: '#a855f720', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#a855f740' }}
+                                        key={i.id}
+                                        activeOpacity={0.8}
+                                        onPress={() => setCardModalItem({
+                                            ...i,
+                                            emoji: SUB_EMOJI[i.subCategory] || '🏅',
+                                            upcomingCount,
+                                            archiveCount: myHistory.filter(m => m.subCategory === i.subCategory).length,
+                                        })}
+                                        style={{ backgroundColor: colors.surface2, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.border }}
                                     >
-                                        <Text style={{ fontSize: 14 }}>🃏</Text>
+                                        <Text style={{ fontSize: 32 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', textTransform: 'capitalize' }}>{i.subCategory}</Text>
+                                            {i.alias ? <Text style={{ color: '#a855f7', fontSize: 11, fontWeight: '700', marginTop: 2 }}>@{i.alias}</Text> : null}
+                                        </View>
+                                        {i.skillRating > 0 && (
+                                            <Text style={{ color: '#facc15', fontSize: 14, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
+                                        )}
+                                        <Text style={{ color: '#6b7280', fontSize: 16 }}>›</Text>
                                     </TouchableOpacity>
-                                    <View style={{ backgroundColor: colors.surface2, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.border }}>
-                                        {/* Left: emoji + name + rating + level */}
-                                        <View style={{ flex: 1.1, alignItems: 'center' }}>
-                                            <Text style={{ fontSize: 28 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
-                                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center', marginTop: 4 }}>{i.subCategory}</Text>
-                                            {i.skillRating > 0 && (
-                                                <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '800', marginTop: 2 }}>{Number(i.skillRating).toFixed(2)} ★</Text>
-                                            )}
-                                            {i.level && (
-                                                <View style={{ backgroundColor: levelColor + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginTop: 4 }}>
-                                                    <Text style={{ color: levelColor, fontSize: 9, fontWeight: '700' }}>{t.levelTr?.[i.level] || i.level}</Text>
-                                                </View>
-                                            )}
-                                        </View>
-
-                                        {/* Middle: navigation buttons + alias */}
-                                        <View style={{ flex: 2, gap: 6 }}>
-                                            <TouchableOpacity
-                                                onPress={() => openMyUpcoming(i.subCategory)}
-                                                style={{ backgroundColor: '#16a34a15', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#16a34a30' }}
-                                            >
-                                                <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '700' }}>
-                                                    ⏰ {t.myUpcomingBtn || 'Yaklaşan Maçlar'}{upcomingCount > 0 ? ` (${upcomingCount})` : ''}
-                                                </Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => openMyArchive(i.subCategory)}
-                                                style={{ backgroundColor: colors.purple + '15', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.purple + '30' }}
-                                            >
-                                                <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '700' }}>
-                                                    🗃️ {t.matchArchiveBtn || 'Maç Arşivi'}
-                                                    {(() => { const cnt = myHistory.filter(m => m.subCategory === i.subCategory).length; return cnt > 0 ? ` (${cnt})` : ''; })()}
-                                                </Text>
-                                            </TouchableOpacity>
-                                            {isOwnProfile && (
-                                                aliasEditId === i.id ? (
-                                                    <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-                                                        <TextInput
-                                                            value={aliasValue}
-                                                            onChangeText={setAliasValue}
-                                                            placeholder={`@${profile?.username}`}
-                                                            placeholderTextColor={colors.textMuted}
-                                                            maxLength={30}
-                                                            style={{ flex: 1, color: '#fff', fontSize: 11, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border }}
-                                                            autoFocus
-                                                        />
-                                                        <TouchableOpacity onPress={() => saveAlias(i.id)} disabled={savingAlias} style={{ backgroundColor: colors.purple, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-                                                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>
-                                                        </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => setAliasEditId(null)} style={{ backgroundColor: colors.surface, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border }}>
-                                                            <Text style={{ color: colors.textMuted, fontSize: 11 }}>✕</Text>
-                                                        </TouchableOpacity>
-                                                    </View>
-                                                ) : (
-                                                    <TouchableOpacity
-                                                        onPress={() => { setAliasValue(i.alias || ''); setAliasEditId(i.id); }}
-                                                        style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingVertical: 5, paddingHorizontal: 8, borderWidth: 1, borderColor: colors.border }}
-                                                    >
-                                                        <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '600' }}>
-                                                            ✏️ {i.alias ? i.alias : (t.sportAliasLabel || 'Spor Takma Adı')}
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                )
-                                            )}
-                                        </View>
-
-                                        {/* Right: wins / losses */}
-                                        <View style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                                            <View style={{ alignItems: 'center' }}>
-                                                <Text style={{ color: '#4ade80', fontSize: 22, fontWeight: '900', lineHeight: 26 }}>{i.wins || 0}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700' }}>{lang === 'tr' ? 'GALİBİYET' : 'WINS'}</Text>
-                                            </View>
-                                            <View style={{ width: 32, height: 1, backgroundColor: colors.border }} />
-                                            <View style={{ alignItems: 'center' }}>
-                                                <Text style={{ color: '#f87171', fontSize: 22, fontWeight: '900', lineHeight: 26 }}>{i.losses || 0}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700' }}>{lang === 'tr' ? 'MAĞLUBİYET' : 'LOSSES'}</Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                    </View>
                                 );
                             })}
                         </View>
@@ -1850,8 +1827,20 @@ export default function ProfileScreen({ route, navigation }) {
             <SportCardFlipModal
                 item={cardModalItem}
                 visible={!!cardModalItem}
-                onClose={() => setCardModalItem(null)}
+                onClose={() => { setCardModalItem(null); setAliasEditId(null); }}
                 lang={lang}
+                t={t}
+                isOwnProfile={isOwnProfile}
+                profile={profile}
+                aliasEditId={aliasEditId}
+                aliasValue={aliasValue}
+                setAliasValue={setAliasValue}
+                savingAlias={savingAlias}
+                onSaveAlias={() => cardModalItem && saveAlias(cardModalItem.id)}
+                onCancelAlias={() => setAliasEditId(null)}
+                onEditAlias={() => cardModalItem && (setAliasValue(cardModalItem.alias || ''), setAliasEditId(cardModalItem.id))}
+                onUpcoming={() => { setCardModalItem(null); cardModalItem && openMyUpcoming(cardModalItem.subCategory); }}
+                onArchive={() => { setCardModalItem(null); cardModalItem && openMyArchive(cardModalItem.subCategory); }}
             />
 
             {/* ── Gönderiler modalı ── */}
