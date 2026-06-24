@@ -247,12 +247,10 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Sağ: eylem butonları */}
                                 <View style={fc.rightCol}>
                                     <TouchableOpacity onPress={onUpcoming} style={fc.actionBtn}>
-                                        <Text style={fc.actionEmoji}>⏰</Text>
-                                        <Text style={[fc.actionTxt, { color: '#4ade80' }]}>{t?.myUpcomingBtn || 'Yaklaşan Maçlar'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
+                                        <Text style={[fc.actionTxt, { color: '#4ade80' }]}>⏰ {lang==='tr' ? 'Yaklaşan Maçlar' : 'Upcoming'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={onArchive} style={fc.actionBtn}>
-                                        <Text style={fc.actionEmoji}>🗃️</Text>
-                                        <Text style={[fc.actionTxt, { color: '#a855f7' }]}>{t?.matchArchiveBtn || 'Maç Arşivi'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
+                                        <Text style={[fc.actionTxt, { color: '#a855f7' }]}>🗃️ {lang==='tr' ? 'Maç Arşivi' : 'Archive'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
                                     </TouchableOpacity>
                                     {isOwnProfile && (
                                         isEditingAlias ? (
@@ -273,8 +271,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                             </View>
                                         ) : (
                                             <TouchableOpacity onPress={onEditAlias} style={fc.actionBtn}>
-                                                <Text style={fc.actionEmoji}>✏️</Text>
-                                                <Text style={[fc.actionTxt, { color: '#9ca3af' }]}>{item.alias ? `@${item.alias}` : (t?.sportAliasLabel || 'Takma Ad')}</Text>
+                                                <Text style={[fc.actionTxt, { color: '#9ca3af' }]}>✏️ {item.alias ? `@${item.alias}` : (t?.sportAliasLabel || 'Takma Ad')}</Text>
                                             </TouchableOpacity>
                                         )
                                     )}
@@ -339,13 +336,12 @@ const fc = StyleSheet.create({
     smallSportName: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
     halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
     leftCol: { width: 90, gap: 3 },
-    rightCol: { flex: 1, gap: 3 },
+    rightCol: { flex: 1, gap: 3, maxWidth: SW - 100 },
     statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
     statBigNum: { fontSize: 16, fontWeight: '900' },
     statSmLbl: { color: '#6b7280', fontSize: 7, fontWeight: '700', letterSpacing: 0.5 },
-    actionBtn: { backgroundColor: '#ffffff08', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#ffffff10', flexDirection: 'row', alignItems: 'center', gap: 6 },
-    actionEmoji: { fontSize: 14 },
-    actionTxt: { fontSize: 11, fontWeight: '700', flex: 1 },
+    actionBtn: { backgroundColor: '#ffffff08', borderRadius: 8, padding: 3, borderWidth: 1, borderColor: '#ffffff10' },
+    actionTxt: { fontSize: 11, fontWeight: '700' },
     progressBox: { backgroundColor: '#ffffff06', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 10 },
     progressTrack: { height: 5, backgroundColor: '#ffffff15', borderRadius: 3, overflow: 'hidden' },
     progressFill: { height: 5, borderRadius: 3 },
