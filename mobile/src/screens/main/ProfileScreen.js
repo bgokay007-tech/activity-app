@@ -1308,10 +1308,9 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={s.section}>
                     <Text style={s.sectionTitle}>{isOwnProfile ? t.branchesSection : (lang === 'tr' ? '🏅 Sporlar' : '🏅 Sports')}</Text>
                     {interests.length > 0 ? (
-                        <View style={{ gap: 10 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
                             {interests.map(i => {
                                 const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
-                                const levelColor = LEVEL_COLORS[i.level] || colors.purple;
                                 return (
                                     <TouchableOpacity
                                         key={i.id}
@@ -1322,21 +1321,18 @@ export default function ProfileScreen({ route, navigation }) {
                                             upcomingCount,
                                             archiveCount: myHistory.filter(m => m.subCategory === i.subCategory).length,
                                         })}
-                                        style={{ backgroundColor: colors.surface2, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.border }}
+                                        style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, gap: 6 }}
                                     >
-                                        <Text style={{ fontSize: 32 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', textTransform: 'capitalize' }}>{i.subCategory}</Text>
-                                            {i.alias ? <Text style={{ color: '#a855f7', fontSize: 11, fontWeight: '700', marginTop: 2 }}>@{i.alias}</Text> : null}
-                                        </View>
+                                        <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
+                                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }}>{i.subCategory}</Text>
+                                        {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>@{i.alias}</Text> : null}
                                         {i.skillRating > 0 && (
-                                            <Text style={{ color: '#facc15', fontSize: 14, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
+                                            <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
                                         )}
-                                        <Text style={{ color: '#6b7280', fontSize: 16 }}>›</Text>
                                     </TouchableOpacity>
                                 );
                             })}
-                        </View>
+                        </ScrollView>
                     ) : (
                         isOwnProfile ? (
                             <TouchableOpacity
