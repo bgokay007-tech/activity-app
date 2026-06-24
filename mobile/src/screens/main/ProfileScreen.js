@@ -214,40 +214,27 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                     <View style={fc.face}>
                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 70 }}>
 
-                            {/* Başlık: sol üst emoji + isim */}
+                            {/* ── Tek satır: emoji + isim + G/M/B butonları ── */}
                             <View style={fc.topRow}>
                                 <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>
-                                <View>
+                                <View style={{ flex: 1 }}>
                                     <Text style={fc.smallSportName}>{item.subCategory?.toUpperCase()}</Text>
-                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 10, fontWeight: '700' }}>@{item.alias}</Text> : null}
+                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>@{item.alias}</Text> : null}
                                 </View>
-                                {accuracy !== null && (
-                                    <View style={{ marginLeft: 'auto', alignItems: 'flex-end' }}>
-                                        <Text style={{ color: levelColor, fontSize: 11, fontWeight: '800' }}>{accuracy}%</Text>
-                                        <Text style={{ color: '#6b7280', fontSize: 9 }}>{lang === 'tr' ? 'SEVİYE' : 'LEVEL'}</Text>
-                                    </View>
-                                )}
+                                {[
+                                    { type: 'win',  count: winsCount,   label: lang==='tr' ? 'G' : 'W', color: '#4ade80' },
+                                    { type: 'loss', count: lossesCount, label: lang==='tr' ? 'M' : 'L', color: '#f87171' },
+                                    { type: 'draw', count: drawsCount,  label: lang==='tr' ? 'B' : 'D', color: '#facc15' },
+                                ].map(({ type, count, label, color }) => (
+                                    <TouchableOpacity key={type} onPress={() => setMatchListType(type)} style={fc.miniStatBtn}>
+                                        <Text style={{ color, fontSize: 13, fontWeight: '900' }}>{count}</Text>
+                                        <Text style={{ color: '#6b7280', fontSize: 8, fontWeight: '700' }}>{label}</Text>
+                                    </TouchableOpacity>
+                                ))}
                             </View>
 
-                            {/* ── Üst yarı: sol istatistikler | sağ butonlar ── */}
+                            {/* ── Eylem butonları ── */}
                             <View style={fc.halfRow}>
-
-                                {/* Sol: galibiyet / mağlubiyet / beraberlik */}
-                                <View style={fc.leftCol}>
-                                    {[
-                                        { type: 'win',  count: winsCount,   label: lang==='tr' ? 'GALİBİYET' : 'WINS',   color: '#4ade80', emoji: '✅' },
-                                        { type: 'loss', count: lossesCount, label: lang==='tr' ? 'MAĞLUBİYET' : 'LOSSES', color: '#f87171', emoji: '❌' },
-                                        { type: 'draw', count: drawsCount,  label: lang==='tr' ? 'BERABERLİK' : 'DRAWS',  color: '#facc15', emoji: '🤝' },
-                                    ].map(({ type, count, label, color, emoji }) => (
-                                        <TouchableOpacity key={type} onPress={() => setMatchListType(type)} style={fc.statCard}>
-                                            <Text style={{ fontSize: 18 }}>{emoji}</Text>
-                                            <Text style={[fc.statBigNum, { color }]}>{count}</Text>
-                                            <Text style={fc.statSmLbl}>{label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                {/* Sağ: eylem butonları */}
                                 <View style={fc.rightCol}>
                                     <TouchableOpacity onPress={onUpcoming} style={fc.actionBtn}>
                                         <Text style={[fc.actionTxt, { color: '#4ade80' }]}>⏰ {lang==='tr' ? 'Yaklaşan Maçlar' : 'Upcoming'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
@@ -334,12 +321,12 @@ const fc = StyleSheet.create({
     card: { position: 'absolute', top: 0, left: 0, width: SW, height: SH, elevation: 20 },
     face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 3, paddingTop: 48 },
     backFace: { backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' },
-    topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-    smallEmoji: { fontSize: 20 },
-    smallSportName: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#ffffff10' },
+    smallEmoji: { fontSize: 18 },
+    smallSportName: { color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
+    miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 6, borderWidth: 1, borderColor: '#ffffff15' },
     halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
-    leftCol: { width: 90, gap: 3 },
-    rightCol: { flex: 1, gap: 3, maxWidth: SW - 100 },
+    rightCol: { flex: 1, gap: 3 },
     statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
     statBigNum: { fontSize: 16, fontWeight: '900' },
     statSmLbl: { color: '#6b7280', fontSize: 7, fontWeight: '700', letterSpacing: 0.5 },
