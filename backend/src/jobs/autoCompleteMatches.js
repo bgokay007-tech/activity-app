@@ -104,9 +104,9 @@ export async function autoDrawUnscored() {
                 emitToUser(uid, 'rivalUpdate', r);
                 await createNotification(
                     uid,
-                    'MATCH_CONFIRMED',
-                    '🤝 Match recorded as 0-0 draw',
-                    'No score was submitted within 24 hours. The match was automatically recorded as a 0-0 draw. No ELO points were changed.',
+                    'SCORE_CONFIRMED',
+                    '🤝 Maç berabere kaydedildi',
+                    '24 saat içinde skor girilmedi. Maç otomatik olarak 0-0 berabere kaydedildi. ELO puanı değişmedi.',
                     { rivalId: r.id, category: r.category.toLowerCase(), subCategory: r.subCategory }
                 );
             }
