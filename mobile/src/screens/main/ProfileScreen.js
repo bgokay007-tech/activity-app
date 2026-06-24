@@ -33,51 +33,145 @@ function calcLevelAccuracy(level, skillRating, wins, losses) {
     return Math.round(eloAcc * 0.7 + winRate * 0.3);
 }
 
-function EloGraph({ matches, userId }) {
-    if (!matches || matches.length === 0) return (
-        <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-            <Text style={{ color: '#6b7280', fontSize: 11 }}>— Henüz maç yok —</Text>
+function getMatchResult(m, userId) {
+    const isOwner = m.senderId === userId;
+    const w = m.score?.winner;
+    if (!w) return null;
+    if (w === 'draw') return 'draw';
+    if (w === (isOwner ? 'sender' : 'opponent')) return 'win';
+    return 'loss';
+}
+
+function getEloDelta(m, userId) {
+    const snap = m.score?.ratingSnapshot;
+    if (snap && snap[userId]) return snap[userId].change ?? 0;
+    return 0;
+}
+
+function EloLineGraph({ matches, userId }) {
+    const GRAPH_W = SW - 80;
+    const GRAPH_H = 90;
+    const PADDING = 6;
+
+    if (!matches || matches.length < 2) return (
+        <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+            <Text style={{ color: '#6b7280', fontSize: 11 }}>— En az 2 maç gerekli —</Text>
         </View>
     );
-    const deltas = matches.slice(-14).map(m => {
-        const s = m.score || {};
-        if (m.p1Id === userId) return s.p1EloDelta ?? 0;
-        if (m.p2Id === userId) return s.p2EloDelta ?? 0;
-        return s.p1EloDelta ?? s.winnerEloDelta ?? 0;
-    });
-    const maxAbs = Math.max(...deltas.map(Math.abs), 0.01);
-    const BAR_H = 40;
+
+    // Kümülatif ELO değerleri
+    const deltas = matches.map(m => getEloDelta(m, userId));
+    const cumulative = deltas.reduce((acc, d, i) => { acc.push((acc[i - 1] || 0) + d); return acc; }, []);
+    const minV = Math.min(...cumulative);
+    const maxV = Math.max(...cumulative);
+    const range = maxV - minV || 0.01;
+
+    const pts = cumulative.map((v, i) => ({
+        x: PADDING + (i / (cumulative.length - 1)) * (GRAPH_W - PADDING * 2),
+        y: PADDING + (1 - (v - minV) / range) * (GRAPH_H - PADDING * 2),
+        v,
+    }));
+
+    const lastDelta = deltas[deltas.length - 1];
+    const trend = lastDelta > 0 ? '#4ade80' : lastDelta < 0 ? '#f87171' : '#6b7280';
+
     return (
         <View>
-            <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700', marginBottom: 6 }}>
-                {`ELO ${deltas.length > 0 ? (deltas[deltas.length-1] >= 0 ? '▲' : '▼') : ''} SON ${deltas.length} MAÇ`}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_H * 2 + 2 }}>
-                {deltas.map((d, idx) => {
-                    const h = Math.max(3, Math.round((Math.abs(d) / maxAbs) * BAR_H));
-                    const isPos = d >= 0;
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700' }}>ELO GRAFİĞİ · SON {matches.length} MAÇ</Text>
+                <Text style={{ color: trend, fontSize: 10, fontWeight: '800' }}>
+                    {lastDelta > 0 ? '▲' : lastDelta < 0 ? '▼' : '—'} {lastDelta > 0 ? '+' : ''}{lastDelta.toFixed ? lastDelta.toFixed(3) : lastDelta}
+                </Text>
+            </View>
+            <View style={{ width: GRAPH_W, height: GRAPH_H, position: 'relative' }}>
+                {/* Grid çizgisi */}
+                <View style={{ position: 'absolute', top: GRAPH_H / 2, left: 0, right: 0, height: 1, backgroundColor: '#ffffff08' }} />
+                {/* Bağlantı çizgileri */}
+                {pts.slice(0, -1).map((p, i) => {
+                    const n = pts[i + 1];
+                    const dx = n.x - p.x;
+                    const dy = n.y - p.y;
+                    const len = Math.sqrt(dx * dx + dy * dy);
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    const col = n.v >= p.v ? '#4ade80' : '#f87171';
                     return (
-                        <View key={idx} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', height: BAR_H * 2 + 2 }}>
-                            {isPos ? (
-                                <View style={{ position: 'absolute', bottom: BAR_H + 1, width: '100%', height: h, backgroundColor: '#4ade80', borderRadius: 2, opacity: 0.85 }} />
-                            ) : (
-                                <View style={{ position: 'absolute', top: BAR_H + 1, width: '100%', height: h, backgroundColor: '#f87171', borderRadius: 2, opacity: 0.85 }} />
-                            )}
-                            <View style={{ position: 'absolute', top: BAR_H, width: '100%', height: 1, backgroundColor: '#ffffff15' }} />
-                        </View>
+                        <View key={i} style={{
+                            position: 'absolute', left: p.x, top: p.y - 1,
+                            width: len, height: 2, backgroundColor: col, opacity: 0.8,
+                            transform: [{ rotate: `${angle}deg` }], transformOrigin: 'left center',
+                        }} />
                     );
                 })}
+                {/* Noktalar */}
+                {pts.map((p, i) => (
+                    <View key={i} style={{
+                        position: 'absolute', left: p.x - 3, top: p.y - 3,
+                        width: 6, height: 6, borderRadius: 3,
+                        backgroundColor: i === pts.length - 1 ? '#facc15' : '#a855f7',
+                        borderWidth: 1, borderColor: '#1a1a2e',
+                    }} />
+                ))}
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                <Text style={{ color: '#6b7280', fontSize: 9 }}>{minV.toFixed ? minV.toFixed(2) : minV}</Text>
+                <Text style={{ color: '#6b7280', fontSize: 9 }}>{maxV.toFixed ? maxV.toFixed(2) : maxV}</Text>
             </View>
         </View>
+    );
+}
+
+function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
+    const filtered = (matches || []).filter(m => getMatchResult(m, userId) === type);
+    const label = type === 'win' ? (lang === 'tr' ? '✅ Galibiyetler' : '✅ Wins')
+                : type === 'loss' ? (lang === 'tr' ? '❌ Mağlubiyetler' : '❌ Losses')
+                : (lang === 'tr' ? '🤝 Beraberlikler' : '🤝 Draws');
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
+                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: SH * 0.75, padding: 20 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>{label} ({filtered.length})</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={{ color: '#6b7280', fontSize: 20 }}>✕</Text></TouchableOpacity>
+                    </View>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        {filtered.length === 0 ? (
+                            <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 20 }}>—</Text>
+                        ) : filtered.map((m, idx) => {
+                            const isOwner = m.senderId === userId;
+                            const parts = Array.isArray(m.participants) ? m.participants : [];
+                            const opponent = isOwner ? parts[0] : m.sender;
+                            const delta = getEloDelta(m, userId);
+                            const date = m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : '';
+                            return (
+                                <View key={m.id || idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ffffff10', gap: 10 }}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+                                            {opponent ? `@${opponent.username}` : '—'}
+                                        </Text>
+                                        <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{date} · {m.matchMode || ''}</Text>
+                                    </View>
+                                    {delta !== 0 && (
+                                        <Text style={{ color: delta > 0 ? '#4ade80' : '#f87171', fontSize: 13, fontWeight: '800' }}>
+                                            {delta > 0 ? '+' : ''}{delta.toFixed ? delta.toFixed(3) : delta}
+                                        </Text>
+                                    )}
+                                </View>
+                            );
+                        })}
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
     );
 }
 
 function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
+    const [matchListType, setMatchListType] = useState(null);
 
     useEffect(() => {
-        if (!visible) { flipAnim.setValue(0); setIsBack(false); }
+        if (!visible) { flipAnim.setValue(0); setIsBack(false); setMatchListType(null); }
     }, [visible]);
 
     const handleFlip = () => {
@@ -91,8 +185,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
     if (!item) return null;
 
-    const levelColor = LEVEL_COLORS_CARD[item.level] || '#a855f7';
-    const accuracy = item.level ? calcLevelAccuracy(item.level, item.skillRating || 0, item.wins || 0, item.losses || 0) : null;
+    const matches = item.historyMatches || [];
+    const winsCount   = matches.filter(m => getMatchResult(m, userId) === 'win').length;
+    const lossesCount = matches.filter(m => getMatchResult(m, userId) === 'loss').length;
+    const drawsCount  = matches.filter(m => getMatchResult(m, userId) === 'draw').length;
+    const levelColor  = LEVEL_COLORS_CARD[item.level] || '#a855f7';
+    const accuracy    = item.level ? calcLevelAccuracy(item.level, item.skillRating || 0, item.wins || 0, item.losses || 0) : null;
     const isEditingAlias = aliasEditId === item.id;
 
     const BottomBtns = () => (
@@ -110,88 +208,95 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
             <Animated.View style={[fc.card, { transform: [{ perspective: 1200 }, { rotateY }] }]}>
                 {!isBack ? (
-                    /* ── Ön Yüz ── */
                     <View style={fc.face}>
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 70 }}>
 
-                            {/* Sol üst: emoji + spor adı */}
+                            {/* Başlık: sol üst emoji + isim */}
                             <View style={fc.topRow}>
                                 <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>
-                                <Text style={fc.smallSportName}>{item.subCategory?.toUpperCase()}</Text>
-                            </View>
-
-                            {/* Sağ: istatistikler */}
-                            <View style={fc.statsBlock}>
-                                <View style={fc.statRow}>
-                                    <Text style={fc.statRowLbl}>{lang === 'tr' ? 'GALİBİYET' : 'WINS'}</Text>
-                                    <Text style={[fc.statRowNum, { color: '#4ade80' }]}>{item.wins || 0}</Text>
-                                </View>
-                                <View style={fc.statRow}>
-                                    <Text style={fc.statRowLbl}>{lang === 'tr' ? 'MAĞLUBİYET' : 'LOSSES'}</Text>
-                                    <Text style={[fc.statRowNum, { color: '#f87171' }]}>{item.losses || 0}</Text>
-                                </View>
-                                <View style={fc.statRow}>
-                                    <Text style={fc.statRowLbl}>ELO ★</Text>
-                                    <Text style={[fc.statRowNum, { color: '#facc15' }]}>{Number(item.skillRating || 0).toFixed(2)}</Text>
+                                <View>
+                                    <Text style={fc.smallSportName}>{item.subCategory?.toUpperCase()}</Text>
+                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 10, fontWeight: '700' }}>@{item.alias}</Text> : null}
                                 </View>
                                 {accuracy !== null && (
-                                    <View style={{ marginTop: 10 }}>
-                                        <View style={[fc.statRow, { marginBottom: 6 }]}>
-                                            <Text style={fc.statRowLbl}>{lang === 'tr' ? 'SEVİYE DOĞRULUĞU' : 'LEVEL ACCURACY'}</Text>
-                                            <Text style={[fc.statRowNum, { color: levelColor }]}>{accuracy}%</Text>
-                                        </View>
-                                        <View style={fc.progressTrack}>
-                                            <View style={[fc.progressFill, { width: `${accuracy}%`, backgroundColor: levelColor }]} />
-                                        </View>
-                                        <Text style={[fc.levelLabel, { color: levelColor }]}>
-                                            {t?.levelTr?.[item.level] || item.level}
-                                        </Text>
+                                    <View style={{ marginLeft: 'auto', alignItems: 'flex-end' }}>
+                                        <Text style={{ color: levelColor, fontSize: 11, fontWeight: '800' }}>{accuracy}%</Text>
+                                        <Text style={{ color: '#6b7280', fontSize: 9 }}>{lang === 'tr' ? 'SEVİYE' : 'LEVEL'}</Text>
                                     </View>
                                 )}
                             </View>
 
-                            {/* Butonlar */}
-                            <View style={{ gap: 8, marginTop: 18 }}>
-                                <TouchableOpacity onPress={onUpcoming}
-                                    style={fc.actionBtn}>
-                                    <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '700' }}>
-                                        ⏰ {t?.myUpcomingBtn || 'Yaklaşan Maçlar'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={onArchive}
-                                    style={[fc.actionBtn, { borderColor: '#a855f730' }]}>
-                                    <Text style={{ color: '#a855f7', fontSize: 13, fontWeight: '700' }}>
-                                        🗃️ {t?.matchArchiveBtn || 'Maç Arşivi'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}
-                                    </Text>
-                                </TouchableOpacity>
-                                {isOwnProfile && (
-                                    isEditingAlias ? (
-                                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                                            <TextInput value={aliasValue} onChangeText={setAliasValue}
-                                                placeholder={`@${profile?.username}`} placeholderTextColor="#6b7280" maxLength={30} autoFocus
-                                                style={{ flex: 1, color: '#fff', fontSize: 13, backgroundColor: '#ffffff10', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#ffffff20' }} />
-                                            <TouchableOpacity onPress={onSaveAlias} disabled={savingAlias}
-                                                style={{ backgroundColor: '#a855f7', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
-                                                <Text style={{ color: '#fff', fontWeight: '700' }}>✓</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity onPress={onCancelAlias}
-                                                style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
-                                                <Text style={{ color: '#9ca3af' }}>✕</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ) : (
-                                        <TouchableOpacity onPress={onEditAlias} style={[fc.actionBtn, { borderColor: '#ffffff15' }]}>
-                                            <Text style={{ color: '#9ca3af', fontSize: 12, fontWeight: '600' }}>
-                                                ✏️ {item.alias ? `@${item.alias}` : (t?.sportAliasLabel || 'Spor Takma Adı')}
-                                            </Text>
+                            {/* ── Üst yarı: sol istatistikler | sağ butonlar ── */}
+                            <View style={fc.halfRow}>
+
+                                {/* Sol: galibiyet / mağlubiyet / beraberlik */}
+                                <View style={fc.leftCol}>
+                                    {[
+                                        { type: 'win',  count: winsCount,   label: lang==='tr' ? 'GALİBİYET' : 'WINS',   color: '#4ade80', emoji: '✅' },
+                                        { type: 'loss', count: lossesCount, label: lang==='tr' ? 'MAĞLUBİYET' : 'LOSSES', color: '#f87171', emoji: '❌' },
+                                        { type: 'draw', count: drawsCount,  label: lang==='tr' ? 'BERABERLİK' : 'DRAWS',  color: '#facc15', emoji: '🤝' },
+                                    ].map(({ type, count, label, color, emoji }) => (
+                                        <TouchableOpacity key={type} onPress={() => setMatchListType(type)} style={fc.statCard}>
+                                            <Text style={{ fontSize: 18 }}>{emoji}</Text>
+                                            <Text style={[fc.statBigNum, { color }]}>{count}</Text>
+                                            <Text style={fc.statSmLbl}>{label}</Text>
                                         </TouchableOpacity>
-                                    )
-                                )}
+                                    ))}
+                                </View>
+
+                                {/* Sağ: eylem butonları */}
+                                <View style={fc.rightCol}>
+                                    <TouchableOpacity onPress={onUpcoming} style={fc.actionBtn}>
+                                        <Text style={fc.actionEmoji}>⏰</Text>
+                                        <Text style={[fc.actionTxt, { color: '#4ade80' }]}>{t?.myUpcomingBtn || 'Yaklaşan Maçlar'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={onArchive} style={fc.actionBtn}>
+                                        <Text style={fc.actionEmoji}>🗃️</Text>
+                                        <Text style={[fc.actionTxt, { color: '#a855f7' }]}>{t?.matchArchiveBtn || 'Maç Arşivi'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
+                                    </TouchableOpacity>
+                                    {isOwnProfile && (
+                                        isEditingAlias ? (
+                                            <View style={{ gap: 4 }}>
+                                                <TextInput value={aliasValue} onChangeText={setAliasValue}
+                                                    placeholder={`@${profile?.username}`} placeholderTextColor="#6b7280" maxLength={30} autoFocus
+                                                    style={{ color: '#fff', fontSize: 11, backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: '#ffffff20' }} />
+                                                <View style={{ flexDirection: 'row', gap: 4 }}>
+                                                    <TouchableOpacity onPress={onSaveAlias} disabled={savingAlias}
+                                                        style={{ flex: 1, backgroundColor: '#a855f7', borderRadius: 6, paddingVertical: 5, alignItems: 'center' }}>
+                                                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity onPress={onCancelAlias}
+                                                        style={{ flex: 1, backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 5, alignItems: 'center' }}>
+                                                        <Text style={{ color: '#9ca3af', fontSize: 11 }}>✕</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        ) : (
+                                            <TouchableOpacity onPress={onEditAlias} style={fc.actionBtn}>
+                                                <Text style={fc.actionEmoji}>✏️</Text>
+                                                <Text style={[fc.actionTxt, { color: '#9ca3af' }]}>{item.alias ? `@${item.alias}` : (t?.sportAliasLabel || 'Takma Ad')}</Text>
+                                            </TouchableOpacity>
+                                        )
+                                    )}
+                                </View>
                             </View>
 
-                            {/* ELO Grafiği */}
+                            {/* ── ELO seviye progress ── */}
+                            {accuracy !== null && (
+                                <View style={fc.progressBox}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                                        <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700' }}>{t?.levelTr?.[item.level] || item.level}</Text>
+                                        <Text style={{ color: levelColor, fontSize: 10, fontWeight: '800' }}>{accuracy}%</Text>
+                                    </View>
+                                    <View style={fc.progressTrack}>
+                                        <View style={[fc.progressFill, { width: `${accuracy}%`, backgroundColor: levelColor }]} />
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* ── ELO Çizgi Grafiği ── */}
                             <View style={fc.graphBox}>
-                                <EloGraph matches={item.historyMatches || []} userId={userId} />
+                                <EloLineGraph matches={matches} userId={userId} />
                             </View>
 
                         </ScrollView>
@@ -212,27 +317,40 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                     </View>
                 )}
             </Animated.View>
+
+            <MatchListModal
+                visible={!!matchListType}
+                matches={matches}
+                type={matchListType}
+                userId={userId}
+                lang={lang}
+                onClose={() => setMatchListType(null)}
+            />
         </Modal>
     );
 }
 
 const fc = StyleSheet.create({
     card: { position: 'absolute', top: 0, left: 0, width: SW, height: SH, elevation: 20 },
-    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 20, paddingTop: 52 },
+    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 16, paddingTop: 48 },
     backFace: { backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' },
-    topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 },
-    smallEmoji: { fontSize: 22 },
-    smallSportName: { color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase' },
-    statsBlock: { backgroundColor: '#ffffff06', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#ffffff10' },
-    statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#ffffff08' },
-    statRowLbl: { color: '#6b7280', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
-    statRowNum: { fontSize: 18, fontWeight: '900' },
-    progressTrack: { height: 6, backgroundColor: '#ffffff15', borderRadius: 3, overflow: 'hidden' },
-    progressFill: { height: 6, borderRadius: 3 },
-    levelLabel: { fontSize: 10, fontWeight: '700', marginTop: 4, textAlign: 'right' },
-    actionBtn: { backgroundColor: '#ffffff06', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: '#16a34a30' },
-    graphBox: { marginTop: 18, backgroundColor: '#ffffff06', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#ffffff10' },
-    btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', position: 'absolute', bottom: 36, left: 20, right: 20 },
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+    smallEmoji: { fontSize: 20 },
+    smallSportName: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
+    halfRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+    leftCol: { flex: 1, gap: 8 },
+    rightCol: { flex: 1, gap: 8 },
+    statCard: { backgroundColor: '#ffffff08', borderRadius: 12, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 2 },
+    statBigNum: { fontSize: 24, fontWeight: '900' },
+    statSmLbl: { color: '#6b7280', fontSize: 8, fontWeight: '700', letterSpacing: 0.5 },
+    actionBtn: { backgroundColor: '#ffffff08', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#ffffff10', flexDirection: 'row', alignItems: 'center', gap: 6 },
+    actionEmoji: { fontSize: 14 },
+    actionTxt: { fontSize: 11, fontWeight: '700', flex: 1 },
+    progressBox: { backgroundColor: '#ffffff06', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 10 },
+    progressTrack: { height: 5, backgroundColor: '#ffffff15', borderRadius: 3, overflow: 'hidden' },
+    progressFill: { height: 5, borderRadius: 3 },
+    graphBox: { backgroundColor: '#ffffff06', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#ffffff10' },
+    btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', position: 'absolute', bottom: 28, left: 16, right: 16 },
     backBtn: { backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3, borderWidth: 1, borderColor: '#ffffff20' },
     backBtnText: { color: '#9ca3af', fontSize: 11, fontWeight: '700' },
     flipBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#a855f730', borderWidth: 1, borderColor: '#a855f760', justifyContent: 'center', alignItems: 'center' },
