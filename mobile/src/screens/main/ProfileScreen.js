@@ -637,6 +637,11 @@ export default function ProfileScreen({ route, navigation }) {
         Alert.alert(t.logoutTitle, t.logoutMsg, [
             { text: t.cancelBtn, style: 'cancel' },
             { text: t.logoutAction, style: 'destructive', onPress: () => dispatch(logout()) },
+            { text: t.logoutForget, style: 'destructive', onPress: async () => {
+                await AsyncStorage.removeItem('activity_saved_email');
+                await AsyncStorage.removeItem('activity_saved_pass');
+                dispatch(logout());
+            }},
         ]);
     };
 
