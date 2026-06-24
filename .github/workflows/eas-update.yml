@@ -19,15 +19,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
 
       - name: Install dependencies
         working-directory: mobile
-        run: npm ci
+        run: npm install --legacy-peer-deps
 
       - name: EAS Update
         working-directory: mobile
-        run: npx eas-cli update --channel preview --message "${{ github.event.head_commit.message }}" --non-interactive
+        run: npx eas-cli@latest update --channel preview --message "${{ github.event.head_commit.message }}" --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
