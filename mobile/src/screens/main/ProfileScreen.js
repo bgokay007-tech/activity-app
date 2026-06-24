@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable,
-    Dimensions,
+    Dimensions, Animated,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,6 +16,131 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ManageActivitiesModal from '../../components/ManageActivitiesModal';
 import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
+
+// ─── Sport Card Flip Modal ────────────────────────────────────────────────────
+function SportCardFlipModal({ item, visible, onClose, lang }) {
+    const flipAnim = useRef(new Animated.Value(0)).current;
+    const [isBack, setIsBack] = useState(false);
+
+    useEffect(() => {
+        if (!visible) {
+            flipAnim.setValue(0);
+            setIsBack(false);
+        }
+    }, [visible]);
+
+    const handleFlip = () => {
+        // Fold to 90°
+        Animated.timing(flipAnim, { toValue: 0.5, duration: 180, useNativeDriver: true }).start(() => {
+            setIsBack(b => !b);
+            // Unfold from 90°
+            Animated.timing(flipAnim, { toValue: isBack ? 0 : 1, duration: 180, useNativeDriver: true }).start();
+        });
+    };
+
+    const rotateY = flipAnim.interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: ['0deg', '90deg', '0deg'],
+    });
+
+    if (!item) return null;
+
+    const LEVEL_COLORS_CARD = { beginner: '#4ade80', intermediate: '#facc15', advanced: '#f97316', expert: '#a855f7', professional: '#ef4444' };
+    const levelColor = LEVEL_COLORS_CARD[item.level] || '#a855f7';
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <Pressable style={fc.overlay} onPress={onClose}>
+                <Pressable onPress={e => e.stopPropagation()}>
+                    <TouchableOpacity activeOpacity={0.95} onPress={handleFlip}>
+                        <Animated.View style={[fc.card, { transform: [{ perspective: 1000 }, { rotateY }] }]}>
+                            {!isBack ? (
+                                /* ── Ön Yüz ── */
+                                <View style={fc.face}>
+                                    <View style={fc.cardHeader}>
+                                        <Text style={fc.cardHeaderText}>⚡ AcTiViTy</Text>
+                                        {item.level && (
+                                            <View style={[fc.levelBadge, { backgroundColor: levelColor + '30', borderColor: levelColor }]}>
+                                                <Text style={[fc.levelText, { color: levelColor }]}>{item.level?.toUpperCase()}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+
+                                    <View style={fc.emojiBox}>
+                                        <Text style={fc.bigEmoji}>{item.emoji || '🏅'}</Text>
+                                    </View>
+
+                                    <Text style={fc.sportName}>{item.subCategory?.toUpperCase()}</Text>
+                                    {item.alias && <Text style={fc.alias}>@{item.alias}</Text>}
+
+                                    <View style={fc.statsRow}>
+                                        <View style={fc.statBox}>
+                                            <Text style={fc.statNum}>{item.wins || 0}</Text>
+                                            <Text style={fc.statLbl}>{lang === 'tr' ? 'GALİBİYET' : 'WINS'}</Text>
+                                        </View>
+                                        <View style={fc.divider} />
+                                        <View style={fc.statBox}>
+                                            <Text style={[fc.statNum, { color: '#f87171' }]}>{item.losses || 0}</Text>
+                                            <Text style={fc.statLbl}>{lang === 'tr' ? 'MAĞLUBİYET' : 'LOSSES'}</Text>
+                                        </View>
+                                        <View style={fc.divider} />
+                                        <View style={fc.statBox}>
+                                            <Text style={[fc.statNum, { color: '#facc15' }]}>{Number(item.skillRating || 0).toFixed(2)}</Text>
+                                            <Text style={fc.statLbl}>ELO ★</Text>
+                                        </View>
+                                    </View>
+
+                                    <Text style={fc.flipHint}>{lang === 'tr' ? '👆 Çevir' : '👆 Flip'}</Text>
+                                </View>
+                            ) : (
+                                /* ── Arka Yüz ── */
+                                <View style={[fc.face, fc.backFace]}>
+                                    <Text style={fc.backLogo}>⚡</Text>
+                                    <Text style={fc.backTitle}>AcTiViTy</Text>
+                                    <View style={fc.backPattern}>
+                                        {['🏅','⚡','🏆','🔥','💪','🎯','🌟','⚡','🏅'].map((e, idx) => (
+                                            <Text key={idx} style={fc.backPatternEmoji}>{e}</Text>
+                                        ))}
+                                    </View>
+                                    <Text style={fc.backComingSoon}>{lang === 'tr' ? '✨ Yakında' : '✨ Coming Soon'}</Text>
+                                    <Text style={fc.flipHint}>{lang === 'tr' ? '👆 Çevir' : '👆 Flip'}</Text>
+                                </View>
+                            )}
+                        </Animated.View>
+                    </TouchableOpacity>
+                </Pressable>
+            </Pressable>
+        </Modal>
+    );
+}
+
+const fc = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: '#000000cc', justifyContent: 'center', alignItems: 'center' },
+    card: { width: 280, minHeight: 400, borderRadius: 20, overflow: 'hidden', elevation: 20, shadowColor: '#a855f7', shadowOpacity: 0.6, shadowRadius: 20 },
+    face: { width: 280, minHeight: 400, backgroundColor: '#1a1a2e', borderRadius: 20, padding: 20, borderWidth: 2, borderColor: '#a855f7', alignItems: 'center' },
+    backFace: { backgroundColor: '#0f0f1a', justifyContent: 'center' },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 16 },
+    cardHeaderText: { color: '#a855f7', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
+    levelBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
+    levelText: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+    emojiBox: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#a855f720', borderWidth: 2, borderColor: '#a855f740', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+    bigEmoji: { fontSize: 56 },
+    sportName: { color: '#fff', fontSize: 22, fontWeight: '900', letterSpacing: 2, marginBottom: 4 },
+    alias: { color: '#a855f7', fontSize: 12, fontWeight: '700', marginBottom: 16 },
+    statsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff08', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, gap: 12, marginTop: 8, width: '100%', justifyContent: 'center' },
+    statBox: { alignItems: 'center', flex: 1 },
+    statNum: { color: '#4ade80', fontSize: 22, fontWeight: '900' },
+    statLbl: { color: '#6b7280', fontSize: 8, fontWeight: '700', marginTop: 2 },
+    divider: { width: 1, height: 36, backgroundColor: '#ffffff15' },
+    flipHint: { color: '#6b7280', fontSize: 11, marginTop: 16 },
+    backLogo: { fontSize: 48, marginBottom: 8 },
+    backTitle: { color: '#a855f7', fontSize: 24, fontWeight: '900', letterSpacing: 4, marginBottom: 20 },
+    backPattern: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 24, paddingHorizontal: 20 },
+    backPatternEmoji: { fontSize: 24, opacity: 0.4 },
+    backComingSoon: { color: '#a855f780', fontSize: 14, fontWeight: '700', letterSpacing: 2 },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const SUB_EMOJI = {
     football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', volleyball:'🏐',
@@ -207,6 +332,7 @@ export default function ProfileScreen({ route, navigation }) {
 
     const [profile, setProfile] = useState(null);
     const [interests, setInterests] = useState([]);
+    const [cardModalItem, setCardModalItem] = useState(null);
     const [posts, setPosts] = useState([]);
     const [postCount, setPostCount] = useState(0);
     const [friendCount, setFriendCount] = useState(0);
@@ -1133,7 +1259,14 @@ export default function ProfileScreen({ route, navigation }) {
                                 const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
                                 const levelColor = LEVEL_COLORS[i.level] || colors.purple;
                                 return (
-                                    <View key={i.id} style={{ backgroundColor: colors.surface2, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.border }}>
+                                    <View key={i.id}>
+                                    <TouchableOpacity
+                                        onPress={() => setCardModalItem({ ...i, emoji: SUB_EMOJI[i.subCategory] || '🏅' })}
+                                        style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, backgroundColor: '#a855f720', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#a855f740' }}
+                                    >
+                                        <Text style={{ fontSize: 14 }}>🃏</Text>
+                                    </TouchableOpacity>
+                                    <View style={{ backgroundColor: colors.surface2, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.border }}>
                                         {/* Left: emoji + name + rating + level */}
                                         <View style={{ flex: 1.1, alignItems: 'center' }}>
                                             <Text style={{ fontSize: 28 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
@@ -1211,6 +1344,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700' }}>{lang === 'tr' ? 'MAĞLUBİYET' : 'LOSSES'}</Text>
                                             </View>
                                         </View>
+                                    </View>
                                     </View>
                                 );
                             })}
@@ -1700,6 +1834,13 @@ export default function ProfileScreen({ route, navigation }) {
                 onInterestsChange={(updated) => setInterests(updated)}
                 privacyEmojiIcon={privacyEmoji(infoForm.activitiesPrivacy)}
                 onPrivacyPress={() => { setManageOpen(false); setPrivacyPickerField('activities'); }}
+            />
+
+            <SportCardFlipModal
+                item={cardModalItem}
+                visible={!!cardModalItem}
+                onClose={() => setCardModalItem(null)}
+                lang={lang}
             />
 
             {/* ── Gönderiler modalı ── */}
