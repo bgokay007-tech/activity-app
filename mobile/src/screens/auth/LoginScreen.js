@@ -17,6 +17,7 @@ export default function LoginScreen({ navigation }) {
     const [form, setForm] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [remember, setRemember] = useState(false);
+    const [showPass, setShowPass] = useState(false);
 
     useEffect(() => {
         Promise.all([
@@ -68,14 +69,19 @@ export default function LoginScreen({ navigation }) {
                         autoCapitalize="none"
                     />
                     <Text style={s.label}>{t.password}</Text>
-                    <TextInput
-                        style={s.input}
-                        value={form.password}
-                        onChangeText={v => setForm(f => ({ ...f, password: v }))}
-                        placeholder="••••••••"
-                        placeholderTextColor={colors.textMuted}
-                        secureTextEntry
-                    />
+                    <View style={s.passRow}>
+                        <TextInput
+                            style={[s.input, { flex: 1, marginBottom: 0 }]}
+                            value={form.password}
+                            onChangeText={v => setForm(f => ({ ...f, password: v }))}
+                            placeholder="••••••••"
+                            placeholderTextColor={colors.textMuted}
+                            secureTextEntry={!showPass}
+                        />
+                        <TouchableOpacity style={s.eyeBtn} onPress={() => setShowPass(v => !v)}>
+                            <Text style={s.eyeIcon}>{showPass ? '🙈' : '👁️'}</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     {/* Beni Hatırla + Şifremi Unuttum */}
                     <View style={s.row}>
@@ -110,6 +116,9 @@ const s = StyleSheet.create({
     card: { backgroundColor: colors.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border },
     label: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
     input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
+    passRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    eyeBtn: { padding: 10 },
+    eyeIcon: { fontSize: 18 },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
     checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
