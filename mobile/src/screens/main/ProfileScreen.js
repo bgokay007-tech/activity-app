@@ -221,6 +221,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     <Text style={fc.smallSportName}>{item.subCategory?.toUpperCase()}</Text>
                                     {item.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>@{item.alias}</Text> : null}
                                 </View>
+                                {item.skillRating > 0 && (
+                                    <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 7, borderWidth: 1, borderColor: '#facc1540' }}>
+                                        <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
+                                        <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
+                                    </View>
+                                )}
                                 {[
                                     { type: 'win',  count: winsCount,   label: lang==='tr' ? 'Galibiyet' : 'Wins',   color: '#4ade80' },
                                     { type: 'loss', count: lossesCount, label: lang==='tr' ? 'Mağlubiyet' : 'Losses', color: '#f87171' },
