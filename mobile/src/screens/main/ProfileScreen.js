@@ -94,11 +94,14 @@ function EloLineGraph({ matches, userId }) {
                     const len = Math.sqrt(dx * dx + dy * dy);
                     const angle = Math.atan2(dy, dx) * 180 / Math.PI;
                     const col = n.v >= p.v ? '#4ade80' : '#f87171';
+                    // Çizgiyi iki nokta arasının merkezine konumlandır
+                    const cx = (p.x + n.x) / 2 - len / 2;
+                    const cy = (p.y + n.y) / 2 - 1;
                     return (
                         <View key={i} style={{
-                            position: 'absolute', left: p.x, top: p.y - 1,
+                            position: 'absolute', left: cx, top: cy,
                             width: len, height: 2, backgroundColor: col, opacity: 0.8,
-                            transform: [{ rotate: `${angle}deg` }], transformOrigin: 'left center',
+                            transform: [{ rotate: `${angle}deg` }],
                         }} />
                     );
                 })}
