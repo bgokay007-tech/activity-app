@@ -59,10 +59,11 @@ export const getPosts = async (req, res, next) => {
         // Build branch filter
         const where = {};
         if (communityOnly === 'true') {
-            // Community posts: written directly in branch (no targets)
             where.category = category;
             where.subCategory = subCategory;
-            where.targets = { equals: Prisma.DbNull };
+            where.type = 'POST';
+            where.imageUrl = null;
+            where.videoUrl = null;
         } else if (category && subCategory) {
             // Branch media/stories: match primary fields OR targets array
             // Community posts naturally excluded because media tab filters by imageUrl
