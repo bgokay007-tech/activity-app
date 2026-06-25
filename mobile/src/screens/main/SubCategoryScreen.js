@@ -6118,10 +6118,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         const active = cities.length > 0;
         const desc = cityAlertDesc[tab] || '';
         return (
-            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8, flexWrap:'wrap' }}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:8 }}>
                 {children}
                 <CityAlertBtn tab={tab} />
-                <Text style={{ color: active ? cfg.color : '#6b7280', fontSize:10, lineHeight:13, flexShrink:1 }}>{desc}</Text>
+                <Text numberOfLines={2} style={{ color: active ? cfg.color : '#6b7280', fontSize:10, lineHeight:14, flex:1 }}>{desc}</Text>
             </View>
         );
     };
