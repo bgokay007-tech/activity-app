@@ -6407,7 +6407,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
                     : <>
                         <Text style={{ fontSize:11 }}>{active ? '🔔' : '🔕'}</Text>
-                        {active && <Text style={{ color:cfg.color, fontSize:8, fontWeight:'800' }}>{cities.length} il</Text>}
+                        {active && <Text style={{ color:cfg.color, fontSize:8, fontWeight:'800' }}>{t.cityBellCount(cities.length)}</Text>}
                       </>
                 }
             </TouchableOpacity>
@@ -6723,7 +6723,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity key={c} onPress={() => setEquipmentCondition(c)}
                                         style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: equipmentCondition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentCondition===c ? cfg.color : colors.border }}>
                                         <Text style={{ color: equipmentCondition===c ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                            {c==='ALL' ? 'Tümü' : c==='NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}
+                                            {c==='ALL' ? t.conditionAll : c==='NEW' ? t.conditionNew : t.conditionUsed}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -6938,7 +6938,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <TouchableOpacity
                                     style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
                                     onPress={() => setShowCreateCoach(true)}>
-                                    <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>+ İlan Oluştur</Text>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>{t.createCoachBtn}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
@@ -6948,14 +6948,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         setCvUploadListingId(myListing.id);
                                         setShowCvUploadModal(true);
                                     }}>
-                                    <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1}>📄 CV Yükle</Text>
+                                    <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1}>{t.uploadCvBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
 
                             <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
                                 {[
-                                    { key:'listings', label:'📋 Antrenör İlanları', count: filteredCoaches.length },
-                                    { key:'cvs',       label:'📄 CV\'ler',           count: coachesWithCv.length },
+                                    { key:'listings', label: t.coachListingsTab, count: filteredCoaches.length },
+                                    { key:'cvs',      label: t.coachCvsTab,     count: coachesWithCv.length },
                                 ].map(st => (
                                     <TouchableOpacity key={st.key} onPress={() => setCoachSubTab(st.key)}
                                         style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
@@ -6970,7 +6970,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {loadingCoaches
                                 ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
                                 : shown.length === 0
-                                    ? <EmptyState emoji="🎓" text={coachSubTab === 'cvs' ? 'Henüz CV yüklenmemiş' : (coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches)} />
+                                    ? <EmptyState emoji="🎓" text={coachSubTab === 'cvs' ? t.noCvYet : (coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches)} />
                                     : coachSubTab === 'cvs'
                                         ? shown.map(c => (
                                             <View key={c.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:12, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
@@ -7415,18 +7415,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
                                     <TextInput
                                         style={{ flex: 1, minWidth: 100, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
-                                        placeholder="📍 İl filtrele..."
+                                        placeholder={t.mediaCityPh}
                                         placeholderTextColor={colors.textMuted}
                                         value={mediaCity}
                                         onChangeText={setMediaCity}
                                     />
                                     <TouchableOpacity onPress={() => setShowMediaTypeSheet(true)}
                                         style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: cfg.color + '50' }}>
-                                        <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>+ Paylaş</Text>
+                                        <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>{t.mediaShareBtn}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
-                                    {[['ALL','Tümü'],['TODAY','Bugün'],['WEEK','Bu Hafta'],['MONTH','Bu Ay']].map(([v, label]) => (
+                                    {[['ALL',t.allFilter],['TODAY',t.todayFilter],['WEEK',t.weekFilter],['MONTH',t.monthFilter]].map(([v, label]) => (
                                         <TouchableOpacity key={v} onPress={() => setMediaTimeFilter(v)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: mediaTimeFilter === v ? cfg.color : colors.surface2, borderWidth: 1, borderColor: mediaTimeFilter === v ? cfg.color : colors.border }}>
                                             <Text style={{ color: mediaTimeFilter === v ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '700' }}>{label}</Text>

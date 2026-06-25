@@ -1499,10 +1499,10 @@ export default function ProfileScreen({ route, navigation }) {
                             {(isOwnProfile || profile?.gender) && (
                                 <View style={[s.infoItem, { gap: 6 }]}>
                                     <Text style={s.infoItemText}>
-                                        {profile?.gender === 'MALE' ? '👨  Erkek'
-                                            : profile?.gender === 'FEMALE' ? '👩  Kadın'
-                                            : profile?.gender === 'OTHER' ? '🧑  Diğer'
-                                            : isOwnProfile ? '— Cinsiyet' : ''}
+                                        {profile?.gender === 'MALE' ? `👨  ${t.genderMale.replace(/^[^\s]+\s*/,'')}`
+                                            : profile?.gender === 'FEMALE' ? `👩  ${t.genderFemale.replace(/^[^\s]+\s*/,'')}`
+                                            : profile?.gender === 'OTHER' ? `🧑  ${t.genderOther.replace(/^[^\s]+\s*/,'')}`
+                                            : isOwnProfile ? '—' : ''}
                                     </Text>
                                     {isOwnProfile && (
                                         <Text style={s.privacyDot}>{privacyEmoji(profile?.genderPrivacy)}</Text>
@@ -1513,7 +1513,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 <View style={[s.infoItem, { gap: 6 }]}>
                                     <Text style={s.infoItemText}>
                                         {profile?.birthDate
-                                            ? `🎂  ${formatBirthDate(profile.birthDate)} · ${calcAge(profile.birthDate)} yaş`
+                                            ? `🎂  ${formatBirthDate(profile.birthDate)} · ${calcAge(profile.birthDate)} ${t.years}`
                                             : isOwnProfile ? '— Doğum Tarihi' : ''}
                                     </Text>
                                     {isOwnProfile && (
@@ -1651,7 +1651,7 @@ export default function ProfileScreen({ route, navigation }) {
                 {/* ── Admin Panel Butonu (sadece admin) ── */}
                 {isOwnProfile && myUser?.isAdmin && (
                     <TouchableOpacity style={ap.adminBtn} onPress={openAdminPanel}>
-                        <Text style={ap.adminBtnText}>🛡️ Admin Paneli</Text>
+                        <Text style={ap.adminBtnText}>{t.adminPanelBtn}</Text>
                     </TouchableOpacity>
                 )}
 
@@ -2693,9 +2693,9 @@ export default function ProfileScreen({ route, navigation }) {
                             </View>
                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
                                 {[
-                                    { key: 'MALE',   label: '👨 Erkek' },
-                                    { key: 'FEMALE', label: '👩 Kadın' },
-                                    { key: 'OTHER',  label: '🧑 Diğer' },
+                                    { key: 'MALE',   label: t.genderMale },
+                                    { key: 'FEMALE', label: t.genderFemale },
+                                    { key: 'OTHER',  label: t.genderOther },
                                 ].map(opt => (
                                     <TouchableOpacity
                                         key={opt.key}
