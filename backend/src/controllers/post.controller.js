@@ -103,10 +103,11 @@ export const getPosts = async (req, res, next) => {
         const friendIds = friendships.map(f => f.senderId === req.userId ? f.receiverId : f.senderId);
         const blockedIds = blocks.map(b => b.blockerId === req.userId ? b.blockedId : b.blockerId);
 
-        where.user = {
-            id: { notIn: blockedIds },
-            OR: [{ isPublic: true }, { id: req.userId }, { id: { in: friendIds } }],
-        };
+        // Community board = public branch feed, only block-filter applies
+        // Normal feed = public or friends only
+        where.user = communityOnly === 'true'
+            ? { id: { notIn: blockedIds } }
+            : { id: { notIn: blockedIds }, OR: [{ isPublic: true }, { id: req.userId }, { id: { in: friendIds } }] };
         // Hide hidden posts from everyone except the owner
         where.AND = [
             ...(where.AND || []),
