@@ -5461,6 +5461,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [equipmentMaxPrice, setEquipmentMaxPrice] = useState('');
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [reportingListingId, setReportingListingId] = useState(null);
+    const [news, setNews] = useState([]);
+    const [loadingNews, setLoadingNews] = useState(false);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [archiveRivals, setArchiveRivals] = useState([]);
@@ -5913,6 +5915,20 @@ export default function SubCategoryScreen({ route, navigation }) {
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setSubmittingEquipment(false); setUploadingEquipmentMedia(false); }
     };
+
+    const loadNews = useCallback(async () => {
+        if (loadingNews) return;
+        setLoadingNews(true);
+        try {
+            const { data } = await api.get(`/news/${sub}`, { params: { lang } });
+            setNews(Array.isArray(data) ? data : []);
+        } catch { setNews([]); }
+        finally { setLoadingNews(false); }
+    }, [sub, lang]);
+
+    useEffect(() => {
+        if (activeTab === 'news') loadNews();
+    }, [activeTab, lang]);
 
     const deleteEquipment = async (id) => {
         try {
@@ -7129,7 +7145,34 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── NEWS ── */}
                     {activeTab === 'news' && (
-                        <EmptyState emoji="📰" text={t.emptyNews} />
+                        loadingNews
+                            ? <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
+                            : news.length === 0
+                                ? <EmptyState emoji="📰" text={t.emptyNews} />
+                                : <>
+                                    <TouchableOpacity onPress={loadNews} style={{ alignSelf: 'flex-end', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔄 {lang === 'tr' ? 'Yenile' : 'Refresh'}</Text>
+                                    </TouchableOpacity>
+                                    {news.map((item, i) => (
+                                        <TouchableOpacity key={i} onPress={() => item.link && Linking.openURL(item.link)}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 12, marginBottom: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
+                                            {!!item.thumbnail && (
+                                                <Image source={{ uri: item.thumbnail }} style={{ width: '100%', height: 150 }} resizeMode="cover" />
+                                            )}
+                                            <View style={{ padding: 12 }}>
+                                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', lineHeight: 19 }} numberOfLines={3}>{item.title}</Text>
+                                                {!!item.description && (
+                                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 5, lineHeight: 16 }} numberOfLines={2}>{item.description}</Text>
+                                                )}
+                                                {!!item.pubDate && (
+                                                    <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 6 }}>
+                                                        {new Date(item.pubDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                                  </>
                     )}
 
                     {/* ── TEXT POSTS ── */}
