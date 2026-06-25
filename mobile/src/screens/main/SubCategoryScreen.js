@@ -5937,9 +5937,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!text) return;
         setSubmittingPost(true);
         try {
-            await api.post('/posts', { category, subCategory: sub, content: text, type: 'POST' });
+            const { data: newPost } = await api.post('/posts', { category, subCategory: sub, content: text, type: 'POST' });
             setNewPostText('');
-            load();
+            setTextPosts(prev => [newPost, ...prev]);
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setSubmittingPost(false); }
     };
