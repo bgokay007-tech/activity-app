@@ -6719,8 +6719,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                     })()}
 
                     {/* ── Antrenör İlanı Oluştur ── */}
-                    <Modal visible={showCreateCoach} animationType="slide" transparent onRequestClose={() => setShowCreateCoach(false)}>
-                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                    <Modal visible={showCreateCoach} animationType="slide" onRequestClose={() => setShowCreateCoach(false)}>
+                        <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                             <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20 }}>
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎓 Antrenör İlanı Oluştur</Text>
