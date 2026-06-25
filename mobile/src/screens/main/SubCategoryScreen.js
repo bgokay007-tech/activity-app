@@ -2571,7 +2571,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                                 {!f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
                                             </View>
                                             <Text style={{ color: !f.courtMutual ? cfg.color : '#6b7280', fontSize:11, fontWeight:'700', flex:1 }}>
-                                                {lang === 'tr' ? 'Kort / Tesis Belirt' : 'Specify Court'}
+                                                {t.courtSpecifyBtn || 'Kort / Tesis Belirt'}
                                             </Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
@@ -2582,7 +2582,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                                 {f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
                                             </View>
                                             <Text style={{ color: f.courtMutual ? cfg.color : '#6b7280', fontSize:11, fontWeight:'700', flex:1 }}>
-                                                {lang === 'tr' ? 'Ortaklaşa Kararlaştırılır' : 'To Be Decided'}
+                                                {t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır'}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
