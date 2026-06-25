@@ -4,6 +4,7 @@
     "module": "ESNext",
     "jsx": "react-native",
     "baseUrl": ".",
+    "ignoreDeprecations": "5.0",
     "strict": false,
     "noEmit": true
   },
