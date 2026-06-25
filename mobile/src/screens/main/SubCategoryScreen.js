@@ -6118,12 +6118,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         const active = cities.length > 0;
         const desc = cityAlertDesc[tab] || '';
         return (
-            <View style={{ marginBottom:8, gap:5 }}>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-                    {children}
-                    <CityAlertBtn tab={tab} />
-                </View>
-                <Text style={{ color: active ? cfg.color : '#6b7280', fontSize:10, lineHeight:14 }}>{desc}</Text>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8, flexWrap:'wrap' }}>
+                {children}
+                <CityAlertBtn tab={tab} />
+                <Text style={{ color: active ? cfg.color : '#6b7280', fontSize:10, lineHeight:13, flexShrink:1 }}>{desc}</Text>
             </View>
         );
     };
@@ -6244,7 +6242,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <>
                             {/* İlan oluştur + bildirim butonu yan yana */}
                             <CityAlertRow tab="rivals">
-                                <TouchableOpacity style={[s.createBtn, { flex:1, marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
+                                <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createAdBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
@@ -6331,7 +6329,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <>
                                 <CityAlertRow tab="tournaments">
                                     <TouchableOpacity
-                                        style={[s.createBtn, { flex:1, marginBottom:0, borderColor: cfg.color + '60' }]}
+                                        style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
                                         onPress={() => {
                                             if (myIsAdmin || tournamentPermStatus === 'APPROVED') setShowCreateTournament(true);
                                             else setShowTournamentPermission(true);
@@ -6605,12 +6603,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <>
                             <CityAlertRow tab="coaches">
                                 <TouchableOpacity
-                                    style={[s.createBtn, { flex:1, marginBottom:0, borderColor: cfg.color + '60' }]}
+                                    style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
                                     onPress={() => setShowCreateCoach(true)}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>+ İlan Oluştur</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[s.createBtn, { flex:1, marginBottom:0, borderColor:'#16a34a60' }]}
+                                    style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
                                     onPress={() => {
                                         const myListing = coachListings.find(c => c.userId === myId);
                                         if (!myListing) return Alert.alert('', 'Önce "İlan Oluştur" ile bir antrenör ilanı açmanız gerekiyor.');
