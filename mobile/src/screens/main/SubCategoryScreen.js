@@ -6008,10 +6008,15 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (activeTab === 'news') loadNews();
     }, [activeTab, lang]);
 
-    const pickMediaShare = async () => {
+    const [mediaShareType, setMediaShareType] = useState('POST'); // POST | STORY | REEL
+    const [showMediaTypeSheet, setShowMediaTypeSheet] = useState(false);
+
+    const pickMediaShare = async (type) => {
+        setMediaShareType(type);
+        setShowMediaTypeSheet(false);
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
-        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: type === 'REEL' ? ['videos'] : ['images', 'videos'], quality: 0.85 });
         if (!result.canceled) { setMediaShareUri(result.assets[0].uri); setShowMediaShare(true); }
     };
 
@@ -6020,15 +6025,29 @@ export default function SubCategoryScreen({ route, navigation }) {
         setSubmittingMediaShare(true);
         try {
             const form = new FormData();
-            const isVideo = mediaShareUri.endsWith('.mp4') || mediaShareUri.endsWith('.mov');
+            const isVideo = mediaShareUri.includes('.mp4') || mediaShareUri.includes('.mov') || mediaShareUri.includes('video');
             form.append('file', { uri: mediaShareUri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
             const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
             const { data: newPost } = await api.post('/posts', {
-                category, subCategory: sub, type: 'POST',
+                category, subCategory: sub,
+                type: mediaShareType === 'STORY' ? 'STORY' : 'POST',
                 content: mediaShareCaption || '',
                 ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
             });
-            setMediaPosts(prev => [newPost, ...prev]);
+            if (mediaShareType === 'STORY') {
+                const storyUserId = newPost.userId;
+                setMediaStories(prev => {
+                    const idx = prev.findIndex(g => g.user?.id === storyUserId);
+                    if (idx >= 0) {
+                        const updated = [...prev];
+                        updated[idx] = { ...updated[idx], stories: [newPost, ...updated[idx].stories] };
+                        return updated;
+                    }
+                    return [{ user: newPost.user, stories: [newPost] }, ...prev];
+                });
+            } else {
+                setMediaPosts(prev => [newPost, ...prev]);
+            }
             setShowMediaShare(false);
             setMediaShareUri(null);
             setMediaShareCaption('');
@@ -7276,7 +7295,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         value={mediaCity}
                                         onChangeText={setMediaCity}
                                     />
-                                    <TouchableOpacity onPress={pickMediaShare}
+                                    <TouchableOpacity onPress={() => setShowMediaTypeSheet(true)}
                                         style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: cfg.color + '50' }}>
                                         <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>+ Paylaş</Text>
                                     </TouchableOpacity>
@@ -7375,11 +7394,36 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     })()}
                                 </Modal>
 
+                                {/* Tip seçim sheet */}
+                                <Modal visible={showMediaTypeSheet} animationType="slide" transparent onRequestClose={() => setShowMediaTypeSheet(false)}>
+                                    <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000080' }} activeOpacity={1} onPress={() => setShowMediaTypeSheet(false)}>
+                                        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 }}>
+                                            <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center', marginBottom: 16 }}>Ne paylaşmak istiyorsun?</Text>
+                                            {[
+                                                { type: 'POST',  emoji: '🖼️', label: 'Gönderi',  desc: 'Fotoğraf veya video paylaş' },
+                                                { type: 'STORY', emoji: '⭕', label: 'Hikaye',   desc: '24 saat sonra kaybolur' },
+                                                { type: 'REEL',  emoji: '🎬', label: 'Reels',    desc: 'Kısa video paylaş' },
+                                            ].map(opt => (
+                                                <TouchableOpacity key={opt.type} onPress={() => pickMediaShare(opt.type)}
+                                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                    <Text style={{ fontSize: 28 }}>{opt.emoji}</Text>
+                                                    <View>
+                                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{opt.label}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{opt.desc}</Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </TouchableOpacity>
+                                </Modal>
+
                                 {/* Medya paylaş modal */}
                                 <Modal visible={showMediaShare} animationType="slide" transparent onRequestClose={() => setShowMediaShare(false)}>
                                     <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
                                         <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
-                                            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>📸 Medya Paylaş</Text>
+                                            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>
+                                                {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? '🎬 Reels Paylaş' : '🖼️ Gönderi Paylaş'}
+                                            </Text>
                                             {mediaShareUri && (
                                                 <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 12 }} resizeMode="cover" />
                                             )}
