@@ -329,11 +329,27 @@ const en = {
     tournJoinSent: '✅ Join request sent. Waiting for organizer approval.',
     tournJoinFailed: 'Could not send join request',
 
-    // SubCategory — empty states
+    // SubCategory — tournament tabs & empty states
+    tournOpenTab: '📋 Open', tournInProgressTab: '🏆 In Progress', tournCompletedTab: '✅ Completed',
+    emptyTournOpen: 'No open tournament listings', emptyTournInProgress: 'No tournaments in progress', emptyTournCompleted: 'No completed tournaments',
     emptyRivals: 'No rival listings yet', emptyTournaments: 'No tournaments yet',
     emptyCoaches: 'No coaches yet', emptyMedia: 'No media yet',
     emptyArchive: 'No matches in archive', emptyNews: 'No news yet',
     emptyPosts: 'No text posts yet',
+
+    // Duration & surface labels
+    minuteSuffix: 'min',
+    surfaceHARD: 'Hard Court', surfaceCLAY: 'Clay', surfaceGRASS: 'Grass', surfaceCARPET: 'Carpet',
+    surfaceARTIFICIAL: 'Artificial', surfaceGLASS: 'Glass', surfaceINDOOR: 'Indoor',
+    'surfaceHALI_SAHA': 'Turf', 'surfaceCIM_SAHA': 'Grass', surfaceFUTSAL: 'Futsal', surfaceSOKAK: 'Street', surfaceBEACH: 'Beach',
+
+    // Equipment
+    postListingBtn: '+ List Item', equipSearchPh: 'Search product name...', equipCityPh: 'City / Location',
+
+    // Coach credentials & lesson types
+    credCertified: 'Certified', credLicensed: 'Licensed', credClubCoach: 'Club Coach', credIndependent: 'Independent', credAmateur: 'Amateur',
+    individualLesson: 'Individual Lesson', groupLesson: 'Group Lesson',
+    sendBtn: 'Send',
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Profile',
@@ -793,11 +809,27 @@ const tr = {
     tournJoinSent: '✅ Katılım isteğiniz gönderildi. Turnuva yöneticisinin onayı bekleniyor.',
     tournJoinFailed: 'Katılım isteği gönderilemedi',
 
-    // SubCategory — empty states
+    // SubCategory — tournament tabs & empty states
+    tournOpenTab: '📋 Açık İlanlar', tournInProgressTab: '🏆 Devam Eden', tournCompletedTab: '✅ Tamamlanan',
+    emptyTournOpen: 'Açık turnuva ilanı yok', emptyTournInProgress: 'Devam eden turnuva yok', emptyTournCompleted: 'Tamamlanan turnuva yok',
     emptyRivals: 'Henüz rakip ilanı yok', emptyTournaments: 'Henüz turnuva yok',
     emptyCoaches: 'Henüz antrenör yok', emptyMedia: 'Henüz medya yok',
     emptyArchive: 'Arşivde maç yok', emptyNews: 'Henüz haber yok',
     emptyPosts: 'Henüz yazılı gönderi yok',
+
+    // Duration & surface labels
+    minuteSuffix: 'dk',
+    surfaceHARD: 'Sert Zemin', surfaceCLAY: 'Toprak', surfaceGRASS: 'Çim', surfaceCARPET: 'Suni',
+    surfaceARTIFICIAL: 'Suni Çim', surfaceGLASS: 'Cam', surfaceINDOOR: 'Kapalı Salon',
+    'surfaceHALI_SAHA': 'Halı Saha', 'surfaceCIM_SAHA': 'Çim Saha', surfaceFUTSAL: 'Futsal', surfaceSOKAK: 'Sokak', surfaceBEACH: 'Plaj',
+
+    // Equipment
+    postListingBtn: '+ İlan Ver', equipSearchPh: 'Ürün adı ara...', equipCityPh: 'İl / Konum',
+
+    // Coach credentials & lesson types
+    credCertified: 'Sertifikalı', credLicensed: 'Lisanslı', credClubCoach: 'Kulüp Antrenörü', credIndependent: 'Bağımsız', credAmateur: 'Amatör',
+    individualLesson: 'Bireysel Ders', groupLesson: 'Grup Dersi',
+    sendBtn: 'Gönder',
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Profil',

@@ -51,12 +51,7 @@ const VOLLEYBALL_SURFACES = [
 const FOOTBALL_SIZES = [2,3,4,5,6,7,8,9,10,11];
 const VOLLEYBALL_SIZES = [1,2,3,4,5,6];
 
-const DURATIONS = [
-    { value: '60',  label: '60 dk' },
-    { value: '90',  label: '90 dk' },
-    { value: '120', label: '120 dk' },
-    { value: '150', label: '120+ES' },
-];
+const DURATIONS = ['60','90','120','150'];
 
 const LEVELS = ['BEGINNER','INTERMEDIATE','ADVANCED','PRO'];
 const LEVEL_EMOJI = { BEGINNER:'🟢', INTERMEDIATE:'🟡', ADVANCED:'🟠', PRO:'🔴' };
@@ -2285,26 +2280,19 @@ function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
 
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
 
-const DURATIONS_FULL = [
-    { value: '30',  label: '30 dk'  },
-    { value: '60',  label: '60 dk'  },
-    { value: '90',  label: '90 dk'  },
-    { value: '120', label: '120 dk' },
-    { value: '150', label: '150 dk' },
-    { value: '180', label: '180 dk' },
-];
+const DURATIONS_FULL_VALUES = ['30','60','90','120','150','180'];
 
 const TENNIS_SURFACES = [
-    { id: 'HARD',      label: 'Sert Zemin', emoji: '🔵' },
-    { id: 'CLAY',      label: 'Toprak',     emoji: '🟤' },
-    { id: 'GRASS',     label: 'Çim',        emoji: '🟩' },
-    { id: 'CARPET',    label: 'Suni',       emoji: '🟥' },
+    { id: 'HARD',   emoji: '🔵' },
+    { id: 'CLAY',   emoji: '🟤' },
+    { id: 'GRASS',  emoji: '🟩' },
+    { id: 'CARPET', emoji: '🟥' },
 ];
 const PADEL_SURFACES = [
-    { id: 'ARTIFICIAL', label: 'Suni Çim',     emoji: '🟩' },
-    { id: 'HARD',       label: 'Sert Zemin',   emoji: '🔵' },
-    { id: 'GLASS',      label: 'Cam',          emoji: '⬜' },
-    { id: 'INDOOR',     label: 'Kapalı Salon', emoji: '🏛️' },
+    { id: 'ARTIFICIAL', emoji: '🟩' },
+    { id: 'HARD',       emoji: '🔵' },
+    { id: 'GLASS',      emoji: '⬜' },
+    { id: 'INDOOR',     emoji: '🏛️' },
 ];
 
 function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
@@ -2589,7 +2577,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[s.triBtn, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
                                             <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
-                                            <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}dk` : '—'}</Text>
+                                            <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
                                         </TouchableOpacity>
                                     </View>
 
@@ -2610,7 +2598,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                     <OptionPickerModal
                                         visible={f.showDurationPicker}
                                         title={t.selectDuration}
-                                        options={DURATIONS_FULL}
+                                        options={DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` }))}
                                         value={f.duration}
                                         onSelect={(v) => set('duration', v)}
                                         onClose={() => set('showDurationPicker', false)}
@@ -2855,7 +2843,7 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
 
 const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t.tournType3 });
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
-const SURFACE_LABEL = { CLAY:'Toprak', HARD:'Sert Zemin', GRASS:'Çim', CARPET:'Suni Zemin', ARTIFICIAL:'Suni Çim', GLASS:'Cam', INDOOR:'Kapalı Salon', HALI_SAHA:'Halı Saha', CIM_SAHA:'Çim Saha', FUTSAL:'Futsal', SOKAK:'Sokak', BEACH:'Plaj' };
+const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
 function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened }) {
@@ -3525,7 +3513,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         ? <Text style={{ color:'#60a5fa', fontSize:11 }}>🏟️ {item.location}</Text>
                         : <Text style={{ color: colors.textMuted, fontSize:11 }}>🤝 {t.tournCourtPlayersDecide}</Text>
                     }
-                    {item.surface && <Text style={{ color: colors.textMuted, fontSize:11 }}>⬜ {SURFACE_LABEL[item.surface?.toUpperCase()] || item.surface}</Text>}
+                    {item.surface && <Text style={{ color: colors.textMuted, fontSize:11 }}>⬜ {getSurface(t, item.surface)}</Text>}
                     {(item.minRating !== null && item.minRating !== undefined) || (item.maxRating !== null && item.maxRating !== undefined) ? (
                         <Text style={{ color:'#fbbf24', fontSize:11 }}>
                             ⭐ {item.minRating !== null && item.minRating !== undefined ? `${item.minRating}★` : '0★'} – {item.maxRating !== null && item.maxRating !== undefined ? `${item.maxRating}★` : '5★'}
@@ -4584,7 +4572,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     onPress={sendChatMessage}
                                     disabled={sendingChat || !chatInput.trim()}
                                     style={{ backgroundColor:'#16a34a', borderRadius:10, paddingHorizontal:14, paddingVertical:10, opacity: (sendingChat || !chatInput.trim()) ? 0.5 : 1 }}>
-                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{sendingChat ? '...' : 'Gönder'}</Text>
+                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{sendingChat ? '...' : t.sendBtn}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -4602,22 +4590,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             </TouchableOpacity>
             {showRules && (
                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:6, borderWidth:1, borderColor: colors.border }}>
-                    {item.type === '1' ? (
-                        [
-                            'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
-                            'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
-                            'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                            'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
-                            'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
-                        ].map((kural, i) => (
-                            <View key={i} style={{ flexDirection:'row', gap:8, marginBottom: i < 4 ? 6 : 0 }}>
-                                <Text style={{ color: infoColor, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                            </View>
-                        ))
-                    ) : (
                         <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17 }}>{t['tournRules' + item.type]}</Text>
-                    )}
                 </View>
             )}
 
@@ -5062,7 +5035,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                                     <TouchableOpacity key={sf.id}
                                                         style={[s.chip, { paddingVertical:5, paddingHorizontal:8 }, f.surface === sf.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                                         onPress={() => set('surface', f.surface === sf.id ? '' : sf.id)}>
-                                                        <Text style={[s.chipText, f.surface === sf.id && { color: cfg.color, fontWeight:'800' }]}>{sf.emoji} {sf.label}</Text>
+                                                        <Text style={[s.chipText, f.surface === sf.id && { color: cfg.color, fontWeight:'800' }]}>{sf.emoji} {t['surface' + sf.id]}</Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
@@ -6643,8 +6616,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {/* Sub-tab: Açık İlanlar / Devam Eden */}
                                 <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
                                     {[
-                                        { key:'open',       label:`📋 Açık İlanlar`, count: open.length },
-                                        { key:'inprogress', label:`🏆 Devam Eden`,    count: inProgress.length },
+                                        { key:'open',       label: t.tournOpenTab,       count: open.length },
+                                        { key:'inprogress', label: t.tournInProgressTab, count: inProgress.length },
                                         ...(completed.length > 0 ? [{ key:'completed', label:`✅ Tamamlanan`, count: completed.length }] : []),
                                     ].map(st => (
                                         <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
@@ -6663,7 +6636,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (<>
                                         {shown.map(renderCard)}
                                         {shown.length === 0 && (
-                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? 'Açık turnuva ilanı yok' : tournSubTab === 'inprogress' ? 'Devam eden turnuva yok' : 'Tamamlanan turnuva yok'} />
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : tournSubTab === 'inprogress' ? t.emptyTournInProgress : t.emptyTournCompleted} />
                                         )}
                                     </>)
                                 }
@@ -6731,14 +6704,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Filtre alanları */}
                             <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor: colors.border, gap:8 }}>
                                 <TextInput
-                                    placeholder="Ürün adı ara..."
+                                    placeholder={t.equipSearchPh}
                                     placeholderTextColor={colors.textMuted}
                                     value={equipmentSearch}
                                     onChangeText={setEquipmentSearch}
                                     style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
                                 />
                                 <TextInput
-                                    placeholder="İl / Konum"
+                                    placeholder={t.equipCityPh}
                                     placeholderTextColor={colors.textMuted}
                                     value={equipmentCity}
                                     onChangeText={setEquipmentCity}
@@ -6765,7 +6738,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <TouchableOpacity
                                             onPress={() => { setEquipmentSearch(''); setEquipmentCity(''); setEquipmentMinPrice(''); setEquipmentMaxPrice(''); }}
                                             style={{ justifyContent:'center', paddingHorizontal:10, backgroundColor:'#ef444420', borderRadius:8, borderWidth:1, borderColor:'#ef444440' }}>
-                                            <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>Sıfırla</Text>
+                                            <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>{t.clearFilter}</Text>
                                         </TouchableOpacity>
                                     )}
                                 </View>
@@ -6773,7 +6746,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* İlan ekle butonu */}
                             <TouchableOpacity onPress={() => setShowEquipmentForm(true)}
                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:9, marginBottom:10, borderWidth:1, borderColor: cfg.color+'50' }}>
-                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>+ İlan Ver</Text>
+                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>{t.postListingBtn}</Text>
                             </TouchableOpacity>
                             {/* Liste */}
                             {loadingEquipment ? (
@@ -7049,11 +7022,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
                                         {[
-                                            { key:'CERTIFIED', label:'Sertifikalı' },
-                                            { key:'LICENSED', label:'Lisanslı' },
-                                            { key:'CLUB_COACH', label:'Kulüp Antrenörü' },
-                                            { key:'INDEPENDENT', label:'Bağımsız' },
-                                            { key:'AMATEUR', label:'Amatör' },
+                                            { key:'CERTIFIED',   label: t.credCertified },
+                                            { key:'LICENSED',    label: t.credLicensed },
+                                            { key:'CLUB_COACH',  label: t.credClubCoach },
+                                            { key:'INDEPENDENT', label: t.credIndependent },
+                                            { key:'AMATEUR',     label: t.credAmateur },
                                         ].map(lvl => (
                                             <TouchableOpacity key={lvl.key} onPress={() => setCoachForm(f => ({...f, credentialLevel:lvl.key}))}
                                                 style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, backgroundColor: coachForm.credentialLevel===lvl.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.credentialLevel===lvl.key ? cfg.color : colors.border }}>
@@ -7073,11 +7046,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
                                         <TouchableOpacity onPress={() => setCoachForm(f => ({...f, individual: !f.individual}))}
                                             style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: coachForm.individual ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.individual ? cfg.color : colors.border }}>
-                                            <Text style={{ color: coachForm.individual ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>Bireysel Ders</Text>
+                                            <Text style={{ color: coachForm.individual ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>{t.individualLesson}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={() => setCoachForm(f => ({...f, group: !f.group}))}
                                             style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: coachForm.group ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.group ? cfg.color : colors.border }}>
-                                            <Text style={{ color: coachForm.group ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>Grup Dersi</Text>
+                                            <Text style={{ color: coachForm.group ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>{t.groupLesson}</Text>
                                         </TouchableOpacity>
                                     </View>
                                     {coachForm.individual && (
