@@ -14,6 +14,7 @@ import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
+import CityAutocomplete from '../../components/CityAutocomplete';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -966,12 +967,12 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     </ScrollView>
 
                     <Text style={s.fieldLabel}>📍 Konum</Text>
-                    <TextInput
-                        style={s.fieldInput}
-                        value={form.location}
+                    <CityAutocomplete
+                        value={form.location || ''}
                         onChangeText={v => setForm(f => ({ ...f, location: v }))}
                         placeholder="Konum girin..."
-                        placeholderTextColor={colors.textMuted}
+                        style={{ marginBottom: 14 }}
+                        inputStyle={{ borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 }}
                     />
 
                     <Text style={s.fieldLabel}>🏟️ Saha Adı</Text>
@@ -6505,8 +6506,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </View>
                             )}
                             {/* İlan ver formu Modal */}
-                            <Modal visible={showEquipmentForm} animationType="slide" transparent onRequestClose={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }}>
-                                <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                            <Modal visible={showEquipmentForm} animationType="slide" onRequestClose={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }}>
+                                <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                                     <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
                                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20 }}>
                                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎾 Ekipman İlanı Ver</Text>
@@ -6521,7 +6522,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <TextInput placeholder="Ürün adı *" placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                             <TextInput placeholder="Fiyat (₺)" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                             <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
-                                            <TextInput placeholder="Konum / Şehir" placeholderTextColor={colors.textMuted} value={equipmentForm.location} onChangeText={v => setEquipmentForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:10, borderWidth:1, borderColor:colors.border }} />
+                                            <CityAutocomplete
+                                                value={equipmentForm.location || ''}
+                                                onChangeText={v => setEquipmentForm(f=>({...f,location:v}))}
+                                                placeholder="Konum / Şehir"
+                                                style={{ marginBottom: 10 }}
+                                            />
 
                                             {/* Medya seçici */}
                                             {equipmentMedia.length > 0 && (
@@ -6788,7 +6794,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ))}
                                     </View>
                                     {!coachForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
-                                    <TextInput placeholder="Şehir" placeholderTextColor={colors.textMuted} value={coachForm.city} onChangeText={v => setCoachForm(f=>({...f,city:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                    <CityAutocomplete
+                                        value={coachForm.city || ''}
+                                        onChangeText={v => setCoachForm(f=>({...f,city:v}))}
+                                        placeholder="Şehir"
+                                        style={{ marginBottom: 8 }}
+                                    />
                                     <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
                                         <TextInput placeholder="Başlangıç saati (09:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeFrom} onChangeText={v => setCoachForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
                                         <TextInput placeholder="Bitiş saati (21:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeTo} onChangeText={v => setCoachForm(f=>({...f,timeTo:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
