@@ -238,6 +238,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+            <View style={{ flex: 1 }}>
             <Animated.View style={[fc.card, { transform: [{ perspective: 1200 }, { rotateY }] }]}>
                 {!isBack ? (
                     <View style={fc.face}>
@@ -444,6 +445,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                     </View>
                 )}
             </Animated.View>
+            </View>
 
             <MatchListModal
                 visible={!!matchListType}
@@ -458,7 +460,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 }
 
 const fc = StyleSheet.create({
-    card: { position: 'absolute', top: 0, left: 0, width: SW, height: SH, elevation: 20 },
+    card: { flex: 1, elevation: 20 },
     face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 3, paddingTop: 48 },
     backFace: { backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' },
     topRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 6, borderWidth: 1, borderColor: '#ffffff10', flexWrap: 'nowrap' },
