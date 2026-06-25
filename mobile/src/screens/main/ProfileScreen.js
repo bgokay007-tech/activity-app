@@ -168,6 +168,168 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
     );
 }
 
+// ─── Günlük Tenis Oyuncu Animasyonu ─────────────────────────────────────────
+
+const TENNIS_LEGENDS = [
+    { name: 'Novak Djokovic',        country: '🇷🇸', titles: '24× Grand Slam', era: '2003–present', move: 'Baseline' },
+    { name: 'Rafael Nadal',          country: '🇪🇸', titles: '22× Grand Slam', era: '2001–2024',    move: 'Topspin' },
+    { name: 'Roger Federer',         country: '🇨🇭', titles: '20× Grand Slam', era: '1998–2022',    move: 'Serve & Volley' },
+    { name: 'Carlos Alcaraz',        country: '🇪🇸', titles: '4× Grand Slam',  era: '2018–present', move: 'Drop Shot' },
+    { name: 'Jannik Sinner',         country: '🇮🇹', titles: '2× Grand Slam',  era: '2018–present', move: 'Baseline' },
+    { name: 'Andy Murray',           country: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', titles: '3× Grand Slam',  era: '2005–present', move: 'Return Game' },
+    { name: 'Pete Sampras',          country: '🇺🇸', titles: '14× Grand Slam', era: '1988–2002',    move: 'Serve & Volley' },
+    { name: 'Andre Agassi',          country: '🇺🇸', titles: '8× Grand Slam',  era: '1986–2006',    move: 'Return of Serve' },
+    { name: 'Björn Borg',            country: '🇸🇪', titles: '11× Grand Slam', era: '1973–1983',    move: 'Topspin' },
+    { name: 'John McEnroe',          country: '🇺🇸', titles: '7× Grand Slam',  era: '1977–1992',    move: 'Serve & Volley' },
+    { name: 'Ivan Lendl',            country: '🇨🇿', titles: '8× Grand Slam',  era: '1978–1994',    move: 'Baseline' },
+    { name: 'Boris Becker',          country: '🇩🇪', titles: '6× Grand Slam',  era: '1984–1999',    move: 'Diving Volley' },
+    { name: 'Stefan Edberg',         country: '🇸🇪', titles: '6× Grand Slam',  era: '1983–1996',    move: 'Net Game' },
+    { name: 'Serena Williams',       country: '🇺🇸', titles: '23× Grand Slam', era: '1995–2022',    move: 'Power Serve' },
+    { name: 'Steffi Graf',           country: '🇩🇪', titles: '22× Grand Slam', era: '1982–1999',    move: 'Forehand' },
+    { name: 'Martina Navratilova',   country: '🇨🇿', titles: '18× Grand Slam', era: '1973–2004',    move: 'Net Game' },
+    { name: 'Monica Seles',          country: '🇺🇸', titles: '9× Grand Slam',  era: '1989–2003',    move: 'Two-Handed' },
+    { name: 'Justine Henin',         country: '🇧🇪', titles: '7× Grand Slam',  era: '1999–2011',    move: 'One-Hand BH' },
+    { name: 'Venus Williams',        country: '🇺🇸', titles: '7× Grand Slam',  era: '1994–present', move: 'Power Game' },
+    { name: 'Iga Świątek',           country: '🇵🇱', titles: '4× Grand Slam',  era: '2016–present', move: 'Topspin' },
+    { name: 'Aryna Sabalenka',       country: '🇧🇾', titles: '3× Grand Slam',  era: '2014–present', move: 'Power Serve' },
+    { name: 'Coco Gauff',            country: '🇺🇸', titles: '1× Grand Slam',  era: '2018–present', move: 'Baseline' },
+    { name: 'Daniil Medvedev',       country: '🇷🇺', titles: '1× Grand Slam',  era: '2016–present', move: 'Baseline' },
+    { name: 'Alexander Zverev',      country: '🇩🇪', titles: '1× Grand Slam',  era: '2013–present', move: 'Baseline' },
+    { name: 'Holger Rune',           country: '🇩🇰', titles: 'Top 10',          era: '2020–present', move: 'Aggressive' },
+    { name: 'Casper Ruud',           country: '🇳🇴', titles: 'Top 10',          era: '2015–present', move: 'Topspin' },
+    { name: 'Nick Kyrgios',          country: '🇦🇺', titles: 'Wimbledon Final', era: '2013–present', move: 'Underarm Serve' },
+    { name: 'Grigor Dimitrov',       country: '🇧🇬', titles: 'ATP Finals',      era: '2008–present', move: 'All-Court' },
+    { name: 'Marin Čilić',           country: '🇭🇷', titles: '1× Grand Slam',  era: '2005–present', move: 'Power Serve' },
+    { name: 'Stan Wawrinka',         country: '🇨🇭', titles: '3× Grand Slam',  era: '2002–present', move: 'One-Hand BH' },
+    { name: 'Victoria Azarenka',     country: '🇧🇾', titles: '2× Grand Slam',  era: '2005–present', move: 'Baseline' },
+    { name: 'Maria Sharapova',       country: '🇷🇺', titles: '5× Grand Slam',  era: '2001–2020',    move: 'Baseline' },
+    { name: 'Kim Clijsters',         country: '🇧🇪', titles: '4× Grand Slam',  era: '1997–2012',    move: 'All-Court' },
+    { name: 'Arantxa Sánchez',       country: '🇪🇸', titles: '3× Grand Slam',  era: '1988–2002',    move: 'Clay Baseline' },
+    { name: 'Gabriela Sabatini',     country: '🇦🇷', titles: '1× Grand Slam',  era: '1984–1996',    move: 'Topspin' },
+    { name: 'Pat Cash',              country: '🇦🇺', titles: '1× Grand Slam',  era: '1982–1997',    move: 'Serve & Volley' },
+];
+
+function TennisDailyAnimation({ color, lang }) {
+    const dayIdx = Math.floor(Date.now() / 86400000) % TENNIS_LEGENDS.length;
+    const player = TENNIS_LEGENDS[dayIdx];
+
+    const armPhase  = useRef(new Animated.Value(0)).current;
+    const ballY     = useRef(new Animated.Value(0)).current;
+    const ballX     = useRef(new Animated.Value(0)).current;
+    const ballScale = useRef(new Animated.Value(1)).current;
+    const pulse     = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        Animated.loop(Animated.sequence([
+            Animated.timing(pulse, { toValue: 1.2, duration: 900, useNativeDriver: true }),
+            Animated.timing(pulse, { toValue: 1,   duration: 900, useNativeDriver: true }),
+        ])).start();
+
+        Animated.loop(Animated.sequence([
+            Animated.delay(600),
+            // Wind-up
+            Animated.parallel([
+                Animated.timing(armPhase,  { toValue: 1, duration: 500, useNativeDriver: true }),
+                Animated.timing(ballY,     { toValue: -32, duration: 500, useNativeDriver: true }),
+            ]),
+            // Contact
+            Animated.parallel([
+                Animated.timing(armPhase,  { toValue: 2, duration: 140, useNativeDriver: true }),
+                Animated.timing(ballY,     { toValue: -48, duration: 140, useNativeDriver: true }),
+                Animated.timing(ballScale, { toValue: 1.5, duration: 140, useNativeDriver: true }),
+            ]),
+            // Follow-through + ball away
+            Animated.parallel([
+                Animated.timing(armPhase,  { toValue: 3, duration: 320, useNativeDriver: true }),
+                Animated.timing(ballY,     { toValue: -18, duration: 320, useNativeDriver: true }),
+                Animated.timing(ballX,     { toValue: -38, duration: 320, useNativeDriver: true }),
+                Animated.timing(ballScale, { toValue: 0.5, duration: 320, useNativeDriver: true }),
+            ]),
+            Animated.delay(700),
+            // Reset
+            Animated.parallel([
+                Animated.timing(armPhase,  { toValue: 0, duration: 280, useNativeDriver: true }),
+                Animated.timing(ballY,     { toValue: 0, duration: 280, useNativeDriver: true }),
+                Animated.timing(ballX,     { toValue: 0, duration: 280, useNativeDriver: true }),
+                Animated.timing(ballScale, { toValue: 1, duration: 280, useNativeDriver: true }),
+            ]),
+        ])).start();
+    }, []);
+
+    const armRotate = armPhase.interpolate({
+        inputRange: [0, 1, 2, 3],
+        outputRange: ['25deg', '-85deg', '-145deg', '-105deg'],
+    });
+
+    return (
+        <View style={{ alignItems: 'center', paddingTop: 4 }}>
+            <Text style={{ color: color + '90', fontSize: 8, fontWeight: '900', letterSpacing: 2.5, marginBottom: 10 }}>
+                ✦ {lang === 'tr' ? 'GÜNÜN OYUNCUSU' : "TODAY'S PLAYER"} ✦
+            </Text>
+
+            {/* Animasyon alanı */}
+            <View style={{ width: 110, height: 100, marginBottom: 10 }}>
+                {/* Glow halkaları */}
+                <Animated.View style={{ position:'absolute', left:30, top:18, width:50, height:50, borderRadius:25, borderWidth:1, borderColor:color+'30', transform:[{scale:pulse}] }} />
+                <Animated.View style={{ position:'absolute', left:22, top:10, width:66, height:66, borderRadius:33, borderWidth:1, borderColor:color+'15', transform:[{scale:pulse}] }} />
+
+                {/* Top — baş */}
+                <View style={{ position:'absolute', left:48, top:6, width:14, height:14, borderRadius:7, backgroundColor:color+'D0' }} />
+                {/* Gövde */}
+                <View style={{ position:'absolute', left:52, top:20, width:4, height:22, borderRadius:2, backgroundColor:color+'C0' }} />
+                {/* Sol kol (statik) */}
+                <View style={{ position:'absolute', left:38, top:24, width:14, height:3, borderRadius:2, backgroundColor:color+'70', transform:[{rotate:'-20deg'}] }} />
+                {/* Bacaklar */}
+                <View style={{ position:'absolute', left:48, top:42, width:4, height:20, borderRadius:2, backgroundColor:color+'C0', transform:[{rotate:'9deg'}] }} />
+                <View style={{ position:'absolute', left:56, top:42, width:4, height:20, borderRadius:2, backgroundColor:color+'C0', transform:[{rotate:'-9deg'}] }} />
+                {/* Ayaklar */}
+                <View style={{ position:'absolute', left:43, top:61, width:11, height:4, borderRadius:2, backgroundColor:color+'80' }} />
+                <View style={{ position:'absolute', left:54, top:61, width:11, height:4, borderRadius:2, backgroundColor:color+'80' }} />
+
+                {/* Sağ kol — servis animasyonu */}
+                <Animated.View style={{
+                    position:'absolute', left:54, top:25,
+                    width:26, height:3, borderRadius:2, backgroundColor:color,
+                    transform:[{translateX:-13},{rotate:armRotate},{translateX:13}],
+                }}>
+                    {/* Raket kafası */}
+                    <View style={{ position:'absolute', right:-10, top:-6, width:10, height:15, borderRadius:5, borderWidth:2, borderColor:color, backgroundColor:'transparent' }} />
+                    {/* Raket ipi */}
+                    <View style={{ position:'absolute', right:-5, top:-2, width:1, height:7, backgroundColor:color+'60' }} />
+                </Animated.View>
+
+                {/* Top */}
+                <Animated.View style={{
+                    position:'absolute', left:66, top:28,
+                    width:9, height:9, borderRadius:4.5,
+                    backgroundColor:'#facc15',
+                    transform:[{translateY:ballY},{translateX:ballX},{scale:ballScale}],
+                }}>
+                    <View style={{ position:'absolute', top:4, left:0, right:0, height:1, backgroundColor:'#ca8a04', transform:[{rotate:'35deg'}] }} />
+                </Animated.View>
+            </View>
+
+            {/* Oyuncu bilgileri */}
+            <Text style={{ color, fontSize: 13, fontWeight: '900', textAlign: 'center', letterSpacing: 0.5 }}>
+                {player.country}  {player.name}
+            </Text>
+            <Text style={{ color: '#a855f7', fontSize: 10, fontWeight: '800', marginTop: 3, textAlign: 'center' }}>
+                {player.titles}
+            </Text>
+            <Text style={{ color: '#6b7280', fontSize: 9, fontWeight: '600', marginTop: 2, textAlign: 'center', letterSpacing: 1 }}>
+                {player.move.toUpperCase()}  ·  {player.era}
+            </Text>
+
+            {/* Gün göstergesi */}
+            <View style={{ flexDirection:'row', gap:5, marginTop:10 }}>
+                {[0,1,2,3,4,5,6].map(i => (
+                    <View key={i} style={{ width:5, height:5, borderRadius:2.5, backgroundColor: i === dayIdx % 7 ? color : color+'25' }} />
+                ))}
+            </View>
+        </View>
+    );
+}
+
 function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
@@ -434,13 +596,19 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 ) : (
                     /* ── Arka Yüz ── */
                     <View style={[fc.face, fc.backFace]}>
-                        <Text style={fc.backLogo}>⚡</Text>
-                        <Text style={fc.backTitle}>AcTiViTy</Text>
-                        <View style={fc.backPattern}>
-                            {['🏅','⚡','🏆','🔥','💪','🎯','🌟','⚡','🏅','🎯','🔥','🏆'].map((e, idx) => (
-                                <Text key={idx} style={fc.backPatternEmoji}>{e}</Text>
-                            ))}
-                        </View>
+                        {(item?.subCategory === 'tennis' || item?.subCategory === 'padel') ? (
+                            <TennisDailyAnimation color={cfg.color} lang={lang} />
+                        ) : (
+                            <>
+                                <Text style={fc.backLogo}>⚡</Text>
+                                <Text style={fc.backTitle}>AcTiViTy</Text>
+                                <View style={fc.backPattern}>
+                                    {['🏅','⚡','🏆','🔥','💪','🎯','🌟','⚡','🏅','🎯','🔥','🏆'].map((e, idx) => (
+                                        <Text key={idx} style={fc.backPatternEmoji}>{e}</Text>
+                                    ))}
+                                </View>
+                            </>
+                        )}
                         <BottomBtns />
                     </View>
                 )}
