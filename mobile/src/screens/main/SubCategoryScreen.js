@@ -5463,6 +5463,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [reportingListingId, setReportingListingId] = useState(null);
     const [news, setNews] = useState([]);
     const [loadingNews, setLoadingNews] = useState(false);
+    const [newPostText, setNewPostText] = useState('');
+    const [submittingPost, setSubmittingPost] = useState(false);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [archiveRivals, setArchiveRivals] = useState([]);
@@ -5929,6 +5931,18 @@ export default function SubCategoryScreen({ route, navigation }) {
     useEffect(() => {
         if (activeTab === 'news') loadNews();
     }, [activeTab, lang]);
+
+    const submitTextPost = async () => {
+        const text = newPostText.trim();
+        if (!text) return;
+        setSubmittingPost(true);
+        try {
+            await api.post('/posts', { category, subCategory: sub, content: text, type: 'POST' });
+            setNewPostText('');
+            load();
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setSubmittingPost(false); }
+    };
 
     const deleteEquipment = async (id) => {
         try {
@@ -7177,11 +7191,36 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── TEXT POSTS ── */}
                     {activeTab === 'posts' && (
-                        textPosts.length === 0
-                            ? <EmptyState emoji="✏️" text={t.emptyPosts} />
-                            : textPosts.map(post => (
-                                <TextPostCard key={post.id} post={post} cfg={cfg} onRefresh={load} />
-                            ))
+                        <>
+                            <View style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: colors.border }}>
+                                <TextInput
+                                    style={{ color: '#fff', fontSize: 14, minHeight: 70, textAlignVertical: 'top', lineHeight: 20 }}
+                                    placeholder={lang === 'tr' ? 'Bir şeyler yaz...' : 'Write something...'}
+                                    placeholderTextColor={colors.textMuted}
+                                    value={newPostText}
+                                    onChangeText={setNewPostText}
+                                    multiline
+                                    maxLength={1000}
+                                />
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize: 11 }}>{newPostText.length}/1000</Text>
+                                    <TouchableOpacity
+                                        onPress={submitTextPost}
+                                        disabled={submittingPost || !newPostText.trim()}
+                                        style={{ backgroundColor: newPostText.trim() ? cfg.color : colors.surface, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 7, opacity: (!newPostText.trim() || submittingPost) ? 0.5 : 1 }}>
+                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
+                                            {submittingPost ? '...' : (lang === 'tr' ? 'Paylaş' : 'Post')}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                            {textPosts.length === 0
+                                ? <EmptyState emoji="✏️" text={t.emptyPosts} />
+                                : textPosts.map(post => (
+                                    <TextPostCard key={post.id} post={post} cfg={cfg} onRefresh={load} />
+                                ))
+                            }
+                        </>
                     )}
                 </ScrollView>
             )}
