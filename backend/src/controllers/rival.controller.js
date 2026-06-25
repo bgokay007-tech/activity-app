@@ -1390,7 +1390,10 @@ export const getMyMatchHistory = async (req, res, next) => {
     try {
         const all = await prisma.activityRequest.findMany({
             where: { status: 'COMPLETED', scoreStatus: 'CONFIRMED' },
-            include: { sender: { select: SENDER_SELECT } },
+            include: {
+                sender:   { select: SENDER_SELECT },
+                receiver: { select: SENDER_SELECT },
+            },
             orderBy: { completedAt: 'desc' },
             take: 100,
         });

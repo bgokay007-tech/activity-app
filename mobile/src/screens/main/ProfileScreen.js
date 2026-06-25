@@ -125,39 +125,81 @@ function EloLineGraph({ matches, userId }) {
 
 function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
     const filtered = (matches || []).filter(m => getMatchResult(m, userId) === type);
-    const label = type === 'win' ? (lang === 'tr' ? '✅ Galibiyetler' : '✅ Wins')
-                : type === 'loss' ? (lang === 'tr' ? '❌ Mağlubiyetler' : '❌ Losses')
-                : (lang === 'tr' ? '🤝 Beraberlikler' : '🤝 Draws');
+    const tr = lang === 'tr';
+    const label = type === 'win'  ? (tr ? '✅ Galibiyetler' : '✅ Wins')
+                : type === 'loss' ? (tr ? '❌ Mağlubiyetler' : '❌ Losses')
+                :                   (tr ? '🤝 Beraberlikler' : '🤝 Draws');
+    const resultColor = type === 'win' ? '#4ade80' : type === 'loss' ? '#f87171' : '#facc15';
+
+    const formatSets = (score, isOwner) => {
+        if (!score?.sets?.length) return null;
+        return score.sets.map(s => {
+            const me = isOwner ? (s.sender ?? s.p1 ?? 0) : (s.opponent ?? s.p2 ?? 0);
+            const opp = isOwner ? (s.opponent ?? s.p2 ?? 0) : (s.sender ?? s.p1 ?? 0);
+            return `${me}-${opp}`;
+        }).join('  ');
+    };
+
+    const SURFACE_TR = { HARD:'Sert', CLAY:'Toprak', GRASS:'Çim', CARPET:'Suni', ARTIFICIAL:'Suni Çim', GLASS:'Cam', INDOOR:'Kapalı', HALI_SAHA:'Halı Saha', BEACH:'Plaj' };
+    const SURFACE_EN = { HARD:'Hard', CLAY:'Clay', GRASS:'Grass', CARPET:'Carpet', ARTIFICIAL:'Artificial', GLASS:'Glass', INDOOR:'Indoor', HALI_SAHA:'Turf', BEACH:'Beach' };
+
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
-                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: SH * 0.75, padding: 20 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>{label} ({filtered.length})</Text>
+                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: SH * 0.82, paddingBottom: 20 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
+                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>{label} ({filtered.length})</Text>
                         <TouchableOpacity onPress={onClose}><Text style={{ color: '#6b7280', fontSize: 20 }}>✕</Text></TouchableOpacity>
                     </View>
-                    <ScrollView showsVerticalScrollIndicator={false}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16 }}>
                         {filtered.length === 0 ? (
-                            <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 20 }}>—</Text>
+                            <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 24 }}>—</Text>
                         ) : filtered.map((m, idx) => {
                             const isOwner = m.senderId === userId;
-                            const parts = Array.isArray(m.participants) ? m.participants : [];
-                            const opponent = isOwner ? parts[0] : m.sender;
+                            const opponent = isOwner ? (m.receiver || (Array.isArray(m.participants) ? m.participants[0] : null)) : m.sender;
                             const delta = getEloDelta(m, userId);
-                            const date = m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : '';
+                            const sets = formatSets(m.score, isOwner);
+                            const surface = m.surface ? ((tr ? SURFACE_TR : SURFACE_EN)[m.surface?.toUpperCase()] || m.surface) : null;
+                            const date = m.completedAt
+                                ? new Date(m.completedAt).toLocaleDateString(tr ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                                : m.matchDate
+                                    ? new Date(m.matchDate).toLocaleDateString(tr ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                                    : '';
+                            const modeLabel = m.matchMode === 'COMPETITIVE' ? (tr ? '⚔️ Rekabetçi' : '⚔️ Competitive') : m.matchMode === 'PRACTICE' ? (tr ? '🎯 Antrenman' : '🎯 Practice') : '';
+                            const typeLabel = m.matchType === 'DOUBLE' ? (tr ? '👥 Çiftler' : '👥 Doubles') : m.matchType === 'SINGLE' ? (tr ? '👤 Tekler' : '👤 Singles') : '';
                             return (
-                                <View key={m.id || idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ffffff10', gap: 10 }}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
-                                            {opponent ? `@${opponent.username}` : '—'}
+                                <View key={m.id || idx} style={{ backgroundColor: '#ffffff06', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#ffffff0f', borderLeftWidth: 3, borderLeftColor: resultColor + '80' }}>
+                                    {/* Satır 1: Rakip + ELO */}
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>
+                                            {opponent ? `@${opponent.username}` : (tr ? 'Rakip bilinmiyor' : 'Unknown opponent')}
                                         </Text>
-                                        <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{date} · {m.matchMode || ''}</Text>
+                                        {delta !== 0 && (
+                                            <Text style={{ color: delta > 0 ? '#4ade80' : '#f87171', fontSize: 13, fontWeight: '900' }}>
+                                                {delta > 0 ? '+' : ''}{typeof delta === 'number' ? delta.toFixed(3) : delta}
+                                            </Text>
+                                        )}
                                     </View>
-                                    {delta !== 0 && (
-                                        <Text style={{ color: delta > 0 ? '#4ade80' : '#f87171', fontSize: 13, fontWeight: '800' }}>
-                                            {delta > 0 ? '+' : ''}{delta.toFixed ? delta.toFixed(3) : delta}
+                                    {/* Skor */}
+                                    {sets && (
+                                        <Text style={{ color: resultColor, fontSize: 15, fontWeight: '900', marginBottom: 6, letterSpacing: 1 }}>
+                                            {sets}
                                         </Text>
                                     )}
+                                    {/* Chip'ler: mod, tür, zemin */}
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                                        {modeLabel ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}><Text style={{ color: '#e2e8f0', fontSize: 10, fontWeight: '700' }}>{modeLabel}</Text></View> : null}
+                                        {typeLabel ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}><Text style={{ color: '#e2e8f0', fontSize: 10, fontWeight: '700' }}>{typeLabel}</Text></View> : null}
+                                        {surface ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}><Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '700' }}>⬜ {surface}</Text></View> : null}
+                                    </View>
+                                    {/* Konum */}
+                                    {(m.courtName || m.location) && (
+                                        <Text style={{ color: '#60a5fa', fontSize: 11, marginBottom: 4 }}>
+                                            🏟️ {[m.courtName, m.location].filter(Boolean).join(' · ')}
+                                        </Text>
+                                    )}
+                                    {/* Tarih */}
+                                    {date ? <Text style={{ color: '#6b7280', fontSize: 10 }}>📅 {date}{m.matchTime ? '  ' + m.matchTime : ''}</Text> : null}
                                 </View>
                             );
                         })}
