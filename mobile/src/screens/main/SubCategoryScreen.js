@@ -5507,6 +5507,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaComments, setMediaComments] = useState([]);
     const [mediaCommentText, setMediaCommentText] = useState('');
     const [sendingMediaComment, setSendingMediaComment] = useState(false);
+    const [mediaCity, setMediaCity] = useState('');
+    const [mediaTimeFilter, setMediaTimeFilter] = useState('ALL');
+    const [showMediaShare, setShowMediaShare] = useState(false);
+    const [mediaShareUri, setMediaShareUri] = useState(null);
+    const [mediaShareCaption, setMediaShareCaption] = useState('');
+    const [submittingMediaShare, setSubmittingMediaShare] = useState(false);
     const [equipmentListings, setEquipmentListings] = useState([]);
     const [equipmentCondition, setEquipmentCondition] = useState('ALL');
     const [loadingEquipment, setLoadingEquipment] = useState(false);
@@ -5991,6 +5997,34 @@ export default function SubCategoryScreen({ route, navigation }) {
     useEffect(() => {
         if (activeTab === 'news') loadNews();
     }, [activeTab, lang]);
+
+    const pickMediaShare = async () => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
+        if (!result.canceled) { setMediaShareUri(result.assets[0].uri); setShowMediaShare(true); }
+    };
+
+    const submitMediaShare = async () => {
+        if (!mediaShareUri) return;
+        setSubmittingMediaShare(true);
+        try {
+            const form = new FormData();
+            const isVideo = mediaShareUri.endsWith('.mp4') || mediaShareUri.endsWith('.mov');
+            form.append('file', { uri: mediaShareUri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
+            const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const { data: newPost } = await api.post('/posts', {
+                category, subCategory: sub, type: 'POST',
+                content: mediaShareCaption || '',
+                ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
+            });
+            setMediaPosts(prev => [newPost, ...prev]);
+            setShowMediaShare(false);
+            setMediaShareUri(null);
+            setMediaShareCaption('');
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setSubmittingMediaShare(false); }
+    };
 
     const submitTextPost = async () => {
         const text = newPostText.trim();
@@ -7189,33 +7223,98 @@ export default function SubCategoryScreen({ route, navigation }) {
                     )}
 
                     {/* ── MEDIA ── */}
-                    {activeTab === 'media' && (
-                        mediaPosts.length === 0
-                            ? <EmptyState emoji="📸" text={t.emptyMedia} />
-                            : (
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                                    {mediaPosts.map((post, idx) => (
-                                        <TouchableOpacity
-                                            key={post.id}
-                                            style={{ width: '31.5%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface2 }}
-                                            onPress={() => setMediaViewIdx(idx)}
-                                        >
-                                            {post.imageUrl
-                                                ? <Image source={{ uri: post.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                                : <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                                                    <Text style={{ fontSize: 30 }}>🎬</Text>
-                                                  </View>
-                                            }
-                                            {post.type === 'STORY' && (
-                                                <View style={{ position: 'absolute', top: 4, right: 4, backgroundColor: colors.purple, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1 }}>
-                                                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>24s</Text>
-                                                </View>
-                                            )}
+                    {activeTab === 'media' && (() => {
+                        const now = Date.now();
+                        const filtered = mediaPosts.filter(p => {
+                            if (mediaCity) {
+                                const c = (p.user?.city || '').toLowerCase();
+                                if (!c.includes(mediaCity.toLowerCase())) return false;
+                            }
+                            if (mediaTimeFilter !== 'ALL') {
+                                const age = now - new Date(p.createdAt).getTime();
+                                if (mediaTimeFilter === 'TODAY'  && age > 86400000)     return false;
+                                if (mediaTimeFilter === 'WEEK'   && age > 604800000)    return false;
+                                if (mediaTimeFilter === 'MONTH'  && age > 2592000000)   return false;
+                            }
+                            return true;
+                        });
+                        return (
+                            <>
+                                {/* Filtreler + paylaş */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                                    <TextInput
+                                        style={{ flex: 1, minWidth: 100, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+                                        placeholder="📍 İl filtrele..."
+                                        placeholderTextColor={colors.textMuted}
+                                        value={mediaCity}
+                                        onChangeText={setMediaCity}
+                                    />
+                                    <TouchableOpacity onPress={pickMediaShare}
+                                        style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: cfg.color + '50' }}>
+                                        <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>+ Paylaş</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                                    {[['ALL','Tümü'],['TODAY','Bugün'],['WEEK','Bu Hafta'],['MONTH','Bu Ay']].map(([v, label]) => (
+                                        <TouchableOpacity key={v} onPress={() => setMediaTimeFilter(v)}
+                                            style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: mediaTimeFilter === v ? cfg.color : colors.surface2, borderWidth: 1, borderColor: mediaTimeFilter === v ? cfg.color : colors.border }}>
+                                            <Text style={{ color: mediaTimeFilter === v ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '700' }}>{label}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
-                            )
-                    )}
+                                {/* Grid */}
+                                {filtered.length === 0
+                                    ? <EmptyState emoji="📸" text={t.emptyMedia} />
+                                    : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                        {filtered.map((post, idx) => (
+                                            <TouchableOpacity key={post.id}
+                                                style={{ width: '31.5%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface2 }}
+                                                onPress={() => setMediaViewIdx(idx)}>
+                                                {post.imageUrl
+                                                    ? <Image source={{ uri: post.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                                    : <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontSize: 30 }}>🎬</Text></View>
+                                                }
+                                                {post.type === 'STORY' && (
+                                                    <View style={{ position: 'absolute', top: 4, right: 4, backgroundColor: colors.purple, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1 }}>
+                                                        <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>24s</Text>
+                                                    </View>
+                                                )}
+                                            </TouchableOpacity>
+                                        ))}
+                                      </View>
+                                }
+                                {/* Medya paylaş modal */}
+                                <Modal visible={showMediaShare} animationType="slide" transparent onRequestClose={() => setShowMediaShare(false)}>
+                                    <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
+                                        <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+                                            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>📸 Medya Paylaş</Text>
+                                            {mediaShareUri && (
+                                                <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 12 }} resizeMode="cover" />
+                                            )}
+                                            <TextInput
+                                                style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 14 }}
+                                                placeholder="Açıklama ekle (opsiyonel)..."
+                                                placeholderTextColor={colors.textMuted}
+                                                value={mediaShareCaption}
+                                                onChangeText={setMediaShareCaption}
+                                                multiline
+                                            />
+                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                <TouchableOpacity onPress={() => { setShowMediaShare(false); setMediaShareUri(null); setMediaShareCaption(''); }}
+                                                    style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                                    <Text style={{ color: colors.textMuted, fontWeight: '700' }}>İptal</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={submitMediaShare} disabled={submittingMediaShare}
+                                                    style={{ flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: cfg.color, opacity: submittingMediaShare ? 0.6 : 1 }}>
+                                                    <Text style={{ color: '#fff', fontWeight: '900' }}>{submittingMediaShare ? 'Yükleniyor...' : 'Paylaş'}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </Modal>
+                            </>
+                        );
+                    })()}
 
                     {/* ── NEWS ── */}
                     {activeTab === 'news' && (
