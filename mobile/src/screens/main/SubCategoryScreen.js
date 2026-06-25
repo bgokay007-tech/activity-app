@@ -9,6 +9,8 @@ import {
 import { useSelector } from 'react-redux';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
+import * as DocumentPicker from 'expo-document-picker';
 import api from '../../services/api';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
@@ -6050,30 +6052,27 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (previewPlaying) { await stopMusicPreview(); return; }
         if (!shareMusic?.previewUrl) return;
         try {
-            const { Audio } = await import('expo-av');
             await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
             const start = Math.max(0, parseFloat(trimStart) || 0);
+            const end = Math.max(start + 1, parseFloat(trimEnd) || 30);
             const { sound } = await Audio.Sound.createAsync(
                 { uri: shareMusic.previewUrl },
                 { shouldPlay: true, positionMillis: Math.floor(start * 1000) }
             );
             musicSoundRef.current = sound;
             setPreviewPlaying(true);
-            const end = parseFloat(trimEnd) || 30;
-            const playMs = Math.max(1000, (end - start) * 1000);
             sound.setOnPlaybackStatusUpdate(status => {
-                if (status.didJustFinish || (status.positionMillis >= end * 1000)) {
+                if (status.didJustFinish || (status.isPlaying && status.positionMillis >= end * 1000)) {
                     stopMusicPreview();
                 }
             });
-            setTimeout(() => stopMusicPreview(), playMs + 200);
-        } catch (e) { Alert.alert('', 'Önizleme oynatılamadı'); }
+            setTimeout(() => stopMusicPreview(), (end - start) * 1000 + 300);
+        } catch { Alert.alert('', 'Önizleme oynatılamadı'); }
     };
 
     const pickPhoneAudio = async () => {
         try {
-            const { getDocumentAsync } = await import('expo-document-picker');
-            const result = await getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
+            const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
             if (result.canceled) return;
             const asset = result.assets[0];
             const music = {
