@@ -379,7 +379,8 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
     if (!item) return null;
 
-    const cfg = getConfig(item.subCategory);
+    const SPORT_COLORS = { tennis:'#eab308', padel:'#06b6d4', football:'#16a34a', basketball:'#f97316', volleyball:'#a855f7' };
+    const cfg = { color: SPORT_COLORS[item.subCategory] || '#a855f7' };
     const matches = item.historyMatches || [];
     const winsCount   = matches.filter(m => getMatchResult(m, userId) === 'win').length;
     const lossesCount = matches.filter(m => getMatchResult(m, userId) === 'loss').length;
