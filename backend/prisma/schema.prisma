@@ -89,6 +89,23 @@ model User {
   matchComments    MatchComment[]
   noShowReports    NoShowReport[] @relation("noShowReporter")
   cityAlerts       CityAlert[]
+  surveyGiven      SportSurvey[] @relation("SurveyRater")
+  surveyReceived   SportSurvey[] @relation("SurveySubject")
+}
+
+model SportSurvey {
+  id          String   @id @default(cuid())
+  subjectId   String
+  raterId     String
+  subCategory String
+  stres       Int
+  fairplay    Int
+  beden       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  subject     User     @relation("SurveySubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  rater       User     @relation("SurveyRater",   fields: [raterId],   references: [id], onDelete: Cascade)
+  @@unique([subjectId, raterId, subCategory])
 }
 
 model TournamentPermissionRequest {

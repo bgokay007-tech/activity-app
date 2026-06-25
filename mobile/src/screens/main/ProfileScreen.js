@@ -168,15 +168,24 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
     );
 }
 
-function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId }) {
+function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [matchListType, setMatchListType] = useState(null);
     const [showEloModal, setShowEloModal] = useState(false);
     const [anketScores, setAnketScores] = useState({ stres: 0, fairplay: 0, beden: 0 });
+    const [canRate, setCanRate] = useState(false);
+    const [anketAverages, setAnketAverages] = useState(null);
+    const [showAnketModal, setShowAnketModal] = useState(false);
+    const [surveyLoaded, setSurveyLoaded] = useState(false);
 
     useEffect(() => {
-        if (!visible) { flipAnim.setValue(0); setIsBack(false); setMatchListType(null); }
+        if (!visible) {
+            flipAnim.setValue(0); setIsBack(false); setMatchListType(null);
+            setShowEloModal(false); setShowAnketModal(false);
+            setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
+            setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
+        }
     }, [visible]);
 
     const handleFlip = () => {
@@ -187,6 +196,24 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     };
 
     const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+
+    useEffect(() => {
+        if (!visible || !item || !profileUserId || surveyLoaded) return;
+        api.get(`/survey/${profileUserId}/${item.subCategory}`)
+            .then(({ data }) => {
+                setCanRate(data.canRate);
+                setAnketAverages(data.averages);
+                if (data.myRating) setAnketScores({ stres: data.myRating.stres, fairplay: data.myRating.fairplay, beden: data.myRating.beden });
+                setSurveyLoaded(true);
+            })
+            .catch(() => setSurveyLoaded(true));
+    }, [visible, item, profileUserId]);
+
+    const saveScore = (key, val) => {
+        const next = { ...anketScores, [key]: val };
+        setAnketScores(next);
+        api.post(`/survey/${profileUserId}/${item.subCategory}`, next).catch(() => {});
+    };
 
     if (!item) return null;
 
@@ -276,7 +303,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     )}
                                 </View>
 
-                                {/* Sağ: Başarılar / Hedefler */}
+                                {/* Sağ: Başarılar / Hedefler / Anket Ortalaması */}
                                 <View style={fc.actionCol}>
                                     <TouchableOpacity style={fc.actionBtn}>
                                         <Text style={[fc.actionTxt, { color: '#f59e0b' }]}>🏆 {lang==='tr' ? 'Başarılar' : 'Achievements'}</Text>
@@ -284,6 +311,11 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     <TouchableOpacity style={fc.actionBtn}>
                                         <Text style={[fc.actionTxt, { color: '#38bdf8' }]}>🎯 {lang==='tr' ? 'Hedefler' : 'Goals'}</Text>
                                     </TouchableOpacity>
+                                    {anketAverages && (
+                                        <TouchableOpacity style={fc.actionBtn} onPress={() => setShowAnketModal(true)}>
+                                            <Text style={[fc.actionTxt, { color: '#c084fc' }]}>📊 {lang==='tr' ? 'Anket Ortalaması' : 'Survey Avg'}</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             </View>
 
@@ -301,38 +333,41 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             )}
 
                             {/* ── Sporcu Anketi (küçük) ── */}
-                            <View style={fc.anketSection}>
-                                <Text style={fc.anketSectionTitle}>📋 {lang === 'tr' ? 'Sporcu Anketi' : 'Player Survey'}</Text>
-                                {[
-                                    { key: 'stres',    emoji: '🧠', title: lang==='tr' ? 'Stres Yönetimi' : 'Stress Mgmt',
-                                      desc: lang==='tr' ? 'Zor durumlarda sakin kalabilme; öfke patlamaları disiplini yansıtır.' : 'Staying calm in critical moments.' },
-                                    { key: 'fairplay', emoji: '🤝', title: lang==='tr' ? 'Adil Oyun' : 'Fair Play',
-                                      desc: lang==='tr' ? 'Tartışmalı topları kabul etme, hakemi yanıltmama.' : 'Accepting disputed balls honestly.' },
-                                    { key: 'beden',    emoji: '💪', title: lang==='tr' ? 'Beden Dili' : 'Body Language',
-                                      desc: lang==='tr' ? 'Gerginlikte odaklanmayı sürdürme, mazeret üretmeme.' : 'Maintaining focus under pressure.' },
-                                ].map(({ key, emoji, title, desc }) => (
-                                    <View key={key} style={fc.anketCard}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-                                            <Text style={{ fontSize: 13 }}>{emoji}</Text>
-                                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', flex: 1 }}>{title}</Text>
+                            {(canRate || (anketScores.stres > 0)) && (
+                                <View style={fc.anketSection}>
+                                    <Text style={fc.anketSectionTitle}>📋 {lang === 'tr' ? 'Sporcu Anketi' : 'Player Survey'}</Text>
+                                    {[
+                                        { key: 'stres',    emoji: '🧠', title: lang==='tr' ? 'Stres Yönetimi' : 'Stress Mgmt',
+                                          desc: lang==='tr' ? 'Zor durumlarda sakin kalabilme; öfke patlamaları disiplini yansıtır.' : 'Staying calm in critical moments.' },
+                                        { key: 'fairplay', emoji: '🤝', title: lang==='tr' ? 'Adil Oyun' : 'Fair Play',
+                                          desc: lang==='tr' ? 'Tartışmalı topları kabul etme, hakemi yanıltmama.' : 'Accepting disputed balls honestly.' },
+                                        { key: 'beden',    emoji: '💪', title: lang==='tr' ? 'Beden Dili' : 'Body Language',
+                                          desc: lang==='tr' ? 'Gerginlikte odaklanmayı sürdürme, mazeret üretmeme.' : 'Maintaining focus under pressure.' },
+                                    ].map(({ key, emoji, title, desc }) => (
+                                        <View key={key} style={fc.anketCard}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                                                <Text style={{ fontSize: 13 }}>{emoji}</Text>
+                                                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', flex: 1 }}>{title}</Text>
+                                            </View>
+                                            <Text style={{ color: '#6b7280', fontSize: 9, marginBottom: 6, lineHeight: 13 }}>{desc}</Text>
+                                            <View style={{ flexDirection: 'row', gap: 5 }}>
+                                                {[1,2,3,4,5].map(n => {
+                                                    const sel = anketScores[key] === n;
+                                                    const col = n <= 2 ? '#f87171' : n === 3 ? '#facc15' : '#4ade80';
+                                                    return (
+                                                        <TouchableOpacity key={n}
+                                                            onPress={() => canRate && saveScore(key, n)}
+                                                            style={{ flex: 1, height: 26, borderRadius: 5, backgroundColor: sel ? col+'30' : '#ffffff08', borderWidth: sel ? 2 : 1, borderColor: sel ? col : '#ffffff15', alignItems: 'center', justifyContent: 'center', opacity: canRate ? 1 : 0.5 }}>
+                                                            <Text style={{ color: sel ? col : '#6b7280', fontSize: 11, fontWeight: '900' }}>{n}</Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </View>
                                         </View>
-                                        <Text style={{ color: '#6b7280', fontSize: 9, marginBottom: 6, lineHeight: 13 }}>{desc}</Text>
-                                        <View style={{ flexDirection: 'row', gap: 5 }}>
-                                            {[1,2,3,4,5].map(n => {
-                                                const sel = anketScores[key] === n;
-                                                const col = n <= 2 ? '#f87171' : n === 3 ? '#facc15' : '#4ade80';
-                                                return (
-                                                    <TouchableOpacity key={n}
-                                                        onPress={() => isOwnProfile && setAnketScores(s => ({ ...s, [key]: n }))}
-                                                        style={{ flex: 1, height: 26, borderRadius: 5, backgroundColor: sel ? col+'30' : '#ffffff08', borderWidth: sel ? 2 : 1, borderColor: sel ? col : '#ffffff15', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <Text style={{ color: sel ? col : '#6b7280', fontSize: 11, fontWeight: '900' }}>{n}</Text>
-                                                    </TouchableOpacity>
-                                                );
-                                            })}
-                                        </View>
-                                    </View>
-                                ))}
-                            </View>
+                                    ))}
+                                    {!canRate && <Text style={{ color: '#6b7280', fontSize: 9, textAlign: 'center', marginTop: 4 }}>{lang==='tr' ? 'Bu sporda birlikte maç yapmanız gerekiyor.' : 'You need to have played together.'}</Text>}
+                                </View>
+                            )}
 
                         </ScrollView>
                         <BottomBtns />
@@ -353,6 +388,42 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     <View style={fc.graphBox}>
                                         <EloLineGraph matches={matches} userId={userId} />
                                     </View>
+                                </View>
+                            </View>
+                        </Modal>
+
+                        {/* Anket Ortalaması Modali */}
+                        <Modal visible={showAnketModal} transparent animationType="slide" onRequestClose={() => setShowAnketModal(false)}>
+                            <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
+                                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36, borderWidth: 1, borderColor: '#a855f730' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                        <View>
+                                            <Text style={{ color: '#c084fc', fontSize: 16, fontWeight: '900' }}>📊 {lang==='tr' ? 'Anket Ortalaması' : 'Survey Average'}</Text>
+                                            <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{anketAverages?.count || 0} {lang==='tr' ? 'değerlendirme' : 'ratings'}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => setShowAnketModal(false)}>
+                                            <Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {anketAverages && [
+                                        { key: 'stres',    emoji: '🧠', label: lang==='tr' ? 'Stres Yönetimi' : 'Stress Management', val: anketAverages.stres },
+                                        { key: 'fairplay', emoji: '🤝', label: lang==='tr' ? 'Adil Oyun' : 'Fair Play',             val: anketAverages.fairplay },
+                                        { key: 'beden',    emoji: '💪', label: lang==='tr' ? 'Beden Dili' : 'Body Language',         val: anketAverages.beden },
+                                    ].map(({ key, emoji, label, val }) => {
+                                        const col = val <= 2 ? '#f87171' : val <= 3 ? '#facc15' : '#4ade80';
+                                        const pct = (val / 5) * 100;
+                                        return (
+                                            <View key={key} style={{ marginBottom: 16 }}>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{emoji} {label}</Text>
+                                                    <Text style={{ color: col, fontSize: 14, fontWeight: '900' }}>{val.toFixed(1)} / 5</Text>
+                                                </View>
+                                                <View style={{ height: 10, backgroundColor: '#ffffff10', borderRadius: 5, overflow: 'hidden' }}>
+                                                    <View style={{ width: `${pct}%`, height: 10, backgroundColor: col, borderRadius: 5 }} />
+                                                </View>
+                                            </View>
+                                        );
+                                    })}
                                 </View>
                             </View>
                         </Modal>
@@ -2064,6 +2135,7 @@ export default function ProfileScreen({ route, navigation }) {
                 onUpcoming={() => { setCardModalItem(null); cardModalItem && openMyUpcoming(cardModalItem.subCategory); }}
                 onArchive={() => { setCardModalItem(null); cardModalItem && openMyArchive(cardModalItem.subCategory); }}
                 userId={myUser?.id}
+                profileUserId={profile?.id}
             />
 
             {/* ── Gönderiler modalı ── */}

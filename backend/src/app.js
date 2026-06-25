@@ -25,6 +25,7 @@ import coachRoutes from './routes/coach.routes.js';
 import equipmentRoutes from './routes/equipment.routes.js';
 import cityRoutes from './routes/city.routes.js';
 import cityAlertRoutes from './routes/cityAlert.routes.js';
+import surveyRoutes from './routes/survey.routes.js';
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use('/api/coaches', coachRoutes);
 app.use('/api/equipment', equipmentRoutes);
 app.use('/api/cities', cityRoutes);
 app.use('/api/city-alerts', cityAlertRoutes);
+app.use('/api/survey', surveyRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });
