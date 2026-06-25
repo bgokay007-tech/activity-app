@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable,
-    Dimensions, Animated,
+    Dimensions, Animated, Linking,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
@@ -340,6 +340,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [anketAverages, setAnketAverages] = useState(null);
     const [showAnketModal, setShowAnketModal] = useState(false);
     const [surveyLoaded, setSurveyLoaded] = useState(false);
+    const [showAchievements, setShowAchievements] = useState(false);
 
     useEffect(() => {
         if (!visible) {
@@ -347,6 +348,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             setShowEloModal(false); setShowAnketModal(false);
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
+            setShowAchievements(false);
         }
     }, [visible]);
 
@@ -470,7 +472,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
                                 {/* Sağ: Başarılar / Hedefler / Anket Ortalaması */}
                                 <View style={fc.actionCol}>
-                                    <TouchableOpacity style={fc.actionBtn}>
+                                    <TouchableOpacity style={fc.actionBtn} onPress={() => setShowAchievements(true)}>
                                         <Text style={[fc.actionTxt, { color: '#f59e0b' }]}>🏆 {lang==='tr' ? 'Başarılar' : 'Achievements'}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={fc.actionBtn}>
@@ -625,6 +627,230 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 lang={lang}
                 onClose={() => setMatchListType(null)}
             />
+
+            <AchievementsModal
+                visible={showAchievements}
+                onClose={() => setShowAchievements(false)}
+                profileUserId={profileUserId}
+                isOwnProfile={isOwnProfile}
+                lang={lang}
+                cfg={cfg}
+            />
+        </Modal>
+    );
+}
+
+// ─── Başarılar Modalı ─────────────────────────────────────────────────────────
+
+function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang, cfg }) {
+    const [data, setData] = useState({ tournament: [], custom: [] });
+    const [loading, setLoading] = useState(false);
+    const [showAdd, setShowAdd] = useState(false);
+    const [form, setForm] = useState({ title: '', description: '', achievedAt: '' });
+    const [proofUri, setProofUri] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (visible && profileUserId) {
+            setLoading(true);
+            api.get(`/achievements/${profileUserId}`)
+                .then(r => setData(r.data))
+                .catch(() => {})
+                .finally(() => setLoading(false));
+        }
+        if (!visible) { setShowAdd(false); setForm({ title: '', description: '', achievedAt: '' }); setProofUri(null); }
+    }, [visible, profileUserId]);
+
+    const pickProof = async () => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return Alert.alert('', lang === 'tr' ? 'Galeri izni gerekli' : 'Gallery permission required');
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+        if (!result.canceled) setProofUri(result.assets[0].uri);
+    };
+
+    const submit = async () => {
+        if (!form.title.trim()) return Alert.alert('', lang === 'tr' ? 'Başlık zorunludur' : 'Title is required');
+        setSubmitting(true);
+        try {
+            let proofUrl = null;
+            if (proofUri) {
+                const fd = new FormData();
+                fd.append('file', { uri: proofUri, name: 'proof.jpg', type: 'image/jpeg' });
+                const { data: upData } = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                proofUrl = upData.url;
+            }
+            const { data: newItem } = await api.post('/achievements', { ...form, proofUrl });
+            setData(prev => ({ ...prev, custom: [newItem, ...prev.custom] }));
+            setShowAdd(false);
+            setForm({ title: '', description: '', achievedAt: '' });
+            setProofUri(null);
+        } catch (e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+        finally { setSubmitting(false); }
+    };
+
+    const remove = async (id) => {
+        Alert.alert(lang === 'tr' ? 'Sil' : 'Delete', lang === 'tr' ? 'Bu başarıyı silmek istiyor musunuz?' : 'Delete this achievement?', [
+            { text: lang === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
+            { text: lang === 'tr' ? 'Sil' : 'Delete', style: 'destructive', onPress: async () => {
+                try {
+                    await api.delete(`/achievements/${id}`);
+                    setData(prev => ({ ...prev, custom: prev.custom.filter(c => c.id !== id) }));
+                } catch {}
+            }},
+        ]);
+    };
+
+    const tr = lang === 'tr';
+    const color = cfg?.color || '#a855f7';
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
+                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '88%', paddingBottom: 36 }}>
+                    {/* Header */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }}>🏆 {tr ? 'Başarılar' : 'Achievements'}</Text>
+                        {isOwnProfile && !showAdd && (
+                            <TouchableOpacity onPress={() => setShowAdd(true)}
+                                style={{ backgroundColor: color + '20', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: color + '50', marginRight: 10 }}>
+                                <Text style={{ color, fontWeight: '800', fontSize: 12 }}>+ {tr ? 'Ekle' : 'Add'}</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity onPress={onClose}><Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text></TouchableOpacity>
+                    </View>
+
+                    <ScrollView contentContainerStyle={{ padding: 18 }} showsVerticalScrollIndicator={false}>
+                        {/* Başarı ekleme formu */}
+                        {showAdd && (
+                            <View style={{ backgroundColor: '#ffffff08', borderRadius: 14, padding: 14, marginBottom: 18, borderWidth: 1, borderColor: color + '40' }}>
+                                <Text style={{ color, fontSize: 12, fontWeight: '800', marginBottom: 10 }}>✦ {tr ? 'Yeni Başarı Ekle' : 'Add Achievement'}</Text>
+                                <TextInput
+                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 8 }}
+                                    placeholder={tr ? 'Başlık *' : 'Title *'}
+                                    placeholderTextColor="#6b7280"
+                                    value={form.title}
+                                    onChangeText={v => setForm(f => ({ ...f, title: v }))}
+                                    maxLength={80}
+                                />
+                                <TextInput
+                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 8, minHeight: 60, textAlignVertical: 'top' }}
+                                    placeholder={tr ? 'Açıklama (isteğe bağlı)' : 'Description (optional)'}
+                                    placeholderTextColor="#6b7280"
+                                    value={form.description}
+                                    onChangeText={v => setForm(f => ({ ...f, description: v }))}
+                                    multiline
+                                    maxLength={300}
+                                />
+                                <TextInput
+                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 10 }}
+                                    placeholder={tr ? 'Tarih (ör. Haziran 2024)' : 'Date (e.g. June 2024)'}
+                                    placeholderTextColor="#6b7280"
+                                    value={form.achievedAt}
+                                    onChangeText={v => setForm(f => ({ ...f, achievedAt: v }))}
+                                />
+                                <TouchableOpacity onPress={pickProof}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: '#ffffff20', borderStyle: 'dashed', backgroundColor: '#ffffff08', marginBottom: 12, justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 16 }}>📎</Text>
+                                    <Text style={{ color: proofUri ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: '700' }}>
+                                        {proofUri ? (tr ? 'Belge seçildi ✓' : 'Proof selected ✓') : (tr ? 'Belge / Fotoğraf Ekle' : 'Add Proof / Photo')}
+                                    </Text>
+                                </TouchableOpacity>
+                                {proofUri && <Image source={{ uri: proofUri }} style={{ width: '100%', height: 120, borderRadius: 10, marginBottom: 10 }} resizeMode="cover" />}
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <TouchableOpacity onPress={() => { setShowAdd(false); setForm({ title: '', description: '', achievedAt: '' }); setProofUri(null); }}
+                                        style={{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', backgroundColor: '#ffffff10' }}>
+                                        <Text style={{ color: '#6b7280', fontWeight: '700' }}>{tr ? 'İptal' : 'Cancel'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={submit} disabled={submitting}
+                                        style={{ flex: 2, paddingVertical: 10, borderRadius: 8, alignItems: 'center', backgroundColor: color, opacity: submitting ? 0.6 : 1 }}>
+                                        <Text style={{ color: '#fff', fontWeight: '900' }}>{submitting ? '...' : (tr ? 'Kaydet' : 'Save')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+
+                        {loading ? (
+                            <ActivityIndicator color={color} style={{ marginTop: 30 }} />
+                        ) : (
+                            <>
+                                {/* Turnuva başarıları */}
+                                {data.tournament.length > 0 && (
+                                    <>
+                                        <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 10 }}>
+                                            🏅 {tr ? 'TURNUVA BAŞARILARI' : 'TOURNAMENT ACHIEVEMENTS'}
+                                        </Text>
+                                        {data.tournament.map((item, i) => (
+                                            <View key={i} style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f59e0b30', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                                <Text style={{ fontSize: 32 }}>{item.medal}</Text>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{item.name}</Text>
+                                                    <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+                                                        {item.placement === 1 ? (tr ? '1. Yer' : '1st Place') : item.placement === 2 ? (tr ? '2. Yer' : '2nd Place') : (tr ? '3. Yer' : '3rd Place')}
+                                                        {' · '}{item.subCategory}
+                                                    </Text>
+                                                    {item.completedAt && (
+                                                        <Text style={{ color: '#6b7280', fontSize: 10, marginTop: 2 }}>
+                                                            {new Date(item.completedAt).toLocaleDateString(tr ? 'tr-TR' : 'en-US', { month: 'long', year: 'numeric' })}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        ))}
+                                        <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 14 }} />
+                                    </>
+                                )}
+
+                                {/* Manuel başarılar */}
+                                {data.custom.length > 0 && (
+                                    <>
+                                        <Text style={{ color: color, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 10 }}>
+                                            ✦ {tr ? 'KİŞİSEL BAŞARILAR' : 'PERSONAL ACHIEVEMENTS'}
+                                        </Text>
+                                        {data.custom.map(item => (
+                                            <View key={item.id} style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#ffffff15' }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>🎯 {item.title}</Text>
+                                                        {item.description ? <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 4, lineHeight: 17 }}>{item.description}</Text> : null}
+                                                        {item.achievedAt ? <Text style={{ color: '#6b7280', fontSize: 10, marginTop: 4 }}>📅 {item.achievedAt}</Text> : null}
+                                                    </View>
+                                                    {isOwnProfile && (
+                                                        <TouchableOpacity onPress={() => remove(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                                            <Text style={{ color: '#ef4444', fontSize: 16 }}>🗑</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                                {item.proofUrl && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(item.proofUrl)} style={{ marginTop: 8 }}>
+                                                        <Image source={{ uri: item.proofUrl }} style={{ width: '100%', height: 140, borderRadius: 8 }} resizeMode="cover" />
+                                                        <Text style={{ color: color, fontSize: 10, fontWeight: '700', textAlign: 'center', marginTop: 4 }}>
+                                                            {tr ? '📎 Belgeyi Aç' : '📎 Open Proof'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        ))}
+                                    </>
+                                )}
+
+                                {data.tournament.length === 0 && data.custom.length === 0 && !showAdd && (
+                                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                        <Text style={{ fontSize: 48, marginBottom: 12 }}>🏆</Text>
+                                        <Text style={{ color: '#6b7280', fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
+                                            {tr ? 'Henüz başarı yok' : 'No achievements yet'}
+                                        </Text>
+                                        {isOwnProfile && (
+                                            <Text style={{ color: '#4b5563', fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+                                                {tr ? '+ Ekle butonuyla kendi başarılarını paylaş' : 'Tap + Add to share your achievements'}
+                                            </Text>
+                                        )}
+                                    </View>
+                                )}
+                            </>
+                        )}
+                    </ScrollView>
+                </View>
+            </View>
         </Modal>
     );
 }
