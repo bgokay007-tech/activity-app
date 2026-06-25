@@ -6012,12 +6012,81 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showMediaTypeSheet, setShowMediaTypeSheet] = useState(false);
     const [shareMusic, setShareMusic] = useState(null);
     const [musicSheetOpen, setMusicSheetOpen] = useState(false);
+    const [musicTrimOpen, setMusicTrimOpen] = useState(false);
     const [musicQuery, setMusicQuery] = useState('');
     const [musicResults, setMusicResults] = useState([]);
     const [searchingMusic, setSearchingMusic] = useState(false);
     const musicTimer = useRef(null);
+    const [trimStart, setTrimStart] = useState('0');
+    const [trimEnd, setTrimEnd] = useState('30');
+    const [musicDuration, setMusicDuration] = useState(null);
+    const [previewPlaying, setPreviewPlaying] = useState(false);
+    const musicSoundRef = useRef(null);
     const [shareLocation, setShareLocation] = useState('');
     const [gettingLocation, setGettingLocation] = useState(false);
+
+    const stopMusicPreview = async () => {
+        try {
+            if (musicSoundRef.current) {
+                await musicSoundRef.current.stopAsync();
+                await musicSoundRef.current.unloadAsync();
+                musicSoundRef.current = null;
+            }
+        } catch {}
+        setPreviewPlaying(false);
+    };
+
+    const openTrimFor = async (music) => {
+        await stopMusicPreview();
+        setShareMusic(music);
+        setTrimStart('0');
+        setTrimEnd(music.duration ? String(Math.min(30, Math.floor(music.duration))) : '30');
+        setMusicDuration(music.duration || null);
+        setMusicTrimOpen(true);
+        setMusicSheetOpen(false);
+    };
+
+    const previewTrim = async () => {
+        if (previewPlaying) { await stopMusicPreview(); return; }
+        if (!shareMusic?.previewUrl) return;
+        try {
+            const { Audio } = await import('expo-av');
+            await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+            const start = Math.max(0, parseFloat(trimStart) || 0);
+            const { sound } = await Audio.Sound.createAsync(
+                { uri: shareMusic.previewUrl },
+                { shouldPlay: true, positionMillis: Math.floor(start * 1000) }
+            );
+            musicSoundRef.current = sound;
+            setPreviewPlaying(true);
+            const end = parseFloat(trimEnd) || 30;
+            const playMs = Math.max(1000, (end - start) * 1000);
+            sound.setOnPlaybackStatusUpdate(status => {
+                if (status.didJustFinish || (status.positionMillis >= end * 1000)) {
+                    stopMusicPreview();
+                }
+            });
+            setTimeout(() => stopMusicPreview(), playMs + 200);
+        } catch (e) { Alert.alert('', 'Önizleme oynatılamadı'); }
+    };
+
+    const pickPhoneAudio = async () => {
+        try {
+            const { getDocumentAsync } = await import('expo-document-picker');
+            const result = await getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
+            if (result.canceled) return;
+            const asset = result.assets[0];
+            const music = {
+                title: asset.name.replace(/\.[^.]+$/, ''),
+                artist: 'Telefon',
+                coverUrl: null,
+                previewUrl: asset.uri,
+                isLocal: true,
+                localUri: asset.uri,
+            };
+            await openTrimFor(music);
+        } catch { Alert.alert('', 'Ses dosyası seçilemedi'); }
+    };
 
     const searchDeezer = (q) => {
         setMusicQuery(q);
@@ -6035,10 +6104,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const selectTrack = (track) => {
-        setShareMusic({ title: track.title, artist: track.artist.name, coverUrl: track.album.cover_small, previewUrl: track.preview });
-        setMusicSheetOpen(false);
+        const music = { title: track.title, artist: track.artist.name, coverUrl: track.album.cover_small, previewUrl: track.preview, duration: 30 };
         setMusicQuery('');
         setMusicResults([]);
+        openTrimFor(music);
     };
 
     const getGpsLocation = async () => {
@@ -6076,7 +6145,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                 type: mediaShareType === 'STORY' ? 'STORY' : 'POST',
                 content: mediaShareCaption || '',
                 ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
-                ...(shareMusic && { musicName: shareMusic.title, musicArtist: shareMusic.artist, musicCoverUrl: shareMusic.coverUrl, musicUrl: shareMusic.previewUrl }),
+                ...(shareMusic && {
+                    musicName: shareMusic.title,
+                    musicArtist: shareMusic.artist,
+                    musicCoverUrl: shareMusic.coverUrl || undefined,
+                    musicUrl: shareMusic.uploadedUrl || shareMusic.previewUrl,
+                    musicStartTime: parseFloat(trimStart) || 0,
+                    musicEndTime: parseFloat(trimEnd) || 30,
+                }),
                 ...(shareLocation && { location: shareLocation }),
             });
             if (mediaShareType === 'STORY') {
@@ -6098,6 +6174,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             setMediaShareCaption('');
             setShareMusic(null);
             setShareLocation('');
+            setTrimStart('0');
+            setTrimEnd('30');
+            await stopMusicPreview();
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setSubmittingMediaShare(false); }
     };
@@ -7484,15 +7563,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             />
                                             {/* Müzik + Konum butonları */}
                                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                                                <TouchableOpacity onPress={() => setMusicSheetOpen(true)}
+                                                <TouchableOpacity onPress={() => shareMusic ? setMusicTrimOpen(true) : setMusicSheetOpen(true)}
                                                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 10, backgroundColor: shareMusic ? '#7c3aed20' : colors.surface2, borderWidth: 1, borderColor: shareMusic ? '#7c3aed60' : colors.border }}>
                                                     {shareMusic?.coverUrl
                                                         ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 22, height: 22, borderRadius: 4 }} />
                                                         : <Text style={{ fontSize: 16 }}>🎵</Text>}
-                                                    <Text style={{ color: shareMusic ? '#a78bfa' : colors.textMuted, fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1}>
-                                                        {shareMusic ? `${shareMusic.title} – ${shareMusic.artist}` : 'Müzik Ekle'}
-                                                    </Text>
-                                                    {shareMusic && <TouchableOpacity onPress={() => setShareMusic(null)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={{ color: shareMusic ? '#a78bfa' : colors.textMuted, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                                                            {shareMusic ? `${shareMusic.title} – ${shareMusic.artist}` : 'Müzik Ekle'}
+                                                        </Text>
+                                                        {shareMusic && <Text style={{ color: '#7c3aed90', fontSize: 10 }}>{trimStart}s – {trimEnd}s · düzenle</Text>}
+                                                    </View>
+                                                    {shareMusic && <TouchableOpacity onPress={() => { setShareMusic(null); stopMusicPreview(); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                                                         <Text style={{ color: colors.textMuted, fontSize: 12 }}>✕</Text>
                                                     </TouchableOpacity>}
                                                 </TouchableOpacity>
@@ -7518,6 +7600,75 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                             </View>
 
+                                            {/* Müzik Kırp Modal */}
+                                            <Modal visible={musicTrimOpen} animationType="slide" transparent onRequestClose={() => { setMusicTrimOpen(false); stopMusicPreview(); }}>
+                                                <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
+                                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                                                            {shareMusic?.coverUrl
+                                                                ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} />
+                                                                : <Text style={{ fontSize: 30, marginRight: 10 }}>🎵</Text>}
+                                                            <View style={{ flex: 1 }}>
+                                                                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }} numberOfLines={1}>{shareMusic?.title}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize: 11 }}>{shareMusic?.artist}</Text>
+                                                            </View>
+                                                            <TouchableOpacity onPress={() => { setMusicTrimOpen(false); stopMusicPreview(); }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+
+                                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 10 }}>
+                                                            ✂️ Kullanılacak aralık {musicDuration ? `(toplam ${Math.floor(musicDuration)}sn)` : ''}
+                                                        </Text>
+
+                                                        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                                                            <View style={{ flex: 1 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Başlangıç (sn)</Text>
+                                                                <TextInput
+                                                                    style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
+                                                                    value={trimStart}
+                                                                    onChangeText={v => setTrimStart(v.replace(/[^0-9.]/g, ''))}
+                                                                    keyboardType="numeric"
+                                                                    placeholder="0"
+                                                                    placeholderTextColor={colors.textMuted}
+                                                                />
+                                                            </View>
+                                                            <View style={{ justifyContent: 'flex-end', paddingBottom: 10 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize: 18 }}>→</Text>
+                                                            </View>
+                                                            <View style={{ flex: 1 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Bitiş (sn)</Text>
+                                                                <TextInput
+                                                                    style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
+                                                                    value={trimEnd}
+                                                                    onChangeText={v => setTrimEnd(v.replace(/[^0-9.]/g, ''))}
+                                                                    keyboardType="numeric"
+                                                                    placeholder="30"
+                                                                    placeholderTextColor={colors.textMuted}
+                                                                />
+                                                            </View>
+                                                        </View>
+
+                                                        <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginBottom: 14 }}>
+                                                            Seçilen aralık: <Text style={{ color: '#a78bfa', fontWeight: '800' }}>{Math.max(0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)).toFixed(1)} saniye</Text>
+                                                        </Text>
+
+                                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                            <TouchableOpacity onPress={previewTrim}
+                                                                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: previewPlaying ? '#ef444420' : '#7c3aed20', borderWidth: 1, borderColor: previewPlaying ? '#ef444450' : '#7c3aed50' }}>
+                                                                <Text style={{ color: previewPlaying ? '#ef4444' : '#a78bfa', fontWeight: '800' }}>
+                                                                    {previewPlaying ? '⏹ Durdur' : '▶ Önizle'}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => { stopMusicPreview(); setMusicTrimOpen(false); }}
+                                                                style={{ flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: cfg.color }}>
+                                                                <Text style={{ color: '#fff', fontWeight: '900' }}>✓ Onayla</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    </View>
+                                                </View>
+                                            </Modal>
+
                                             {/* Müzik seçici sheet */}
                                             <Modal visible={musicSheetOpen} animationType="slide" onRequestClose={() => setMusicSheetOpen(false)}>
                                                 <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -7527,7 +7678,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
                                                         </TouchableOpacity>
                                                     </View>
-                                                    <View style={{ margin: 12, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                                                    <TouchableOpacity onPress={pickPhoneAudio}
+                                                        style={{ margin: 12, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.border }}>
+                                                        <Text style={{ fontSize: 20 }}>📱</Text>
+                                                        <View>
+                                                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Telefondan Yükle</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>MP3, AAC, M4A...</Text>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                    <View style={{ margin: 12, marginTop: 8, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
                                                         <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
                                                         <TextInput
                                                             style={{ flex: 1, color: '#fff', fontSize: 14 }}

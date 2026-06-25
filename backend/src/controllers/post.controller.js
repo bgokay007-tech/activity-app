@@ -13,7 +13,7 @@ const POST_INCLUDE = (userId) => ({
 
 export const createPost = async (req, res, next) => {
     try {
-        const { category, subCategory, content, imageUrl, videoUrl, type = 'POST', targets, location } = req.body;
+        const { category, subCategory, content, imageUrl, videoUrl, type = 'POST', targets, location, musicStartTime, musicEndTime } = req.body;
 
         // targets: [{category, subCategory}, ...] — multi-branch support
         // primary category/subCategory comes from the first target if not provided
@@ -38,6 +38,8 @@ export const createPost = async (req, res, next) => {
                 ...(musicArtist && { musicArtist }),
                 ...(musicCoverUrl && { musicCoverUrl }),
                 ...(location && { location }),
+                ...(musicStartTime != null && { musicStartTime: Number(musicStartTime) }),
+                ...(musicEndTime   != null && { musicEndTime:   Number(musicEndTime) }),
                 ...(type === 'STORY' && { expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }),
             },
             include: {

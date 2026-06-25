@@ -279,6 +279,8 @@ model Post {
   musicName      String?                        // track title
   musicArtist    String?                        // artist name
   musicCoverUrl  String?                        // album cover image url
+  musicStartTime Float?                         // trim start in seconds
+  musicEndTime   Float?                         // trim end in seconds
   location       String?                        // optional location tag
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
