@@ -2269,6 +2269,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         manualCourtName: '', manualCity: '', manualAddress: '',
         surface: '', venueType: '', courtReserved: false,
         courtFeePerPerson: '',
+        courtMutual: false,
         message: '',
         minRating: '', maxRating: '',
     };
@@ -2342,7 +2343,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                 matchDate: f.flexibleSchedule ? undefined : matchDateStr,
                 matchTime: f.flexibleSchedule ? undefined : f.matchTime || undefined,
                 duration:  f.flexibleSchedule ? undefined : f.duration,
-                courtName: f.selectedCourt?.name || (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
+                courtName: f.courtMutual ? undefined : (f.selectedCourt?.name || (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined),
                 courtId:   f.selectedCourt?.id || undefined,
                 location:  f.selectedCourt?.city || f.manualCity || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
@@ -2559,8 +2560,35 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         onClose={() => set('showDurationPicker', false)}
                                     />
 
-                                    {/* Kort Ara */}
+                                    {/* Kort / Yer kararı */}
                                     <Text style={s.fieldLabel}>{t.courtLabel}</Text>
+                                    <View style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
+                                        <TouchableOpacity
+                                            onPress={() => set('courtMutual', false)}
+                                            style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6, backgroundColor: !f.courtMutual ? cfg.color+'20' : '#ffffff08', borderRadius:8, paddingVertical:8, paddingHorizontal:10, borderWidth:1, borderColor: !f.courtMutual ? cfg.color : '#ffffff15' }}
+                                        >
+                                            <View style={{ width:14, height:14, borderRadius:7, borderWidth:2, borderColor: !f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
+                                                {!f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
+                                            </View>
+                                            <Text style={{ color: !f.courtMutual ? cfg.color : '#6b7280', fontSize:11, fontWeight:'700', flex:1 }}>
+                                                {lang === 'tr' ? 'Kort / Tesis Belirt' : 'Specify Court'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => set('courtMutual', true)}
+                                            style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6, backgroundColor: f.courtMutual ? cfg.color+'20' : '#ffffff08', borderRadius:8, paddingVertical:8, paddingHorizontal:10, borderWidth:1, borderColor: f.courtMutual ? cfg.color : '#ffffff15' }}
+                                        >
+                                            <View style={{ width:14, height:14, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
+                                                {f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
+                                            </View>
+                                            <Text style={{ color: f.courtMutual ? cfg.color : '#6b7280', fontSize:11, fontWeight:'700', flex:1 }}>
+                                                {lang === 'tr' ? 'Ortaklaşa Kararlaştırılır' : 'To Be Decided'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {/* Kort detayları - ortaklaşa seçilmediyse */}
+                                    {!f.courtMutual && <>
                                     <View style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
                                         <TextInput
                                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}
@@ -2647,7 +2675,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                     )}
 
                                     {/* Kort Zemini */}
-                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
+                                    {!f.courtMutual && <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>}
                                     <View style={s.chipRow}>
                                         {courtSurfaces.map(sf => (
                                             <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
@@ -2677,6 +2705,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
                                         </TouchableOpacity>
                                     </View>
+                                    </>}
 
                                 </>
                             )}
