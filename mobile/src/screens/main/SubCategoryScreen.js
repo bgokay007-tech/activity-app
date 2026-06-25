@@ -1048,12 +1048,43 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
 
 // ─── Text Post Card ────────────────────────────────────────────────────────────
 
-function TextPostCard({ post, cfg, onRefresh }) {
+function TextPostCard({ post, cfg }) {
     const t = useT();
-    const isLiked = Array.isArray(post.likes) && post.likes.length > 0;
+    const [liked, setLiked] = useState(Array.isArray(post.likes) && post.likes.length > 0);
+    const [likesCount, setLikesCount] = useState(post._count?.likes || 0);
+    const [showComments, setShowComments] = useState(false);
+    const [comments, setComments] = useState(post.comments || []);
+    const [commentText, setCommentText] = useState('');
+    const [sendingComment, setSendingComment] = useState(false);
 
     const toggleLike = async () => {
-        try { await api.post(`/posts/${post.id}/like`); onRefresh(); } catch {}
+        const next = !liked;
+        setLiked(next);
+        setLikesCount(c => next ? c + 1 : Math.max(0, c - 1));
+        try { await api.post(`/posts/${post.id}/like`); }
+        catch { setLiked(!next); setLikesCount(c => next ? Math.max(0, c - 1) : c + 1); }
+    };
+
+    const openComments = async () => {
+        setShowComments(v => !v);
+        if (!showComments && comments.length === 0) {
+            try {
+                const { data } = await api.get(`/posts/${post.id}/comments`);
+                setComments(data);
+            } catch {}
+        }
+    };
+
+    const sendComment = async () => {
+        const text = commentText.trim();
+        if (!text) return;
+        setSendingComment(true);
+        try {
+            const { data } = await api.post(`/posts/${post.id}/comment`, { content: text });
+            setCommentText('');
+            setComments(prev => [...prev, data]);
+        } catch {}
+        finally { setSendingComment(false); }
     };
 
     const timeAgo = (dateStr) => {
@@ -1076,16 +1107,39 @@ function TextPostCard({ post, cfg, onRefresh }) {
                 </View>
             </View>
             <Text style={[s.cardMsg, { marginBottom: 12, lineHeight: 20 }]}>{post.content}</Text>
-            <View style={{ flexDirection: 'row', gap: 20 }}>
+            <View style={{ flexDirection: 'row', gap: 20, marginBottom: showComments ? 10 : 0 }}>
                 <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <Text style={{ color: isLiked ? '#f43f5e' : colors.textMuted, fontSize: 16 }}>♥</Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{post._count?.likes || 0}</Text>
+                    <Text style={{ color: liked ? '#f43f5e' : colors.textMuted, fontSize: 16 }}>♥</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{likesCount}</Text>
                 </TouchableOpacity>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <Text style={{ color: colors.textMuted, fontSize: 14 }}>💬</Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{post._count?.comments || 0}</Text>
-                </View>
+                <TouchableOpacity onPress={openComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Text style={{ color: showComments ? cfg.color : colors.textMuted, fontSize: 14 }}>💬</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{comments.length || post._count?.comments || 0}</Text>
+                </TouchableOpacity>
             </View>
+            {showComments && (
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                    {comments.map((c, i) => (
+                        <View key={c.id || i} style={{ flexDirection: 'row', gap: 6, marginBottom: 5 }}>
+                            <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{c.user?.username}</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>{c.content}</Text>
+                        </View>
+                    ))}
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                        <TextInput
+                            style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+                            placeholder="Yorum yaz..."
+                            placeholderTextColor={colors.textMuted}
+                            value={commentText}
+                            onChangeText={setCommentText}
+                        />
+                        <TouchableOpacity onPress={sendComment} disabled={sendingComment || !commentText.trim()}
+                            style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center', opacity: !commentText.trim() ? 0.4 : 1 }}>
+                            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{sendingComment ? '…' : '↑'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
         </View>
     );
 }
@@ -5447,6 +5501,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [textPosts, setTextPosts] = useState([]);
     const [mediaPosts, setMediaPosts] = useState([]);
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
+    const [mediaLiked, setMediaLiked] = useState({});
+    const [mediaLikeCounts, setMediaLikeCounts] = useState({});
+    const [mediaShowComments, setMediaShowComments] = useState(false);
+    const [mediaComments, setMediaComments] = useState([]);
+    const [mediaCommentText, setMediaCommentText] = useState('');
+    const [sendingMediaComment, setSendingMediaComment] = useState(false);
     const [equipmentListings, setEquipmentListings] = useState([]);
     const [equipmentCondition, setEquipmentCondition] = useState('ALL');
     const [loadingEquipment, setLoadingEquipment] = useState(false);
@@ -7217,7 +7277,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {textPosts.length === 0
                                 ? <EmptyState emoji="✏️" text={t.emptyPosts} />
                                 : textPosts.map(post => (
-                                    <TextPostCard key={post.id} post={post} cfg={cfg} onRefresh={load} />
+                                    <TextPostCard key={post.id} post={post} cfg={cfg} />
                                 ))
                             }
                         </>
@@ -7538,36 +7598,112 @@ export default function SubCategoryScreen({ route, navigation }) {
             </Modal>
 
             {/* ── Media Viewer ── */}
-            <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => setMediaViewIdx(null)}>
-                <View style={{ flex: 1, backgroundColor: '#000000ee', justifyContent: 'center', alignItems: 'center' }}>
-                    <TouchableOpacity style={{ position: 'absolute', top: 56, right: 20, zIndex: 10 }} onPress={() => setMediaViewIdx(null)}>
+            <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); }}>
+                <View style={{ flex: 1, backgroundColor: '#000000ee' }}>
+                    <TouchableOpacity style={{ position: 'absolute', top: 56, right: 20, zIndex: 10 }} onPress={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); }}>
                         <Text style={{ color: '#fff', fontSize: 28, fontWeight: '700' }}>✕</Text>
                     </TouchableOpacity>
-                    {mediaViewIdx !== null && mediaPosts[mediaViewIdx] && (
-                        <>
-                            {mediaPosts[mediaViewIdx].imageUrl
-                                ? <Image source={{ uri: mediaPosts[mediaViewIdx].imageUrl }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />
-                                : <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text><Text style={{ color: '#fff', marginTop: 8 }}>Video</Text></View>
+                    {mediaViewIdx !== null && mediaPosts[mediaViewIdx] && (() => {
+                        const mp = mediaPosts[mediaViewIdx];
+                        const isLiked = mediaLiked[mp.id] ?? (Array.isArray(mp.likes) && mp.likes.length > 0);
+                        const likeCount = mediaLikeCounts[mp.id] ?? (mp._count?.likes || 0);
+
+                        const toggleMediaLike = async () => {
+                            const next = !isLiked;
+                            setMediaLiked(prev => ({ ...prev, [mp.id]: next }));
+                            setMediaLikeCounts(prev => ({ ...prev, [mp.id]: next ? likeCount + 1 : Math.max(0, likeCount - 1) }));
+                            try { await api.post(`/posts/${mp.id}/like`); }
+                            catch {
+                                setMediaLiked(prev => ({ ...prev, [mp.id]: !next }));
+                                setMediaLikeCounts(prev => ({ ...prev, [mp.id]: next ? Math.max(0, likeCount - 1) : likeCount + 1 }));
                             }
-                            <View style={{ position: 'absolute', bottom: 80, left: 20, right: 20 }}>
-                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', textAlign: 'center', opacity: 0.7 }}>
-                                    @{mediaPosts[mediaViewIdx].user?.username} · {mediaPosts[mediaViewIdx].subCategory}
+                        };
+
+                        const openMediaComments = async () => {
+                            const next = !mediaShowComments;
+                            setMediaShowComments(next);
+                            if (next && mediaComments.length === 0) {
+                                try { const { data } = await api.get(`/posts/${mp.id}/comments`); setMediaComments(data); } catch {}
+                            }
+                        };
+
+                        const sendMediaComment = async () => {
+                            const text = mediaCommentText.trim();
+                            if (!text) return;
+                            setSendingMediaComment(true);
+                            try {
+                                const { data } = await api.post(`/posts/${mp.id}/comment`, { content: text });
+                                setMediaCommentText('');
+                                setMediaComments(prev => [...prev, data]);
+                            } catch {}
+                            finally { setSendingMediaComment(false); }
+                        };
+
+                        return (
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                {mp.imageUrl
+                                    ? <Image source={{ uri: mp.imageUrl }} style={{ width: '100%', height: mediaShowComments ? '50%' : '75%' }} resizeMode="contain" />
+                                    : <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text><Text style={{ color: '#fff', marginTop: 8 }}>Video</Text></View>
+                                }
+                                <Text style={{ color: '#ffffff90', fontSize: 12, fontWeight: '700', marginTop: 8 }}>
+                                    @{mp.user?.username} · {mp.subCategory}
                                 </Text>
-                            </View>
-                            <View style={{ position: 'absolute', flexDirection: 'row', bottom: 40, gap: 20 }}>
-                                {mediaViewIdx > 0 && (
-                                    <TouchableOpacity style={s.storyNavBtn} onPress={() => setMediaViewIdx(i => i - 1)}>
-                                        <Text style={{ color: '#fff', fontWeight: '700' }}>‹ Önceki</Text>
+
+                                {/* Like + Comment bar */}
+                                <View style={{ flexDirection: 'row', gap: 24, marginTop: 14 }}>
+                                    <TouchableOpacity onPress={toggleMediaLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text style={{ color: isLiked ? '#f43f5e' : '#ffffff80', fontSize: 22 }}>♥</Text>
+                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{likeCount}</Text>
                                     </TouchableOpacity>
-                                )}
-                                {mediaViewIdx < mediaPosts.length - 1 && (
-                                    <TouchableOpacity style={s.storyNavBtn} onPress={() => setMediaViewIdx(i => i + 1)}>
-                                        <Text style={{ color: '#fff', fontWeight: '700' }}>Sonraki ›</Text>
+                                    <TouchableOpacity onPress={openMediaComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text style={{ color: mediaShowComments ? cfg.color : '#ffffff80', fontSize: 20 }}>💬</Text>
+                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{mediaComments.length || mp._count?.comments || 0}</Text>
                                     </TouchableOpacity>
+                                </View>
+
+                                {/* Inline comments */}
+                                {mediaShowComments && (
+                                    <View style={{ width: '90%', marginTop: 10, backgroundColor: '#00000060', borderRadius: 12, padding: 10, maxHeight: 180 }}>
+                                        <ScrollView style={{ maxHeight: 100 }} showsVerticalScrollIndicator={false}>
+                                            {mediaComments.map((c, i) => (
+                                                <View key={c.id || i} style={{ flexDirection: 'row', gap: 6, marginBottom: 5 }}>
+                                                    <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{c.user?.username}</Text>
+                                                    <Text style={{ color: '#ffffffcc', fontSize: 12, flex: 1 }}>{c.content}</Text>
+                                                </View>
+                                            ))}
+                                        </ScrollView>
+                                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                                            <TextInput
+                                                style={{ flex: 1, backgroundColor: '#ffffff15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: '#ffffff30' }}
+                                                placeholder="Yorum yaz..."
+                                                placeholderTextColor="#ffffff50"
+                                                value={mediaCommentText}
+                                                onChangeText={setMediaCommentText}
+                                            />
+                                            <TouchableOpacity onPress={sendMediaComment} disabled={sendingMediaComment || !mediaCommentText.trim()}
+                                                style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center', opacity: !mediaCommentText.trim() ? 0.4 : 1 }}>
+                                                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{sendingMediaComment ? '…' : '↑'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
                                 )}
+
+                                {/* Prev/Next nav */}
+                                <View style={{ flexDirection: 'row', gap: 20, marginTop: 16 }}>
+                                    {mediaViewIdx > 0 && (
+                                        <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaViewIdx(i => i - 1); }}>
+                                            <Text style={{ color: '#fff', fontWeight: '700' }}>‹ Önceki</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {mediaViewIdx < mediaPosts.length - 1 && (
+                                        <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaViewIdx(i => i + 1); }}>
+                                            <Text style={{ color: '#fff', fontWeight: '700' }}>Sonraki ›</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
                             </View>
-                        </>
-                    )}
+                        );
+                    })()}
                 </View>
             </Modal>
         </View>
