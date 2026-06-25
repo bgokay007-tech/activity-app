@@ -6072,13 +6072,49 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     // Compact filter bar rendered in each tab (single row)
     // Ortak bildirim butonu — kısa bas profil ilini toggle, uzun bas picker açar
+    const cityAlertDesc = {
+        rivals:      lang === 'tr'
+            ? `Seçtiğin illerde yeni ${sub} ile ilgili rakip arayan ilanların bildirimini alırsın.`
+            : `You'll get notified about new ${sub} opponent listings in your selected cities.`,
+        tournaments: lang === 'tr'
+            ? `Seçtiğin illerde yeni ${sub} turnuva ilanlarının bildirimini alırsın.`
+            : `You'll get notified about new ${sub} tournament listings in your selected cities.`,
+        coaches:     lang === 'tr'
+            ? `Seçtiğin illerde yeni ${sub} antrenör ilanlarının bildirimini alırsın.`
+            : `You'll get notified about new ${sub} coach listings in your selected cities.`,
+        equipment:   lang === 'tr'
+            ? `Seçtiğin illerde yeni ${sub} ekipman ilanlarının bildirimini alırsın.`
+            : `You'll get notified about new ${sub} equipment listings in your selected cities.`,
+        player_wanted: lang === 'tr'
+            ? `Seçtiğin illerde yeni ${sub} oyuncu arama ilanlarının bildirimini alırsın.`
+            : `You'll get notified about new ${sub} player wanted listings in your selected cities.`,
+    };
+
     const CityAlertBtn = ({ tab }) => {
         const cities = tabSubCities[tab] || [];
         const active = cities.length > 0;
         const isLoading = cityAlertLoading === tab;
+        const desc = cityAlertDesc[tab] || '';
+
+        const handlePress = () => {
+            if (isLoading) return;
+            if (!active) {
+                Alert.alert(
+                    active ? (lang === 'tr' ? '🔕 Bildirimi Kapat' : '🔕 Disable Notification') : (lang === 'tr' ? '🔔 Bildirimi Aç' : '🔔 Enable Notification'),
+                    desc,
+                    [
+                        { text: lang === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
+                        { text: lang === 'tr' ? 'Aç' : 'Enable', onPress: () => quickToggleTab(tab) },
+                    ]
+                );
+            } else {
+                quickToggleTab(tab);
+            }
+        };
+
         return (
             <TouchableOpacity
-                onPress={() => isLoading ? null : quickToggleTab(tab)}
+                onPress={handlePress}
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
