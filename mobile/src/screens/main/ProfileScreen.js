@@ -352,15 +352,15 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                                 <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', flex: 1 }}>{title}</Text>
                                             </View>
                                             <Text style={{ color: '#6b7280', fontSize: 9, marginBottom: 6, lineHeight: 13 }}>{desc}</Text>
-                                            <View style={{ flexDirection: 'row', gap: 5 }}>
+                                            <View style={{ flexDirection: 'row', gap: 4, justifyContent: 'flex-start' }}>
                                                 {[1,2,3,4,5].map(n => {
                                                     const sel = anketScores[key] === n;
                                                     const col = n <= 2 ? '#f87171' : n === 3 ? '#facc15' : '#4ade80';
                                                     return (
                                                         <TouchableOpacity key={n}
                                                             onPress={() => canRate && saveScore(key, n)}
-                                                            style={{ flex: 1, height: 26, borderRadius: 5, backgroundColor: sel ? col+'30' : '#ffffff08', borderWidth: sel ? 2 : 1, borderColor: sel ? col : '#ffffff15', alignItems: 'center', justifyContent: 'center', opacity: canRate ? 1 : 0.5 }}>
-                                                            <Text style={{ color: sel ? col : '#6b7280', fontSize: 11, fontWeight: '900' }}>{n}</Text>
+                                                            style={{ width: 20, height: 20, borderRadius: 4, backgroundColor: sel ? col+'30' : '#ffffff08', borderWidth: sel ? 2 : 1, borderColor: sel ? col : '#ffffff15', alignItems: 'center', justifyContent: 'center', opacity: canRate ? 1 : 0.5 }}>
+                                                            <Text style={{ color: sel ? col : '#6b7280', fontSize: 9, fontWeight: '900' }}>{n}</Text>
                                                         </TouchableOpacity>
                                                     );
                                                 })}
