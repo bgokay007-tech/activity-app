@@ -6150,7 +6150,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:8 }}>
                 {children}
                 <CityAlertBtn tab={tab} />
-                <Text numberOfLines={2} style={{ color: active ? cfg.color : '#6b7280', fontSize:10, lineHeight:14, flex:1 }}>{desc}</Text>
+                <Text numberOfLines={3} style={{ color: active ? cfg.color : '#6b7280', fontSize:9, lineHeight:13, flex:1 }}>{desc}</Text>
             </View>
         );
     };
