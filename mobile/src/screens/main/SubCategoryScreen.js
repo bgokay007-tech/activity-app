@@ -6391,9 +6391,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                         return (
                         <View>
                             {/* Kompakt filtre + bildirim butonu */}
-                            <CityAlertRow tab="equipment">
-                                <CompactFilter showDateChips={false} showNearMe={false} />
-                            </CityAlertRow>
+                            {/* Ekipman: İl filtresi + zil + yazı tek hizada */}
+                            {(() => {
+                                const cities = tabSubCities['equipment'] || [];
+                                const active = cities.length > 0;
+                                return (
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
+                                        <TouchableOpacity
+                                            onPress={() => setShowCityFilter(true)}
+                                            style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:5, paddingHorizontal:8, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
+                                        >
+                                            <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
+                                                {filterCity ? filterCity : '📍 İl'}
+                                            </Text>
+                                            {filterCity
+                                                ? <TouchableOpacity onPress={() => setFilterCity('')} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
+                                                  </TouchableOpacity>
+                                                : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
+                                            }
+                                        </TouchableOpacity>
+                                        <CityAlertBtn tab="equipment" />
+                                        <Text numberOfLines={2} style={{ color: active ? cfg.color : '#6b7280', fontSize:10, lineHeight:14, flex:1 }}>{cityAlertDesc['equipment']}</Text>
+                                    </View>
+                                );
+                            })()}
                             {/* Durum filtresi */}
                             <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
                                 {['ALL','NEW','USED'].map(c => (
