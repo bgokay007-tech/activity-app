@@ -4,18 +4,19 @@ import { useSelector } from 'react-redux';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'noshow', 'cities', 'tournament-perms'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings'];
 
 const TAB_LABEL = {
-    dashboard:         '📊 Dashboard',
-    users:             '👥 Users',
-    courts:            '🏟️ Courts',
-    disputes:          '⚠️ Disputes',
-    posts:             '📝 Posts',
-    venues:            '🏗️ Pending Venues',
-    noshow:            '🚫 No-Show Reports',
-    cities:            '📍 İl / İlçe Onayı',
-    'tournament-perms':'🏆 Turnuva İzinleri',
+    dashboard:          '📊 Dashboard',
+    users:              '👥 Users',
+    courts:             '🏟️ Courts',
+    disputes:           '⚠️ Disputes',
+    posts:              '📝 Posts',
+    venues:             '🏗️ Pending Venues',
+    noshow:             '🚫 No-Show Reports',
+    cities:             '📍 İl / İlçe Onayı',
+    'tournament-perms': '🏆 Turnuva İzinleri',
+    'flagged-listings': '🚩 Şüpheli İlanlar',
 };
 
 function StatCard({ label, value, color = 'text-white' }) {
@@ -662,6 +663,67 @@ function TournamentPermsPanel() {
     );
 }
 
+// ── FLAGGED LISTINGS ──────────────────────────────────────────────────────
+function FlaggedListingsPanel() {
+    const [data, setData] = useState({ equipment: [], coaches: [] });
+    const [loading, setLoading] = useState(true);
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get('/admin/flagged-listings').then(r => setData(r.data)).finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const moderate = async (type, id, action) => {
+        try {
+            await api.patch(`/admin/listings/${type}/${id}`, { action });
+            load();
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
+    if (loading) return <p className="text-gray-500 text-center py-16">Yükleniyor...</p>;
+
+    const all = [
+        ...data.equipment.map(e => ({ ...e, _type: 'equipment', _label: '🎾 Ekipman' })),
+        ...data.coaches.map(c => ({ ...c, _type: 'coach', _label: '🎓 Antrenör' })),
+    ].sort((a, b) => b.reportCount - a.reportCount);
+
+    if (all.length === 0) return <p className="text-gray-500 text-center py-16">Şüpheli ilan yok ✅</p>;
+
+    return (
+        <div className="space-y-3">
+            {all.map(item => (
+                <div key={item.id} className="bg-gray-900 border border-yellow-700/40 rounded-2xl p-4">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-black text-yellow-400 bg-yellow-900/40 border border-yellow-700/50 rounded-lg px-2 py-0.5">{item._label}</span>
+                                <span className="text-red-400 text-xs font-black">🚩 {item.reportCount} rapor</span>
+                            </div>
+                            <p className="text-white font-bold text-sm truncate">{item.title || item.credentialLevel || '—'}</p>
+                            <p className="text-gray-500 text-xs">@{item.user?.username}</p>
+                            {item.images?.[0] && (
+                                <img src={item.images[0]} alt="" className="w-24 h-16 object-cover rounded-lg mt-2 border border-gray-700" />
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-2 shrink-0">
+                            <button onClick={() => moderate(item._type, item.id, 'RESTORE')}
+                                className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
+                                ✓ Temizle
+                            </button>
+                            <button onClick={() => window.confirm('İlanı kaldırmak istediğinizden emin misiniz?') && moderate(item._type, item.id, 'REMOVE')}
+                                className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
+                                🗑️ Kaldır
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function AdminPage() {
     const navigate = useNavigate();
@@ -703,6 +765,7 @@ export default function AdminPage() {
                     {activeTab === 'noshow'            && <NoShowPanel />}
                     {activeTab === 'cities'            && <CitiesPanel />}
                     {activeTab === 'tournament-perms'  && <TournamentPermsPanel />}
+                    {activeTab === 'flagged-listings'  && <FlaggedListingsPanel />}
                 </div>
             </div>
         </div>

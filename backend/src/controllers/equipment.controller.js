@@ -8,6 +8,7 @@ export const getListings = async (req, res, next) => {
         const { category, subCategory, condition } = req.query;
         const listings = await prisma.equipmentListing.findMany({
             where: {
+                status: 'ACTIVE',
                 ...(category    && { category }),
                 ...(subCategory && { subCategory }),
                 ...(condition   && { condition }),

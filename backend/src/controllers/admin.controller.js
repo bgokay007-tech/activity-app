@@ -163,6 +163,49 @@ export const rejectTournamentPermission = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+export const getFlaggedListings = async (req, res, next) => {
+    try {
+        const [equipment, coaches] = await Promise.all([
+            prisma.equipmentListing.findMany({
+                where: { status: 'FLAGGED' },
+                include: { user: { select: { id: true, username: true } } },
+                orderBy: { reportCount: 'desc' },
+            }),
+            prisma.coachListing.findMany({
+                where: { status: 'FLAGGED' },
+                include: { user: { select: { id: true, username: true } } },
+                orderBy: { reportCount: 'desc' },
+            }),
+        ]);
+        res.json({
+            equipment: equipment.map(e => ({ ...e, listingType: 'EQUIPMENT' })),
+            coaches: coaches.map(c => ({ ...c, listingType: 'COACH' })),
+        });
+    } catch (e) { next(e); }
+};
+
+export const moderateListing = async (req, res, next) => {
+    try {
+        const { type, id } = req.params;
+        const { action } = req.body; // 'RESTORE' | 'REMOVE'
+
+        const status = action === 'RESTORE' ? 'ACTIVE' : 'REMOVED';
+        const listingType = type === 'equipment' ? 'EQUIPMENT' : 'COACH';
+
+        if (type === 'equipment') {
+            await prisma.equipmentListing.update({ where: { id }, data: { status } });
+        } else {
+            await prisma.coachListing.update({ where: { id }, data: { status } });
+        }
+
+        if (action === 'REMOVE') {
+            await prisma.listingReport.deleteMany({ where: { listingType, listingId: id } });
+        }
+
+        res.json({ ok: true });
+    } catch (e) { next(e); }
+};
+
 export const revokeTournamentPermission = async (req, res, next) => {
     try {
         const { userId } = req.params;

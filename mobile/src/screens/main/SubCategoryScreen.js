@@ -5460,6 +5460,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [equipmentMinPrice, setEquipmentMinPrice] = useState('');
     const [equipmentMaxPrice, setEquipmentMaxPrice] = useState('');
     const [selectedEquipment, setSelectedEquipment] = useState(null);
+    const [reportingListingId, setReportingListingId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [archiveRivals, setArchiveRivals] = useState([]);
@@ -5919,6 +5920,26 @@ export default function SubCategoryScreen({ route, navigation }) {
             setEquipmentListings(prev => prev.filter(e => e.id !== id));
             setSelectedEquipment(null);
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+    };
+
+    const reportListing = (type, id) => {
+        const reasons = ['Yanıltıcı içerik', 'Uygunsuz görsel', 'Sahte ilan', 'Diğer'];
+        Alert.alert('İlanı Bildir', 'Bildiri sebebini seçin:', [
+            ...reasons.map(r => ({
+                text: r,
+                onPress: async () => {
+                    try {
+                        setReportingListingId(id);
+                        await api.post(`/${type}/${id}/report`, { reason: r });
+                        Alert.alert('', 'Bildiriminiz alındı. Teşekkürler.');
+                        if (type === 'equipment') setSelectedEquipment(null);
+                    } catch (e) {
+                        Alert.alert('', e?.response?.data?.message || 'Bir hata oluştu');
+                    } finally { setReportingListingId(null); }
+                },
+            })),
+            { text: 'İptal', style: 'cancel' },
+        ]);
     };
 
     const handleJoinTournament = useCallback(async (item) => {
@@ -6603,12 +6624,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {selectedEquipment?.description ? <Text style={{ color:colors.textSecondary, fontSize:13, marginBottom:8 }}>{selectedEquipment.description}</Text> : null}
                                             {selectedEquipment?.location ? <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:4 }}>📍 {selectedEquipment.location}</Text> : null}
                                             <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:12 }}>👤 {selectedEquipment?.user?.fullName || selectedEquipment?.user?.username}</Text>
-                                            {selectedEquipment?.userId === myId && (
+                                            {selectedEquipment?.userId === myId ? (
                                                 <TouchableOpacity onPress={() => Alert.alert('İlanı Sil', 'Bu ilanı silmek istiyor musunuz?', [
                                                     { text:'İptal', style:'cancel' },
                                                     { text:'Sil', style:'destructive', onPress:() => deleteEquipment(selectedEquipment.id) }
                                                 ])} style={{ backgroundColor:'#ef444420', borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
                                                     <Text style={{ color:'#ef4444', fontWeight:'800' }}>🗑️ İlanı Sil</Text>
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <TouchableOpacity
+                                                    onPress={() => reportListing('equipment', selectedEquipment.id)}
+                                                    disabled={reportingListingId === selectedEquipment?.id}
+                                                    style={{ backgroundColor:'#f59e0b20', borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                    <Text style={{ color:'#f59e0b', fontWeight:'800' }}>🚩 Bildır</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </ScrollView>
@@ -6699,6 +6727,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {c.city && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements}</Text>}
+                                            {c.userId !== myId && (
+                                                <TouchableOpacity
+                                                    onPress={() => reportListing('coaches', c.id)}
+                                                    disabled={reportingListingId === c.id}
+                                                    style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:10, paddingVertical:4, borderRadius:6, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                    <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>🚩 Bildir</Text>
+                                                </TouchableOpacity>
+                                            )}
                                             {(c.certificateUrl || c.cvUrl || (c.achievementUrls || []).length > 0) && (
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:6 }}>
                                                     {c.certificateUrl && (
