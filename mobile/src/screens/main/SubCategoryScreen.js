@@ -7425,7 +7425,7 @@ const s = StyleSheet.create({
     list:             { paddingHorizontal:4, gap:8, paddingBottom:60 },
     sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
 
-    createBtn:        { backgroundColor: colors.surface, borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
+    createBtn:        { backgroundColor: colors.surface, borderRadius:10, paddingVertical:6, paddingHorizontal:10, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
     createBtnText:    { fontWeight:'700', fontSize:14 },
 
     filterBox:        { backgroundColor: colors.surface, borderRadius:12, padding:8, borderWidth:1, borderColor: colors.border, gap:6 },
