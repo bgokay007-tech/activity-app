@@ -379,6 +379,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
     if (!item) return null;
 
+    const cfg = getConfig(item.subCategory);
     const matches = item.historyMatches || [];
     const winsCount   = matches.filter(m => getMatchResult(m, userId) === 'win').length;
     const lossesCount = matches.filter(m => getMatchResult(m, userId) === 'loss').length;
