@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
+import { onSocket } from '../../services/socket';
 
 function Avatar({ user, size = 40 }) {
     return (
@@ -21,33 +23,64 @@ export default function MessagesScreen({ navigation }) {
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
+    const load = useCallback(() => {
         api.get('/messages/conversations')
             .then(r => setConversations(r.data))
             .catch(e => console.warn(e?.message))
             .finally(() => setLoading(false));
     }, []);
 
+    // Her sefer odaklanınca yenile
+    useFocusEffect(useCallback(() => {
+        load();
+    }, [load]));
+
+    // Yeni mesaj gelince konuşmaları güncelle
+    useEffect(() => {
+        const off = onSocket('newMessage', ({ message, conversationId }) => {
+            setConversations(prev => {
+                const exists = prev.find(c => c.id === conversationId);
+                if (exists) {
+                    return prev
+                        .map(c => c.id === conversationId ? { ...c, lastMessage: message } : c)
+                        .sort((a, b) => new Date(b.lastMessage?.createdAt || b.updatedAt) - new Date(a.lastMessage?.createdAt || a.updatedAt));
+                }
+                // Yeni konuşma — tam listeyi yenile
+                load();
+                return prev;
+            });
+        });
+        return off;
+    }, [load]);
+
     const renderItem = ({ item }) => {
         const other = item.other;
         const last = item.lastMessage;
+        const unread = last && last.senderId !== myId && !last.read;
         return (
             <TouchableOpacity
                 style={styles.row}
                 onPress={() => navigation.navigate('Chat', { conversation: item, other })}
             >
-                <Avatar user={other} />
+                <View style={{ position: 'relative' }}>
+                    <Avatar user={other} />
+                    {unread && (
+                        <View style={{ position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.purple, borderWidth: 2, borderColor: colors.bg }} />
+                    )}
+                </View>
                 <View style={styles.rowContent}>
                     <View style={styles.rowTop}>
-                        <Text style={styles.name} numberOfLines={1}>{other?.fullName || other?.username}</Text>
+                        <Text style={[styles.name, unread && { color: '#fff', fontWeight: '900' }]} numberOfLines={1}>
+                            {other?.fullName || other?.username}
+                        </Text>
                         {last && (
                             <Text style={styles.time}>
                                 {new Date(last.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                             </Text>
                         )}
                     </View>
-                    <Text style={styles.lastMsg} numberOfLines={1}>
-                        {last ? (last.senderId === myId ? t.youPrefix : '') + last.content : t.noMsgYet}
+                    <Text style={[styles.lastMsg, unread && { color: '#d1d5db', fontWeight: '600' }]} numberOfLines={1}>
+                        {last ? (last.senderId === myId ? (t.youPrefix || 'Sen: ') : '') + last.content : t.noMsgYet}
                     </Text>
                 </View>
             </TouchableOpacity>
@@ -88,7 +121,7 @@ const styles = StyleSheet.create({
     avatarText: { color: '#fff', fontWeight: '800' },
     rowContent: { flex: 1 },
     rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-    name: { color: '#fff', fontWeight: '700', fontSize: 14, flex: 1 },
+    name: { color: '#cbd5e1', fontWeight: '700', fontSize: 14, flex: 1 },
     time: { color: colors.textMuted, fontSize: 11, marginLeft: 8 },
     lastMsg: { color: colors.textMuted, fontSize: 12 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 60 },

@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
+import { onSocket } from '../../services/socket';
 
 function Avatar({ user, size = 36 }) {
     return (
@@ -57,12 +58,23 @@ export default function ChatScreen({ route, navigation }) {
         };
         init();
 
-        // Poll every 3 seconds for new messages
+        // Yedek polling: 10 saniyede bir (socket yeterliyse nadir çalışır)
         pollRef.current = setInterval(() => {
             fetchMessages(convIdRef.current);
-        }, 3000);
+        }, 10000);
 
         return () => clearInterval(pollRef.current);
+    }, []);
+
+    // Socket ile gerçek zamanlı mesaj al
+    useEffect(() => {
+        const off = onSocket('newMessage', ({ message, conversationId }) => {
+            if (conversationId === convIdRef.current) {
+                setMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message]);
+                setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 80);
+            }
+        });
+        return off;
     }, []);
 
     const send = async () => {

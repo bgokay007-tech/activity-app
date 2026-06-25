@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import axios from 'axios';
+import { emitToUser } from '../config/socket.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -122,6 +123,11 @@ export const sendMessage = async (req, res, next) => {
         }
 
         res.status(201).json({ message, conversationId: conv.id });
+
+        // Gerçek zamanlı: alıcıya ve gönderene socket event gönder
+        const socketPayload = { message, conversationId: conv.id };
+        emitToUser(receiverId, 'newMessage', socketPayload);
+        emitToUser(req.userId, 'newMessage', socketPayload);
 
         if (receiver?.pushToken) {
             sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody);
