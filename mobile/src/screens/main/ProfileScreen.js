@@ -300,6 +300,40 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 </View>
                             )}
 
+                            {/* ── Sporcu Anketi (küçük) ── */}
+                            <View style={fc.anketSection}>
+                                <Text style={fc.anketSectionTitle}>📋 {lang === 'tr' ? 'Sporcu Anketi' : 'Player Survey'}</Text>
+                                {[
+                                    { key: 'stres',    emoji: '🧠', title: lang==='tr' ? 'Stres Yönetimi' : 'Stress Mgmt',
+                                      desc: lang==='tr' ? 'Zor durumlarda sakin kalabilme; öfke patlamaları disiplini yansıtır.' : 'Staying calm in critical moments.' },
+                                    { key: 'fairplay', emoji: '🤝', title: lang==='tr' ? 'Adil Oyun' : 'Fair Play',
+                                      desc: lang==='tr' ? 'Tartışmalı topları kabul etme, hakemi yanıltmama.' : 'Accepting disputed balls honestly.' },
+                                    { key: 'beden',    emoji: '💪', title: lang==='tr' ? 'Beden Dili' : 'Body Language',
+                                      desc: lang==='tr' ? 'Gerginlikte odaklanmayı sürdürme, mazeret üretmeme.' : 'Maintaining focus under pressure.' },
+                                ].map(({ key, emoji, title, desc }) => (
+                                    <View key={key} style={fc.anketCard}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                                            <Text style={{ fontSize: 13 }}>{emoji}</Text>
+                                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', flex: 1 }}>{title}</Text>
+                                        </View>
+                                        <Text style={{ color: '#6b7280', fontSize: 9, marginBottom: 6, lineHeight: 13 }}>{desc}</Text>
+                                        <View style={{ flexDirection: 'row', gap: 5 }}>
+                                            {[1,2,3,4,5].map(n => {
+                                                const sel = anketScores[key] === n;
+                                                const col = n <= 2 ? '#f87171' : n === 3 ? '#facc15' : '#4ade80';
+                                                return (
+                                                    <TouchableOpacity key={n}
+                                                        onPress={() => isOwnProfile && setAnketScores(s => ({ ...s, [key]: n }))}
+                                                        style={{ flex: 1, height: 26, borderRadius: 5, backgroundColor: sel ? col+'30' : '#ffffff08', borderWidth: sel ? 2 : 1, borderColor: sel ? col : '#ffffff15', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Text style={{ color: sel ? col : '#6b7280', fontSize: 11, fontWeight: '900' }}>{n}</Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+
                         </ScrollView>
                         <BottomBtns />
 
@@ -326,68 +360,13 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 ) : (
                     /* ── Arka Yüz ── */
                     <View style={[fc.face, fc.backFace]}>
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 70 }}>
-                            <Text style={fc.backTitle}>📋 {lang === 'tr' ? 'Sporcu Anketi' : 'Player Survey'}</Text>
-                            <Text style={{ color: '#6b7280', fontSize: 11, marginBottom: 20, textAlign: 'center' }}>
-                                {lang === 'tr' ? '1 (çok zayıf) → 5 (mükemmel)' : '1 (very poor) → 5 (excellent)'}
-                            </Text>
-
-                            {[
-                                {
-                                    key: 'stres',
-                                    emoji: '🧠',
-                                    title: lang === 'tr' ? 'Stres Yönetimi' : 'Stress Management',
-                                    desc: lang === 'tr'
-                                        ? 'Zor durumlarda (kritik çizgi kararı, maç puanı) sakin kalabilme kapasitesi. Öfke patlamaları karakterin disiplinini yansıtır.'
-                                        : 'Ability to stay calm in critical moments. Anger outbursts reflect the character\'s discipline.',
-                                },
-                                {
-                                    key: 'fairplay',
-                                    emoji: '🤝',
-                                    title: lang === 'tr' ? 'Adil Oyun (Fair-Play)' : 'Fair Play',
-                                    desc: lang === 'tr'
-                                        ? 'Tartışmalı topları kabul etme, hakemi yanıltmama, dışarı düşen topu dürüstçe teslim etme.'
-                                        : 'Accepting disputed balls, not deceiving the referee, honestly conceding out balls.',
-                                },
-                                {
-                                    key: 'beden',
-                                    emoji: '💪',
-                                    title: lang === 'tr' ? 'Beden Dili' : 'Body Language',
-                                    desc: lang === 'tr'
-                                        ? 'Gerginlik anlarında raket kırma veya mazeret üretme yerine odaklanmayı sürdürme; kişisel mücadele tarzını belirler.'
-                                        : 'Maintaining focus instead of racket smashing or excuses during tense moments.',
-                                },
-                            ].map(({ key, emoji, title, desc }) => (
-                                <View key={key} style={fc.anketCard}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                        <Text style={{ fontSize: 20 }}>{emoji}</Text>
-                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', flex: 1 }}>{title}</Text>
-                                    </View>
-                                    <Text style={{ color: '#6b7280', fontSize: 11, marginBottom: 12, lineHeight: 16 }}>{desc}</Text>
-                                    <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
-                                        {[1, 2, 3, 4, 5].map(n => {
-                                            const selected = anketScores[key] === n;
-                                            const color = n <= 2 ? '#f87171' : n === 3 ? '#facc15' : '#4ade80';
-                                            return (
-                                                <TouchableOpacity
-                                                    key={n}
-                                                    onPress={() => isOwnProfile && setAnketScores(s => ({ ...s, [key]: n }))}
-                                                    style={{
-                                                        width: 42, height: 42, borderRadius: 21,
-                                                        backgroundColor: selected ? color + '30' : '#ffffff08',
-                                                        borderWidth: selected ? 2 : 1,
-                                                        borderColor: selected ? color : '#ffffff15',
-                                                        alignItems: 'center', justifyContent: 'center',
-                                                    }}
-                                                >
-                                                    <Text style={{ color: selected ? color : '#6b7280', fontSize: 16, fontWeight: '900' }}>{n}</Text>
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                    </View>
-                                </View>
+                        <Text style={fc.backLogo}>⚡</Text>
+                        <Text style={fc.backTitle}>AcTiViTy</Text>
+                        <View style={fc.backPattern}>
+                            {['🏅','⚡','🏆','🔥','💪','🎯','🌟','⚡','🏅','🎯','🔥','🏆'].map((e, idx) => (
+                                <Text key={idx} style={fc.backPatternEmoji}>{e}</Text>
                             ))}
-                        </ScrollView>
+                        </View>
                         <BottomBtns />
                     </View>
                 )}
@@ -432,7 +411,9 @@ const fc = StyleSheet.create({
     flipBtnText: { fontSize: 13 },
     backLogo: { fontSize: 64, marginBottom: 12 },
     backTitle: { color: '#a855f7', fontSize: 20, fontWeight: '900', letterSpacing: 2, marginBottom: 8, textAlign: 'center' },
-    anketCard: { backgroundColor: '#ffffff08', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 12 },
+    anketSection: { marginTop: 8 },
+    anketSectionTitle: { color: '#a855f7', fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
+    anketCard: { backgroundColor: '#ffffff06', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 6 },
     backPattern: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginBottom: 32, paddingHorizontal: 20 },
     backPatternEmoji: { fontSize: 32, opacity: 0.3 },
     backComingSoon: { color: '#a855f780', fontSize: 16, fontWeight: '700', letterSpacing: 3 },
