@@ -383,6 +383,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [showAnketModal, setShowAnketModal] = useState(false);
     const [surveyLoaded, setSurveyLoaded] = useState(false);
     const [showAchievements, setShowAchievements] = useState(false);
+    const [showDart, setShowDart] = useState(false);
 
     useEffect(() => {
         if (!visible) {
@@ -390,7 +391,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             setShowEloModal(false); setShowAnketModal(false);
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
-            setShowAchievements(false);
+            setShowAchievements(false); setShowDart(false);
         }
     }, [visible]);
 
@@ -517,7 +518,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     <TouchableOpacity style={fc.actionBtn} onPress={() => setShowAchievements(true)}>
                                         <Text style={[fc.actionTxt, { color: '#f59e0b' }]}>🏆 {lang==='tr' ? 'Başarılar' : 'Achievements'}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={fc.actionBtn}>
+                                    <TouchableOpacity style={fc.actionBtn} onPress={() => setShowDart(true)}>
                                         <Text style={[fc.actionTxt, { color: '#38bdf8' }]}>🎯 {lang==='tr' ? 'Hedefler' : 'Goals'}</Text>
                                     </TouchableOpacity>
                                     {surveyLoaded && (
@@ -678,6 +679,241 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 lang={lang}
                 cfg={cfg}
             />
+            <DartModal visible={showDart} onClose={() => setShowDart(false)} lang={lang} cfg={cfg} />
+        </Modal>
+    );
+}
+
+// ─── Dart Oyunu Modalı ────────────────────────────────────────────────────────
+
+const BOARD = 270;
+const R = BOARD / 2;
+const MAX_THROWS = 5;
+
+const ZONES = [
+    { pct: 0.07, score: 50 },
+    { pct: 0.17, score: 25 },
+    { pct: 0.37, score: 15 },
+    { pct: 0.57, score: 10 },
+    { pct: 0.77, score: 5  },
+    { pct: 0.93, score: 1  },
+];
+
+const TR_MSGS = {
+    50: [
+        "🎾 BULLSEYE! Artık toplar kafanın istediği yere gidiyor — rakip kaçacak delik arar!",
+        "🏆 MÜKEMMEL! Bu el-göz koordinasyonuyla Federer sana antrenör alır!",
+        "💫 TAM 12! Wimbledon seni bekliyor, seneye katıl!",
+        "🎯 EFSANE! Serviste böyle isabet olsa ace'ler peş peşe gelir!",
+    ],
+    25: [
+        "💪 Neredeyse tam merkez! Bu formu sahaya taşı, rakip dönüp bakamaz!",
+        "⚡ Bull! Bir topspin da böyle vursan ağ üstünden geçmez bile geçer!",
+        "🔥 Çok yakın! Konsantrasyon bu sefer sahada da tam çalıştı!",
+    ],
+    15: [
+        "😤 Fena değil! Nadal'ın forehand'ı da ilk günlerde böyleymiş diyorlar.",
+        "💪 Triple bölge! Bu enerjiyle maçta en azından rakibi yorarsın!",
+        "🎾 Orta kademe — ama bam bam tenisin ruhu bu değil ki zaten!",
+    ],
+    10: [
+        "😅 Double! Taktik maktik yok bam bam teorisi yine devrede!",
+        "🤷 Tam değil ama ne yapalım — tenis de bazen böyle, bam bam!",
+        "😄 Double bölgesi! Rakip de tam anlamıyor, sürpriz tenis this!",
+    ],
+    5: [
+        "😂 Taktik maktik yok BAM BAM! Dart'ta da aynı felsefe!",
+        "🤣 Tahtaya isabet var, bu iyi haber. Kötü haber: kenar çok.",
+        "😅 Hiç değilse girmedi değil mi? Sahada da böyle; çok şükür top ağa değmedi!",
+    ],
+    1: [
+        "💀 Dış kenar... Ama bam bam felsefesi hiçbir zaman ölmez!",
+        "😂 Taktik yok koordinasyon da yok bugün. Yarın sahada kompanse edersin!",
+        "🤦 Bu dart gibi bazı toplar da ağa gider — ama kim umursar? BAM BAM!",
+    ],
+    0: [
+        "🤣 MISS! Bam bam top ağa takıldı dart versiyonu! Neyse, rüzgar vardı!",
+        "💥 Tahtayı bile ıskaladın! Tenisin ağı gibi — hedef orada ama top oraya gitmiyor!",
+        "😱 AAAA! Bu atışla servis de çift hata, ama bam bam devam etmelidir!",
+    ],
+};
+
+const EN_MSGS = {
+    50: [
+        "🎾 BULLSEYE! The balls go wherever your brain says — your opponent has nowhere to run!",
+        "🏆 PERFECT! With this hand-eye coordination, Federer would hire you as a coach!",
+        "💫 DEAD CENTER! Wimbledon is calling you!",
+    ],
+    25: [
+        "💪 Almost dead center! Take this form to the court, your opponent won't know what hit them!",
+        "⚡ Bull! If your topspin were this precise, the net wouldn't dare to exist!",
+    ],
+    15: [
+        "😤 Not bad! They say Nadal's forehand started like this too.",
+        "💪 Triple zone! With this energy you'll at least wear the opponent out!",
+    ],
+    10: [
+        "😅 Double! No tactics, just BAM BAM — the theory lives on!",
+        "🤷 Not quite but hey — tennis is sometimes like this too, BAM BAM!",
+    ],
+    5: [
+        "😂 No tactics, no plan — BAM BAM philosophy in darts too!",
+        "🤣 At least it hit the board. That's the good news.",
+    ],
+    1: [
+        "💀 Outer ring... But the BAM BAM philosophy never dies!",
+        "😂 No tactics, no coordination today. Make up for it on the court tomorrow!",
+    ],
+    0: [
+        "🤣 MISS! The dart did a double fault! Blame the wind!",
+        "💥 Missed the board! Like hitting the net on serve — target's right there but the ball says no!",
+    ],
+};
+
+function getZoneScore(dist) {
+    const pct = dist / R;
+    for (const z of ZONES) { if (pct <= z.pct) return z.score; }
+    return 0;
+}
+
+function pickMsg(score, lang) {
+    const bank = (lang === 'tr' ? TR_MSGS : EN_MSGS)[score] || (lang === 'tr' ? TR_MSGS[0] : EN_MSGS[0]);
+    return bank[Math.floor(Math.random() * bank.length)];
+}
+
+function DartModal({ visible, onClose, lang, cfg }) {
+    const tr = lang === 'tr';
+    const color = cfg?.color || '#38bdf8';
+
+    const [throws, setThrows] = useState([]);
+    const [totalScore, setTotalScore] = useState(0);
+    const [lastMsg, setLastMsg] = useState(null);
+    const [lastScore, setLastScore] = useState(null);
+    const [done, setDone] = useState(false);
+    const dartScale = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (!visible) { setThrows([]); setTotalScore(0); setLastMsg(null); setLastScore(null); setDone(false); }
+    }, [visible]);
+
+    const handleThrow = (evt) => {
+        if (done || throws.length >= MAX_THROWS) return;
+        const x = evt.nativeEvent.locationX;
+        const y = evt.nativeEvent.locationY;
+        const dist = Math.sqrt((x - R) ** 2 + (y - R) ** 2);
+        const score = getZoneScore(dist);
+        const msg = pickMsg(score, lang);
+        const next = [...throws, { x, y, score }];
+        const newTotal = totalScore + score;
+        setThrows(next);
+        setTotalScore(newTotal);
+        setLastScore(score);
+        setLastMsg(msg);
+        if (next.length >= MAX_THROWS) setDone(true);
+        dartScale.setValue(0);
+        Animated.spring(dartScale, { toValue: 1, useNativeDriver: true, tension: 120, friction: 5 }).start();
+    };
+
+    const reset = () => { setThrows([]); setTotalScore(0); setLastMsg(null); setLastScore(null); setDone(false); };
+
+    const ZONE_COLORS = ['#ef4444','#166534','#dc2626','#15803d','#1e293b','#374151','#0f172a'];
+    const ZONE_PCTS  = [0.07, 0.17, 0.37, 0.57, 0.77, 0.93, 1];
+    const ZONE_LABELS = [tr?'BULLSEYE':'BULL\'S\nEYE', tr?'Bull':'Bull', tr?'x3':'x3', tr?'x2':'x2', tr?'Tek':'Single', tr?'Dış':'Outer', ''];
+
+    const finalMsg = () => {
+        if (totalScore >= 200) return tr ? '🏆 EFSANE! Sahada da böyle oyna, kimse duramaz!' : '🏆 LEGEND! Play like this on court, nobody can stop you!';
+        if (totalScore >= 150) return tr ? '💪 Harika! Rakibin kaçacak delik arar!' : '💪 Amazing! Your opponent has nowhere to run!';
+        if (totalScore >= 100) return tr ? '😤 Fena değil! Ama sahada bam bam daha iyiydi!' : '😤 Not bad! But BAM BAM is still better on court!';
+        if (totalScore >= 50) return tr ? '😅 Orta düzey... Tenis de böyle mi oynuyorsun?' : '😅 Average... Is your tennis like this too?';
+        return tr ? '🤣 BAM BAM teorisi dartta tutmadı ama sahada çalışır belki!' : '🤣 BAM BAM theory failed here but maybe works on court!';
+    };
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor:'#0f0f1a', borderTopLeftRadius:24, borderTopRightRadius:24, paddingBottom:34 }}>
+                    {/* Header */}
+                    <View style={{ flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', flex:1 }}>🎯 {tr ? 'Hedefler — Dart Oyunu' : 'Goals — Dart Game'}</Text>
+                        <Text style={{ color:color, fontSize:14, fontWeight:'900', marginRight:12 }}>{throws.length}/{MAX_THROWS}  ·  {totalScore} {tr?'puan':'pts'}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={{ color:'#6b7280', fontSize:22 }}>✕</Text></TouchableOpacity>
+                    </View>
+
+                    {/* Mesaj */}
+                    <View style={{ minHeight:52, justifyContent:'center', paddingHorizontal:16, paddingVertical:8 }}>
+                        {lastMsg && !done && (
+                            <Text style={{ color: lastScore >= 25 ? '#4ade80' : lastScore >= 10 ? '#facc15' : '#f87171', fontSize:12, fontWeight:'700', textAlign:'center', lineHeight:18 }}>
+                                {lastMsg}
+                            </Text>
+                        )}
+                        {done && (
+                            <Text style={{ color:color, fontSize:13, fontWeight:'800', textAlign:'center', lineHeight:19 }}>
+                                {finalMsg()}
+                            </Text>
+                        )}
+                    </View>
+
+                    {/* Dartboard */}
+                    <View style={{ alignItems:'center', marginVertical:4 }}>
+                        <View onStartShouldSetResponder={() => true}
+                            onResponderGrant={handleThrow}
+                            style={{ width:BOARD, height:BOARD, borderRadius:R, backgroundColor:'#0f172a', borderWidth:3, borderColor:'#334155', overflow:'hidden', position:'relative' }}>
+                            {/* Halkaları dıştan içe çiz */}
+                            {ZONE_PCTS.slice(0,-1).map((pct, i) => {
+                                const sz = BOARD * pct;
+                                const pos = (BOARD - sz) / 2;
+                                return (
+                                    <View key={i} style={{ position:'absolute', width:sz, height:sz, borderRadius:sz/2, backgroundColor:ZONE_COLORS[i], left:pos, top:pos }} />
+                                );
+                            })}
+                            {/* Çapraz çizgiler (dekoratif) */}
+                            <View style={{ position:'absolute', left:R-0.5, top:0, width:1, height:BOARD, backgroundColor:'#ffffff08' }} />
+                            <View style={{ position:'absolute', left:0, top:R-0.5, width:BOARD, height:1, backgroundColor:'#ffffff08' }} />
+                            <View style={{ position:'absolute', left:R-0.5, top:0, width:1, height:BOARD, backgroundColor:'#ffffff08', transform:[{rotate:'45deg'}] }} />
+                            <View style={{ position:'absolute', left:R-0.5, top:0, width:1, height:BOARD, backgroundColor:'#ffffff08', transform:[{rotate:'-45deg'}] }} />
+                            {/* Skor etiketleri */}
+                            <Text style={{ position:'absolute', left:R-16, top:6, color:'#fff', fontSize:9, fontWeight:'800', width:32, textAlign:'center' }}>20</Text>
+                            <Text style={{ position:'absolute', right:6, top:R-8, color:'#fff', fontSize:9, fontWeight:'800' }}>6</Text>
+                            <Text style={{ position:'absolute', left:R-8, bottom:6, color:'#fff', fontSize:9, fontWeight:'800' }}>3</Text>
+                            <Text style={{ position:'absolute', left:6, top:R-8, color:'#fff', fontSize:9, fontWeight:'800' }}>11</Text>
+                            {/* Dart'lar */}
+                            {throws.map((d, i) => (
+                                <Animated.View key={i} style={{
+                                    position:'absolute', left:d.x-6, top:d.y-6,
+                                    width:12, height:12, borderRadius:6,
+                                    backgroundColor: d.score >= 25 ? '#facc15' : d.score >= 10 ? '#a855f7' : '#6b7280',
+                                    borderWidth:2, borderColor:'#fff',
+                                    transform:[ i === throws.length-1 ? { scale: dartScale } : { scale: 1 } ],
+                                }}>
+                                    <View style={{ position:'absolute', top:3, left:3, width:4, height:4, borderRadius:2, backgroundColor:'#ffffff80' }} />
+                                </Animated.View>
+                            ))}
+                        </View>
+                    </View>
+
+                    {/* Alt bilgi */}
+                    <View style={{ paddingHorizontal:16, marginTop:10 }}>
+                        {/* Zone bilgileri */}
+                        <View style={{ flexDirection:'row', justifyContent:'center', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+                            {[{c:'#ef4444',l:'50'},{c:'#166534',l:'25'},{c:'#dc2626',l:'15'},{c:'#15803d',l:'10'},{c:'#1e293b',l:'5'},{c:'#374151',l:'1'}].map((z,i)=>(
+                                <View key={i} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                    <View style={{ width:8, height:8, borderRadius:4, backgroundColor:z.c }} />
+                                    <Text style={{ color:'#9ca3af', fontSize:10, fontWeight:'700' }}>{z.l}</Text>
+                                </View>
+                            ))}
+                        </View>
+                        {done ? (
+                            <TouchableOpacity onPress={reset} style={{ backgroundColor:color+'20', borderRadius:10, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:color+'50' }}>
+                                <Text style={{ color, fontWeight:'900', fontSize:14 }}>🔄 {tr ? 'Tekrar Oyna' : 'Play Again'}</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <Text style={{ color:'#4b5563', fontSize:11, textAlign:'center' }}>
+                                {tr ? `Tahtaya dokun — ${MAX_THROWS - throws.length} atış kaldı` : `Tap the board — ${MAX_THROWS - throws.length} throws left`}
+                            </Text>
+                        )}
+                    </View>
+                </View>
+            </View>
         </Modal>
     );
 }
