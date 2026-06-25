@@ -6010,6 +6010,49 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const [mediaShareType, setMediaShareType] = useState('POST'); // POST | STORY | REEL
     const [showMediaTypeSheet, setShowMediaTypeSheet] = useState(false);
+    const [shareMusic, setShareMusic] = useState(null);
+    const [musicSheetOpen, setMusicSheetOpen] = useState(false);
+    const [musicQuery, setMusicQuery] = useState('');
+    const [musicResults, setMusicResults] = useState([]);
+    const [searchingMusic, setSearchingMusic] = useState(false);
+    const musicTimer = useRef(null);
+    const [shareLocation, setShareLocation] = useState('');
+    const [gettingLocation, setGettingLocation] = useState(false);
+
+    const searchDeezer = (q) => {
+        setMusicQuery(q);
+        clearTimeout(musicTimer.current);
+        if (!q.trim()) { setMusicResults([]); return; }
+        musicTimer.current = setTimeout(async () => {
+            setSearchingMusic(true);
+            try {
+                const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=15&output=json`);
+                const json = await res.json();
+                setMusicResults(json.data || []);
+            } catch { setMusicResults([]); }
+            finally { setSearchingMusic(false); }
+        }, 500);
+    };
+
+    const selectTrack = (track) => {
+        setShareMusic({ title: track.title, artist: track.artist.name, coverUrl: track.album.cover_small, previewUrl: track.preview });
+        setMusicSheetOpen(false);
+        setMusicQuery('');
+        setMusicResults([]);
+    };
+
+    const getGpsLocation = async () => {
+        setGettingLocation(true);
+        try {
+            const perm = await Location.requestForegroundPermissionsAsync();
+            if (!perm.granted) { Alert.alert('', 'Konum izni gerekli'); return; }
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const [geo] = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+            const parts = [geo.district || geo.subregion, geo.city || geo.region, geo.country].filter(Boolean);
+            setShareLocation(parts.join(', '));
+        } catch { Alert.alert('', 'Konum alınamadı'); }
+        finally { setGettingLocation(false); }
+    };
 
     const pickMediaShare = async (type) => {
         setMediaShareType(type);
@@ -6033,6 +6076,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 type: mediaShareType === 'STORY' ? 'STORY' : 'POST',
                 content: mediaShareCaption || '',
                 ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
+                ...(shareMusic && { musicName: shareMusic.title, musicArtist: shareMusic.artist, musicCoverUrl: shareMusic.coverUrl, musicUrl: shareMusic.previewUrl }),
+                ...(shareLocation && { location: shareLocation }),
             });
             if (mediaShareType === 'STORY') {
                 const storyUserId = newPost.userId;
@@ -6051,6 +6096,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             setShowMediaShare(false);
             setMediaShareUri(null);
             setMediaShareCaption('');
+            setShareMusic(null);
+            setShareLocation('');
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setSubmittingMediaShare(false); }
     };
@@ -7435,8 +7482,33 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 onChangeText={setMediaShareCaption}
                                                 multiline
                                             />
+                                            {/* Müzik + Konum butonları */}
+                                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                                                <TouchableOpacity onPress={() => setMusicSheetOpen(true)}
+                                                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 10, backgroundColor: shareMusic ? '#7c3aed20' : colors.surface2, borderWidth: 1, borderColor: shareMusic ? '#7c3aed60' : colors.border }}>
+                                                    {shareMusic?.coverUrl
+                                                        ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 22, height: 22, borderRadius: 4 }} />
+                                                        : <Text style={{ fontSize: 16 }}>🎵</Text>}
+                                                    <Text style={{ color: shareMusic ? '#a78bfa' : colors.textMuted, fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                                                        {shareMusic ? `${shareMusic.title} – ${shareMusic.artist}` : 'Müzik Ekle'}
+                                                    </Text>
+                                                    {shareMusic && <TouchableOpacity onPress={() => setShareMusic(null)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 12 }}>✕</Text>
+                                                    </TouchableOpacity>}
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={getGpsLocation} disabled={gettingLocation}
+                                                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 10, backgroundColor: shareLocation ? '#16a34a20' : colors.surface2, borderWidth: 1, borderColor: shareLocation ? '#16a34a60' : colors.border }}>
+                                                    <Text style={{ fontSize: 14 }}>📍</Text>
+                                                    <Text style={{ color: shareLocation ? '#4ade80' : colors.textMuted, fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                                                        {gettingLocation ? 'Alınıyor...' : shareLocation || 'Konum Ekle'}
+                                                    </Text>
+                                                    {shareLocation && <TouchableOpacity onPress={() => setShareLocation('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 12 }}>✕</Text>
+                                                    </TouchableOpacity>}
+                                                </TouchableOpacity>
+                                            </View>
                                             <View style={{ flexDirection: 'row', gap: 8 }}>
-                                                <TouchableOpacity onPress={() => { setShowMediaShare(false); setMediaShareUri(null); setMediaShareCaption(''); }}
+                                                <TouchableOpacity onPress={() => { setShowMediaShare(false); setMediaShareUri(null); setMediaShareCaption(''); setShareMusic(null); setShareLocation(''); }}
                                                     style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
                                                     <Text style={{ color: colors.textMuted, fontWeight: '700' }}>İptal</Text>
                                                 </TouchableOpacity>
@@ -7445,6 +7517,46 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ color: '#fff', fontWeight: '900' }}>{submittingMediaShare ? 'Yükleniyor...' : 'Paylaş'}</Text>
                                                 </TouchableOpacity>
                                             </View>
+
+                                            {/* Müzik seçici sheet */}
+                                            <Modal visible={musicSheetOpen} animationType="slide" onRequestClose={() => setMusicSheetOpen(false)}>
+                                                <View style={{ flex: 1, backgroundColor: colors.bg }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, flex: 1 }}>🎵 Müzik Seç</Text>
+                                                        <TouchableOpacity onPress={() => setMusicSheetOpen(false)}>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                    <View style={{ margin: 12, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                                                        <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+                                                        <TextInput
+                                                            style={{ flex: 1, color: '#fff', fontSize: 14 }}
+                                                            placeholder="Şarkı veya sanatçı ara..."
+                                                            placeholderTextColor={colors.textMuted}
+                                                            value={musicQuery}
+                                                            onChangeText={searchDeezer}
+                                                            autoFocus
+                                                        />
+                                                        {searchingMusic && <ActivityIndicator size="small" color={cfg.color} />}
+                                                    </View>
+                                                    <ScrollView contentContainerStyle={{ padding: 12 }}>
+                                                        {musicResults.map(track => (
+                                                            <TouchableOpacity key={track.id} onPress={() => selectTrack(track)}
+                                                                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                                <Image source={{ uri: track.album.cover_small }} style={{ width: 44, height: 44, borderRadius: 6 }} />
+                                                                <View style={{ flex: 1 }}>
+                                                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{track.title}</Text>
+                                                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>{track.artist.name}</Text>
+                                                                </View>
+                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>Seç</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                        {!searchingMusic && musicQuery && musicResults.length === 0 && (
+                                                            <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 30 }}>Sonuç bulunamadı</Text>
+                                                        )}
+                                                    </ScrollView>
+                                                </View>
+                                            </Modal>
                                         </View>
                                     </View>
                                 </Modal>
