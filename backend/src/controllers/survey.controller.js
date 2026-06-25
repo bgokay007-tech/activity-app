@@ -2,17 +2,23 @@ import prisma from '../config/prisma.js';
 
 // Kullanıcının bu sporda birlikte maç yaptığı kişileri kontrol et
 async function hasPlayedTogether(userId, subjectId, subCategory) {
-    const match = await prisma.activityRequest.findFirst({
-        where: {
-            subCategory,
-            status: 'COMPLETED',
-            OR: [
-                { senderId: userId,   participants: { path: '$[*].id', array_contains: subjectId } },
-                { senderId: subjectId, participants: { path: '$[*].id', array_contains: userId } },
-            ],
-        },
-    });
-    return !!match;
+    // PostgreSQL JSONB @> operatörü ile participants içinde id kontrolü
+    const result = await prisma.$queryRaw`
+        SELECT id FROM "ActivityRequest"
+        WHERE "subCategory" = ${subCategory}
+          AND status = 'COMPLETED'
+          AND (
+            ("senderId" = ${userId}     AND participants::jsonb @> ${JSON.stringify([{ id: subjectId }])}::jsonb)
+            OR
+            ("senderId" = ${subjectId}  AND participants::jsonb @> ${JSON.stringify([{ id: userId }])}::jsonb)
+            OR
+            ("senderId" = ${userId}     AND "receiverId" = ${subjectId})
+            OR
+            ("senderId" = ${subjectId}  AND "receiverId" = ${userId})
+          )
+        LIMIT 1
+    `;
+    return result.length > 0;
 }
 
 // GET /survey/:subjectId/:subCategory
