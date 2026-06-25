@@ -6126,7 +6126,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         );
     };
 
-    const CompactFilter = ({ showDateChips = true }) => (
+    const CompactFilter = ({ showDateChips = true, showNearMe = true }) => (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 2, paddingVertical: 2 }}>
             <TouchableOpacity
                 onPress={() => setShowCityFilter(true)}
@@ -6142,7 +6142,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
                 }
             </TouchableOpacity>
-            <TouchableOpacity
+            {showNearMe && <TouchableOpacity
                 onPress={handleNearMe}
                 disabled={locationLoading}
                 style={{ backgroundColor:cfg.color+'15', borderRadius:7, paddingVertical:5, paddingHorizontal:8, borderWidth:1, borderColor:cfg.color+'30' }}
@@ -6151,7 +6151,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:30 }} />
                     : <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{t.nearMeBtn}</Text>
                 }
-            </TouchableOpacity>
+            </TouchableOpacity>}
             {showDateChips && [['all',t.allFilter],['today',t.todayFilter],['week',t.weekFilter]].map(([val, label]) => (
                 <TouchableOpacity
                     key={val}
@@ -6393,7 +6393,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Kompakt filtre + bildirim butonu */}
                             <CityAlertRow tab="equipment">
                                 <View style={{ flex:1 }}>
-                                    <CompactFilter showDateChips={false} />
+                                    <CompactFilter showDateChips={false} showNearMe={false} />
                                 </View>
                             </CityAlertRow>
                             {/* Durum filtresi */}
