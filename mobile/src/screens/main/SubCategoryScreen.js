@@ -6094,27 +6094,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         const cities = tabSubCities[tab] || [];
         const active = cities.length > 0;
         const isLoading = cityAlertLoading === tab;
-        const desc = cityAlertDesc[tab] || '';
-
-        const handlePress = () => {
-            if (isLoading) return;
-            if (!active) {
-                Alert.alert(
-                    active ? (lang === 'tr' ? '🔕 Bildirimi Kapat' : '🔕 Disable Notification') : (lang === 'tr' ? '🔔 Bildirimi Aç' : '🔔 Enable Notification'),
-                    desc,
-                    [
-                        { text: lang === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
-                        { text: lang === 'tr' ? 'Aç' : 'Enable', onPress: () => quickToggleTab(tab) },
-                    ]
-                );
-            } else {
-                quickToggleTab(tab);
-            }
-        };
-
         return (
             <TouchableOpacity
-                onPress={handlePress}
+                onPress={() => isLoading ? null : quickToggleTab(tab)}
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
@@ -6128,6 +6110,21 @@ export default function SubCategoryScreen({ route, navigation }) {
                       </>
                 }
             </TouchableOpacity>
+        );
+    };
+
+    const CityAlertRow = ({ tab, children }) => {
+        const cities = tabSubCities[tab] || [];
+        const active = cities.length > 0;
+        const desc = cityAlertDesc[tab] || '';
+        return (
+            <View style={{ marginBottom:8, gap:5 }}>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                    {children}
+                    <CityAlertBtn tab={tab} />
+                </View>
+                <Text style={{ color: active ? cfg.color : '#6b7280', fontSize:10, lineHeight:14 }}>{desc}</Text>
+            </View>
         );
     };
 
@@ -6246,12 +6243,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'rivals' && (
                         <>
                             {/* İlan oluştur + bildirim butonu yan yana */}
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:8 }}>
+                            <CityAlertRow tab="rivals">
                                 <TouchableOpacity style={[s.createBtn, { flex:1, marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createAdBtn}</Text>
                                 </TouchableOpacity>
-                                <CityAlertBtn tab="rivals" />
-                            </View>
+                            </CityAlertRow>
 
                             {/* Kompakt tek satır filtre */}
                             <CompactFilter showDateChips={true} />
@@ -6333,7 +6329,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         );
                         return (
                             <>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
+                                <CityAlertRow tab="tournaments">
                                     <TouchableOpacity
                                         style={[s.createBtn, { flex:1, marginBottom:0, borderColor: cfg.color + '60' }]}
                                         onPress={() => {
@@ -6343,8 +6339,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     >
                                         <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
                                     </TouchableOpacity>
-                                    <CityAlertBtn tab="tournaments" />
-                                </View>
+                                </CityAlertRow>
 
                                 {/* Sub-tab: Açık İlanlar / Devam Eden */}
                                 <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
@@ -6398,12 +6393,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                         return (
                         <View>
                             {/* Kompakt filtre + bildirim butonu */}
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
+                            <CityAlertRow tab="equipment">
                                 <View style={{ flex:1 }}>
                                     <CompactFilter showDateChips={false} />
                                 </View>
-                                <CityAlertBtn tab="equipment" />
-                            </View>
+                            </CityAlertRow>
                             {/* Durum filtresi */}
                             <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
                                 {['ALL','NEW','USED'].map(c => (
@@ -6609,7 +6603,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         const shown = coachSubTab === 'cvs' ? coachesWithCv : filteredCoaches;
                         return (
                         <>
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
+                            <CityAlertRow tab="coaches">
                                 <TouchableOpacity
                                     style={[s.createBtn, { flex:1, marginBottom:0, borderColor: cfg.color + '60' }]}
                                     onPress={() => setShowCreateCoach(true)}>
@@ -6625,8 +6619,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     }}>
                                     <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1}>📄 CV Yükle</Text>
                                 </TouchableOpacity>
-                                <CityAlertBtn tab="coaches" />
-                            </View>
+                            </CityAlertRow>
 
                             <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
                                 {[
