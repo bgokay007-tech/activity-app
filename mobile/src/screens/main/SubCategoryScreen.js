@@ -6392,9 +6392,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View>
                             {/* Kompakt filtre + bildirim butonu */}
                             <CityAlertRow tab="equipment">
-                                <View style={{ flex:1 }}>
-                                    <CompactFilter showDateChips={false} showNearMe={false} />
-                                </View>
+                                <CompactFilter showDateChips={false} showNearMe={false} />
                             </CityAlertRow>
                             {/* Durum filtresi */}
                             <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
