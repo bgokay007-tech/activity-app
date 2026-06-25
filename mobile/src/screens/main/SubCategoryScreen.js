@@ -6105,8 +6105,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 {isLoading
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
                     : <>
-                        <Text style={{ fontSize:16 }}>{active ? '🔔' : '🔕'}</Text>
-                        {active && <Text style={{ color:cfg.color, fontSize:9, fontWeight:'800', marginTop:1 }}>{cities.length} il</Text>}
+                        <Text style={{ fontSize:11 }}>{active ? '🔔' : '🔕'}</Text>
+                        {active && <Text style={{ color:cfg.color, fontSize:8, fontWeight:'800' }}>{cities.length} il</Text>}
                       </>
                 }
             </TouchableOpacity>
