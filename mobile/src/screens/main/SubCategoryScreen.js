@@ -2269,7 +2269,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         manualCourtName: '', manualCity: '', manualAddress: '',
         surface: '', venueType: '', courtReserved: false,
         courtFeePerPerson: '',
-        courtMutual: false,
         message: '',
         minRating: '', maxRating: '',
     };
@@ -2343,7 +2342,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                 matchDate: f.flexibleSchedule ? undefined : matchDateStr,
                 matchTime: f.flexibleSchedule ? undefined : f.matchTime || undefined,
                 duration:  f.flexibleSchedule ? undefined : f.duration,
-                courtName: f.courtMutual ? undefined : (f.selectedCourt?.name || (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined),
+                courtName: f.selectedCourt?.name || (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
                 courtId:   f.selectedCourt?.id || undefined,
                 location:  f.selectedCourt?.city || f.manualCity || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
@@ -2560,35 +2559,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         onClose={() => set('showDurationPicker', false)}
                                     />
 
-                                    {/* Kort / Yer kararı */}
+                                    {/* Kort Ara */}
                                     <Text style={s.fieldLabel}>{t.courtLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
-                                        <TouchableOpacity
-                                            onPress={() => set('courtMutual', false)}
-                                            style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6, backgroundColor: !f.courtMutual ? cfg.color+'20' : '#ffffff08', borderRadius:8, paddingVertical:8, paddingHorizontal:10, borderWidth:1, borderColor: !f.courtMutual ? cfg.color : '#ffffff15' }}
-                                        >
-                                            <View style={{ width:14, height:14, borderRadius:7, borderWidth:2, borderColor: !f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
-                                                {!f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
-                                            </View>
-                                            <Text style={{ color: !f.courtMutual ? cfg.color : '#6b7280', fontSize:11, fontWeight:'700', flex:1 }}>
-                                                {t.courtSpecifyBtn || 'Kort / Tesis Belirt'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            onPress={() => set('courtMutual', true)}
-                                            style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6, backgroundColor: f.courtMutual ? cfg.color+'20' : '#ffffff08', borderRadius:8, paddingVertical:8, paddingHorizontal:10, borderWidth:1, borderColor: f.courtMutual ? cfg.color : '#ffffff15' }}
-                                        >
-                                            <View style={{ width:14, height:14, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
-                                                {f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
-                                            </View>
-                                            <Text style={{ color: f.courtMutual ? cfg.color : '#6b7280', fontSize:11, fontWeight:'700', flex:1 }}>
-                                                {t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    {/* Kort detayları - ortaklaşa seçilmediyse */}
-                                    {!f.courtMutual && <>
                                     <View style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
                                         <TextInput
                                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}
@@ -2675,7 +2647,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                     )}
 
                                     {/* Kort Zemini */}
-                                    {!f.courtMutual && <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>}
+                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
                                     <View style={s.chipRow}>
                                         {courtSurfaces.map(sf => (
                                             <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
@@ -2705,7 +2677,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
                                         </TouchableOpacity>
                                     </View>
-                                    </>}
 
                                 </>
                             )}
@@ -5534,6 +5505,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         achievements: '', individual: true, group: false,
         priceIndividual: '', priceGroup: '', maxGroupSize: '4',
         location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+        locationMutual: false,
     });
     const [coachCertImage, setCoachCertImage] = useState(null);
     const [coachCvImage, setCoachCvImage] = useState(null);
@@ -5838,7 +5810,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const submitCoach = async () => {
-        if (!coachForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
+        if (!coachForm.locationMutual && !coachForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
         setSubmittingCoach(true);
         try {
             setUploadingCoachMedia(true);
@@ -6799,7 +6771,23 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     )}
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginTop:6, marginBottom:6 }}>Yer / Zaman</Text>
-                                    <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                    <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                        {[
+                                            { val: false, label: t.courtSpecifyBtn || 'Kort / Tesis Belirt' },
+                                            { val: true,  label: t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır' },
+                                        ].map(({ val, label }) => (
+                                            <TouchableOpacity key={String(val)}
+                                                onPress={() => setCoachForm(f => ({ ...f, locationMutual: val }))}
+                                                style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6, backgroundColor: coachForm.locationMutual===val ? cfg.color+'20' : '#ffffff08', borderRadius:8, paddingVertical:7, paddingHorizontal:8, borderWidth:1, borderColor: coachForm.locationMutual===val ? cfg.color : '#ffffff15' }}
+                                            >
+                                                <View style={{ width:12, height:12, borderRadius:6, borderWidth:2, borderColor: coachForm.locationMutual===val ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
+                                                    {coachForm.locationMutual===val && <View style={{ width:5, height:5, borderRadius:3, backgroundColor: cfg.color }} />}
+                                                </View>
+                                                <Text style={{ color: coachForm.locationMutual===val ? cfg.color : '#6b7280', fontSize:10, fontWeight:'700', flex:1 }}>{label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    {!coachForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
                                     <TextInput placeholder="Şehir" placeholderTextColor={colors.textMuted} value={coachForm.city} onChangeText={v => setCoachForm(f=>({...f,city:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                     <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
                                         <TextInput placeholder="Başlangıç saati (09:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeFrom} onChangeText={v => setCoachForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
