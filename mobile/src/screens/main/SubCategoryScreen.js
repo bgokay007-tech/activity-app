@@ -5500,6 +5500,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [matchedUpcoming, setMatchedUpcoming] = useState([]);
     const [textPosts, setTextPosts] = useState([]);
     const [mediaPosts, setMediaPosts] = useState([]);
+    const [mediaStories, setMediaStories] = useState([]);
+    const [storyViewer, setStoryViewer] = useState({ visible: false, userIdx: 0, storyIdx: 0 });
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
     const [mediaLiked, setMediaLiked] = useState({});
     const [mediaLikeCounts, setMediaLikeCounts] = useState({});
@@ -5662,11 +5664,12 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const load = useCallback(async () => {
         try {
-            const [rvRes, pwRes, postsRes, mediaRes, upcomingRes, pendingRes] = await Promise.all([
+            const [rvRes, pwRes, postsRes, mediaRes, storiesRes, upcomingRes, pendingRes] = await Promise.all([
                 api.get(`/rivals?category=${category}&subCategory=${sub}`),
                 api.get(`/rivals?category=${category}&subCategory=${sub}&matchType=PLAYER_WANTED`).catch(() => ({ data:[] })),
                 api.get(`/posts?category=${category}&subCategory=${sub}&communityOnly=true&limit=30`).catch(() => ({ data:[] })),
                 api.get(`/posts?category=${category}&subCategory=${sub}&mediaOnly=true&limit=50`).catch(() => ({ data:[] })),
+                api.get(`/posts?category=${category}&subCategory=${sub}&type=STORY&limit=100`).catch(() => ({ data:[] })),
                 api.get(`/rivals/upcoming?category=${category}&subCategory=${sub}`).catch(() => ({ data:[] })),
                 api.get(`/rivals/completed?category=${category}&subCategory=${sub}`).catch(() => ({ data:[] })),
             ]);
@@ -5684,7 +5687,14 @@ export default function SubCategoryScreen({ route, navigation }) {
 
             const allPosts = Array.isArray(postsRes.data) ? postsRes.data : [];
             setTextPosts(allPosts.filter(p => p.type === 'POST' && !p.imageUrl && !p.videoUrl));
-            setMediaPosts(Array.isArray(mediaRes.data) ? mediaRes.data : []);
+            setMediaPosts((Array.isArray(mediaRes.data) ? mediaRes.data : []).filter(p => p.type !== 'STORY'));
+
+            const storyMap = {};
+            (Array.isArray(storiesRes.data) ? storiesRes.data : []).forEach(s => {
+                if (!storyMap[s.userId]) storyMap[s.userId] = { user: s.user, stories: [] };
+                storyMap[s.userId].stories.push(s);
+            });
+            setMediaStories(Object.values(storyMap));
 
             if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
                 const found = openRivals.find(r => r.id === highlightRivalId)
@@ -7240,6 +7250,23 @@ export default function SubCategoryScreen({ route, navigation }) {
                         });
                         return (
                             <>
+                                {/* Hikayeler satırı */}
+                                {mediaStories.length > 0 && (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                                        {mediaStories.map((group, i) => (
+                                            <TouchableOpacity key={group.user?.id || i}
+                                                onPress={() => setStoryViewer({ visible: true, userIdx: i, storyIdx: 0 })}
+                                                style={{ alignItems: 'center', marginRight: 14 }}>
+                                                <View style={{ width: 62, height: 62, borderRadius: 31, borderWidth: 2.5, borderColor: cfg.color, padding: 2, backgroundColor: colors.surface2 }}>
+                                                    <Avatar name={group.user?.username} size={54} color={cfg.color} />
+                                                </View>
+                                                <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4, maxWidth: 62, textAlign: 'center' }} numberOfLines={1}>
+                                                    @{group.user?.username}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                )}
                                 {/* Filtreler + paylaş */}
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
                                     <TextInput
@@ -7283,6 +7310,71 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ))}
                                       </View>
                                 }
+                                {/* Hikaye görüntüleyici */}
+                                <Modal visible={storyViewer.visible} animationType="fade" statusBarTranslucent onRequestClose={() => setStoryViewer(v => ({ ...v, visible: false }))}>
+                                    {storyViewer.visible && (() => {
+                                        const group = mediaStories[storyViewer.userIdx];
+                                        if (!group) return null;
+                                        const story = group.stories[storyViewer.storyIdx];
+                                        if (!story) return null;
+
+                                        const goNext = () => {
+                                            if (storyViewer.storyIdx < group.stories.length - 1) {
+                                                setStoryViewer(v => ({ ...v, storyIdx: v.storyIdx + 1 }));
+                                            } else if (storyViewer.userIdx < mediaStories.length - 1) {
+                                                setStoryViewer(v => ({ ...v, userIdx: v.userIdx + 1, storyIdx: 0 }));
+                                            } else {
+                                                setStoryViewer(v => ({ ...v, visible: false }));
+                                            }
+                                        };
+                                        const goPrev = () => {
+                                            if (storyViewer.storyIdx > 0) {
+                                                setStoryViewer(v => ({ ...v, storyIdx: v.storyIdx - 1 }));
+                                            } else if (storyViewer.userIdx > 0) {
+                                                const prevUserIdx = storyViewer.userIdx - 1;
+                                                setStoryViewer(v => ({ ...v, userIdx: prevUserIdx, storyIdx: mediaStories[prevUserIdx].stories.length - 1 }));
+                                            }
+                                        };
+
+                                        return (
+                                            <View style={{ flex: 1, backgroundColor: '#000' }}>
+                                                {/* Progress bars */}
+                                                <View style={{ flexDirection: 'row', gap: 3, paddingHorizontal: 12, paddingTop: 52, paddingBottom: 8 }}>
+                                                    {group.stories.map((_, i) => (
+                                                        <View key={i} style={{ flex: 1, height: 2.5, borderRadius: 2, backgroundColor: i < storyViewer.storyIdx ? '#fff' : i === storyViewer.storyIdx ? cfg.color : '#ffffff30' }} />
+                                                    ))}
+                                                </View>
+                                                {/* Header */}
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 8 }}>
+                                                    <View style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden', borderWidth: 2, borderColor: cfg.color }}>
+                                                        <Avatar name={group.user?.username} size={32} color={cfg.color} />
+                                                    </View>
+                                                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13, marginLeft: 8, flex: 1 }}>@{group.user?.username}</Text>
+                                                    <TouchableOpacity onPress={() => setStoryViewer(v => ({ ...v, visible: false }))} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }}>✕</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                                {/* Görüntü */}
+                                                <View style={{ flex: 1, position: 'relative' }}>
+                                                    {story.imageUrl
+                                                        ? <Image source={{ uri: story.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                                        : <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text></View>
+                                                    }
+                                                    {/* Dokunma bölgeleri */}
+                                                    <TouchableOpacity style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '35%' }} onPress={goPrev} activeOpacity={1} />
+                                                    <TouchableOpacity style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '65%' }} onPress={goNext} activeOpacity={1} />
+                                                </View>
+                                                {/* Altyazı */}
+                                                {!!story.content && (
+                                                    <View style={{ padding: 16, paddingBottom: 40, backgroundColor: '#00000060' }}>
+                                                        <Text style={{ color: '#fff', fontSize: 14, lineHeight: 20 }}>{story.content}</Text>
+                                                    </View>
+                                                )}
+                                            </View>
+                                        );
+                                    })()}
+                                </Modal>
+
                                 {/* Medya paylaş modal */}
                                 <Modal visible={showMediaShare} animationType="slide" transparent onRequestClose={() => setShowMediaShare(false)}>
                                     <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
