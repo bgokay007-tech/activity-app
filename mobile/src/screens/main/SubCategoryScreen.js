@@ -7402,7 +7402,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {[
                                                 { type: 'POST',  emoji: '🖼️', label: 'Gönderi',  desc: 'Fotoğraf veya video paylaş' },
                                                 { type: 'STORY', emoji: '⭕', label: 'Hikaye',   desc: '24 saat sonra kaybolur' },
-                                                { type: 'REEL',  emoji: '🎬', label: 'Reels',    desc: 'Kısa video paylaş' },
+                                                { type: 'REEL',  emoji: '🎬', label: lang === 'tr' ? 'Film Rulosu' : 'Reels', desc: lang === 'tr' ? 'Kısa video paylaş' : 'Share a short video' },
                                             ].map(opt => (
                                                 <TouchableOpacity key={opt.type} onPress={() => pickMediaShare(opt.type)}
                                                     style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -7422,7 +7422,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
                                         <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
                                             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>
-                                                {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? '🎬 Reels Paylaş' : '🖼️ Gönderi Paylaş'}
+                                                {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
                                             </Text>
                                             {mediaShareUri && (
                                                 <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 12 }} resizeMode="cover" />
