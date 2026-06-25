@@ -6,7 +6,7 @@ import { getRelation, canAccess } from '../utils/privacy.js';
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const POST_INCLUDE = (userId) => ({
-    user: { select: { id: true, username: true, fullName: true, avatar: true } },
+    user: { select: { id: true, username: true, fullName: true, avatar: true, city: true } },
     likes: { where: { userId }, select: { id: true } },
     _count: { select: { likes: true, comments: true } },
 });
