@@ -311,9 +311,11 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     <TouchableOpacity style={fc.actionBtn}>
                                         <Text style={[fc.actionTxt, { color: '#38bdf8' }]}>🎯 {lang==='tr' ? 'Hedefler' : 'Goals'}</Text>
                                     </TouchableOpacity>
-                                    {anketAverages && (
-                                        <TouchableOpacity style={fc.actionBtn} onPress={() => setShowAnketModal(true)}>
-                                            <Text style={[fc.actionTxt, { color: '#c084fc' }]}>📊 {lang==='tr' ? 'Anket Ortalaması' : 'Survey Avg'}</Text>
+                                    {surveyLoaded && (
+                                        <TouchableOpacity style={fc.actionBtn} onPress={() => anketAverages ? setShowAnketModal(true) : null}>
+                                            <Text style={[fc.actionTxt, { color: anketAverages ? '#c084fc' : '#6b7280' }]}>
+                                                📊 {anketAverages ? (lang==='tr' ? 'Anket Ortalaması' : 'Survey Avg') : (lang==='tr' ? 'Henüz Anket Yok' : 'No Survey Yet')}
+                                            </Text>
                                         </TouchableOpacity>
                                     )}
                                 </View>
@@ -333,7 +335,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             )}
 
                             {/* ── Sporcu Anketi (küçük) ── */}
-                            {(canRate || (anketScores.stres > 0)) && (
+                            {(!isOwnProfile || canRate || anketScores.stres > 0) && (
                                 <View style={fc.anketSection}>
                                     <Text style={fc.anketSectionTitle}>📋 {lang === 'tr' ? 'Sporcu Anketi' : 'Player Survey'}</Text>
                                     {[
