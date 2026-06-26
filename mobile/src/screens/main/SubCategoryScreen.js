@@ -6169,7 +6169,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         setArchiveModalTab('details');
         setArchiveModalLoading(true);
         api.get(`/tournaments/${selectedArchiveTournament.id}/matches`)
-            .then(res => setArchiveModalMatches(Array.isArray(res.data) ? res.data : []))
+            .then(res => setArchiveModalMatches(Array.isArray(res.data?.matches) ? res.data.matches : []))
             .catch(() => setArchiveModalMatches([]))
             .finally(() => setArchiveModalLoading(false));
     }, [selectedArchiveTournament?.id]);
