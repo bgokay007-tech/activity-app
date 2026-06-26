@@ -207,50 +207,12 @@ function computeStandings(players, matches, tournamentType) {
     });
 }
 
-/** Bireysel Rekabetçi (type '1'): DB'den güncel ELO alarak sonraki GROUP turunu oluşturur.
- *  Daha önce eşleşmiş çiftleri tekrar eşleştirmez. Deadline = eventDate + round*7 gün.
- */
-async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
-    // 1. turdaki oyuncu ID'lerini al — sonradan eklenen katılımcılar dahil edilmez
-    const round1Matches = await prisma.tournamentMatch.findMany({
-        where: { tournamentId: tournament.id, phase: 'GROUP', round: 1 },
-        select: { p1Id: true, p2Id: true },
-    });
-    const originalPlayerIds = new Set();
-    round1Matches.forEach(m => {
-        if (m.p1Id) originalPlayerIds.add(m.p1Id);
-        if (m.p2Id) originalPlayerIds.add(m.p2Id);
-    });
-
-    const participants = await prisma.tournamentParticipant.findMany({
-        where: { tournamentId: tournament.id, status: 'ACCEPTED', userId: { in: [...originalPlayerIds] } },
-        include: {
-            user: {
-                select: {
-                    id: true, username: true, fullName: true,
-                    interests: {
-                        where: { category: tournament.category, subCategory: tournament.subCategory },
-                        select: { skillRating: true },
-                    },
-                },
-            },
-        },
-    });
-
-    const players = participants
-        .filter(p => p.userId && p.user)
-        .map(p => ({
-            id: p.userId,
-            fullName: p.user.fullName || null,
-            username: p.user.username || null,
-            skillRating: p.user.interests?.[0]?.skillRating || 0,
-        }));
-
+/** Pairs candidates by closest skillRating, never repeating a pair already in playedPairKeys. */
+function pairByClosestElo(players, playedPairKeys) {
     const sorted = [...players].sort((a, b) => (a.skillRating || 0) - (b.skillRating || 0));
     const played = new Set(playedPairKeys);
     const unmatched = new Set(sorted.map(p => p.id));
     const roundPairs = [];
-
     for (const player of sorted) {
         if (!unmatched.has(player.id)) continue;
         const candidates = sorted
@@ -267,6 +229,69 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
             break;
         }
     }
+    return roundPairs;
+}
+
+async function getCurrentPlayerRatings(tournament, userIds) {
+    const participants = await prisma.tournamentParticipant.findMany({
+        where: { tournamentId: tournament.id, status: 'ACCEPTED', userId: { in: userIds } },
+        include: {
+            user: {
+                select: {
+                    id: true, username: true, fullName: true,
+                    interests: {
+                        where: { category: tournament.category, subCategory: tournament.subCategory },
+                        select: { skillRating: true },
+                    },
+                },
+            },
+        },
+    });
+    return participants.filter(p => p.userId && p.user).map(p => ({
+        id: p.userId,
+        fullName: p.user.fullName || null,
+        username: p.user.username || null,
+        skillRating: p.user.interests?.[0]?.skillRating || 0,
+    }));
+}
+
+// Çiftler Rekabetçi (type '2'): takımın güncel ortalama ELO'su — üyelerin o anki skillRating'inden hesaplanır.
+async function getCurrentTeamRatings(tournament, teamIds) {
+    const teams = await prisma.tournamentTeam.findMany({ where: { id: { in: teamIds } } });
+    const memberIds = [...new Set(teams.flatMap(t => [t.player1Id, t.player2Id]))];
+    const interests = await prisma.userInterest.findMany({
+        where: { userId: { in: memberIds }, category: tournament.category, subCategory: tournament.subCategory },
+    });
+    const ratingOf = (uid) => interests.find(i => i.userId === uid)?.skillRating || 0;
+    return teams.map(t => ({
+        id: t.id,
+        fullName: `${t.player1Name} & ${t.player2Name}`,
+        username: `${t.player1Name} & ${t.player2Name}`,
+        skillRating: (ratingOf(t.player1Id) + ratingOf(t.player2Id)) / 2,
+    }));
+}
+
+/** Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): DB'den güncel ELO
+ *  alarak sonraki GROUP turunu oluşturur. Daha önce eşleşmiş çiftleri/takımları tekrar
+ *  eşleştirmez. Deadline = eventDate + round*7 gün.
+ */
+async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
+    // 1. turdaki taraf ID'lerini al — sonradan eklenen katılımcılar/takımlar dahil edilmez
+    const round1Matches = await prisma.tournamentMatch.findMany({
+        where: { tournamentId: tournament.id, phase: 'GROUP', round: 1 },
+        select: { p1Id: true, p2Id: true },
+    });
+    const originalIds = new Set();
+    round1Matches.forEach(m => {
+        if (m.p1Id) originalIds.add(m.p1Id);
+        if (m.p2Id) originalIds.add(m.p2Id);
+    });
+
+    const players = tournament.type === '2'
+        ? await getCurrentTeamRatings(tournament, [...originalIds])
+        : await getCurrentPlayerRatings(tournament, [...originalIds]);
+
+    const roundPairs = pairByClosestElo(players, playedPairKeys);
 
     const baseDate = tournamentBaseDate(tournament);
     const deadline = new Date(baseDate);
@@ -284,6 +309,50 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
         status: 'PENDING',
         deadline,
     }));
+}
+
+// Çiftler Rekabetçi (type '2'): kabul edilmiş katılımcılardan takım oluşturur.
+// Önce karşılıklı partner seçimi yapanları eşler, kalan bireysel başvuranları ELO'ya
+// göre en yakın olandan başlayarak ikişerli gruplar.
+async function formTeamsForTournament(tournament, mainList) {
+    const byUserId = new Map(mainList.filter(p => p.userId).map(p => [p.userId, p]));
+    const ratingOf = (p) => p.user?.interests?.[0]?.skillRating || 0;
+    const nameOf   = (p) => p.user?.fullName || p.user?.username || 'Oyuncu';
+    const paired = new Set();
+    const teamsData = [];
+
+    for (const p of mainList) {
+        if (!p.userId || paired.has(p.userId) || !p.partnerId) continue;
+        const partner = byUserId.get(p.partnerId);
+        if (partner && partner.partnerId === p.userId && !paired.has(partner.userId)) {
+            paired.add(p.userId); paired.add(partner.userId);
+            teamsData.push({
+                tournamentId: tournament.id,
+                player1Id: p.userId, player1Name: nameOf(p),
+                player2Id: partner.userId, player2Name: nameOf(partner),
+                avgRating: (ratingOf(p) + ratingOf(partner)) / 2,
+            });
+        }
+    }
+
+    const solo = mainList
+        .filter(p => p.userId && !paired.has(p.userId))
+        .map(p => ({ userId: p.userId, name: nameOf(p), rating: ratingOf(p) }))
+        .sort((a, b) => a.rating - b.rating);
+
+    if (solo.length % 2 !== 0) {
+        throw Object.assign(new Error('Tek sayıda eşleşmemiş oyuncu var, takım sayısı çift olmalı. Bir oyuncu daha bekleniyor veya bir partner eşleşmesi eksik.'), { status: 400 });
+    }
+    for (let i = 0; i < solo.length; i += 2) {
+        teamsData.push({
+            tournamentId: tournament.id,
+            player1Id: solo[i].userId,   player1Name: solo[i].name,
+            player2Id: solo[i + 1].userId, player2Name: solo[i + 1].name,
+            avgRating: (solo[i].rating + solo[i + 1].rating) / 2,
+        });
+    }
+
+    return teamsData;
 }
 
 export const fixGroupDeadlines = async (req, res, next) => {
@@ -505,10 +574,22 @@ export const getTournaments = async (req, res, next) => {
 export const joinTournament = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { note } = req.body;
+        const { note, partnerId } = req.body;
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+        if (partnerId) {
+            if (tournament.type !== '2') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi turnuvalarda mümkün' });
+            if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
+            const partnerInterest = await prisma.userInterest.findUnique({
+                where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
+                select: { assessmentCompleted: true },
+            });
+            if (!partnerInterest?.assessmentCompleted) {
+                return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
+            }
+        }
 
         const myInterest = await prisma.userInterest.findUnique({
             where: { userId_category_subCategory: { userId: req.userId, category: tournament.category, subCategory: tournament.subCategory } },
@@ -573,7 +654,7 @@ export const joinTournament = async (req, res, next) => {
         if (existing) return res.status(400).json({ message: 'You already sent a join request' });
 
         const participant = await prisma.tournamentParticipant.create({
-            data: { tournamentId: id, userId: req.userId, note, status: "PENDING", acceptedAt: null },
+            data: { tournamentId: id, userId: req.userId, partnerId: partnerId || null, note, status: "PENDING", acceptedAt: null },
             include: {
                 user: {
                     select: {
@@ -595,6 +676,23 @@ export const joinTournament = async (req, res, next) => {
             `${participant.user?.fullName || participant.user?.username} "${tournament.name}" turnuvasına katılmak istiyor.`,
             { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
         ).catch(() => {});
+
+        if (partnerId) {
+            // Partner zaten karşılıktan başvurduysa (mutual), ikisine de eşleştiklerini bildir
+            const partnerParticipant = await prisma.tournamentParticipant.findUnique({
+                where: { tournamentId_userId: { tournamentId: id, userId: partnerId } },
+            });
+            const mutual = partnerParticipant?.partnerId === req.userId;
+            createNotification(
+                partnerId,
+                'TOURNAMENT_JOIN',
+                mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
+                mutual
+                    ? `"${tournament.name}" turnuvasında çift olarak eşleştiniz, organizatör onayı bekleniyor.`
+                    : `${participant.user?.fullName || participant.user?.username} sizi "${tournament.name}" turnuvasında çift partneri olarak seçti. Aynı turnuvaya onu partner göstererek başvurursanız çift olarak eşleşirsiniz.`,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+        }
 
         res.status(201).json(participant);
     } catch (e) { next(e); }
@@ -1141,11 +1239,24 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         deadline.setDate(deadline.getDate() + 7);
         matches = matches.map(m => ({ ...m, deadline }));
     } else if (tournament.type === '2') {
-        // Tek eleme
-        const playoffPlayers = mmType === 'RANDOM'
-            ? shuffle(players)
-            : [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
-        matches = singleElimMatches(playoffPlayers, id, 1, 'PLAYOFF');
+        // Çiftler Rekabetçi: önce takımları oluştur (partner eşleşenler + ELO'ya göre
+        // otomatik eşleşen bireysel başvurular), sonra takımlar arası sadece round 1
+        // oluştur — sonraki turlar Bireysel Rekabetçi gibi dinamik üretilir.
+        const teamsData = await formTeamsForTournament(tournament, mainList);
+        if (teamsData.length < 2) {
+            throw Object.assign(new Error('Çiftler Rekabetçi turnuvası için en az 2 takım (4 oyuncu) gerekli.'), { status: 400 });
+        }
+        const createdTeams = await prisma.$transaction(teamsData.map(td => prisma.tournamentTeam.create({ data: td })));
+        const teamPlayers = createdTeams.map(t => ({
+            id: t.id,
+            fullName: `${t.player1Name} & ${t.player2Name}`,
+            username: `${t.player1Name} & ${t.player2Name}`,
+            skillRating: t.avgRating,
+        }));
+        matches = eloBasedMatches(teamPlayers, id, 1);
+        const deadline = new Date(baseDate);
+        deadline.setDate(deadline.getDate() + 7);
+        matches = matches.map(m => ({ ...m, deadline }));
     } else {
         // Diğer türler
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
@@ -1327,8 +1438,23 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
         if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Match not found' });
 
+        // Çiftler Rekabetçi (type '2'): p1Id/p2Id bir takım id'sidir, kullanıcı değil —
+        // her tarafın 1 veya 2 üye kullanıcı id'sine çözülür.
+        const isTeamTournament = tournament.type === '2';
+        let p1Members = [match.p1Id].filter(Boolean);
+        let p2Members = [match.p2Id].filter(Boolean);
+        if (isTeamTournament) {
+            const teams = await prisma.tournamentTeam.findMany({ where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } } });
+            const t1 = teams.find(t => t.id === match.p1Id);
+            const t2 = teams.find(t => t.id === match.p2Id);
+            if (t1) p1Members = [t1.player1Id, t1.player2Id];
+            if (t2) p2Members = [t2.player1Id, t2.player2Id];
+        }
+
         const isCreator = tournament.creatorId === req.userId;
-        const isPlayer = match.p1Id === req.userId || match.p2Id === req.userId;
+        const isPlayer = isTeamTournament
+            ? (p1Members.includes(req.userId) || p2Members.includes(req.userId))
+            : (match.p1Id === req.userId || match.p2Id === req.userId);
         if (!isCreator && !isPlayer) {
             const requester = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
             if (!requester?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
@@ -1343,53 +1469,55 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const loserId  = winner === 'p1' ? match.p2Id : match.p1Id;
         const isCorrection = match.status === 'COMPLETED';
 
-        // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5)
+        // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5).
+        // Çiftler Rekabetçi: aynı delta her iki taraftaki TÜM üyelere ayrı ayrı uygulanır.
         let p1EloDelta = 0, p2EloDelta = 0;
         let p1RatingBefore = null, p1RatingAfter = null, p2RatingBefore = null, p2RatingAfter = null;
         // If match was already scored, reverse previous ELO before re-applying
         if (match.status === "COMPLETED" && match.score && match.p1Id && match.p2Id) {
             const prev = match.score;
             if (prev.p1EloDelta !== 0 || prev.p2EloDelta !== 0) {
-                const prevAllIds = [match.p1Id, match.p2Id];
                 const prevInterests = await prisma.userInterest.findMany({
-                    where: { userId: { in: prevAllIds }, category: tournament.category, subCategory: tournament.subCategory },
+                    where: { userId: { in: [...p1Members, ...p2Members] }, category: tournament.category, subCategory: tournament.subCategory },
                 });
-                const p1ir = prevInterests.find(i => i.userId === match.p1Id);
-                const p2ir = prevInterests.find(i => i.userId === match.p2Id);
-                if (p1ir) {
+                for (const uid of p1Members) {
+                    const ir = prevInterests.find(i => i.userId === uid);
+                    if (!ir) continue;
                     await prisma.userInterest.update({
-                        where: { id: p1ir.id },
+                        where: { id: ir.id },
                         data: {
-                            totalPoints: Math.max(0, p1ir.totalPoints - prev.p1EloDelta),
+                            totalPoints: Math.max(0, ir.totalPoints - prev.p1EloDelta),
                             wins:   { decrement: prev.p1EloDelta > 0 ? 1 : 0 },
                             losses: { decrement: prev.p1EloDelta < 0 ? 1 : 0 },
-                            skillRating: prev.p1RatingBefore ?? p1ir.skillRating,
+                            skillRating: prev.p1RatingBefore ?? ir.skillRating,
                         },
                     });
                 }
-                if (p2ir) {
+                for (const uid of p2Members) {
+                    const ir = prevInterests.find(i => i.userId === uid);
+                    if (!ir) continue;
                     await prisma.userInterest.update({
-                        where: { id: p2ir.id },
+                        where: { id: ir.id },
                         data: {
-                            totalPoints: Math.max(0, p2ir.totalPoints - prev.p2EloDelta),
+                            totalPoints: Math.max(0, ir.totalPoints - prev.p2EloDelta),
                             wins:   { decrement: prev.p2EloDelta > 0 ? 1 : 0 },
                             losses: { decrement: prev.p2EloDelta < 0 ? 1 : 0 },
-                            skillRating: prev.p2RatingBefore ?? p2ir.skillRating,
+                            skillRating: prev.p2RatingBefore ?? ir.skillRating,
                         },
                     });
                 }
             }
         }
 
-        if (match.p1Id && match.p2Id) {
-            const winnerId_e = winner === 'p1' ? match.p1Id : match.p2Id;
-            const loserId_e  = winner === 'p1' ? match.p2Id : match.p1Id;
-            const allPlayerIds = [match.p1Id, match.p2Id];
+        if (p1Members.length > 0 && p2Members.length > 0) {
+            const winnerMembers = winner === 'p1' ? p1Members : p2Members;
+            const loserMembers  = winner === 'p1' ? p2Members : p1Members;
+            const allPlayerIds = [...p1Members, ...p2Members];
             const existing = await prisma.userInterest.findMany({
                 where: { userId: { in: allPlayerIds }, category: tournament.category, subCategory: tournament.subCategory },
             });
             const existingIds = new Set(existing.map(i => i.userId));
-            const missing = allPlayerIds.filter(id => !existingIds.has(id));
+            const missing = allPlayerIds.filter(uid => !existingIds.has(uid));
             const created = missing.length > 0
                 ? await Promise.all(missing.map(userId =>
                     prisma.userInterest.create({
@@ -1398,13 +1526,14 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 ))
                 : [];
             const interests = [...existing, ...created];
-            const wi = interests.find(i => i.userId === winnerId_e);
-            const li = interests.find(i => i.userId === loserId_e);
+            const avgRating = (uids) => uids.reduce((sum, uid) => sum + (interests.find(i => i.userId === uid)?.skillRating || 0), 0) / uids.length;
+            const wAvg = avgRating(winnerMembers);
+            const lAvg = avgRating(loserMembers);
             // Taraflardan biri bu kategoride hiç oynamamışsa (derecesi bilinmiyor),
             // rakibinin puanını bilinmeyen bir seviyeye göre değiştirmek anlamsız —
             // hiçbir tarafın puanı artmaz/azalmaz.
-            if (wi && li && missing.length === 0) {
-                const ratingDiff = Math.abs(wi.skillRating - li.skillRating);
+            if (missing.length === 0) {
+                const ratingDiff = Math.abs(wAvg - lAvg);
                 let winnerGames = 0, totalGames = 0;
                 for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
                 const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
@@ -1426,25 +1555,28 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 // 1.5+ → değişiklik yok
 
                 // Algoritma 3: düşük ELO'lu kazanırsa kazanan iki kat alır
-                const lowerRatedWon = wi.skillRating < li.skillRating;
+                const lowerRatedWon = wAvg < lAvg;
                 const wStep = lowerRatedWon ? parseFloat((ratingStep * 2).toFixed(4)) : ratingStep;
                 const lStep = ratingStep;
 
-                let wRatingAfter = parseFloat((wi.skillRating + wStep).toFixed(4));
-                if (wi.skillRating < 5 && wRatingAfter >= 5) wRatingAfter = parseFloat((wRatingAfter + 2).toFixed(4));
-                const lRatingAfter = Math.max(0, parseFloat((li.skillRating - lStep).toFixed(4)));
+                const updates = [];
+                for (const uid of winnerMembers) {
+                    const wi = interests.find(i => i.userId === uid);
+                    let wRatingAfter = parseFloat((wi.skillRating + wStep).toFixed(4));
+                    if (wi.skillRating < 5 && wRatingAfter >= 5) wRatingAfter = parseFloat((wRatingAfter + 2).toFixed(4));
+                    updates.push(prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1, skillRating: wRatingAfter } }));
+                }
+                for (const uid of loserMembers) {
+                    const li = interests.find(i => i.userId === uid);
+                    const lRatingAfter = Math.max(0, parseFloat((li.skillRating - lStep).toFixed(4)));
+                    updates.push(prisma.userInterest.update({ where: { id: li.id }, data: { totalPoints: Math.max(0, li.totalPoints - transfer), losses: li.losses + 1, skillRating: lRatingAfter } }));
+                }
+                await Promise.all(updates);
 
-                await Promise.all([
-                    prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1, skillRating: wRatingAfter } }),
-                    prisma.userInterest.update({ where: { id: li.id }, data: { totalPoints: Math.max(0, li.totalPoints - transfer), losses: li.losses + 1, skillRating: lRatingAfter } }),
-                ]);
-
-                const p1i = interests.find(i => i.userId === match.p1Id);
-                const p2i = interests.find(i => i.userId === match.p2Id);
-                p1RatingBefore = p1i.skillRating;
-                p2RatingBefore = p2i.skillRating;
-                p1RatingAfter  = winner === 'p1' ? wRatingAfter : lRatingAfter;
-                p2RatingAfter  = winner === 'p2' ? wRatingAfter : lRatingAfter;
+                p1RatingBefore = winner === 'p1' ? wAvg : lAvg;
+                p2RatingBefore = winner === 'p2' ? wAvg : lAvg;
+                p1RatingAfter  = winner === 'p1' ? wAvg + wStep : lAvg - lStep;
+                p2RatingAfter  = winner === 'p2' ? wAvg + wStep : lAvg - lStep;
                 p1EloDelta = winner === 'p1' ? +transfer : -transfer;
                 p2EloDelta = winner === 'p2' ? +transfer : -transfer;
             }
@@ -1472,9 +1604,9 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             }
         }
 
-        // Bireysel Rekabetçi (type '1'): dinamik tur yönetimi
+        // Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): dinamik tur yönetimi
         // Sadece ilk skor girişinde — bir düzeltme zaten oluşturulmuş turu tekrar oluşturmasın
-        if (!isCorrection && tournament.type === '1' && match.phase === 'GROUP') {
+        if (!isCorrection && (tournament.type === '1' || tournament.type === '2') && match.phase === 'GROUP') {
             const allGroupMatches = await prisma.tournamentMatch.findMany({
                 where: { tournamentId: id, phase: 'GROUP' },
             });
@@ -1483,7 +1615,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
             if (currentRoundDone) {
                 const maxRound = Math.max(...allGroupMatches.map(m => m.round));
-                const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(tournament.participants.length - 1, 3);
+                const sideCount = isTeamTournament ? new Set(allGroupMatches.flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean)).size : tournament.participants.length;
+                const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(sideCount - 1, 3);
                 const existingPlayoff = await prisma.tournamentMatch.findFirst({
                     where: { tournamentId: id, phase: 'PLAYOFF' },
                 });
@@ -1499,34 +1632,42 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     }
                 } else if (!existingPlayoff) {
                     // Tüm GROUP turları bitti → playoff oluştur (ELO sıralaması + averaj tiebreaker)
-                    const players = tournament.participants.map(p => ({
-                        id: p.userId, fullName: p.user.fullName, username: p.user.username, skillRating: 0,
-                    }));
-                    const standings = computeStandings(players, allGroupMatches, '1');
+                    const players = isTeamTournament
+                        ? (await prisma.tournamentTeam.findMany({ where: { tournamentId: id } })).map(t => ({
+                            id: t.id, fullName: `${t.player1Name} & ${t.player2Name}`, username: `${t.player1Name} & ${t.player2Name}`, skillRating: 0,
+                        }))
+                        : tournament.participants.map(p => ({
+                            id: p.userId, fullName: p.user.fullName, username: p.user.username, skillRating: 0,
+                        }));
+                    const standings = computeStandings(players, allGroupMatches, tournament.type);
                     const qualifiers = tournament.playoffQualifiers || 4;
                     const topStandings = standings.slice(0, Math.min(qualifiers, standings.length));
 
-                    // Play-off eşleşmesi: ELO puanına en yakın oyuncular (Rule 2)
-                    const topParticipants = await prisma.tournamentParticipant.findMany({
-                        where: { tournamentId: id, userId: { in: topStandings.map(s => s.userId) }, status: 'ACCEPTED' },
-                        include: {
-                            user: {
-                                select: {
-                                    id: true, username: true, fullName: true,
-                                    interests: {
-                                        where: { category: tournament.category, subCategory: tournament.subCategory },
-                                        select: { skillRating: true },
+                    // Play-off eşleşmesi: ELO puanına en yakın oyuncular/takımlar (Rule 2)
+                    const topPlayers = isTeamTournament
+                        ? (await getCurrentTeamRatings(tournament, topStandings.map(s => s.userId))).sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0))
+                        : (await (async () => {
+                            const topParticipants = await prisma.tournamentParticipant.findMany({
+                                where: { tournamentId: id, userId: { in: topStandings.map(s => s.userId) }, status: 'ACCEPTED' },
+                                include: {
+                                    user: {
+                                        select: {
+                                            id: true, username: true, fullName: true,
+                                            interests: {
+                                                where: { category: tournament.category, subCategory: tournament.subCategory },
+                                                select: { skillRating: true },
+                                            },
+                                        },
                                     },
                                 },
-                            },
-                        },
-                    });
-                    const topPlayers = topParticipants.map(p => ({
-                        id: p.userId,
-                        fullName: p.user?.fullName || null,
-                        username: p.user?.username || null,
-                        skillRating: p.user?.interests?.[0]?.skillRating || 0,
-                    })).sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
+                            });
+                            return topParticipants.map(p => ({
+                                id: p.userId,
+                                fullName: p.user?.fullName || null,
+                                username: p.user?.username || null,
+                                skillRating: p.user?.interests?.[0]?.skillRating || 0,
+                            }));
+                        })()).sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
 
                     if (topPlayers.length >= 2) {
                         const playoffData = singleElimMatches(topPlayers, id, maxRound + 1, 'PLAYOFF');

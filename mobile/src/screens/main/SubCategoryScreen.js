@@ -2998,6 +2998,44 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     useEffect(() => { setMyStatus(myPart?.status ?? null); }, [myPart?.status]);
     const isCreator = item.creatorId === myId;
     const [collapsed, setCollapsed] = useState(item.status === 'IN_PROGRESS');
+    // Çiftler Rekabetçi (type '2'): partner seçerek başvuru
+    const [showPartnerSearch, setShowPartnerSearch] = useState(false);
+    const [partnerQuery, setPartnerQuery] = useState('');
+    const [partnerResults, setPartnerResults] = useState([]);
+    const [partnerSearching, setPartnerSearching] = useState(false);
+
+    const handleJoinPress = () => {
+        if (item.type !== '2') { onJoin(item); return; }
+        Alert.alert(
+            t.tournPartnerTitle || 'Çiftler Rekabetçi',
+            t.tournPartnerMsg || 'Bireysel mi başvuracaksın yoksa bir partner mi seçeceksin?',
+            [
+                { text: t.tournPartnerSolo || 'Bireysel Başvur', onPress: () => onJoin(item) },
+                { text: t.tournPartnerChoose || 'Partner Seç', onPress: () => setShowPartnerSearch(true) },
+                { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+            ],
+        );
+    };
+
+    useEffect(() => {
+        if (!showPartnerSearch) return;
+        if (!partnerQuery.trim() || partnerQuery.trim().length < 2) { setPartnerResults([]); return; }
+        setPartnerSearching(true);
+        const task = setTimeout(() => {
+            api.get(`/users/search?q=${encodeURIComponent(partnerQuery.trim())}&subCategory=${item.subCategory}&category=${item.category}`)
+                .then(res => setPartnerResults(Array.isArray(res.data) ? res.data : []))
+                .catch(() => setPartnerResults([]))
+                .finally(() => setPartnerSearching(false));
+        }, 400);
+        return () => clearTimeout(task);
+    }, [partnerQuery, showPartnerSearch]);
+
+    const choosePartner = (user) => {
+        setShowPartnerSearch(false);
+        setPartnerQuery('');
+        setPartnerResults([]);
+        onJoin(item, user.id);
+    };
     const typeLabels = TOURN_TYPE_LABELS(t);
     const [showRules, setShowRules] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -3603,6 +3641,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     })();
 
     return (
+        <>
         <View style={[s.card, { marginBottom:10 }]}>
             {/* Header */}
             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -3729,7 +3768,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     </View>
                     {isCreator ? (<>
                         {myStatus === null && !isEventStarted() && (
-                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
                             </TouchableOpacity>
                         )}
@@ -3796,7 +3835,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </View>
                     </>) : (<>
                         {myStatus === null && ['OPEN', 'IN_PROGRESS'].includes(item.status) && !isEventStarted() && !isRegEnded() && (
-                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => onJoin(item)}>
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournJoinBtn}</Text>
                             </TouchableOpacity>
                         )}
@@ -4751,6 +4790,46 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </TouchableOpacity>
             )}
         </View>
+
+        {/* Çiftler Rekabetçi — partner arama modali */}
+        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowPartnerSearch(false)}>
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:40, maxHeight:'80%' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.tournPartnerChoose || 'Partner Seç'}</Text>
+                        <TouchableOpacity onPress={() => { setShowPartnerSearch(false); setPartnerQuery(''); setPartnerResults([]); }}>
+                            <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <TextInput
+                        style={s.fieldInput}
+                        value={partnerQuery}
+                        onChangeText={setPartnerQuery}
+                        placeholder={t.inviteSearchPh}
+                        placeholderTextColor={colors.textMuted}
+                        autoFocus
+                    />
+                    {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                        {partnerResults.map(u => (
+                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                        @{u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                        {!partnerSearching && partnerQuery.trim().length >= 2 && partnerResults.length === 0 && (
+                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
+                        )}
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+        </>
     );
 }
 
@@ -6455,9 +6534,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         ]);
     };
 
-    const handleJoinTournament = useCallback(async (item) => {
+    const handleJoinTournament = useCallback(async (item, partnerId) => {
         try {
-            await api.post(`/tournaments/${item.id}/join`);
+            await api.post(`/tournaments/${item.id}/join`, partnerId ? { partnerId } : undefined);
             Alert.alert('', t.tournJoinSent);
             loadTournaments();
         } catch (e) {

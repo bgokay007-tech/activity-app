@@ -21,6 +21,14 @@ async function getTournamentPlacements(userId) {
     for (const t of tournaments) {
         let placement = null;
 
+        // Çiftler Rekabetçi: bu kullanıcının takımının id'sini bul — maçlarda p1Id/p2Id/winnerId
+        // kullanıcı değil takım id'sidir.
+        let effectiveId = userId;
+        const myTeam = await prisma.tournamentTeam.findFirst({
+            where: { tournamentId: t.id, OR: [{ player1Id: userId }, { player2Id: userId }] },
+        });
+        if (myTeam) effectiveId = myTeam.id;
+
         // Playoff maçlarına bak
         const playoffMatches = await prisma.tournamentMatch.findMany({
             where: { tournamentId: t.id, phase: 'PLAYOFF', status: { in: ['COMPLETED', 'FORFEIT'] } },
@@ -31,14 +39,14 @@ async function getTournamentPlacements(userId) {
             const maxRound = playoffMatches[0].round;
             const final = playoffMatches.find(m => m.round === maxRound);
             if (final) {
-                if (final.winnerId === userId) placement = 1;
-                else if (final.p1Id === userId || final.p2Id === userId) placement = 2;
+                if (final.winnerId === effectiveId) placement = 1;
+                else if (final.p1Id === effectiveId || final.p2Id === effectiveId) placement = 2;
             }
             if (!placement) {
                 // Yarı finalde elendiyse → 3.
                 const semiFinals = playoffMatches.filter(m => m.round === maxRound - 1);
                 const lostSemi = semiFinals.find(m =>
-                    (m.p1Id === userId || m.p2Id === userId) && m.winnerId !== userId
+                    (m.p1Id === effectiveId || m.p2Id === effectiveId) && m.winnerId !== effectiveId
                 );
                 if (lostSemi) placement = 3;
             }
@@ -49,7 +57,7 @@ async function getTournamentPlacements(userId) {
             try {
                 const bd = typeof t.bracketData === 'string' ? JSON.parse(t.bracketData) : t.bracketData;
                 const standings = Array.isArray(bd) ? bd : (bd?.standings || bd?.groupStandings || []);
-                const idx = standings.findIndex(s => s.userId === userId);
+                const idx = standings.findIndex(s => s.userId === effectiveId);
                 if (idx >= 0 && idx < 3) placement = idx + 1;
             } catch {}
         }
@@ -63,6 +71,7 @@ async function getTournamentPlacements(userId) {
                 scope: t.scope,
                 placement,
                 medal: MEDAL[placement] || '',
+                partnerName: myTeam ? (myTeam.player1Id === userId ? myTeam.player2Name : myTeam.player1Name) : null,
                 completedAt: t.completedAt,
             });
         }

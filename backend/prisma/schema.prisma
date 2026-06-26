@@ -520,6 +520,7 @@ model Tournament {
   tournamentMatches TournamentMatch[]
   messages         TournamentMessage[]
   chatNotifyPrefs  TournamentChatNotify[]
+  teams            TournamentTeam[]
 }
 
 // TURNUVA GRUP SOHBETI — turnuva sahibi + AS/yedek olarak onaylanmis tum katilimcilar
@@ -574,6 +575,7 @@ model TournamentParticipant {
   tournamentId    String
   userId          String?
   manualName      String?  // set when userId is null (manual participant added by creator)
+  partnerId       String?  // Çiftler Rekabetçi (type '2'): requested partner's userId. Mutual when both name each other; otherwise solo → auto-paired by ELO at tournament start.
   status          String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
   note            String?
   cancelRequested Boolean   @default(false)
@@ -588,6 +590,21 @@ model TournamentParticipant {
   user         User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, userId])
+}
+
+// Çiftler Rekabetçi (Tournament.type == '2'): bir maç tarafı bir kullanıcı değil, bu takımdır.
+// TournamentMatch.p1Id/p2Id bu durumda User id değil TournamentTeam id tutar.
+model TournamentTeam {
+  id            String   @id @default(uuid())
+  tournamentId  String
+  player1Id     String
+  player1Name   String
+  player2Id     String
+  player2Name   String
+  avgRating     Float    @default(0)
+  createdAt     DateTime @default(now())
+
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 }
 
 // ETKİNLİK (Konser, sergi, oyun turnuvası vb.)
