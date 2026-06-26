@@ -5711,15 +5711,17 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
     }, [route.params?.initialTab]);
 
-    // Tenis sekmesine girince günde bir kez "Günün Tenisçisi" kartını göster
+    // Tenis sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi" kartını otomatik göster
     const [showSpotlight, setShowSpotlight] = useState(false);
     useEffect(() => {
         if (sub !== 'tennis') return;
         const today = new Date().toISOString().slice(0, 10);
-        AsyncStorage.getItem('tennis_spotlight_shown_date').then(lastShown => {
-            if (lastShown !== today) {
+        AsyncStorage.getItem('tennis_spotlight_shown').then(raw => {
+            let { date, count } = raw ? JSON.parse(raw) : { date: today, count: 0 };
+            if (date !== today) { date = today; count = 0; }
+            if (count < 3) {
                 setShowSpotlight(true);
-                AsyncStorage.setItem('tennis_spotlight_shown_date', today);
+                AsyncStorage.setItem('tennis_spotlight_shown', JSON.stringify({ date, count: count + 1 }));
             }
         });
     }, [sub]);
@@ -6750,6 +6752,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <Text style={[s.back, { color: cfg.color }]}>{t.back}</Text>
                 </TouchableOpacity>
                 <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
+                {sub === 'tennis' && (
+                    <TouchableOpacity onPress={() => setShowSpotlight(true)}>
+                        <Text style={{ fontSize:22 }}>🃏</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* Tabs */}
