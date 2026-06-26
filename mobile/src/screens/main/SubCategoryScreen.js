@@ -3521,7 +3521,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 surface: editSurface || null,
                 isIndoor: editIsIndoor,
                 isPaid: editIsPaid,
-                feeType: editIsPaid ? editFeeType : null,
+                feeType: editFeeType || null,
                 playerFee: editIsPaid && editPlayerFee ? parseFloat(editPlayerFee) : null,
                 paymentMethod: editIsPaid ? editPaymentMethod : null,
                 ibanNumber: editIsPaid && editPaymentMethod === 'EFT' ? editIbanNumber : null,
@@ -3666,7 +3666,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         👤 {item.creator?.fullName || item.creator?.username}
                         {item.contactPhone ? `  📞 ${item.contactPhone}` : ''}
                     </Text>
-                    {item.isPaid && (
+                    {item.isPaid ? (
                         <View style={{ gap:1 }}>
                             <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
                                 💰 Ücretli{item.playerFee ? ` · ${item.playerFee}₺/oyuncu` : ''}
@@ -3681,6 +3681,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {item.paymentMethod === 'EFT' && item.ibanHolder && <Text style={{ color: colors.textMuted, fontSize:10 }}>Hesap: {item.ibanHolder}</Text>}
                             {item.paymentMethod === 'EFT' && item.ibanNumber && <Text style={{ color: colors.textMuted, fontSize:10 }}>IBAN: {item.ibanNumber}</Text>}
                         </View>
+                    ) : (
+                        (item.feeType === 'SHARED' || item.feeType === 'SPONSORED') && (
+                            <Text style={{ color: colors.textMuted, fontSize:10 }}>
+                                {item.feeType === 'SPONSORED' ? '🏟️ Kort ücretleri sponsorlar tarafından karşılanır' : '🏟️ Kort ücretleri oyuncular tarafından ortaklaşa karşılanır'}
+                            </Text>
+                        )
                     )}
                     {item.endDate && (
                         <Text style={{ color: colors.textMuted, fontSize:11 }}>
@@ -4298,16 +4304,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {/* Paid toggle */}
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:13 }}>💰 Ücretli Turnuva</Text>
-                                    <Switch value={editIsPaid} onValueChange={setEditIsPaid} trackColor={{ true: '#fbbf24' }} />
+                                    <Switch value={editIsPaid} onValueChange={(v) => { setEditIsPaid(v); if (v && editFeeType === 'SPONSORED') setEditFeeType('SHARED'); if (!v && editFeeType === 'INCLUDED') setEditFeeType('SHARED'); }} trackColor={{ true: '#fbbf24' }} />
+                                </View>
+                                <View style={s.chipRow}>
+                                    {(editIsPaid
+                                        ? [{id:'INCLUDED',label:'Kort dahil'},{id:'SHARED',label:'Ortaklaşa'}]
+                                        : [{id:'SHARED',label:'Ortaklaşa'},{id:'SPONSORED',label:'Sponsorlu'}]
+                                    ).map(ft => (
+                                        <TouchableOpacity key={ft.id} onPress={() => setEditFeeType(ft.id)} style={[s.chipBtn, { flex:1 }, editFeeType===ft.id && s.chipBtnActive]}>
+                                            <Text style={[s.chipBtnText, editFeeType===ft.id && s.chipBtnTextActive]}>{ft.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
                                 </View>
                                 {editIsPaid && (<>
-                                    <View style={s.chipRow}>
-                                        {[{id:'INCLUDED',label:'Kort dahil'},{id:'SHARED',label:'Ortaklaşa'}].map(ft => (
-                                            <TouchableOpacity key={ft.id} onPress={() => setEditFeeType(ft.id)} style={[s.chipBtn, { flex:1 }, editFeeType===ft.id && s.chipBtnActive]}>
-                                                <Text style={[s.chipBtnText, editFeeType===ft.id && s.chipBtnTextActive]}>{ft.label}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
                                     <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
                                         <TextInput style={[s.fieldInput, { flex:1 }]} value={editPlayerFee} onChangeText={setEditPlayerFee} keyboardType="numeric" placeholder="Oyuncu başı ücret (₺)" placeholderTextColor={colors.textMuted} />
                                     </View>
@@ -5087,8 +5096,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 surface: f.surface || undefined,
                 isIndoor: f.courtDecidedByPlayers ? undefined : f.isIndoor,
                 isPaid: f.isPaid,
+                feeType: f.feeType,
                 ...(f.isPaid && {
-                    feeType: f.feeType,
                     playerFee: f.playerFee ? parseFloat(f.playerFee) : undefined,
                     paymentMethod: f.paymentMethod || undefined,
                     ibanNumber: f.paymentMethod === 'EFT' ? f.ibanNumber.trim() || undefined : undefined,
@@ -5397,12 +5406,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <View style={[s.chipRow, { marginBottom:6 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.isPaid && { backgroundColor: '#16a34a30', borderColor: '#16a34a' }]}
-                                    onPress={() => set('isPaid', false)}>
+                                    onPress={() => { set('isPaid', false); if (f.feeType === 'INCLUDED') set('feeType', 'SHARED'); }}>
                                     <Text style={[s.chipText, !f.isPaid && { color: '#4ade80', fontWeight:'800' }]}>{t.tournFreeOption}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.isPaid && { backgroundColor: '#d9770630', borderColor: '#d97706' }]}
-                                    onPress={() => set('isPaid', true)}>
+                                    onPress={() => { set('isPaid', true); if (f.feeType === 'SPONSORED') set('feeType', 'SHARED'); }}>
                                     <Text style={[s.chipText, f.isPaid && { color: '#fbbf24', fontWeight:'800' }]}>{t.tournPaidOption}</Text>
                                 </TouchableOpacity>
                             </View>
@@ -5412,13 +5421,23 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </Text>
                             </View>
 
+                            {/* Kort ücreti kim öder — ücretsizde ve ücretlide farklı seçenekler */}
+                            <Text style={s.fieldLabel}>{t.tournCourtFeeWho}</Text>
+                            <View style={[s.chipRow, { marginBottom:10 }]}>
+                                {(f.isPaid
+                                    ? [{ id:'INCLUDED', label: t.tournFeeIncluded }, { id:'SHARED', label: t.tournFeeShared }]
+                                    : [{ id:'SHARED', label: t.tournFeeShared }, { id:'SPONSORED', label: t.tournFeeSponsored }]
+                                ).map(ft => (
+                                    <TouchableOpacity key={ft.id}
+                                        style={[s.chip, { flex:1, paddingVertical:5, paddingHorizontal:10 }, f.feeType === ft.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                        onPress={() => set('feeType', ft.id)}>
+                                        <Text style={[s.chipText, { textAlign:'center' }, f.feeType === ft.id && { color: cfg.color, fontWeight:'800' }]}>{ft.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
                             {/* Payment options — only when paid */}
                             {f.isPaid && (<>
-                                <View style={{ backgroundColor:'#1e3a5f', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor:'#1e40af50' }}>
-                                    <Text style={{ color:'#93c5fd', fontSize:11, lineHeight:17 }}>
-                                        🏟️ Kortları oyuncular ortaklaşa öder.
-                                    </Text>
-                                </View>
                                 <Text style={s.fieldLabel}>Turnuva Katılım Ücreti (₺)</Text>
                                 <TextInput
                                     style={[s.fieldInput, ti, { marginBottom:10 }]}
