@@ -1679,128 +1679,128 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const dispIWin = existingWinner === (isOwner ? 'sender' : 'opponent');
     const dispDraw = existingWinner === 'draw';
 
+    const expanded = showScore || showScheduleForm;
     return (
-        <View style={[s.card, { borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
-            {/* Header: left=tappable info, right=small action buttons */}
-            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:8 }}>
-                {/* Left: tappable — opens comments modal */}
-                <TouchableOpacity style={{ flex:1 }} activeOpacity={0.75} onPress={() => onOpenComments?.(match)}>
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                        {allPlayers.map((p, idx) => (
-                            <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
-                                <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7}>
-                                    <Text style={s.cardName}>{senderAlias(p)}</Text>
-                                </TouchableOpacity>
-                                {p.skillRating != null && (
-                                    <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>
-                                        {Number(p.skillRating).toFixed(2)} ★
-                                    </Text>
-                                )}
-                            </View>
-                        ))}
-                        <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
-                            <Text style={[s.modeBadgeText, { color: cfg.color }]}>
-                                {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
-                            </Text>
-                        </View>
-                        {match.matchMode?.toUpperCase() === 'COMPETITIVE' && (
-                            <View style={[s.modeBadge, { backgroundColor:'#ef444420', borderColor:'#ef444440' }]}>
-                                <Text style={[s.modeBadgeText, { color:'#ef4444' }]}>{t.modeCompetitive}</Text>
-                            </View>
-                        )}
-                        {match.matchMode?.toUpperCase() === 'PRACTICE' && (
-                            <View style={[s.modeBadge, { backgroundColor:'#22c55e20', borderColor:'#22c55e40' }]}>
-                                <Text style={[s.modeBadgeText, { color:'#22c55e' }]}>{t.modePractice}</Text>
-                            </View>
-                        )}
-                        {match.flexibleSchedule && (
-                            <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
-                                <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>📅 Esnek</Text>
-                            </View>
-                        )}
-                    </View>
-                    <Text style={s.cardSub}>
-                        {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
-                        {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
-                        {match.duration  ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
-                    </Text>
-                    {match.courtName && (
-                        <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
-                            <Text style={[s.cardSub, { color:'#60a5fa', textDecorationLine:'underline' }]}>🏟️ {match.courtName}</Text>
-                        </TouchableOpacity>
-                    )}
-                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
-                        💬 {t.matchCommentsBtn} {match.commentCount ?? 0}
-                    </Text>
-                    {match.level && (
-                        <View style={{ flexDirection:'row', marginTop:4 }}>
-                            <View style={[s.modeBadge, { backgroundColor:'#ffffff10', borderColor:'#ffffff20' }]}>
-                                <Text style={[s.modeBadgeText, { color: colors.textSecondary }]}>
-                                    {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
+        <View style={[s.card, { width: expanded ? '100%' : '48%', paddingHorizontal:3, paddingTop:3, paddingBottom:3, borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
+            {/* Tappable info — opens comments modal */}
+            <TouchableOpacity activeOpacity={0.75} onPress={() => onOpenComments?.(match)}>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap' }}>
+                    {allPlayers.map((p, idx) => (
+                        <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                            {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
+                            <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7}>
+                                <Text style={s.cardName} numberOfLines={1}>{senderAlias(p)}</Text>
+                            </TouchableOpacity>
+                            {p.skillRating != null && (
+                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>
+                                    {Number(p.skillRating).toFixed(2)} ★
                                 </Text>
-                            </View>
-                        </View>
-                    )}
-                </TouchableOpacity>
-
-                {/* Right: small stacked action buttons */}
-                <View style={{ gap:5, alignItems:'flex-end' }}>
-                    {!hasScore && scoreUnlocked && (
-                        <View style={{ alignItems:'flex-end', gap:4 }}>
-                            <TouchableOpacity style={s.scoreBtn} onPress={() => setShowScore(v => !v)}>
-                                <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={{ paddingHorizontal:8, paddingVertical:3, borderRadius:7, borderWidth:1, borderColor:'#dc262630', backgroundColor:'#dc262612' }}
-                                onPress={() => setShowCantScore(true)}
-                            >
-                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                    {match.scoreStatus !== 'CONFIRMED' && (
-                        <>
-                            {withinPenaltyWindow && (
-                                !iAlreadyRequestedMutual ? (
-                                    <TouchableOpacity
-                                        style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#2563eb40', backgroundColor:'#2563eb18' }}
-                                        onPress={() => handleMutualCancelPress(false)}
-                                        disabled={cancelling}
-                                    >
-                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>🤝 Karşılıklı</Text>
-                                    </TouchableOpacity>
-                                ) : (
-                                    <View style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#2563eb30', backgroundColor:'#2563eb10' }}>
-                                        <Text style={{ color:'#60a5fa', fontSize:10 }}>⏳ İstendi</Text>
-                                    </View>
-                                )
                             )}
-                            <TouchableOpacity
-                                style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262618' }}
-                                onPress={handleCancelPress}
-                                disabled={cancelling}
-                            >
-                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>
-                                    ✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}
-                                </Text>
-                            </TouchableOpacity>
-                        </>
+                        </View>
+                    ))}
+                </View>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
+                    <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
+                        <Text style={[s.modeBadgeText, { color: cfg.color }]}>
+                            {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
+                        </Text>
+                    </View>
+                    {match.matchMode?.toUpperCase() === 'COMPETITIVE' && (
+                        <View style={[s.modeBadge, { backgroundColor:'#ef444420', borderColor:'#ef444440' }]}>
+                            <Text style={[s.modeBadgeText, { color:'#ef4444' }]}>{t.modeCompetitive}</Text>
+                        </View>
                     )}
-                    {canReportNoShow && (
-                        <TouchableOpacity
-                            style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#f9731640', backgroundColor:'#f9731618' }}
-                            onPress={() => { setNoShowAbsent([]); setNoShowPhoto(null); setShowNoShow(true); }}
-                        >
-                            <Text style={{ color:'#fb923c', fontSize:10, fontWeight:'700' }}>🚫 Gelmedi</Text>
-                        </TouchableOpacity>
+                    {match.matchMode?.toUpperCase() === 'PRACTICE' && (
+                        <View style={[s.modeBadge, { backgroundColor:'#22c55e20', borderColor:'#22c55e40' }]}>
+                            <Text style={[s.modeBadgeText, { color:'#22c55e' }]}>{t.modePractice}</Text>
+                        </View>
                     )}
-                    {match._myNoShowPending && (
-                        <View style={{ paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610' }}>
-                            <Text style={{ color:'#fb923c', fontSize:10 }}>⏳ Bildirildi</Text>
+                    {match.flexibleSchedule && (
+                        <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
+                            <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>📅 Esnek</Text>
                         </View>
                     )}
                 </View>
+                <Text style={[s.cardSub, { marginTop:3 }]} numberOfLines={1}>
+                    {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
+                    {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
+                    {match.duration  ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
+                </Text>
+                {match.courtName && (
+                    <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
+                        <Text style={[s.cardSub, { color:'#60a5fa', textDecorationLine:'underline', marginTop:3 }]} numberOfLines={1}>🏟️ {match.courtName}</Text>
+                    </TouchableOpacity>
+                )}
+                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:3 }}>
+                    💬 {t.matchCommentsBtn} {match.commentCount ?? 0}
+                </Text>
+                {match.level && (
+                    <View style={{ flexDirection:'row', marginTop:3 }}>
+                        <View style={[s.modeBadge, { backgroundColor:'#ffffff10', borderColor:'#ffffff20' }]}>
+                            <Text style={[s.modeBadgeText, { color: colors.textSecondary }]}>
+                                {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
+                            </Text>
+                        </View>
+                    </View>
+                )}
+            </TouchableOpacity>
+
+            {/* Aksiyon butonları — kart genişliğine sığacak şekilde alta, sarmalı */}
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:3 }}>
+                {!hasScore && scoreUnlocked && (
+                    <>
+                        <TouchableOpacity style={[s.scoreBtn, { paddingHorizontal:3, paddingVertical:3 }]} onPress={() => setShowScore(v => !v)}>
+                            <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:7, borderWidth:1, borderColor:'#dc262630', backgroundColor:'#dc262612' }}
+                            onPress={() => setShowCantScore(true)}
+                        >
+                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
+                        </TouchableOpacity>
+                    </>
+                )}
+                {match.scoreStatus !== 'CONFIRMED' && (
+                    <>
+                        {withinPenaltyWindow && (
+                            !iAlreadyRequestedMutual ? (
+                                <TouchableOpacity
+                                    style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#2563eb40', backgroundColor:'#2563eb18' }}
+                                    onPress={() => handleMutualCancelPress(false)}
+                                    disabled={cancelling}
+                                >
+                                    <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>🤝 Karşılıklı</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <View style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#2563eb30', backgroundColor:'#2563eb10' }}>
+                                    <Text style={{ color:'#60a5fa', fontSize:10 }}>⏳ İstendi</Text>
+                                </View>
+                            )
+                        )}
+                        <TouchableOpacity
+                            style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262618' }}
+                            onPress={handleCancelPress}
+                            disabled={cancelling}
+                        >
+                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>
+                                ✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    </>
+                )}
+                {canReportNoShow && (
+                    <TouchableOpacity
+                        style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#f9731640', backgroundColor:'#f9731618' }}
+                        onPress={() => { setNoShowAbsent([]); setNoShowPhoto(null); setShowNoShow(true); }}
+                    >
+                        <Text style={{ color:'#fb923c', fontSize:10, fontWeight:'700' }}>🚫 Gelmedi</Text>
+                    </TouchableOpacity>
+                )}
+                {match._myNoShowPending && (
+                    <View style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610' }}>
+                        <Text style={{ color:'#fb923c', fontSize:10 }}>⏳ Bildirildi</Text>
+                    </View>
+                )}
             </View>
 
             {/* Flexible schedule proposal panel */}
@@ -6692,9 +6692,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {upcomingExpanded ? '▼' : '›'}
                                         </Text>
                                     </TouchableOpacity>
-                                    {upcomingExpanded && filteredMatchedUpcoming.map(m => (
-                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
-                                    ))}
+                                    {upcomingExpanded && (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            {filteredMatchedUpcoming.map(m => (
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                            ))}
+                                        </View>
+                                    )}
                                 </>
                             )}
 
@@ -6702,9 +6706,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {pendingScore.length > 0 && (
                                 <>
                                     <Text style={[s.sectionTitle, { color: '#f97316' }]}>⏳ {t.pendingScoreTitle}</Text>
-                                    {pendingScore.map(m => (
-                                        <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
-                                    ))}
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        {pendingScore.map(m => (
+                                            <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                        ))}
+                                    </View>
                                 </>
                             )}
                         </>
@@ -7378,7 +7384,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ) : archiveRivals.length === 0 ? (
                                 <EmptyState emoji="🗃️" text={t.emptyArchive} />
                             ) : (
-                                <View style={{ gap: 10, paddingVertical: 8 }}>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical: 8 }}>
                                     {archiveRivals.map(m => {
                                         const isOwner = m.senderId === myId;
                                         const parts = Array.isArray(m.participants) ? m.participants : [];
@@ -7391,25 +7397,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                         const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
                                         return (
-                                            <View key={m.id} style={[s.card, { padding: 12 }]}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6, flexWrap:'wrap' }}>
+                                            <View key={m.id} style={[s.card, { width:'48%', paddingHorizontal:3, paddingTop:3, paddingBottom:3 }]}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
                                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
                                                     {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
                                                     {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                                        {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
-                                                        {!m.flexibleSchedule && m.matchTime ? ` ${m.matchTime}` : ''}
-                                                    </Text>
                                                     {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
                                                 </View>
+                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1}>
+                                                    {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
+                                                    {!m.flexibleSchedule && m.matchTime ? ` ${m.matchTime}` : ''}
+                                                </Text>
                                                 {(m.courtName || m.location) ? (
-                                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1}>
                                                         🏟️ {m.courtName || m.location}
                                                         {m.courtName && m.location ? `  📍 ${m.location}` : ''}
                                                     </Text>
                                                 ) : null}
-                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom: sets ? 4 : 0 }}>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom: sets ? 3 : 0 }}>
                                                     {allP.map(p => {
                                                         const isSender = p.id === m.senderId;
                                                         const hist = snapshot[p.id];
@@ -7418,14 +7423,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         const pSets = sets ? sets.map(s2 => isSender ? s2.sender : s2.opponent) : null;
                                                         const pWins = sets ? sets.filter(s2 => (isSender ? s2.sender : s2.opponent) > (isSender ? s2.opponent : s2.sender)).length : null;
                                                         return (
-                                                            <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:2 }}>
-                                                                <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{senderAlias(p)}</Text>
+                                                            <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:3 }}>
+                                                                <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:3, paddingVertical:3, flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1}>{senderAlias(p)}</Text>
                                                                     {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(rBefore).toFixed(2)} ★</Text>}
                                                                     {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                                 </TouchableOpacity>
                                                                 {pSets && (
-                                                                    <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:4 }}>
+                                                                    <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:3 }}>
                                                                         {pSets.join('  ')}
                                                                         {'  '}<Text style={{ color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted, fontWeight:'800' }}>({pWins})</Text>
                                                                     </Text>
