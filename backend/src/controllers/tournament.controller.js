@@ -192,8 +192,8 @@ function computeStandings(players, matches, tournamentType) {
     }
     return Object.values(stats).sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
-        // Bireysel Rekabetçi (type '1'): averaj tiebreaker (Rule 5)
-        if (tournamentType === '1') {
+        // Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): averaj tiebreaker
+        if (tournamentType === '1' || tournamentType === '2') {
             const averaj = (x) => {
                 const total = x.gamesWon + x.gamesLost;
                 return total === 0 ? 0 : x.gamesWon / total;
@@ -314,10 +314,38 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
 // Çiftler Rekabetçi (type '2'): kabul edilmiş katılımcılardan takım oluşturur.
 // Önce karşılıklı partner seçimi yapanları eşler, kalan bireysel başvuranları ELO'ya
 // göre en yakın olandan başlayarak ikişerli gruplar.
+// Bireysel başvuranları ELO'ya en yakın olandan eşleştirir; aynı takımda iki kadın
+// oluşmasına izin vermez (Rule 2). Eşi bulunamayan kalırsa (tek sayı veya cinsiyet
+// uyumsuzluğu) en düşük ELO'lu olandan başlayarak dışarıda bırakılır (Rule 1).
+function pairSoloPlayers(solo, avoidSameGenderFemale) {
+    let pool = [...solo].sort((a, b) => a.rating - b.rating);
+    const pairs = [];
+    const excluded = [];
+
+    while (pool.length > 1) {
+        const a = pool[0];
+        const rest = pool.slice(1);
+        const compatible = rest.filter(b => !(avoidSameGenderFemale && a.gender === 'FEMALE' && b.gender === 'FEMALE'));
+        if (compatible.length === 0) {
+            excluded.push(a);
+            pool = rest;
+            continue;
+        }
+        compatible.sort((x, y) => Math.abs(x.rating - a.rating) - Math.abs(y.rating - a.rating));
+        const partner = compatible[0];
+        pairs.push([a, partner]);
+        pool = pool.filter(p => p.userId !== a.userId && p.userId !== partner.userId);
+    }
+    if (pool.length === 1) excluded.push(pool[0]);
+
+    return { pairs, excluded };
+}
+
 async function formTeamsForTournament(tournament, mainList) {
     const byUserId = new Map(mainList.filter(p => p.userId).map(p => [p.userId, p]));
     const ratingOf = (p) => p.user?.interests?.[0]?.skillRating || 0;
     const nameOf   = (p) => p.user?.fullName || p.user?.username || 'Oyuncu';
+    const genderOf = (p) => p.user?.gender || null;
     const paired = new Set();
     const teamsData = [];
 
@@ -337,22 +365,19 @@ async function formTeamsForTournament(tournament, mainList) {
 
     const solo = mainList
         .filter(p => p.userId && !paired.has(p.userId))
-        .map(p => ({ userId: p.userId, name: nameOf(p), rating: ratingOf(p) }))
-        .sort((a, b) => a.rating - b.rating);
+        .map(p => ({ userId: p.userId, name: nameOf(p), rating: ratingOf(p), gender: genderOf(p) }));
 
-    if (solo.length % 2 !== 0) {
-        throw Object.assign(new Error('Tek sayıda eşleşmemiş oyuncu var, takım sayısı çift olmalı. Bir oyuncu daha bekleniyor veya bir partner eşleşmesi eksik.'), { status: 400 });
-    }
-    for (let i = 0; i < solo.length; i += 2) {
+    const { pairs, excluded } = pairSoloPlayers(solo, tournament.genderType === 'MIX');
+    for (const [a, b] of pairs) {
         teamsData.push({
             tournamentId: tournament.id,
-            player1Id: solo[i].userId,   player1Name: solo[i].name,
-            player2Id: solo[i + 1].userId, player2Name: solo[i + 1].name,
-            avgRating: (solo[i].rating + solo[i + 1].rating) / 2,
+            player1Id: a.userId, player1Name: a.name,
+            player2Id: b.userId, player2Name: b.name,
+            avgRating: (a.rating + b.rating) / 2,
         });
     }
 
-    return teamsData;
+    return { teamsData, excluded };
 }
 
 export const fixGroupDeadlines = async (req, res, next) => {
@@ -1196,7 +1221,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         include: {
             user: {
                 select: {
-                    id: true, username: true, fullName: true,
+                    id: true, username: true, fullName: true, gender: true,
                     interests: {
                         where: { category: tournament.category, subCategory: tournament.subCategory },
                         select: { skillRating: true },
@@ -1231,6 +1256,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     const baseDate = tournamentBaseDate(tournament);
 
     let matches;
+    let excludedFromTeams = [];
 
     if (tournament.type === '1') {
         // Bireysel Rekabetçi: sadece round 1 oluştur, sonraki turlar dinamik
@@ -1242,9 +1268,17 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         // Çiftler Rekabetçi: önce takımları oluştur (partner eşleşenler + ELO'ya göre
         // otomatik eşleşen bireysel başvurular), sonra takımlar arası sadece round 1
         // oluştur — sonraki turlar Bireysel Rekabetçi gibi dinamik üretilir.
-        const teamsData = await formTeamsForTournament(tournament, mainList);
+        const { teamsData, excluded } = await formTeamsForTournament(tournament, mainList);
+        excludedFromTeams = excluded;
         if (teamsData.length < 2) {
             throw Object.assign(new Error('Çiftler Rekabetçi turnuvası için en az 2 takım (4 oyuncu) gerekli.'), { status: 400 });
+        }
+        for (const ex of excluded) {
+            createNotification(
+                ex.userId, 'TOURNAMENT_REMOVED', '⚠️ Takım Eşleşmesi Bulunamadı',
+                `"${tournament.name}" turnuvasında size eşleşecek bir partner bulunamadığı için bu turda yer alamadınız.`,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
         }
         const createdTeams = await prisma.$transaction(teamsData.map(td => prisma.tournamentTeam.create({ data: td })));
         const teamPlayers = createdTeams.map(t => ({
@@ -1296,8 +1330,10 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     }
 
     // Notify real (non-manual) participants + socket push for instant UI update
+    // (takım eşleşmesi bulunamayan oyuncular zaten ayrı bir bildirim aldı, bunu almasınlar)
+    const excludedIds = new Set(excludedFromTeams.map(ex => ex.userId));
     for (const p of mainList) {
-        if (p.userId && p.userId !== actorUserId) {
+        if (p.userId && p.userId !== actorUserId && !excludedIds.has(p.userId)) {
             emitToUser(p.userId, 'tournament:started', { tournamentId: id });
             await createNotification(
                 p.userId, 'TOURNAMENT_STARTED', '🏆 Turnuva Başladı',
@@ -1408,11 +1444,18 @@ export const rematchTournament = async (req, res, next) => {
 export const getTournamentMatches = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const matches = await prisma.tournamentMatch.findMany({
-            where: { tournamentId: id },
-            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
-        });
-        res.json(matches);
+        const [matches, myTeam] = await Promise.all([
+            prisma.tournamentMatch.findMany({
+                where: { tournamentId: id },
+                orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+            }),
+            // Çiftler Rekabetçi: maçlarda p1Id/p2Id takım id'sidir — istemcinin "bu maç bana mı ait"
+            // kontrolü yapabilmesi için kendi takım id'sini de döndürüyoruz.
+            prisma.tournamentTeam.findFirst({
+                where: { tournamentId: id, OR: [{ player1Id: req.userId }, { player2Id: req.userId }] },
+            }),
+        ]);
+        res.json({ matches, myTeamId: myTeam?.id || null });
     } catch (e) { next(e); }
 };
 
@@ -1729,20 +1772,39 @@ export const useJoker = async (req, res, next) => {
             include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
         });
         if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
-        if (tournament.type !== '1') return res.status(400).json({ message: 'Joker hakkı sadece Bireysel Rekabetçi turnuvalarda kullanılabilir.' });
+        if (tournament.type !== '1' && tournament.type !== '2') {
+            return res.status(400).json({ message: 'Joker hakkı sadece Bireysel Rekabetçi ve Çiftler Rekabetçi turnuvalarda kullanılabilir.' });
+        }
 
         const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
         if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı.' });
         if (match.status !== 'PENDING') return res.status(400).json({ message: 'Bu maç zaten tamamlanmış.' });
 
-        const isP1 = match.p1Id === req.userId;
-        const isP2 = match.p2Id === req.userId;
+        // Çiftler Rekabetçi: p1Id/p2Id takım id'sidir — kendi tarafımın üyelerine çözülür.
+        const isTeamTournament = tournament.type === '2';
+        let p1Members = [match.p1Id].filter(Boolean);
+        let p2Members = [match.p2Id].filter(Boolean);
+        if (isTeamTournament) {
+            const teams = await prisma.tournamentTeam.findMany({ where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } } });
+            const t1 = teams.find(t => t.id === match.p1Id);
+            const t2 = teams.find(t => t.id === match.p2Id);
+            if (t1) p1Members = [t1.player1Id, t1.player2Id];
+            if (t2) p2Members = [t2.player1Id, t2.player2Id];
+        }
+
+        const isP1 = p1Members.includes(req.userId);
+        const isP2 = p2Members.includes(req.userId);
         if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maçta yer almıyorsunuz.' });
 
-        const participant = await prisma.tournamentParticipant.findFirst({
-            where: { tournamentId: id, userId: req.userId, status: 'ACCEPTED' },
+        const myMembers    = isP1 ? p1Members : p2Members;
+        const otherMembers = isP1 ? p2Members : p1Members;
+
+        const sideParticipants = await prisma.tournamentParticipant.findMany({
+            where: { tournamentId: id, userId: { in: [...myMembers, ...otherMembers] }, status: 'ACCEPTED' },
         });
-        if (!participant) return res.status(404).json({ message: 'Katılımcı bulunamadı.' });
+        const myParticipants = sideParticipants.filter(p => myMembers.includes(p.userId));
+        const otherParticipants = sideParticipants.filter(p => otherMembers.includes(p.userId));
+        if (myParticipants.length === 0) return res.status(404).json({ message: 'Katılımcı bulunamadı.' });
 
         const otherJokerRequested = isP1 ? match.p2JokerRequested : match.p1JokerRequested;
         const newDeadline = new Date(match.deadline || new Date());
@@ -1753,54 +1815,51 @@ export const useJoker = async (req, res, next) => {
                 where: { tournamentId: id },
                 orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
             });
-            const matchPlayers = [match.p1Id, match.p2Id].filter(Boolean);
-            for (const userId of matchPlayers) {
+            for (const userId of [...p1Members, ...p2Members]) {
                 emitToUser(userId, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
             }
             return allMatches;
         };
 
         if (otherJokerRequested) {
-            // Karşılıklı joker: rakip ilk tıkladığında tek kullanım sayılıp deadline +7 uzamış ve
+            // Karşılıklı joker: rakip taraf ilk tıkladığında tek kullanım sayılıp deadline +7 uzamış ve
             // kendi hakkı tüketilmişti. Bu tarafın da onaylamasıyla durum "karşılıklı" oluyor:
             // süre tekrar +7 EKLENMEZ (toplam hep +7 kalır) ve iki tarafın da joker hakkı geri verilir/korunur.
-            // Onay hakkı kendi başına turnuva boyunca oyuncu başına 1 kez kullanılabilir.
-            if (participant.mutualJokerUsed) {
+            // Onay hakkı kendi başına turnuva boyunca oyuncu/takım başına 1 kez kullanılabilir.
+            if (myParticipants.some(p => p.mutualJokerUsed)) {
                 return res.status(400).json({ message: 'Karşılıklı joker onay hakkınızı bu turnuvada daha önce kullandınız.' });
             }
-            const otherUserId = isP1 ? match.p2Id : match.p1Id;
-            const otherParticipant = await prisma.tournamentParticipant.findFirst({
-                where: { tournamentId: id, userId: otherUserId, status: 'ACCEPTED' },
-            });
             await prisma.$transaction([
                 prisma.tournamentMatch.update({
                     where: { id: matchId },
                     data: { p1JokerRequested: false, p2JokerRequested: false },
                 }),
-                prisma.tournamentParticipant.update({
-                    where: { id: participant.id },
+                ...myParticipants.map(p => prisma.tournamentParticipant.update({
+                    where: { id: p.id },
                     data: { mutualJokerUsed: true },
-                }),
-                ...(otherParticipant ? [prisma.tournamentParticipant.update({
-                    where: { id: otherParticipant.id },
+                })),
+                ...otherParticipants.map(p => prisma.tournamentParticipant.update({
+                    where: { id: p.id },
                     data: { jokerUsed: false, jokerUsedAt: null },
-                })] : []),
+                })),
             ]);
             await emitMatchUpdate();
             return res.json({ mutual: true, message: 'Karşılıklı joker onaylandı — süre +7 gün (tekrar eklenmedi), iki tarafın da joker hakkı tükenmedi.', deadline: match.deadline });
         } else {
-            if (participant.jokerUsed) return res.status(400).json({ message: 'Joker hakkınızı daha önce kullandınız.' });
-            // Tek joker: +7 gün, joker tükenir
+            if (myParticipants.some(p => p.jokerUsed)) {
+                return res.status(400).json({ message: isTeamTournament ? 'Takımınız joker hakkını daha önce kullandı.' : 'Joker hakkınızı daha önce kullandınız.' });
+            }
+            // Tek joker: +7 gün, joker tükenir (Çiftler Rekabetçi'de takımın HER İKİ üyesi için de tükenir)
             const field = isP1 ? 'p1JokerRequested' : 'p2JokerRequested';
             await prisma.$transaction([
                 prisma.tournamentMatch.update({
                     where: { id: matchId },
                     data: { [field]: true, deadline: newDeadline },
                 }),
-                prisma.tournamentParticipant.update({
-                    where: { id: participant.id },
+                ...myParticipants.map(p => prisma.tournamentParticipant.update({
+                    where: { id: p.id },
                     data: { jokerUsed: true, jokerUsedAt: new Date() },
-                }),
+                })),
             ]);
             await emitMatchUpdate();
             return res.json({ mutual: false, message: 'Joker hakkınız kullanıldı — deadline 7 gün uzatıldı.', deadline: newDeadline });

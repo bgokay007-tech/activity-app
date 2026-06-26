@@ -3105,6 +3105,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [demoIdx, setDemoIdx] = useState(0);
     const demoStop = useRef(false);
     const [tournMatches, setTournMatches] = useState([]);
+    const [myTeamId, setMyTeamId] = useState(null); // Çiftler Rekabetçi: maçlarda p1Id/p2Id benim değil takımımın id'si
+    const mySideId = item.type === '2' ? myTeamId : myId;
     const [loadingMatches, setLoadingMatches] = useState(false);
     const [showMatchesModal, setShowMatchesModal] = useState(false);
     const [matchTab, setMatchTab] = useState('matches');
@@ -3381,7 +3383,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         setLoadingMatches(true);
         try {
             const { data } = await api.get(`/tournaments/${item.id}/matches`);
-            setTournMatches(Array.isArray(data) ? data : []);
+            setTournMatches(Array.isArray(data?.matches) ? data.matches : []);
+            setMyTeamId(data?.myTeamId || null);
         } catch { /* silent */ }
         finally { setLoadingMatches(false); }
     }, [item.id]);
@@ -4056,16 +4059,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     </Text>
                                                                 );
                                                             })()}
-                                                            {isReady && (isCreator || myIsAdmin || match.p1Id === myId || match.p2Id === myId) && !isEntering && (
+                                                            {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
                                                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>Skor Gir</Text>
                                                                 </TouchableOpacity>
                                                             )}
-                                                            {/* Joker butonu — sadece Bireysel Rekabetçi, oyuncu kendi maçı */}
-                                                            {item.type === '1' && isReady && (match.p1Id === myId || match.p2Id === myId) && !isEntering && (() => {
-                                                                const myJokerRequested = match.p1Id === myId ? match.p1JokerRequested : match.p2JokerRequested;
-                                                                const otherJokerRequested = match.p1Id === myId ? match.p2JokerRequested : match.p1JokerRequested;
+                                                            {/* Joker butonu — Bireysel Rekabetçi (oyuncu) ve Çiftler Rekabetçi (takım) */}
+                                                            {(item.type === '1' || item.type === '2') && isReady && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
+                                                                const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
+                                                                const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
                                                                 if (myJokerRequested) return null;
                                                                 const jokerLabel = otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker';
                                                                 const confirmMsg = otherJokerRequested
