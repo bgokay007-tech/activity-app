@@ -5531,6 +5531,27 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             )}
 
+                            {/* Çiftler Rekabetçi kuralları */}
+                            {f.type === '2' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Rekabetçi Kuralları</Text>
+                                    {[
+                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken ELO puanı birbirine en yakın olanlarla eşleştirilerek takım yapılır. Tek kalan en düşük ELO puanlı oyuncu turnuvaya katılım sağlayamaz.',
+                                        'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
+                                        'Takımların ELO puan ortalaması alınır ve play-off\'lara kadar kaç maç seçildiyse, her takım diğer her takımla en fazla bir kez eşleşecek şekilde, ortalama puanı en yakın olandan başlanarak her turda rakip eşleşmesi sağlanır.',
+                                        'Her takımın 1 kez joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
+                                        'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
+                                        'Play-off öncesi lig tablosunda puanı eşit olan takımlar varsa averaj (oynanan oyun oranı) dikkate alınır.',
+                                        'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
+                                    ].map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
 
                             {/* Gender | Sets — side by side */}
                             <View style={{ flexDirection:'row', gap:6, alignItems:'flex-end', marginBottom:8 }}>
