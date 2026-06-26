@@ -5630,32 +5630,34 @@ function TennisSpotlightModal({ visible, onClose, cfg }) {
     }, [visible]);
 
     return (
-        <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-            <View style={spot.overlay}>
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <View style={[spot.overlay, { paddingTop: Platform.OS==='ios' ? 56 : 30 }]}>
                 <View style={[spot.card, { borderColor: cfg.color }]}>
-                    {loading ? (
-                        <ActivityIndicator color={cfg.color} />
-                    ) : !flipped ? (
-                        <>
-                            <Text style={spot.cardEmoji}>🎾</Text>
-                            <Text style={[spot.cardTitle, { color: cfg.color }]}>Günün Tenisçisi</Text>
-                            {data?.pro?.available ? (
-                                <>
-                                    <Text style={spot.proName}>{data.pro.name}</Text>
-                                    <Text style={spot.proAchievements}>{data.pro.achievements}</Text>
-                                </>
-                            ) : (
-                                <Text style={spot.comingSoon}>Çok yakında — güncel ATP/WTA verileri burada görünecek 🎾</Text>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <Text style={[spot.cardTitle, { color: cfg.color }]}>Activity'de Dün</Text>
-                            <SpotlightTierRow label="🌍 Uluslararası" entry={data?.app?.international} />
-                            <SpotlightTierRow label="🇹🇷 Ulusal" entry={data?.app?.national} />
-                            <SpotlightTierRow label="📍 Yerel" entry={data?.app?.local} />
-                        </>
-                    )}
+                    <ScrollView contentContainerStyle={spot.cardScroll} showsVerticalScrollIndicator={false}>
+                        {loading ? (
+                            <ActivityIndicator color={cfg.color} style={{ marginTop:60 }} />
+                        ) : !flipped ? (
+                            <>
+                                <Text style={spot.cardEmoji}>🎾</Text>
+                                <Text style={[spot.cardTitle, { color: cfg.color }]}>Günün Tenisçisi</Text>
+                                {data?.pro?.available ? (
+                                    <>
+                                        <Text style={spot.proName}>{data.pro.name}</Text>
+                                        <Text style={spot.proAchievements}>{data.pro.achievements}</Text>
+                                    </>
+                                ) : (
+                                    <Text style={spot.comingSoon}>Çok yakında — güncel ATP/WTA verileri burada görünecek 🎾</Text>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <Text style={[spot.cardTitle, { color: cfg.color }]}>Activity'de Dün</Text>
+                                <SpotlightTierRow label="🌍 Uluslararası" entry={data?.app?.international} />
+                                <SpotlightTierRow label="🇹🇷 Ulusal" entry={data?.app?.national} />
+                                <SpotlightTierRow label="📍 Yerel" entry={data?.app?.local} />
+                            </>
+                        )}
+                    </ScrollView>
                 </View>
                 <View style={spot.actions}>
                     <TouchableOpacity style={spot.actionBtn} onPress={() => setFlipped(v => !v)}>
@@ -5671,22 +5673,23 @@ function TennisSpotlightModal({ visible, onClose, cfg }) {
 }
 
 const spot = StyleSheet.create({
-    overlay:      { flex:1, backgroundColor:'#000000c0', justifyContent:'center', alignItems:'center', padding:24 },
-    card:         { width:'100%', maxWidth:340, minHeight:340, backgroundColor: colors.surface, borderRadius:20, borderWidth:3, padding:20, alignItems:'center', justifyContent:'center' },
-    cardEmoji:    { fontSize:40, marginBottom:8 },
-    cardTitle:    { fontSize:16, fontWeight:'900', marginBottom:14, textAlign:'center' },
-    proName:      { color:'#fff', fontSize:20, fontWeight:'900', marginBottom:8, textAlign:'center' },
-    proAchievements: { color: colors.textSecondary, fontSize:13, textAlign:'center', lineHeight:19 },
-    comingSoon:   { color: colors.textMuted, fontSize:13, textAlign:'center', lineHeight:19 },
-    tierRow:      { width:'100%', backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:10 },
-    tierLabel:    { color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:4 },
-    tierName:     { color:'#fff', fontSize:15, fontWeight:'800', marginBottom:2 },
-    tierDetail:   { color: colors.textSecondary, fontSize:11 },
-    tierEmpty:    { color: colors.textMuted, fontSize:12, fontStyle:'italic' },
-    actions:      { flexDirection:'row', gap:10, marginTop:16 },
-    actionBtn:    { backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:20, paddingVertical:10, borderWidth:1, borderColor: colors.border },
+    overlay:      { flex:1, backgroundColor: colors.bg, paddingHorizontal:16, paddingBottom:20 },
+    card:         { flex:1, backgroundColor: colors.surface, borderRadius:24, borderWidth:3, marginBottom:14, overflow:'hidden' },
+    cardScroll:   { padding:24, alignItems:'center', flexGrow:1, justifyContent:'center' },
+    cardEmoji:    { fontSize:56, marginBottom:10 },
+    cardTitle:    { fontSize:20, fontWeight:'900', marginBottom:18, textAlign:'center' },
+    proName:      { color:'#fff', fontSize:24, fontWeight:'900', marginBottom:10, textAlign:'center' },
+    proAchievements: { color: colors.textSecondary, fontSize:14, textAlign:'center', lineHeight:21 },
+    comingSoon:   { color: colors.textMuted, fontSize:14, textAlign:'center', lineHeight:21 },
+    tierRow:      { width:'100%', backgroundColor: colors.surface2, borderRadius:14, padding:16, marginBottom:12 },
+    tierLabel:    { color: colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 },
+    tierName:     { color:'#fff', fontSize:17, fontWeight:'800', marginBottom:3 },
+    tierDetail:   { color: colors.textSecondary, fontSize:12 },
+    tierEmpty:    { color: colors.textMuted, fontSize:13, fontStyle:'italic' },
+    actions:      { flexDirection:'row', gap:10 },
+    actionBtn:    { flex:1, backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:20, paddingVertical:14, borderWidth:1, borderColor: colors.border, alignItems:'center' },
     closeBtn:     { backgroundColor:'#dc262620', borderColor:'#dc262640' },
-    actionBtnText:{ color:'#fff', fontSize:13, fontWeight:'700' },
+    actionBtnText:{ color:'#fff', fontSize:14, fontWeight:'700' },
 });
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
