@@ -487,11 +487,13 @@ export const inviteToRival = async (req, res, next) => {
 
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
-        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const isParticipant = participants.some(p => p.id === req.userId);
+        // Owner or any already-accepted participant can invite more players
+        if (rival.senderId !== req.userId && !isParticipant) return res.status(403).json({ message: 'Forbidden' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
         if (userId === req.userId) return res.status(400).json({ message: 'Kendinizi davet edemezsiniz' });
 
-        const participants = Array.isArray(rival.participants) ? rival.participants : [];
         if (participants.some(p => p.id === userId)) {
             return res.status(400).json({ message: 'Bu kullanıcı zaten maça katılmış' });
         }

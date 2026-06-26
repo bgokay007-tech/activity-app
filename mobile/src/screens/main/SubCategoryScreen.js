@@ -535,28 +535,27 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                     {/* Katıl / İptal aksiyonu */}
                     <View style={{ marginBottom:20 }}>
+                        {/* Sahibi ve maça kabul edilmiş katılımcılar başka oyuncu davet edebilir */}
+                        {(isOwner || isParticipant) && !isFull && (
+                            <TouchableOpacity
+                                style={[s.joinBtn, { backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', marginBottom:10, borderRadius: moderateScale(10), paddingVertical: moderateScale(9) }]}
+                                onPress={() => setInviteModalVisible(true)}
+                            >
+                                <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(13) }]}>{t.inviteBtn}</Text>
+                            </TouchableOpacity>
+                        )}
                         {isOwner ? (
-                            <>
-                                {!isFull && (
-                                    <TouchableOpacity
-                                        style={[s.joinBtn, { backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', marginBottom:10, borderRadius: moderateScale(10), paddingVertical: moderateScale(9) }]}
-                                        onPress={() => setInviteModalVisible(true)}
-                                    >
-                                        <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(13) }]}>{t.inviteBtn}</Text>
-                                    </TouchableOpacity>
-                                )}
-                                <View style={{ flexDirection: 'row', gap: 10 }}>
-                                    <TouchableOpacity
-                                        style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}
-                                        onPress={() => { onClose(); setTimeout(onEdit, 300); }}
-                                    >
-                                        <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(12) }]}>✏️ Düzenle</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
-                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.cancelAdBtn}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </>
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <TouchableOpacity
+                                    style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}
+                                    onPress={() => { onClose(); setTimeout(onEdit, 300); }}
+                                >
+                                    <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(12) }]}>✏️ Düzenle</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
+                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.cancelAdBtn}</Text>
+                                </TouchableOpacity>
+                            </View>
                         ) : myInvite ? (
                             <View style={{ flexDirection:'row', gap:10 }}>
                                 <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(10), paddingVertical: moderateScale(9) }]} onPress={() => handleRespondJoin(myInvite.id, 'accept')}>
