@@ -23,5 +23,13 @@ router.post('/push-token', authenticate, async (req, res) => {
     res.json({ ok: true });
 });
 
+// Logging out should stop pushes to this device for this account —
+// otherwise a stale token keeps delivering pushes meant for an account
+// the device is no longer logged into (it would just switch to another user).
+router.post('/logout', authenticate, async (req, res) => {
+    await prisma.user.update({ where: { id: req.userId }, data: { pushToken: null } }).catch(() => {});
+    res.json({ ok: true });
+});
+
 
 export default router;

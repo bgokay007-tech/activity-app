@@ -478,6 +478,62 @@ export const sendJoinRequest = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Creator invites a specific player to their own open listing
+export const inviteToRival = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ message: 'userId required' });
+
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
+        if (userId === req.userId) return res.status(400).json({ message: 'Kendinizi davet edemezsiniz' });
+
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        if (participants.some(p => p.id === userId)) {
+            return res.status(400).json({ message: 'Bu kullanıcı zaten maça katılmış' });
+        }
+
+        const existing = await prisma.rivalJoinRequest.findUnique({
+            where: { rivalId_userId: { rivalId: id, userId } },
+        });
+        if (existing && existing.status !== 'REJECTED') {
+            return res.status(400).json({ message: 'Bu kullanıcıya zaten bir istek/davet gönderilmiş', status: existing.status });
+        }
+
+        if (existing) {
+            await prisma.rivalJoinRequest.update({
+                where: { rivalId_userId: { rivalId: id, userId } },
+                data: { status: 'PENDING', initiatedBy: 'OWNER', joiningTeam: [] },
+            });
+        } else {
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId, initiatedBy: 'OWNER' } });
+        }
+
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
+
+        createNotification(
+            userId, 'MATCH_INVITE',
+            '🎾 Maç Daveti',
+            `@${me?.username} sizi bir maça davet etti.`,
+            { category: rival.category, subCategory: rival.subCategory, rivalId: rival.id }
+        ).catch(() => {});
+
+        const updatedRival = await prisma.activityRequest.findUnique({
+            where: { id },
+            include: {
+                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, totalPoints: true, wins: true, losses: true, alias: true } } } },
+                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true } } } } } },
+            },
+        });
+        emitToUser(userId, 'rivalUpdate', updatedRival);
+
+        res.status(201).json({ message: 'Davet gönderildi.' });
+    } catch (error) { next(error); }
+};
+
 // Creator accepts or rejects a join request
 export const respondToJoin = async (req, res, next) => {
     try {
@@ -492,13 +548,16 @@ export const respondToJoin = async (req, res, next) => {
             },
         });
         if (!joinReq) return res.status(404).json({ message: 'Not found' });
-        if (joinReq.rival.senderId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        // Owner responds to a join request from a player; the invited player responds to an owner-sent invite
+        const responder = joinReq.initiatedBy === 'OWNER' ? joinReq.userId : joinReq.rival.senderId;
+        if (responder !== req.userId) return res.status(403).json({ message: 'Forbidden' });
 
         await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: action === 'accept' ? 'ACCEPTED' : 'REJECTED' } });
 
         if (action !== 'accept') {
-            // Reddedildiğini requester'a bildir — katıl butonu geri açılsın
-            emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
+            // Reddedildiğini diğer tarafa bildir — katıl/davet butonu geri açılsın
+            const notifyTargetId = joinReq.initiatedBy === 'OWNER' ? joinReq.rival.senderId : joinReq.userId;
+            emitToUser(notifyTargetId, 'joinRejected', { rivalId: joinReq.rivalId });
             return res.json({ message: 'Request rejected.' });
         }
 
@@ -509,10 +568,14 @@ export const respondToJoin = async (req, res, next) => {
         const isTeamJoin = rival.matchMode === 'COMPETITIVE' && joiningTeam.length > 0;
 
         const u = joinReq.user;
+        const joinerInterest = await prisma.userInterest.findFirst({
+            where: { userId: u.id, subCategory: rival.subCategory },
+            select: { alias: true },
+        });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const updatedParticipants = isTeamJoin
             ? joiningTeam  // full opponent team replaces participants
-            : [...participants, { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar }];
+            : [...participants, { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null }];
         const required = getRequired(rival);
         const isFull = updatedParticipants.length >= required;
 
@@ -638,7 +701,7 @@ export const getUpcomingMatches = async (req, res, next) => {
             const interests = allUserIds.length > 0
                 ? await prisma.userInterest.findMany({
                     where: { userId: { in: allUserIds } },
-                    select: { userId: true, subCategory: true, skillRating: true },
+                    select: { userId: true, subCategory: true, skillRating: true, alias: true },
                 })
                 : [];
 
@@ -661,9 +724,11 @@ export const getUpcomingMatches = async (req, res, next) => {
             const enriched = active.map(m => ({
                 ...m,
                 senderSkillRating: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.skillRating ?? null,
+                senderAlias: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.alias || null,
                 participants: (Array.isArray(m.participants) ? m.participants : []).map(p => ({
                     ...p,
                     skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                    alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
                 })),
                 _myNoShowPending: myNoShowSet.has(m.id),
                 commentCount: commentCountMap[m.id] ?? 0,

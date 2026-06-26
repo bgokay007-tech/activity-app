@@ -1788,12 +1788,16 @@ export default function ProfileScreen({ route, navigation }) {
     };
 
     const handleLogout = () => {
+        // Clear the server-side push token first — otherwise this device keeps
+        // receiving push notifications meant for this account after switching users.
+        const clearPushToken = () => api.post('/auth/logout').catch(() => {});
         Alert.alert(t.logoutTitle, t.logoutMsg, [
             { text: t.cancelBtn, style: 'cancel' },
-            { text: t.logoutAction, style: 'destructive', onPress: () => dispatch(logout()) },
+            { text: t.logoutAction, style: 'destructive', onPress: async () => { await clearPushToken(); dispatch(logout()); } },
             { text: t.logoutForget, style: 'destructive', onPress: async () => {
                 await AsyncStorage.removeItem('activity_saved_email');
                 await AsyncStorage.removeItem('activity_saved_pass');
+                await clearPushToken();
                 dispatch(logout());
             }},
         ]);

@@ -9,6 +9,7 @@ const TYPE_ICON = {
     RIVAL_ACCEPTED: '✅',
     RIVAL_DECLINED: '❌',
     RIVAL_JOIN_REQUEST: '🙋',
+    MATCH_INVITE: '✉️',
     JOIN_ACCEPTED: '🎉',
     JOIN_DECLINED: '🚫',
     FRIEND_REQUEST: '👥',
