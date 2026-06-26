@@ -7,6 +7,7 @@ import {
     InteractionManager,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
@@ -5590,6 +5591,104 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     );
 }
 
+// ─── Günün Tenisçisi (Digimon kart) ────────────────────────────────────────────
+
+function SpotlightTierRow({ label, entry }) {
+    return (
+        <View style={spot.tierRow}>
+            <Text style={spot.tierLabel}>{label}</Text>
+            {entry ? (
+                <>
+                    <Text style={spot.tierName} numberOfLines={1}>{entry.name || '—'}</Text>
+                    <Text style={spot.tierDetail} numberOfLines={2}>
+                        {entry.type === 'tournament'
+                            ? `🏆 ${entry.tournamentName} — ${entry.placement}.`
+                            : `⚔️ ${entry.wins} galibiyet`}
+                        {entry.date ? ` · ${new Date(entry.date).toLocaleDateString('tr-TR', { day:'numeric', month:'long' })}` : ''}
+                    </Text>
+                </>
+            ) : (
+                <Text style={spot.tierEmpty}>Henüz veri yok</Text>
+            )}
+        </View>
+    );
+}
+
+function TennisSpotlightModal({ visible, onClose, cfg }) {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [flipped, setFlipped] = useState(false);
+
+    useEffect(() => {
+        if (!visible) return;
+        setFlipped(false);
+        setLoading(true);
+        api.get('/spotlight/daily', { params: { subCategory: 'tennis' } })
+            .then(res => setData(res.data))
+            .catch(() => setData(null))
+            .finally(() => setLoading(false));
+    }, [visible]);
+
+    return (
+        <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+            <View style={spot.overlay}>
+                <View style={[spot.card, { borderColor: cfg.color }]}>
+                    {loading ? (
+                        <ActivityIndicator color={cfg.color} />
+                    ) : !flipped ? (
+                        <>
+                            <Text style={spot.cardEmoji}>🎾</Text>
+                            <Text style={[spot.cardTitle, { color: cfg.color }]}>Günün Tenisçisi</Text>
+                            {data?.pro?.available ? (
+                                <>
+                                    <Text style={spot.proName}>{data.pro.name}</Text>
+                                    <Text style={spot.proAchievements}>{data.pro.achievements}</Text>
+                                </>
+                            ) : (
+                                <Text style={spot.comingSoon}>Çok yakında — güncel ATP/WTA verileri burada görünecek 🎾</Text>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <Text style={[spot.cardTitle, { color: cfg.color }]}>Activity'de Dün</Text>
+                            <SpotlightTierRow label="🌍 Uluslararası" entry={data?.app?.international} />
+                            <SpotlightTierRow label="🇹🇷 Ulusal" entry={data?.app?.national} />
+                            <SpotlightTierRow label="📍 Yerel" entry={data?.app?.local} />
+                        </>
+                    )}
+                </View>
+                <View style={spot.actions}>
+                    <TouchableOpacity style={spot.actionBtn} onPress={() => setFlipped(v => !v)}>
+                        <Text style={spot.actionBtnText}>🔄 Çevir</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[spot.actionBtn, spot.closeBtn]} onPress={onClose}>
+                        <Text style={spot.actionBtnText}>✕ Kapat</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+const spot = StyleSheet.create({
+    overlay:      { flex:1, backgroundColor:'#000000c0', justifyContent:'center', alignItems:'center', padding:24 },
+    card:         { width:'100%', maxWidth:340, minHeight:340, backgroundColor: colors.surface, borderRadius:20, borderWidth:3, padding:20, alignItems:'center', justifyContent:'center' },
+    cardEmoji:    { fontSize:40, marginBottom:8 },
+    cardTitle:    { fontSize:16, fontWeight:'900', marginBottom:14, textAlign:'center' },
+    proName:      { color:'#fff', fontSize:20, fontWeight:'900', marginBottom:8, textAlign:'center' },
+    proAchievements: { color: colors.textSecondary, fontSize:13, textAlign:'center', lineHeight:19 },
+    comingSoon:   { color: colors.textMuted, fontSize:13, textAlign:'center', lineHeight:19 },
+    tierRow:      { width:'100%', backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:10 },
+    tierLabel:    { color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:4 },
+    tierName:     { color:'#fff', fontSize:15, fontWeight:'800', marginBottom:2 },
+    tierDetail:   { color: colors.textSecondary, fontSize:11 },
+    tierEmpty:    { color: colors.textMuted, fontSize:12, fontStyle:'italic' },
+    actions:      { flexDirection:'row', gap:10, marginTop:16 },
+    actionBtn:    { backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:20, paddingVertical:10, borderWidth:1, borderColor: colors.border },
+    closeBtn:     { backgroundColor:'#dc262620', borderColor:'#dc262640' },
+    actionBtnText:{ color:'#fff', fontSize:13, fontWeight:'700' },
+});
+
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
@@ -5611,6 +5710,19 @@ export default function SubCategoryScreen({ route, navigation }) {
             setActiveTab(route.params.initialTab);
         }
     }, [route.params?.initialTab]);
+
+    // Tenis sekmesine girince günde bir kez "Günün Tenisçisi" kartını göster
+    const [showSpotlight, setShowSpotlight] = useState(false);
+    useEffect(() => {
+        if (sub !== 'tennis') return;
+        const today = new Date().toISOString().slice(0, 10);
+        AsyncStorage.getItem('tennis_spotlight_shown_date').then(lastShown => {
+            if (lastShown !== today) {
+                setShowSpotlight(true);
+                AsyncStorage.setItem('tennis_spotlight_shown_date', today);
+            }
+        });
+    }, [sub]);
 
     const [autoOpenId, setAutoOpenId] = useState(null);
     const autoOpenHandledRef = useRef(null);
@@ -6584,6 +6696,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     );
 
     return (
+        <>
         <View style={[s.container, { paddingTop: Platform.OS==='ios' ? 56 : 40 }]}>
             <CityPickerModal
                 visible={showCityFilter}
@@ -8343,6 +8456,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </View>
             </Modal>
         </View>
+        <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} />
+        </>
     );
 }
 
