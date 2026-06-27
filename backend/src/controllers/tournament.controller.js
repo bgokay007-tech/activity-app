@@ -1547,7 +1547,7 @@ export const rematchTournament = async (req, res, next) => {
 export const getTournamentMatches = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const [matches, myTeam] = await Promise.all([
+        const [matches, myTeam, teams] = await Promise.all([
             prisma.tournamentMatch.findMany({
                 where: { tournamentId: id },
                 orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
@@ -1557,8 +1557,14 @@ export const getTournamentMatches = async (req, res, next) => {
             prisma.tournamentTeam.findFirst({
                 where: { tournamentId: id, OR: [{ player1Id: req.userId }, { player2Id: req.userId }] },
             }),
+            // Takımların güncel ortalama ELO'su — istemci henüz skorlanmamış maçlarda da
+            // takım yıldız puanını gösterebilsin diye.
+            prisma.tournamentTeam.findMany({
+                where: { tournamentId: id },
+                select: { id: true, avgRating: true },
+            }),
         ]);
-        res.json({ matches, myTeamId: myTeam?.id || null });
+        res.json({ matches, myTeamId: myTeam?.id || null, teams });
     } catch (e) { next(e); }
 };
 

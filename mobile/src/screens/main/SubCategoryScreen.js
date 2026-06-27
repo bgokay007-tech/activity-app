@@ -116,6 +116,19 @@ function groupDoublesPairs(rows) {
     return { pairs, solos, byUserId };
 }
 
+// Çiftler Rekabetçi: eşleşmiş çiftleri ve bireyselleri tek bir "takım slotu" listesine
+// (en erken kabul/başvuru zamanına göre sıralı) birleştirir, sonra maxPlayers/2 takıma
+// göre AS (ana) / YEDEK olarak böler — diğer turnuva türlerindeki AS/YDK mantığının eşleniği.
+function splitDoublesSlots(pairs, solos, maxPlayers) {
+    const timeOf = (r) => new Date(r.acceptedAt || r.createdAt).getTime();
+    const slots = [
+        ...pairs.map(([a, b]) => ({ a, b, t: Math.min(timeOf(a), timeOf(b)) })),
+        ...solos.map(s => ({ a: s, b: null, t: timeOf(s) })),
+    ].sort((x, y) => x.t - y.t);
+    const maxTeams = maxPlayers ? Math.max(1, Math.floor(maxPlayers / 2)) : slots.length;
+    return { mainSlots: slots.slice(0, maxTeams), waitSlots: slots.slice(maxTeams) };
+}
+
 // Opens the device's maps app at the court location, falling back to a Google Maps search
 const openCourtMap = (courtName, courtLat, courtLng, courtAddress) => {
     if (courtLat && courtLng) {
@@ -3302,6 +3315,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const demoStop = useRef(false);
     const [tournMatches, setTournMatches] = useState([]);
     const [myTeamId, setMyTeamId] = useState(null); // Çiftler Rekabetçi: maçlarda p1Id/p2Id benim değil takımımın id'si
+    const [tournTeams, setTournTeams] = useState([]); // Çiftler Rekabetçi: takım id -> avgRating (skorlanmamış maçlarda da puan göstermek için)
     const mySideId = item.type === '2' ? myTeamId : myId;
     const [loadingMatches, setLoadingMatches] = useState(false);
     const [showMatchesModal, setShowMatchesModal] = useState(false);
@@ -3543,12 +3557,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     // Çiftler Rekabetçi: kabul edilmiş bir satırı (eşleşmiş çift ya da bireysel) ikili kart
     // olarak render eder. p2 null ise p1 bireyseldir — slot 2'de davet/kabul/bekleme durumu gösterilir.
-    const renderDuoCard = (p1, p2, solos, byUserId, isCreatorView) => {
+    const renderDuoCard = (p1, p2, solos, byUserId, isCreatorView, label) => {
         const regEnded = isRegEnded();
         const nameOf = (p) => p?.manualName || p?.user?.fullName || p?.user?.username || '';
         const ratingOf = (p) => p?.user?.interests?.[0]?.skillRating;
         const PlayerHalf = ({ p }) => (
-            <View style={{ flex:1 }}>
+            <View>
                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(p)}</Text>
                 {p?.manualName
                     ? <Text style={{ color:'#3b82f6', fontSize:9, fontWeight:'700' }}>✏️ Manuel</Text>
@@ -3571,7 +3585,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             if (p1.partnerId) {
                 const target = byUserId.get(p1.partnerId);
                 slot2 = (
-                    <View style={{ flex:1 }}>
+                    <View>
                         <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ marginTop:2 }}>
@@ -3582,7 +3596,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 );
             } else if (invitedBy) {
                 slot2 = (
-                    <View style={{ flex:1 }}>
+                    <View>
                         <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} davet etti</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity onPress={() => setMyTournamentPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
@@ -3593,7 +3607,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 );
             } else {
                 slot2 = (
-                    <View style={{ flex:1 }}>
+                    <View>
                         <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>Partner aranıyor</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity
@@ -3609,12 +3623,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
         const isMineCard = p1.userId === myId || p2?.userId === myId;
         return (
-            <View key={p1.userId} style={{ flexDirection:'row', alignItems:'flex-start', gap:6, backgroundColor: isMineCard ? cfg.color+'10' : '#0f172a', borderRadius:8, borderWidth:1, borderColor: isMineCard ? cfg.color+'40' : colors.border+'40', paddingVertical:6, paddingHorizontal:8, marginBottom:5 }}>
+            <View key={p1.userId} style={{ width:'48%', backgroundColor: isMineCard ? cfg.color+'10' : '#0f172a', borderRadius:8, borderWidth:1, borderColor: isMineCard ? cfg.color+'40' : colors.border+'40', paddingVertical:6, paddingHorizontal:8, marginBottom:6 }}>
+                {label && (
+                    <View style={{ backgroundColor: label.bg, borderRadius:4, paddingHorizontal:5, paddingVertical:1, alignSelf:'flex-start', marginBottom:3, borderWidth:1, borderColor: label.border }}>
+                        <Text style={{ color: label.color, fontSize:8, fontWeight:'800' }}>{label.text}</Text>
+                    </View>
+                )}
                 <PlayerHalf p={p1} />
-                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'900' }}>+</Text>
+                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
                 {slot2}
                 {p2 && isMineCard && !regEnded && (
-                    <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading}>
+                    <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ marginTop:3 }}>
                         <Text style={{ color:'#f87171', fontSize:11, fontWeight:'800' }}>✕</Text>
                     </TouchableOpacity>
                 )}
@@ -3692,6 +3711,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const { data } = await api.get(`/tournaments/${item.id}/matches`);
             setTournMatches(Array.isArray(data?.matches) ? data.matches : []);
             setMyTeamId(data?.myTeamId || null);
+            setTournTeams(Array.isArray(data?.teams) ? data.teams : []);
         } catch { /* silent */ }
         finally { setLoadingMatches(false); }
     }, [item.id]);
@@ -3911,6 +3931,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             if (r.userId && r.user?.interests?.[0]?.skillRating != null)
                 map[r.userId] = r.user.interests[0].skillRating;
         });
+        // Çiftler Rekabetçi: takım ortalama ELO'su — henüz skorlanmamış maçlarda da
+        // takım yıldız puanı gösterilsin (skorlanan maçlar aşağıda daha güncel değerle ezer)
+        tournTeams.forEach(t => { if (t.avgRating != null) map[t.id] = t.avgRating; });
         // Override with latest ratings from completed match scores
         const done = [...tournMatches].filter(m => m.status === "COMPLETED" && m.score);
         done.sort((a, b) => (a.round||0) - (b.round||0) || (a.matchIndex||0) - (b.matchIndex||0));
@@ -4909,6 +4932,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     const accepted = requests.filter(r => r.status === 'ACCEPTED');
                                     if (accepted.length === 0) return null;
                                     const { pairs, solos, byUserId } = groupDoublesPairs(accepted);
+                                    const { mainSlots, waitSlots } = splitDoublesSlots(pairs, solos, item.maxPlayers);
                                     return (
                                         <View style={{ marginTop:14 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
@@ -4919,8 +4943,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             {isRegEnded() && (
                                                 <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>⏳ Son başvuru saati geçti — eşleşmeler otomatik oluşturulacak</Text>
                                             )}
-                                            {pairs.map(([a, b]) => renderDuoCard(a, b, solos, byUserId, true))}
-                                            {solos.map(s => renderDuoCard(s, null, solos, byUserId, true))}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                                {mainSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, true, { text:`AS ${i+1}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }))}
+                                            </View>
+                                            {waitSlots.length > 0 && <>
+                                                <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginTop:10, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
+                                                </View>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                                    {waitSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, true, { text:`YDK ${i+1}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' }))}
+                                                </View>
+                                            </>}
                                         </View>
                                     );
                                 })()}
@@ -4996,6 +5029,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     const pending = requests.filter(r => r.status === 'PENDING');
                                     const accepted = requests.filter(r => r.status === 'ACCEPTED');
                                     const { pairs, solos, byUserId } = groupDoublesPairs(accepted);
+                                    const { mainSlots, waitSlots } = splitDoublesSlots(pairs, solos, item.maxPlayers);
                                     return (
                                         <View>
                                             {pending.length > 0 && (
@@ -5015,8 +5049,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             {isRegEnded() && (
                                                 <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>⏳ Son başvuru saati geçti — eşleşmeler otomatik oluşturulacak</Text>
                                             )}
-                                            {pairs.map(([a, b]) => renderDuoCard(a, b, solos, byUserId, false))}
-                                            {solos.map(s => renderDuoCard(s, null, solos, byUserId, false))}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                                {mainSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, false, { text:`AS ${i+1}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }))}
+                                            </View>
+                                            {waitSlots.length > 0 && <>
+                                                <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginTop:10, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
+                                                </View>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                                    {waitSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, false, { text:`YDK ${i+1}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' }))}
+                                                </View>
+                                            </>}
                                         </View>
                                     );
                                 })() : participants.map((r, i) => {
