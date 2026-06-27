@@ -109,13 +109,13 @@ async function applyCompetitivePoints(request, winnerUserId) {
         for (const wi of winnerInterests) {
             updates.push(prisma.userInterest.update({
                 where: { id: wi.id },
-                data: { totalPoints: wi.totalPoints + transferWin, wins: wi.wins + 1, skillRating: parseFloat((wi.skillRating + winnerGain).toFixed(4)) },
+                data: { totalPoints: wi.totalPoints + transferWin, wins: wi.wins + 1, skillRating: parseFloat((wi.skillRating + winnerGain).toFixed(4)), assessmentCompleted: true },
             }));
         }
         for (const li of loserInterests) {
             updates.push(prisma.userInterest.update({
                 where: { id: li.id },
-                data: { totalPoints: Math.max(0, li.totalPoints - transferLose), losses: li.losses + 1, skillRating: Math.max(0, parseFloat((li.skillRating - loserLoss).toFixed(4))) },
+                data: { totalPoints: Math.max(0, li.totalPoints - transferLose), losses: li.losses + 1, skillRating: Math.max(0, parseFloat((li.skillRating - loserLoss).toFixed(4))), assessmentCompleted: true },
             }));
         }
         pointChanges = [
@@ -134,7 +134,7 @@ async function applyCompetitivePoints(request, winnerUserId) {
             const skillRatingFinal = parseFloat((ptsFinal / 100 * 5).toFixed(2));
             updates.push(prisma.userInterest.update({
                 where: { id: wi.id },
-                data: { totalPoints: ptsFinal, wins: wi.wins + 1, skillRating: skillRatingFinal },
+                data: { totalPoints: ptsFinal, wins: wi.wins + 1, skillRating: skillRatingFinal, assessmentCompleted: true },
             }));
         }
         for (const li of loserInterests) {
@@ -144,6 +144,7 @@ async function applyCompetitivePoints(request, winnerUserId) {
                     totalPoints: Math.max(0, li.totalPoints - transfer),
                     losses: li.losses + 1,
                     skillRating: Math.max(0, parseFloat(((Math.max(0, li.totalPoints - transfer)) / 100 * 5).toFixed(2))),
+                    assessmentCompleted: true,
                 },
             }));
         }

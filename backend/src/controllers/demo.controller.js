@@ -172,10 +172,10 @@ export const seedOneTournamentJoin = async (req, res, next) => {
 
         await prisma.userInterest.upsert({
             where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory: 'tennis' } },
-            update: { skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses },
+            update: { skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true },
             create: {
                 userId: user.id, category: 'SPORTS', subCategory: 'tennis',
-                skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses,
+                skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true,
             },
         });
 
