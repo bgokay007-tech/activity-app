@@ -2,6 +2,21 @@
 // Each option has a `points` value (0–30)
 // Max score = questions.length * 30 → level thresholds are % based
 
+// Padel: her soru kullanıcının kendini 0-5 arası puanladığı tek tip 6 seçenekli
+// bir ölçek kullanır; `max` o sorunun toplam puana katkısının üst sınırıdır
+// (kategori ağırlığını uygulamak için 0-5'i orantılı olarak `max`'a ölçekler).
+function ratingOptions(max) {
+    const labels = [
+        { text: '0 — Not at all',     tr: '0 — Hiç / Yapamıyorum' },
+        { text: '1 — Very weak',      tr: '1 — Çok zayıf' },
+        { text: '2 — Weak',           tr: '2 — Zayıf' },
+        { text: '3 — Average',        tr: '3 — Orta' },
+        { text: '4 — Good',           tr: '4 — İyi' },
+        { text: '5 — Very good',      tr: '5 — Çok iyi' },
+    ];
+    return labels.map((l, i) => ({ ...l, points: parseFloat((max * i / 5).toFixed(4)) }));
+}
+
 const QUESTIONS = {
     // ─── TENNIS — weighted 4-section assessment (total max = 100 pts → rating 0-5) ───
     // Section 1 (3 q, max 20):  20% — Experience & Level Perception
@@ -159,66 +174,71 @@ const QUESTIONS = {
         },
     ],
 
+    // ─── PADEL — 3-category weighted self-assessment (total max = 100 pts → rating 0-5) ───
+    // Each question is self-rated 0-5; per-question max points are scaled so the
+    // category totals land exactly on the requested weights:
+    // Category 1 (4 q, max 40):  40% — Vuruş Teknikleri ve Kontrol (Teknik)
+    // Category 2 (3 q, max 35):  35% — Taktik ve Oyun Anlayışı (Oyun Bilgisi)
+    // Category 3 (2 q, max 25):  25% — Deneyim ve Maç Geçmişi (Tecrübe)
     padel: [
+        // ── Category 1: Vuruş Teknikleri ve Kontrol (Teknik) — 40%, 10 pts/soru ──
         {
-            id: 'q1',
-            question: 'How long have you been playing padel?',
-            tr: 'Padel oynamaya ne kadar önce başladın?',
-            options: [
-                { text: 'Never played',       tr: 'Hiç oynamadım',        points: 0 },
-                { text: 'Less than 6 months', tr: '6 aydan az',           points: 8 },
-                { text: '6 months – 2 years', tr: '6 ay – 2 yıl',         points: 18 },
-                { text: '2–5 years',          tr: '2–5 yıl',              points: 25 },
-                { text: '5+ years',           tr: '5+ yıl',               points: 30 },
-            ],
+            id: 'q1', section: 1,
+            question: 'Serving ability: Do your serves often hit the net or go out? Can you place your serve in the corner you want, at the speed you want?',
+            tr: 'Servis Atma Becerisi: Servisleriniz genelde fileye takılıyor veya dışarı mı gidiyor? Rakip sahada istediğiniz köşeye ve hızda servis atabiliyor musunuz?',
+            options: ratingOptions(10),
         },
         {
-            id: 'q2',
-            question: 'How well do you use the walls in your shots?',
-            tr: 'Vuruşlarında duvarları ne kadar iyi kullanıyorsun?',
-            options: [
-                { text: 'I don\'t use walls yet',             tr: 'Henüz duvar kullanmıyorum',                     points: 0 },
-                { text: 'Only defensively',                    tr: 'Sadece savunma amaçlı',                         points: 8 },
-                { text: 'Use walls for returns and lobs',      tr: 'Geri dönüş ve lob için duvar kullanıyorum',     points: 16 },
-                { text: 'Can construct points using walls',    tr: 'Duvarı kullanarak sayı inşa edebiliyorum',      points: 24 },
-                { text: 'Tactical wall play at a high level',  tr: 'Yüksek seviyede taktik duvar oyunu',           points: 30 },
-            ],
+            id: 'q2', section: 1,
+            question: 'Wall play (Bandeja / Bajada): How well can you handle balls bouncing off the glass? Can you turn balls coming off the wall into an attack?',
+            tr: 'Duvar Kullanımı (Bandeja / Bajada): Camdan seken topları ne kadar iyi karşılayabiliyorsunuz? Camdan gelen topları hücuma dönüştürebilir misiniz?',
+            options: ratingOptions(10),
         },
         {
-            id: 'q3',
-            question: 'How do you rate your serve?',
-            tr: 'Servisini nasıl değerlendirirsin?',
-            options: [
-                { text: 'Can\'t serve reliably',                 tr: 'Güvenilir servisim yok',                      points: 0 },
-                { text: 'Consistent but slow and straight',      tr: 'Tutarlı ama yavaş ve düz',                    points: 8 },
-                { text: 'Varied serve with some spin',           tr: 'Biraz spinli çeşitli servisler',              points: 16 },
-                { text: 'Powerful and accurate',                 tr: 'Güçlü ve isabetli',                           points: 24 },
-                { text: 'Tactical serve with great placement',   tr: 'Mükemmel yerleşimli taktik servis',           points: 30 },
-            ],
+            id: 'q3', section: 1,
+            question: 'Volley and net play: How are your reflexes at the net? Can you direct your volleys to the depth and tempo you want?',
+            tr: 'Vole ve File Oyunu: File önündeki refleksleriniz nasıl? Volelerde topu istediğiniz derinliğe ve tempoya sokabiliyor musunuz?',
+            options: ratingOptions(10),
         },
         {
-            id: 'q4',
-            question: 'Have you competed in any padel tournaments?',
-            tr: 'Herhangi bir padel turnuvasına katıldın mı?',
-            options: [
-                { text: 'No, just casual play',           tr: 'Hayır, sadece sosyal oynuyorum',       points: 0 },
-                { text: 'Club-level matches',             tr: 'Kulüp maçları',                        points: 8 },
-                { text: 'Local or city tournaments',      tr: 'Yerel veya şehir turnuvaları',         points: 18 },
-                { text: 'Regional / national circuits',   tr: 'Bölgesel / ulusal devreler',           points: 26 },
-                { text: 'FIP ranked tournaments',         tr: 'FIP sıralı turnuvalar',                points: 30 },
-            ],
+            id: 'q4', section: 1,
+            question: 'Smash: When you smash, can you direct the ball to the spot you want in the opponent’s court, or send it out by bouncing it off the glass?',
+            tr: 'Smash / Smaç: Smaç vurduğunuzda topu rakip sahada istenilen noktaya yönlendirebiliyor veya sektirerek dışarı çıkarabiliyor musunuz?',
+            options: ratingOptions(10),
+        },
+
+        // ── Category 2: Taktik ve Oyun Anlayışı (Oyun Bilgisi) — 35%, 35/3 pts/soru ──
+        {
+            id: 'q5', section: 2,
+            question: 'Building the point: During a match, can you spot your opponent’s weaknesses and play tactical shots (lobs, short balls) accordingly?',
+            tr: 'Oyun Kurma: Maç sırasında rakibin zayıf yönlerini tespit edip buna göre taktiksel vuruşlar (loblar, kısa vuruşlar) yapabiliyor musunuz?',
+            options: ratingOptions(35 / 3),
         },
         {
-            id: 'q5',
-            question: 'How well do you coordinate with your partner?',
-            tr: 'Partnerinle koordinasyonun nasıl?',
-            options: [
-                { text: 'I play individually, not as a team',          tr: 'Bireysel oynuyorum, takım olarak değil',    points: 0 },
-                { text: 'Basic coordination',                           tr: 'Temel koordinasyon',                        points: 8 },
-                { text: 'Good communication and coverage',             tr: 'İyi iletişim ve alan kapama',               points: 16 },
-                { text: 'Strong tactical communication',               tr: 'Güçlü taktik iletişim',                     points: 24 },
-                { text: 'Excellent teamwork and strategy',             tr: 'Mükemmel takım oyunu ve strateji',          points: 30 },
-            ],
+            id: 'q6', section: 2,
+            question: 'Positioning: Can you and your partner stay in the correct attacking/defending positions throughout the point?',
+            tr: 'Pozisyon Alma: Puan süresince partnerinizle birlikte hücum ve savunma bölgelerinde doğru pozisyonda kalabiliyor musunuz?',
+            options: ratingOptions(35 / 3),
+        },
+        {
+            id: 'q7', section: 2,
+            question: 'Patience and rally management: Can you keep the ball in play for more than 5-6 shots without unforced errors?',
+            tr: 'Sabır ve Ralli Yönetimi: Basit hata yapmadan (unforced error) topu 5-6 vuruştan fazla oyunda tutabiliyor musunuz?',
+            options: ratingOptions(35 / 3),
+        },
+
+        // ── Category 3: Deneyim ve Maç Geçmişi (Tecrübe) — 25%, 12.5 pts/soru ──
+        {
+            id: 'q8', section: 3,
+            question: 'Playing frequency: How many hours per week do you play padel on average?',
+            tr: 'Aktif Oynama Sıklığı: Haftada ortalama kaç saat padel oynuyorsunuz?',
+            options: ratingOptions(12.5),
+        },
+        {
+            id: 'q9', section: 3,
+            question: 'Tournament / match experience: Do you take part in official, amateur or club tournaments? If so, what results have you had?',
+            tr: 'Turnuva/Maç Tecrübesi: Resmi, amatör veya kulüp içi turnuvalara katılıyor musunuz? Katılıyorsanız ne tür başarılarınız var?',
+            options: ratingOptions(12.5),
         },
     ],
 

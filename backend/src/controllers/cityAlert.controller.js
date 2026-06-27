@@ -76,7 +76,7 @@ const TAB_LABELS_TR = {
     equipment: 'Ekipman İlanı',
 };
 
-export async function notifyCitySubscribers({ subCategory, category, senderCity, senderUsername, senderId, itemId, tab = 'rivals' }) {
+export async function notifyCitySubscribers({ subCategory, category, senderCity, senderUsername, senderId, itemId, tab = 'rivals', type = 'NEW_LISTING', title, body }) {
     if (!senderCity || !senderId) return;
     try {
         const sportName = SUB_NAMES_TR[subCategory] || subCategory;
@@ -91,9 +91,9 @@ export async function notifyCitySubscribers({ subCategory, category, senderCity,
         console.log(`[cityAlert] after filter: ${toNotify.length} to notify — ids: ${toNotify.map(s => s.userId).join(', ') || 'none'}`);
         for (const sub of toNotify) {
             createNotification(
-                sub.userId, 'NEW_LISTING',
-                `📍 ${senderCity} — Yeni ${sportName} ${tabLabel}`,
-                `@${senderUsername} yeni bir ${sportName} ${tabLabel.toLowerCase()} ekledi.`,
+                sub.userId, type,
+                title || `📍 ${senderCity} — Yeni ${sportName} ${tabLabel}`,
+                body || `@${senderUsername} yeni bir ${sportName} ${tabLabel.toLowerCase()} ekledi.`,
                 { category, subCategory, rivalId: itemId, tab }
             ).catch(() => {});
         }

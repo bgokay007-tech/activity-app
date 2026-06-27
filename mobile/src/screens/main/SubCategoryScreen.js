@@ -2558,7 +2558,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
     const cfg         = getConfig(sub);
 
     const INIT = {
-        matchType: 'SINGLE', teamSize: isFootball ? 5 : 1,
+        matchType: isPadel ? 'DOUBLE' : 'SINGLE', teamSize: isFootball ? 5 : 1,
         matchMode: 'PRACTICE', flexibleSchedule: false,
         matchDate: null, matchTime: '', duration: '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,

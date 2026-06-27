@@ -315,7 +315,7 @@ export const createRivalRequest = async (req, res, next) => {
                 senderCity: u?.city || null,
                 senderUsername: request.sender?.username || '',
                 senderId: creatorId,
-                rivalId: request.id,
+                itemId: request.id,
             }))
             .catch(() => {});
 
@@ -608,11 +608,13 @@ export const respondToJoin = async (req, res, next) => {
             return res.json({ message: 'Request rejected.' });
         }
 
-        // Build participants: for COMPETITIVE team football with joiningTeam, use the full joining team;
-        // otherwise fall back to single-player addition
+        // Build participants: when the joiner submitted a full team (football competitive team
+        // matches, or tennis/padel doubles partner pairing), use the full joining team;
+        // otherwise fall back to single-player addition. Independent of matchMode — a doubles
+        // pairing is a structural fact about who's joining, not about practice vs competitive.
         const rival = joinReq.rival;
         const joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
-        const isTeamJoin = rival.matchMode === 'COMPETITIVE' && joiningTeam.length > 0;
+        const isTeamJoin = joiningTeam.length > 0;
 
         const u = joinReq.user;
         const joinerInterest = await prisma.userInterest.findFirst({
@@ -1308,8 +1310,37 @@ export const cancelMatch = async (req, res, next) => {
         }
 
         // Regular (unilateral) cancel
-        await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
-        for (const uid of allPlayerIds) emitToUser(uid, 'rivalDeleted', { rivalId: id, subCategory: request.subCategory });
+        const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
+        const isCreatorSide = request.senderId === req.userId || senderTeamArr.some(m => m.id === req.userId);
+
+        if (isCreatorSide) {
+            // The listing's own side is cancelling — the post itself is no longer valid.
+            await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+            for (const uid of allPlayerIds) emitToUser(uid, 'rivalDeleted', { rivalId: id, subCategory: request.subCategory });
+        } else {
+            // A joining-side participant is cancelling — drop the whole joining side
+            // (for doubles this is an atomic pair) and reopen the listing for new joiners.
+            await prisma.activityRequest.update({
+                where: { id },
+                data: { status: 'OPEN', participants: [], receiverId: null, schedulingDeadline: null, matchDate: null, matchTime: null },
+            });
+            const updated = await prisma.activityRequest.findUnique({ where: { id }, include: { sender: { select: SENDER_SELECT } } });
+            broadcast('rivalUpdate', updated);
+            for (const uid of allPlayerIds) emitToUser(uid, 'rivalUpdate', updated);
+
+            // Re-notify city-alert subscribers that a spot opened back up
+            prisma.user.findUnique({ where: { id: request.senderId }, select: { city: true } })
+                .then(u => notifyCitySubscribers({
+                    subCategory: request.subCategory, category: request.category,
+                    senderCity: u?.city || null,
+                    senderUsername: request.sender?.username || '',
+                    senderId: request.senderId,
+                    itemId: id,
+                    title: `📍 Yer Açıldı — ${request.subCategory}`,
+                    body: `${request.sender?.username ? '@' + request.sender.username + ' ilanında' : 'Bir ilanda'} yer açıldı, hemen katıl!`,
+                }))
+                .catch(() => {});
+        }
 
         if (withinPenaltyWindow) {
             const interest = await prisma.userInterest.findFirst({
@@ -1335,15 +1366,17 @@ export const cancelMatch = async (req, res, next) => {
             }
         }
 
-        res.json({ cancelled: true, penaltyApplied: withinPenaltyWindow });
+        res.json({ cancelled: true, reopened: !isCreatorSide, penaltyApplied: withinPenaltyWindow });
 
         const senderName = request.sender?.username || 'Rakip';
         for (const uid of otherPlayerIds) {
             createNotification(uid, 'MATCH_CANCELLED',
-                '❌ Maç İptal Edildi',
-                withinPenaltyWindow
-                    ? `${senderName} maçı son 5 saat içinde iptal etti (ceza uygulandı).`
-                    : `${senderName} maçı iptal etti.`,
+                isCreatorSide ? '❌ Maç İptal Edildi' : '↩️ Maç Yeniden Açıldı',
+                isCreatorSide
+                    ? (withinPenaltyWindow
+                        ? `${senderName} maçı son 5 saat içinde iptal etti (ceza uygulandı).`
+                        : `${senderName} maçı iptal etti.`)
+                    : `Rakip taraf maçtan çekildi, ilan tekrar açık hâle geldi.`,
                 { rivalId: id, subCategory: request.subCategory }
             ).catch(() => {});
         }
