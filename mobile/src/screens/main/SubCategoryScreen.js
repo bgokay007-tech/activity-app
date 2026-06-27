@@ -3542,14 +3542,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         const ratingOf = (p) => p?.user?.interests?.[0]?.skillRating;
         const PlayerHalf = ({ p }) => (
             <View style={{ flex:1 }}>
-                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1}>{nameOf(p)}</Text>
+                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(p)}</Text>
                 {p?.manualName
-                    ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
-                    : <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1}>@{p?.user?.username}{ratingOf(p) != null ? `  ${starEmoji(Number(ratingOf(p)))} ${Number(ratingOf(p)).toFixed(2)}` : ''}</Text>
+                    ? <Text style={{ color:'#3b82f6', fontSize:9, fontWeight:'700' }}>✏️ Manuel</Text>
+                    : <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p?.user?.username}{ratingOf(p) != null ? `  ${starEmoji(Number(ratingOf(p)))} ${Number(ratingOf(p)).toFixed(2)}` : ''}</Text>
                 }
                 {isCreatorView && (
-                    <TouchableOpacity onPress={() => p?.manualName ? removeManualParticipant(p.id) : removeParticipant(p.userId)} style={{ marginTop:4 }}>
-                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                    <TouchableOpacity onPress={() => p?.manualName ? removeManualParticipant(p.id) : removeParticipant(p.userId)} style={{ marginTop:2 }}>
+                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -3565,10 +3565,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 const target = byUserId.get(p1.partnerId);
                 slot2 = (
                     <View style={{ flex:1 }}>
-                        <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
+                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
                         {isMine && !regEnded && (
-                            <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ marginTop:4 }}>
-                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>✕ Daveti Geri Çek</Text>
+                            <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ marginTop:2 }}>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>✕ Geri Çek</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -3576,10 +3576,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             } else if (invitedBy) {
                 slot2 = (
                     <View style={{ flex:1 }}>
-                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} sizi davet etti</Text>
+                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} davet etti</Text>
                         {isMine && !regEnded && (
-                            <TouchableOpacity onPress={() => setMyTournamentPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:4, backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
-                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>✓ Kabul Et</Text>
+                            <TouchableOpacity onPress={() => setMyTournamentPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
+                                <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>✓ Kabul Et</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -3587,12 +3587,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             } else {
                 slot2 = (
                     <View style={{ flex:1 }}>
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Partner aranıyor</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>Partner aranıyor</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity
                                 onPress={() => { setInviteCandidates(solos.filter(s => s.userId !== myId)); setShowInvitePicker(true); }}
-                                style={{ marginTop:4, backgroundColor: cfg.color+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
-                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>+ Davet Et</Text>
+                                style={{ marginTop:2, backgroundColor: cfg.color+'20', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
+                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }}>+ Davet Et</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -3602,13 +3602,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
         const isMineCard = p1.userId === myId || p2?.userId === myId;
         return (
-            <View key={p1.userId} style={{ flexDirection:'row', alignItems:'flex-start', gap:8, backgroundColor: isMineCard ? cfg.color+'10' : '#0f172a', borderRadius:10, borderWidth:1, borderColor: isMineCard ? cfg.color+'40' : colors.border+'40', padding:10, marginBottom:8 }}>
+            <View key={p1.userId} style={{ flexDirection:'row', alignItems:'flex-start', gap:6, backgroundColor: isMineCard ? cfg.color+'10' : '#0f172a', borderRadius:8, borderWidth:1, borderColor: isMineCard ? cfg.color+'40' : colors.border+'40', paddingVertical:6, paddingHorizontal:8, marginBottom:5 }}>
                 <PlayerHalf p={p1} />
-                <Text style={{ color: colors.textMuted, fontSize:14, fontWeight:'900', marginTop:2 }}>+</Text>
+                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'900' }}>+</Text>
                 {slot2}
                 {p2 && isMineCard && !regEnded && (
-                    <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ paddingTop:2 }}>
-                        <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>✕</Text>
+                    <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading}>
+                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'800' }}>✕</Text>
                     </TouchableOpacity>
                 )}
             </View>
