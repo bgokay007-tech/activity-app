@@ -33,3 +33,20 @@ export function getTennisPadelEloDelta(ratingDiff, dominant, lowerRatedWon) {
         ? { winnerGain: cell.lowWin, loserLoss: cell.highLose }
         : { winnerGain: cell.highWin, loserLoss: cell.lowLose };
 }
+
+// Anketten yanlış cevap verilince oluşan hatalı derecelendirmeyi yakalamak için:
+// anketi tamamladıktan sonraki ilk 3 maçında, kendinden en az 1.0 puan yüksek bir
+// rakibe (veya rakip takıma) karşı kazanan oyuncu varsa, bu maç ELO'ya sayılmaz
+// (rakip puan kaybetmez, kazanan da puan kazanmaz) ve o oyuncu derecelendirme
+// anketini tekrar doldurmaya yönlendirilir.
+export const ASSESSMENT_GRACE_MATCHES = 3;
+export const ASSESSMENT_GRACE_RATING_GAP = 1.0;
+
+// winnerInterests/loserInterests: o taraftaki oyuncuların UserInterest kayıtları
+// (matchesSinceAssessment alanı dahil). winnerAvg/loserAvg: taraf ortalama skillRating.
+// Dönüş: anketi tekrar doldurması gereken kazanan taraf UserInterest kayıtları (boşsa flag yok).
+export function getReassessmentFlags(winnerInterests, loserInterests, winnerAvg, loserAvg) {
+    if (winnerAvg >= loserAvg) return [];
+    if (loserAvg - winnerAvg < ASSESSMENT_GRACE_RATING_GAP) return [];
+    return winnerInterests.filter(i => (i.matchesSinceAssessment ?? 0) < ASSESSMENT_GRACE_MATCHES);
+}

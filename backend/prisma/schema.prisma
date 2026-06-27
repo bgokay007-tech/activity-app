@@ -127,6 +127,7 @@ model UserInterest {
   level        String       @default("BEGINNER")
   skillRating  Float        @default(0)   // 0.00 – 5.00, from assessment
   assessmentCompleted Boolean @default(false)  // anket tamamlanmadan maca katilamaz
+  matchesSinceAssessment Int @default(0)  // tenis/padel: anketten sonra oynanan maç sayısı (0-3, ilk 3 maç doğrulama penceresi)
   totalPoints  Int          @default(0)
   wins             Int          @default(0)
   losses           Int          @default(0)

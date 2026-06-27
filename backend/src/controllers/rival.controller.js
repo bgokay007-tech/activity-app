@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
-import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta } from '../utils/tennisElo.js';
+import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
 
 // Fixed transfer lookup based on rating gap + score dominance
 // ratingDiff = |loserRating - winnerRating| (0–5 scale, 1 rating pt = 20 totalPoints)
@@ -106,22 +106,50 @@ async function applyCompetitivePoints(request, winnerUserId) {
         const transferWin  = parseFloat((winnerGain * 20).toFixed(3));
         const transferLose = parseFloat((loserLoss * 20).toFixed(3));
 
+        // Anket doğruluğu kontrolü: anketten sonraki ilk 3 maçında kendinden ≥1.0 puan
+        // yüksek bir rakibe karşı kazanan oyuncu varsa, bu maç ELO'ya sayılmaz — rakip
+        // puan kaybetmez, kazanan da puan kazanmaz; kazanan derecelendirme anketine
+        // tekrar yönlendirilir.
+        const reassessFlags = getReassessmentFlags(winnerInterests, loserInterests, avgWinnerRating, avgLoserRating);
+        const skipElo = reassessFlags.length > 0;
+
         for (const wi of winnerInterests) {
             updates.push(prisma.userInterest.update({
                 where: { id: wi.id },
-                data: { totalPoints: wi.totalPoints + transferWin, wins: wi.wins + 1, skillRating: parseFloat((wi.skillRating + winnerGain).toFixed(4)), assessmentCompleted: true },
+                data: {
+                    ...(skipElo ? {} : { totalPoints: wi.totalPoints + transferWin, skillRating: parseFloat((wi.skillRating + winnerGain).toFixed(4)) }),
+                    wins: wi.wins + 1,
+                    assessmentCompleted: reassessFlags.some(f => f.id === wi.id) ? false : true,
+                    matchesSinceAssessment: (wi.matchesSinceAssessment ?? 0) + 1,
+                },
             }));
         }
         for (const li of loserInterests) {
             updates.push(prisma.userInterest.update({
                 where: { id: li.id },
-                data: { totalPoints: Math.max(0, li.totalPoints - transferLose), losses: li.losses + 1, skillRating: Math.max(0, parseFloat((li.skillRating - loserLoss).toFixed(4))), assessmentCompleted: true },
+                data: {
+                    ...(skipElo ? {} : { totalPoints: Math.max(0, li.totalPoints - transferLose), skillRating: Math.max(0, parseFloat((li.skillRating - loserLoss).toFixed(4))) }),
+                    losses: li.losses + 1,
+                    assessmentCompleted: true,
+                    matchesSinceAssessment: (li.matchesSinceAssessment ?? 0) + 1,
+                },
             }));
         }
-        pointChanges = [
+        pointChanges = skipElo ? [] : [
             ...winnerInterests.map(wi => ({ userId: wi.userId, change: +transferWin })),
             ...loserInterests.map(li => ({ userId: li.userId, change: -transferLose })),
         ];
+
+        if (skipElo) {
+            for (const flag of reassessFlags) {
+                createNotification(
+                    flag.userId, 'ASSESSMENT_RECHECK',
+                    '📋 Derecelendirme Anketini Tekrar Doldurun',
+                    `${request.subCategory} dalında anketten sonraki ilk maçlarınızda dereceniz beklenenden farklı çıktı. Daha doğru bir eşleşme için lütfen derecelendirme anketini tekrar doldurun.`,
+                    { category: request.category, subCategory: request.subCategory }
+                ).catch(() => {});
+            }
+        }
     } else {
         const avgWinnerPts = winnerInterests.reduce((s, i) => s + i.totalPoints, 0) / winnerInterests.length;
         const avgLoserPts  = loserInterests.reduce((s, i) => s + i.totalPoints, 0)  / loserInterests.length;

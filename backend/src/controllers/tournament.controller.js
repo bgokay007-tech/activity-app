@@ -2,7 +2,7 @@
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
-import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta } from '../utils/tennisElo.js';
+import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
 
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
 export function tournamentBaseDate(tournament) {
@@ -1690,6 +1690,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
 
                 let wStep, lStep, transferWin, transferLose;
+                let reassessFlags = [];
                 if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory)) {
                     // Tenis/Padel: kullanıcının verdiği sabit ELO puan tablosu — takım ortalamasına göre
                     const dominant = totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD;
@@ -1699,6 +1700,12 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     lStep = loserLoss;
                     transferWin = parseFloat((wStep * 20).toFixed(3));
                     transferLose = parseFloat((lStep * 20).toFixed(3));
+
+                    // Anket doğruluğu kontrolü: anketten sonraki ilk 3 maçında kendinden ≥1.0
+                    // puan yüksek bir rakibe karşı kazanan oyuncu varsa, bu maç ELO'ya sayılmaz.
+                    const winnerInterestsForCheck = winnerMembers.map(uid => interests.find(i => i.userId === uid));
+                    const loserInterestsForCheck = loserMembers.map(uid => interests.find(i => i.userId === uid));
+                    reassessFlags = getReassessmentFlags(winnerInterestsForCheck, loserInterestsForCheck, wAvg, lAvg);
                 } else {
                     const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
                     let transfer;
@@ -1726,26 +1733,54 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     transferLose = transfer;
                 }
 
+                const skipElo = reassessFlags.length > 0;
+                const isTennisPadel = TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory);
                 const updates = [];
                 for (const uid of winnerMembers) {
                     const wi = interests.find(i => i.userId === uid);
                     let wRatingAfter = parseFloat((wi.skillRating + wStep).toFixed(4));
                     if (wi.skillRating < 5 && wRatingAfter >= 5) wRatingAfter = parseFloat((wRatingAfter + 2).toFixed(4));
-                    updates.push(prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transferWin, wins: wi.wins + 1, skillRating: wRatingAfter } }));
+                    updates.push(prisma.userInterest.update({
+                        where: { id: wi.id },
+                        data: {
+                            ...(skipElo ? {} : { totalPoints: wi.totalPoints + transferWin, skillRating: wRatingAfter }),
+                            wins: wi.wins + 1,
+                            ...(isTennisPadel && { matchesSinceAssessment: (wi.matchesSinceAssessment ?? 0) + 1 }),
+                            ...(reassessFlags.some(f => f.id === wi.id) && { assessmentCompleted: false }),
+                        },
+                    }));
                 }
                 for (const uid of loserMembers) {
                     const li = interests.find(i => i.userId === uid);
                     const lRatingAfter = Math.max(0, parseFloat((li.skillRating - lStep).toFixed(4)));
-                    updates.push(prisma.userInterest.update({ where: { id: li.id }, data: { totalPoints: Math.max(0, li.totalPoints - transferLose), losses: li.losses + 1, skillRating: lRatingAfter } }));
+                    updates.push(prisma.userInterest.update({
+                        where: { id: li.id },
+                        data: {
+                            ...(skipElo ? {} : { totalPoints: Math.max(0, li.totalPoints - transferLose), skillRating: lRatingAfter }),
+                            losses: li.losses + 1,
+                            ...(isTennisPadel && { matchesSinceAssessment: (li.matchesSinceAssessment ?? 0) + 1 }),
+                        },
+                    }));
                 }
                 await Promise.all(updates);
 
+                if (skipElo) {
+                    for (const flag of reassessFlags) {
+                        createNotification(
+                            flag.userId, 'ASSESSMENT_RECHECK',
+                            '📋 Derecelendirme Anketini Tekrar Doldurun',
+                            `${tournament.subCategory} dalında anketten sonraki ilk maçlarınızda dereceniz beklenenden farklı çıktı. Daha doğru bir eşleşme için lütfen derecelendirme anketini tekrar doldurun.`,
+                            { category: tournament.category, subCategory: tournament.subCategory }
+                        ).catch(() => {});
+                    }
+                }
+
                 p1RatingBefore = winner === 'p1' ? wAvg : lAvg;
                 p2RatingBefore = winner === 'p2' ? wAvg : lAvg;
-                p1RatingAfter  = winner === 'p1' ? wAvg + wStep : lAvg - lStep;
-                p2RatingAfter  = winner === 'p2' ? wAvg + wStep : lAvg - lStep;
-                p1EloDelta = winner === 'p1' ? +transferWin : -transferLose;
-                p2EloDelta = winner === 'p2' ? +transferWin : -transferLose;
+                p1RatingAfter  = skipElo ? p1RatingBefore : (winner === 'p1' ? wAvg + wStep : lAvg - lStep);
+                p2RatingAfter  = skipElo ? p2RatingBefore : (winner === 'p2' ? wAvg + wStep : lAvg - lStep);
+                p1EloDelta = skipElo ? 0 : (winner === 'p1' ? +transferWin : -transferLose);
+                p2EloDelta = skipElo ? 0 : (winner === 'p2' ? +transferWin : -transferLose);
             }
         }
 
