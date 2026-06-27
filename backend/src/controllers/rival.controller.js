@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
+import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta } from '../utils/tennisElo.js';
 
 // Fixed transfer lookup based on rating gap + score dominance
 // ratingDiff = |loserRating - winnerRating| (0–5 scale, 1 rating pt = 20 totalPoints)
@@ -77,42 +78,83 @@ async function applyCompetitivePoints(request, winnerUserId) {
     const loserInterests  = interests.filter(i => loserIds.includes(i.userId));
     if (!winnerInterests.length || !loserInterests.length) return [];
 
-    const avgWinnerPts = winnerInterests.reduce((s, i) => s + i.totalPoints, 0) / winnerInterests.length;
-    const avgLoserPts  = loserInterests.reduce((s, i) => s + i.totalPoints, 0)  / loserInterests.length;
-    const transfer = calcTransfer(avgWinnerPts, avgLoserPts, request.score);
-
     const updates = [];
-    for (const wi of winnerInterests) {
-        const ptsAfter = wi.totalPoints + transfer;
-        const ratingRaw = parseFloat((ptsAfter / 100 * 5).toFixed(2));
-        const bonusPts  = wi.totalPoints < 100 && ptsAfter >= 100 ? 40 : 0;
-        const ptsFinal  = ptsAfter + bonusPts;
-        const skillRatingFinal = parseFloat((ptsFinal / 100 * 5).toFixed(2));
-        updates.push(prisma.userInterest.update({
-            where: { id: wi.id },
-            data: {
-                totalPoints: ptsFinal,
-                wins: wi.wins + 1,
-                skillRating: skillRatingFinal,
-            },
-        }));
-    }
-    for (const li of loserInterests) {
-        updates.push(prisma.userInterest.update({
-            where: { id: li.id },
-            data: {
-                totalPoints: Math.max(0, li.totalPoints - transfer),
-                losses: li.losses + 1,
-                skillRating: Math.max(0, parseFloat(((Math.max(0, li.totalPoints - transfer)) / 100 * 5).toFixed(2))),
-            },
-        }));
-    }
-    await Promise.all(updates);
+    let pointChanges;
 
-    return [
-        ...winnerInterests.map(wi => ({ userId: wi.userId, change: +transfer })),
-        ...loserInterests.map(li => ({ userId: li.userId, change: -transfer })),
-    ];
+    if (TENNIS_PADEL_SUBCATEGORIES.includes(request.subCategory)) {
+        // Tenis/Padel: kullanıcının verdiği sabit ELO puan tablosu — takım ortalama
+        // skillRating'ine göre (çift maçlarda iki taraf için de takım ortalaması varsayılır).
+        const avgWinnerRating = winnerInterests.reduce((s, i) => s + i.skillRating, 0) / winnerInterests.length;
+        const avgLoserRating  = loserInterests.reduce((s, i) => s + i.skillRating, 0)  / loserInterests.length;
+        const ratingDiff = Math.abs(avgWinnerRating - avgLoserRating);
+
+        let dominant = true;
+        const score = request.score;
+        if (score && Array.isArray(score.sets) && score.sets.length > 0) {
+            let winnerGames = 0, totalGames = 0;
+            for (const set of score.sets) {
+                const s = Number(set.sender) || 0;
+                const o = Number(set.opponent) || 0;
+                winnerGames += score.winner === 'sender' ? s : o;
+                totalGames  += s + o;
+            }
+            dominant = totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD;
+        }
+
+        const lowerRatedWon = avgWinnerRating < avgLoserRating;
+        const { winnerGain, loserLoss } = getTennisPadelEloDelta(ratingDiff, dominant, lowerRatedWon);
+        const transferWin  = parseFloat((winnerGain * 20).toFixed(3));
+        const transferLose = parseFloat((loserLoss * 20).toFixed(3));
+
+        for (const wi of winnerInterests) {
+            updates.push(prisma.userInterest.update({
+                where: { id: wi.id },
+                data: { totalPoints: wi.totalPoints + transferWin, wins: wi.wins + 1, skillRating: parseFloat((wi.skillRating + winnerGain).toFixed(4)) },
+            }));
+        }
+        for (const li of loserInterests) {
+            updates.push(prisma.userInterest.update({
+                where: { id: li.id },
+                data: { totalPoints: Math.max(0, li.totalPoints - transferLose), losses: li.losses + 1, skillRating: Math.max(0, parseFloat((li.skillRating - loserLoss).toFixed(4))) },
+            }));
+        }
+        pointChanges = [
+            ...winnerInterests.map(wi => ({ userId: wi.userId, change: +transferWin })),
+            ...loserInterests.map(li => ({ userId: li.userId, change: -transferLose })),
+        ];
+    } else {
+        const avgWinnerPts = winnerInterests.reduce((s, i) => s + i.totalPoints, 0) / winnerInterests.length;
+        const avgLoserPts  = loserInterests.reduce((s, i) => s + i.totalPoints, 0)  / loserInterests.length;
+        const transfer = calcTransfer(avgWinnerPts, avgLoserPts, request.score);
+
+        for (const wi of winnerInterests) {
+            const ptsAfter = wi.totalPoints + transfer;
+            const bonusPts  = wi.totalPoints < 100 && ptsAfter >= 100 ? 40 : 0;
+            const ptsFinal  = ptsAfter + bonusPts;
+            const skillRatingFinal = parseFloat((ptsFinal / 100 * 5).toFixed(2));
+            updates.push(prisma.userInterest.update({
+                where: { id: wi.id },
+                data: { totalPoints: ptsFinal, wins: wi.wins + 1, skillRating: skillRatingFinal },
+            }));
+        }
+        for (const li of loserInterests) {
+            updates.push(prisma.userInterest.update({
+                where: { id: li.id },
+                data: {
+                    totalPoints: Math.max(0, li.totalPoints - transfer),
+                    losses: li.losses + 1,
+                    skillRating: Math.max(0, parseFloat(((Math.max(0, li.totalPoints - transfer)) / 100 * 5).toFixed(2))),
+                },
+            }));
+        }
+        pointChanges = [
+            ...winnerInterests.map(wi => ({ userId: wi.userId, change: +transfer })),
+            ...loserInterests.map(li => ({ userId: li.userId, change: -transfer })),
+        ];
+    }
+
+    await Promise.all(updates);
+    return pointChanges;
 }
 
 const SENDER_SELECT = {

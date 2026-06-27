@@ -2,6 +2,7 @@
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
+import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta } from '../utils/tennisElo.js';
 
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
 export function tournamentBaseDate(tournament) {
@@ -1579,40 +1580,55 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 const ratingDiff = Math.abs(wAvg - lAvg);
                 let winnerGames = 0, totalGames = 0;
                 for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
-                const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
-                let transfer;
-                if (ratingDiff >= 2.0)        transfer = dominant ? 7 : 6;
-                else if (ratingDiff >= 1.0)   transfer = dominant ? 5 : 4;
-                else if (ratingDiff >= 0.5)   transfer = dominant ? 4 : 3;
-                else if (ratingDiff >= 0.25)  transfer = dominant ? 3 : 2;
-                else if (ratingDiff >= 0.10)  transfer = dominant ? 2 : 1;
-                else                          transfer = dominant ? 1 : 0.5;
 
-                const divisor = tournament.type === "1" ? 2 : 1;
-                let ratingStep = parseFloat((transfer * 0.05 / divisor).toFixed(3));
+                let wStep, lStep, transferWin, transferLose;
+                if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory)) {
+                    // Tenis/Padel: kullanıcının verdiği sabit ELO puan tablosu — takım ortalamasına göre
+                    const dominant = totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD;
+                    const lowerRatedWon = wAvg < lAvg;
+                    const { winnerGain, loserLoss } = getTennisPadelEloDelta(ratingDiff, dominant, lowerRatedWon);
+                    wStep = winnerGain;
+                    lStep = loserLoss;
+                    transferWin = parseFloat((wStep * 20).toFixed(3));
+                    transferLose = parseFloat((lStep * 20).toFixed(3));
+                } else {
+                    const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
+                    let transfer;
+                    if (ratingDiff >= 2.0)        transfer = dominant ? 7 : 6;
+                    else if (ratingDiff >= 1.0)   transfer = dominant ? 5 : 4;
+                    else if (ratingDiff >= 0.5)   transfer = dominant ? 4 : 3;
+                    else if (ratingDiff >= 0.25)  transfer = dominant ? 3 : 2;
+                    else if (ratingDiff >= 0.10)  transfer = dominant ? 2 : 1;
+                    else                          transfer = dominant ? 1 : 0.5;
 
-                // Algoritma 2: ratingDiff'e göre çarpan uygula (kim kazanırsa kazansın)
-                if (ratingDiff < 0.25)       ratingStep = parseFloat((ratingStep * 3/4).toFixed(4));
-                else if (ratingDiff < 0.75)  ratingStep = parseFloat((ratingStep * 1/2).toFixed(4));
-                else if (ratingDiff < 1.5)   ratingStep = parseFloat((ratingStep * 1/4).toFixed(4));
-                // 1.5+ → değişiklik yok
+                    const divisor = tournament.type === "1" ? 2 : 1;
+                    let ratingStep = parseFloat((transfer * 0.05 / divisor).toFixed(3));
 
-                // Algoritma 3: düşük ELO'lu kazanırsa kazanan iki kat alır
-                const lowerRatedWon = wAvg < lAvg;
-                const wStep = lowerRatedWon ? parseFloat((ratingStep * 2).toFixed(4)) : ratingStep;
-                const lStep = ratingStep;
+                    // Algoritma 2: ratingDiff'e göre çarpan uygula (kim kazanırsa kazansın)
+                    if (ratingDiff < 0.25)       ratingStep = parseFloat((ratingStep * 3/4).toFixed(4));
+                    else if (ratingDiff < 0.75)  ratingStep = parseFloat((ratingStep * 1/2).toFixed(4));
+                    else if (ratingDiff < 1.5)   ratingStep = parseFloat((ratingStep * 1/4).toFixed(4));
+                    // 1.5+ → değişiklik yok
+
+                    // Algoritma 3: düşük ELO'lu kazanırsa kazanan iki kat alır
+                    const lowerRatedWon = wAvg < lAvg;
+                    wStep = lowerRatedWon ? parseFloat((ratingStep * 2).toFixed(4)) : ratingStep;
+                    lStep = ratingStep;
+                    transferWin = transfer;
+                    transferLose = transfer;
+                }
 
                 const updates = [];
                 for (const uid of winnerMembers) {
                     const wi = interests.find(i => i.userId === uid);
                     let wRatingAfter = parseFloat((wi.skillRating + wStep).toFixed(4));
                     if (wi.skillRating < 5 && wRatingAfter >= 5) wRatingAfter = parseFloat((wRatingAfter + 2).toFixed(4));
-                    updates.push(prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transfer, wins: wi.wins + 1, skillRating: wRatingAfter } }));
+                    updates.push(prisma.userInterest.update({ where: { id: wi.id }, data: { totalPoints: wi.totalPoints + transferWin, wins: wi.wins + 1, skillRating: wRatingAfter } }));
                 }
                 for (const uid of loserMembers) {
                     const li = interests.find(i => i.userId === uid);
                     const lRatingAfter = Math.max(0, parseFloat((li.skillRating - lStep).toFixed(4)));
-                    updates.push(prisma.userInterest.update({ where: { id: li.id }, data: { totalPoints: Math.max(0, li.totalPoints - transfer), losses: li.losses + 1, skillRating: lRatingAfter } }));
+                    updates.push(prisma.userInterest.update({ where: { id: li.id }, data: { totalPoints: Math.max(0, li.totalPoints - transferLose), losses: li.losses + 1, skillRating: lRatingAfter } }));
                 }
                 await Promise.all(updates);
 
@@ -1620,8 +1636,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 p2RatingBefore = winner === 'p2' ? wAvg : lAvg;
                 p1RatingAfter  = winner === 'p1' ? wAvg + wStep : lAvg - lStep;
                 p2RatingAfter  = winner === 'p2' ? wAvg + wStep : lAvg - lStep;
-                p1EloDelta = winner === 'p1' ? +transfer : -transfer;
-                p2EloDelta = winner === 'p2' ? +transfer : -transfer;
+                p1EloDelta = winner === 'p1' ? +transferWin : -transferLose;
+                p2EloDelta = winner === 'p2' ? +transferWin : -transferLose;
             }
         }
 
