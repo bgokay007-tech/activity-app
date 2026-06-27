@@ -1401,8 +1401,9 @@ export const removeRivalParticipant = async (req, res, next) => {
         const target = participants.find(p => p.id === userId);
         if (!target) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
 
-        // Çiftler: takım halinde katıldıkları için biri çıkarılırsa ikisi de çıkar
-        const removeIds = rival.matchType === 'DOUBLE' ? participants.map(p => p.id) : [userId];
+        // Bireysel çıkarma: sadece belirtilen kişi çıkarılır, çiftlerde partneri olduğu gibi kalır
+        // (eksik kalan taraf yeni partner bekleyen bireysel olarak görünür).
+        const removeIds = [userId];
         const updatedParticipants = participants.filter(p => !removeIds.includes(p.id));
 
         const updated = await prisma.activityRequest.update({

@@ -472,9 +472,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const removeRivalParticipant = (participantUserId, participantName) => {
         Alert.alert(
             'Katılımcıyı Çıkar',
-            item.matchType === 'DOUBLE'
-                ? `${participantName || 'Bu takım'} maçtan çıkarılacak, ilan tekrar açık hâle gelecek. Emin misiniz?`
-                : `${participantName || 'Bu kullanıcı'} maçtan çıkarılacak, ilan tekrar açık hâle gelecek. Emin misiniz?`,
+            `${participantName ? '@' + participantName : 'Bu kullanıcı'} maçtan çıkarılacak, ilan tekrar açık hâle gelecek. Emin misiniz?`,
             [
                 { text: 'Vazgeç', style: 'cancel' },
                 { text: 'Çıkar', style: 'destructive', onPress: async () => {
@@ -657,11 +655,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
                         {item.matchType === 'DOUBLE' ? (() => {
                             const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
-                            const TeamHalf = ({ p, fallback, sub: subLabel }) => p ? (
-                                <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })}>
-                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                    <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p.username}{subLabel ? ` · ${subLabel}` : ''}</Text>
-                                </TouchableOpacity>
+                            const TeamHalf = ({ p, fallback, sub: subLabel, onRemove }) => p ? (
+                                <View>
+                                    <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })}>
+                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p.username}{subLabel ? ` · ${subLabel}` : ''}</Text>
+                                    </TouchableOpacity>
+                                    {onRemove && (
+                                        <TouchableOpacity onPress={onRemove} style={{ marginTop:2 }}>
+                                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
                             ) : (
                                 <Text style={{ color: colors.textMuted, fontSize:9 }}>{fallback}</Text>
                             );
@@ -675,14 +680,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                     <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
                                         <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
-                                        <TeamHalf p={participants[0]} fallback="Henüz katılan yok" />
+                                        <TeamHalf p={participants[0]} fallback="Henüz katılan yok" onRemove={isOwner && participants[0] ? () => removeRivalParticipant(participants[0].id, participants[0].username) : null} />
                                         <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
-                                        <TeamHalf p={participants[1]} fallback="Henüz katılan yok" />
-                                        {isOwner && participants.length > 0 && (
-                                            <TouchableOpacity onPress={() => removeRivalParticipant(participants[0].id, `${participants[0]?.username}${participants[1] ? ' & ' + participants[1].username : ''}`)} style={{ marginTop:4 }}>
-                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
-                                            </TouchableOpacity>
-                                        )}
+                                        <TeamHalf p={participants[1]} fallback="Henüz katılan yok" onRemove={isOwner && participants[1] ? () => removeRivalParticipant(participants[1].id, participants[1].username) : null} />
                                     </View>
                                 </View>
                             );
