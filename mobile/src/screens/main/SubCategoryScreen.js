@@ -117,16 +117,25 @@ function groupDoublesPairs(rows) {
 }
 
 // Çiftler Rekabetçi: eşleşmiş çiftleri ve bireyselleri tek bir "takım slotu" listesine
-// (en erken kabul/başvuru zamanına göre sıralı) birleştirir, sonra maxPlayers/2 takıma
-// göre AS (ana) / YEDEK olarak böler — diğer turnuva türlerindeki AS/YDK mantığının eşleniği.
-function splitDoublesSlots(pairs, solos, maxPlayers) {
+// (en erken kabul/başvuru zamanına göre sıralı) birleştirir, sonra GERÇEK KİŞİ SAYISINA
+// göre (maxPlayers kişi, takım değil) AS (ana) / YEDEK olarak böler. Eşleşmiş çift = 2 kişi,
+// partner adı vermiş ama o kişi henüz başvurmamış bireysel = 2 kişi (yer ayrılır),
+// her diğer bireysel kart = 1 kişi (kart başına 1 gerçek başvuran var).
+function splitDoublesSlots(pairs, solos, byUserId, maxPlayers) {
     const timeOf = (r) => new Date(r.acceptedAt || r.createdAt).getTime();
     const slots = [
-        ...pairs.map(([a, b]) => ({ a, b, t: Math.min(timeOf(a), timeOf(b)) })),
-        ...solos.map(s => ({ a: s, b: null, t: timeOf(s) })),
+        ...pairs.map(([a, b]) => ({ a, b, t: Math.min(timeOf(a), timeOf(b)), size: 2 })),
+        ...solos.map(s => ({ a: s, b: null, t: timeOf(s), size: (s.partnerId && !byUserId.has(s.partnerId)) ? 2 : 1 })),
     ].sort((x, y) => x.t - y.t);
-    const maxTeams = maxPlayers ? Math.max(1, Math.floor(maxPlayers / 2)) : slots.length;
-    return { mainSlots: slots.slice(0, maxTeams), waitSlots: slots.slice(maxTeams) };
+    if (!maxPlayers) return { mainSlots: slots, waitSlots: [] };
+    const mainSlots = [];
+    const waitSlots = [];
+    let count = 0;
+    for (const slot of slots) {
+        if (count + slot.size <= maxPlayers) { mainSlots.push(slot); count += slot.size; }
+        else waitSlots.push(slot);
+    }
+    return { mainSlots, waitSlots };
 }
 
 // Opens the device's maps app at the court location, falling back to a Google Maps search
@@ -4932,7 +4941,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     const accepted = requests.filter(r => r.status === 'ACCEPTED');
                                     if (accepted.length === 0) return null;
                                     const { pairs, solos, byUserId } = groupDoublesPairs(accepted);
-                                    const { mainSlots, waitSlots } = splitDoublesSlots(pairs, solos, item.maxPlayers);
+                                    const { mainSlots, waitSlots } = splitDoublesSlots(pairs, solos, byUserId, item.maxPlayers);
                                     return (
                                         <View style={{ marginTop:14 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
@@ -5029,7 +5038,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     const pending = requests.filter(r => r.status === 'PENDING');
                                     const accepted = requests.filter(r => r.status === 'ACCEPTED');
                                     const { pairs, solos, byUserId } = groupDoublesPairs(accepted);
-                                    const { mainSlots, waitSlots } = splitDoublesSlots(pairs, solos, item.maxPlayers);
+                                    const { mainSlots, waitSlots } = splitDoublesSlots(pairs, solos, byUserId, item.maxPlayers);
                                     return (
                                         <View>
                                             {pending.length > 0 && (
