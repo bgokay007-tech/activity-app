@@ -56,7 +56,8 @@ export const createPost = async (req, res, next) => {
 
 export const getPosts = async (req, res, next) => {
     try {
-        const { category, subCategory, page = 1, limit = 10, type, communityOnly, mediaOnly } = req.query;
+        const { category: categoryRaw, subCategory, page = 1, limit = 10, type, communityOnly, mediaOnly } = req.query;
+        const category = categoryRaw ? categoryRaw.toUpperCase() : categoryRaw;
         const skip = (page - 1) * limit;
 
         // Build branch filter
