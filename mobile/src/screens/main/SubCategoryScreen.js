@@ -946,7 +946,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0 }) {
     const t = useT();
     const cfg = getConfig(sub);
-    const myUser = useSelector(s => s.auth.user);
     const isOwner = item.senderId === myId;
     const participants = Array.isArray(item.participants) ? item.participants : [];
     const required = item.matchType === 'DOUBLE'
@@ -959,10 +958,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const myInvite = (Array.isArray(item.joinRequests) ? item.joinRequests : []).find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
     const [detailVisible, setDetailVisible] = useState(false);
     const [editVisible, setEditVisible] = useState(false);
-    const [showJoinPartnerSearch, setShowJoinPartnerSearch] = useState(false);
-    const [joinPartnerQuery, setJoinPartnerQuery] = useState('');
-    const [joinPartnerResults, setJoinPartnerResults] = useState([]);
-    const [joinPartnerSearching, setJoinPartnerSearching] = useState(false);
 
     useEffect(() => {
         if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
@@ -985,7 +980,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         return () => { offRejected(); offAccepted(); };
     }, [item.id]);
 
-    const handleJoin = async (partner) => {
+    const handleJoin = async () => {
         if (item.minRating != null && myRating < item.minRating) {
             Alert.alert('⚠️ Puan Limiti', `Bu ilan için en az ${item.minRating}★ puan gerekiyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
             return;
@@ -994,15 +989,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             Alert.alert('⚠️ Puan Limiti', `Bu ilan için en fazla ${item.maxRating}★ puan kabul ediliyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
             return;
         }
-        const joiningTeam = partner
-            ? [
-                { id: myId, username: myUser?.username, fullName: myUser?.fullName, skillRating: myRating },
-                { id: partner.id, username: partner.username, fullName: partner.fullName, skillRating: partner.interests?.[0]?.skillRating || 0 },
-            ]
-            : undefined;
         try {
             setLocalJoinStatus('PENDING'); // anlık göster
-            await api.post(`/rivals/${item.id}/respond`, joiningTeam ? { joiningTeam } : {});
+            await api.post(`/rivals/${item.id}/respond`, {});
             onRefresh();
         } catch (e) {
             if (!e?.response) { onRefresh(); return; } // network drop — sunucu aldı, yenile
@@ -1017,41 +1006,12 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         }
     };
 
+    // Çiftlerde de doğrudan bireysel başvuru gönderilir — partner eşleştirme, başvuru
+    // gönderildikten sonra İstekler bölümündeki takım kartlarından (davet et/kabul et) yapılır.
     const handleJoinPress = () => {
-        if (item.matchType === 'DOUBLE') {
-            Alert.alert(
-                t.tournPartnerTitle || 'Partner',
-                t.tournPartnerMsg || 'Partnerinle mi katılacaksın?',
-                [
-                    { text: t.tournPartnerChoose || 'Partner Seç', onPress: () => setShowJoinPartnerSearch(true) },
-                    { text: t.tournPartnerSolo || 'Bireysel Başvur', onPress: () => handleJoin() },
-                    { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
-                ]
-            );
-            return;
-        }
         handleJoin();
     };
 
-    useEffect(() => {
-        if (!showJoinPartnerSearch) return;
-        if (!joinPartnerQuery.trim() || joinPartnerQuery.trim().length < 2) { setJoinPartnerResults([]); return; }
-        setJoinPartnerSearching(true);
-        const task = setTimeout(() => {
-            api.get(`/users/search?q=${encodeURIComponent(joinPartnerQuery.trim())}&subCategory=${sub}&category=${item.category}`)
-                .then(res => setJoinPartnerResults(Array.isArray(res.data) ? res.data : []))
-                .catch(() => setJoinPartnerResults([]))
-                .finally(() => setJoinPartnerSearching(false));
-        }, 400);
-        return () => clearTimeout(task);
-    }, [joinPartnerQuery, showJoinPartnerSearch]);
-
-    const chooseJoinPartner = (user) => {
-        setShowJoinPartnerSearch(false);
-        setJoinPartnerQuery('');
-        setJoinPartnerResults([]);
-        handleJoin(user);
-    };
 
     const handleCancel = async () => {
         Alert.alert(t.cancelConfirmTitle, t.cancelConfirmMsg, [
@@ -1235,44 +1195,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             onSave={onRefresh}
         />
 
-        {/* Çift maça katılım — partner arama modali */}
-        <Modal visible={showJoinPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowJoinPartnerSearch(false)}>
-            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:40, maxHeight:'80%' }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.choosePartnerBtn}</Text>
-                        <TouchableOpacity onPress={() => { setShowJoinPartnerSearch(false); setJoinPartnerQuery(''); setJoinPartnerResults([]); }}>
-                            <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <TextInput
-                        style={s.fieldInput}
-                        value={joinPartnerQuery}
-                        onChangeText={setJoinPartnerQuery}
-                        placeholder={t.inviteSearchPh}
-                        placeholderTextColor={colors.textMuted}
-                        autoFocus
-                    />
-                    {joinPartnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
-                        {joinPartnerResults.map(u => (
-                            <TouchableOpacity key={u.id} onPress={() => chooseJoinPartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
-                                <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
-                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                        @{u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-                        ))}
-                        {!joinPartnerSearching && joinPartnerQuery.trim().length >= 2 && joinPartnerResults.length === 0 && (
-                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
-                        )}
-                    </ScrollView>
-                </View>
-            </View>
-        </Modal>
         </>
     );
 }
