@@ -442,6 +442,7 @@ model RivalJoinRequest {
   status      String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
   joiningTeam Json     @default("[]")      // COMPETITIVE team: challenger's full team [{id,username,fullName,skillRating}]
   initiatedBy String   @default("JOINER")  // JOINER (user asked to join) | OWNER (owner invited this user)
+  partnerId   String?                       // Çiftler (DOUBLE): tek başına başvurmuş kullanıcının istediği partnerin userId'si. Karşılıklı olunca (iki başvuru da birbirini gösterince) çift eşleşir.
   createdAt   DateTime @default(now())
 
   rival      ActivityRequest @relation(fields: [rivalId],  references: [id], onDelete: Cascade)

@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import bcrypt from 'bcryptjs';
+import { emitToUser } from '../config/socket.js';
 
 const DEMO_TENNIS_PLAYERS = [
     { username: 'demo_t_rafael',  fullName: 'Rafael Moreno',    gender: 'MALE',   level: 'ADVANCED',     skillRating: 3.63, wins: 31, losses: 2  },
@@ -204,6 +205,116 @@ export const seedOneTournamentJoin = async (req, res, next) => {
         // with real push notifications for fake joins.
 
         res.status(201).json({ participant, remaining: DEMO_TENNIS_PLAYERS.length - idx - 1 });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Rakip Bul (rival) çiftler testi için 10 demo oyuncu — 5 kadın / 5 erkek, 0-5 puan
+// aralığında dağıtılmış (3 kişi 0-1, 3 kişi 1-2, 2 kişi 2-3, 1 kişi 3-4, 1 kişi 4-5).
+// Hem tenis hem padel için aynı 10 kimlik kullanılır (her ikisinde de UserInterest açılır).
+const DEMO_RIVAL_PLAYERS = [
+    { username: 'demo_r_ada',   fullName: 'Ada Yılmaz',     gender: 'FEMALE', skillRating: 0.42 },
+    { username: 'demo_r_kerem', fullName: 'Kerem Aydın',    gender: 'MALE',   skillRating: 0.78 },
+    { username: 'demo_r_mira',  fullName: 'Mira Demir',     gender: 'FEMALE', skillRating: 0.15 },
+    { username: 'demo_r_tolga', fullName: 'Tolga Şahin',    gender: 'MALE',   skillRating: 1.55 },
+    { username: 'demo_r_defne', fullName: 'Defne Kaya',     gender: 'FEMALE', skillRating: 1.20 },
+    { username: 'demo_r_mete',  fullName: 'Mete Öztürk',    gender: 'MALE',   skillRating: 1.85 },
+    { username: 'demo_r_elif',  fullName: 'Elif Çelik',     gender: 'FEMALE', skillRating: 2.60 },
+    { username: 'demo_r_bora',  fullName: 'Bora Arslan',    gender: 'MALE',   skillRating: 2.95 },
+    { username: 'demo_r_sude',  fullName: 'Sude Koç',       gender: 'FEMALE', skillRating: 3.40 },
+    { username: 'demo_r_yusuf', fullName: 'Yusuf Polat',    gender: 'MALE',   skillRating: 4.65 },
+];
+
+function levelForRating(r) {
+    if (r < 2.50) return 'BEGINNER';
+    if (r < 3.20) return 'INTERMEDIATE';
+    if (r < 4.10) return 'ADVANCED';
+    return 'PRO';
+}
+
+async function ensureDemoRivalPlayer(demo, subCategory) {
+    const hashedPassword = await bcrypt.hash('Demo1234!', 10);
+    let user = await prisma.user.findUnique({ where: { username: demo.username } });
+    if (!user) {
+        user = await prisma.user.create({
+            data: {
+                username: demo.username,
+                email: `${demo.username}@demo.activity`,
+                password: hashedPassword,
+                fullName: demo.fullName,
+                gender: demo.gender,
+            },
+        });
+    } else if (user.gender !== demo.gender) {
+        user = await prisma.user.update({ where: { id: user.id }, data: { gender: demo.gender } });
+    }
+    await prisma.userInterest.upsert({
+        where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory } },
+        update: { skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true },
+        create: {
+            userId: user.id, category: 'SPORTS', subCategory,
+            skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
+        },
+    });
+    return user;
+}
+
+// Bir Rakip Bul (rival) ilanına demo oyuncu(lar) ile başvuru gönderir — SINGLE için 1,
+// DOUBLE için henüz bu ilana başvurmamış 2 demo oyuncuyu takım olarak gönderir.
+export const seedRivalDemoJoin = async (req, res, next) => {
+    try {
+        const { rivalId } = req.body;
+        const rival = await prisma.activityRequest.findUnique({ where: { id: rivalId } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi demo başvuru gönderebilir' });
+        if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
+
+        const existingReqs = await prisma.rivalJoinRequest.findMany({
+            where: { rivalId, status: { in: ['PENDING', 'ACCEPTED'] } },
+            select: { userId: true },
+        });
+        const usedUsernames = new Set();
+        for (const r of existingReqs) {
+            const u = await prisma.user.findUnique({ where: { id: r.userId }, select: { username: true } });
+            if (u) usedUsernames.add(u.username);
+        }
+        const pool = DEMO_RIVAL_PLAYERS.filter(d => !usedUsernames.has(d.username));
+        const needed = rival.matchType === 'DOUBLE' ? 2 : 1;
+        if (pool.length < needed) {
+            return res.status(400).json({ message: 'Kullanılabilecek demo oyuncu kalmadı (hepsi bu ilana başvurmuş)' });
+        }
+
+        const picked = pool.slice(0, needed);
+        const users = await Promise.all(picked.map(d => ensureDemoRivalPlayer(d, rival.subCategory)));
+
+        if (rival.matchType === 'DOUBLE') {
+            const [d1, d2] = picked;
+            const [u1, u2] = users;
+            await prisma.rivalJoinRequest.create({
+                data: {
+                    rivalId,
+                    userId: u1.id,
+                    joiningTeam: [
+                        { id: u1.id, username: u1.username, fullName: u1.fullName, skillRating: d1.skillRating },
+                        { id: u2.id, username: u2.username, fullName: u2.fullName, skillRating: d2.skillRating },
+                    ],
+                },
+            });
+        } else {
+            await prisma.rivalJoinRequest.create({ data: { rivalId, userId: users[0].id } });
+        }
+
+        const updatedRival = await prisma.activityRequest.findUnique({
+            where: { id: rivalId },
+            include: {
+                sender: { select: { id: true, username: true, fullName: true, avatar: true, city: true } },
+                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { id: true, username: true, fullName: true, avatar: true, city: true, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
+            },
+        });
+        emitToUser(req.userId, 'rivalUpdate', updatedRival);
+
+        res.status(201).json({ joined: picked.map(d => d.fullName), remaining: pool.length - needed });
     } catch (error) {
         next(error);
     }

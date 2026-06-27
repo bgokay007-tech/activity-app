@@ -502,19 +502,25 @@ export const sendJoinRequest = async (req, res, next) => {
         }
 
         const joiningTeam = Array.isArray(req.body.joiningTeam) ? req.body.joiningTeam : [];
+        let partnerId = req.body.partnerId || null;
+        if (partnerId) {
+            if (request.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Partner seçimi sadece çiftler ilanlarında mümkün' });
+            if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
+        }
         if (existing?.status === 'REJECTED') {
             // Reddedilen isteği yeniden PENDING yap
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId: req.userId } },
-                data: { status: 'PENDING', joiningTeam },
+                data: { status: 'PENDING', joiningTeam, partnerId },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam } });
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId } });
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
 
-        // Push updated rival data (with new join request) to the creator in real-time
+        // Push updated rival data (with new join request) to everyone viewing this listing —
+        // other solo joiners need to see this in real-time too (çiftler takım kartları).
         const updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
@@ -522,10 +528,94 @@ export const sendJoinRequest = async (req, res, next) => {
                 joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
             },
         });
-        emitToUser(request.senderId, 'rivalUpdate', updatedRival);
+        broadcast('rivalUpdate', updatedRival);
 
         res.status(201).json({ message: '✓ Join request sent! Waiting for the organizer to accept.' });
 
+        if (partnerId) {
+            const partnerReq = await prisma.rivalJoinRequest.findUnique({
+                where: { rivalId_userId: { rivalId: id, userId: partnerId } },
+            });
+            const mutual = partnerReq?.partnerId === req.userId;
+            createNotification(
+                partnerId, 'MATCH_CONFIRMED',
+                mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
+                mutual
+                    ? `${me?.username || 'Biri'} ile çift olarak eşleştiniz, ilan sahibinin onayı bekleniyor.`
+                    : `${me?.username || 'Biri'} sizi bir ${request.subCategory} ilanında çift partneri olarak seçti. Aynı ilana onu partner göstererek başvurursanız çift olarak eşleşirsiniz.`,
+                { rivalId: id, subCategory: request.subCategory }
+            ).catch(() => {});
+        }
+
+    } catch (error) { next(error); }
+};
+
+// Çiftler (DOUBLE) ilanına bireysel başvurmuş bir kullanıcının partner seçimini değiştirir —
+// davet gönderme, geleni kabul etme (karşılıklı partnerId aynı kişiyi gösterince eşleşme
+// tamamlanır) ve daveti geri çekme hepsi bu tek endpoint üzerinden yürür.
+export const setRivalJoinPartner = async (req, res, next) => {
+    try {
+        const { id } = req.params; // rivalId
+        const { partnerId } = req.body;
+
+        const request = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!request) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (request.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Partner seçimi sadece çiftler ilanlarında mümkün' });
+        if (request.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
+
+        const me = await prisma.rivalJoinRequest.findUnique({
+            where: { rivalId_userId: { rivalId: id, userId: req.userId } },
+        });
+        if (!me || me.status !== 'PENDING') return res.status(404).json({ message: 'Bu ilana bekleyen bir başvurunuz bulunamadı' });
+
+        if (partnerId) {
+            if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
+            const partnerReq = await prisma.rivalJoinRequest.findUnique({
+                where: { rivalId_userId: { rivalId: id, userId: partnerId } },
+            });
+            if (!partnerReq || partnerReq.status !== 'PENDING') {
+                return res.status(404).json({ message: 'Seçtiğiniz oyuncu bu ilana bekleyen bir başvuru göndermemiş' });
+            }
+            const partnerInterest = await prisma.userInterest.findFirst({
+                where: { userId: partnerId, category: request.category, subCategory: request.subCategory },
+                select: { assessmentCompleted: true },
+            });
+            if (!partnerInterest?.assessmentCompleted) {
+                return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
+            }
+        }
+
+        const updated = await prisma.rivalJoinRequest.update({
+            where: { id: me.id },
+            data: { partnerId: partnerId || null },
+            include: { user: { select: SENDER_SELECT } },
+        });
+
+        const updatedRival = await prisma.activityRequest.findUnique({
+            where: { id },
+            include: {
+                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, totalPoints: true, wins: true, losses: true } } } },
+                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
+            },
+        });
+        broadcast('rivalUpdate', updatedRival);
+
+        if (partnerId) {
+            const partnerReq = await prisma.rivalJoinRequest.findUnique({
+                where: { rivalId_userId: { rivalId: id, userId: partnerId } },
+            });
+            const mutual = partnerReq?.partnerId === req.userId;
+            createNotification(
+                partnerId, 'MATCH_CONFIRMED',
+                mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
+                mutual
+                    ? `${updated.user?.username || 'Biri'} ile çift olarak eşleştiniz, ilan sahibinin onayı bekleniyor.`
+                    : `${updated.user?.username || 'Biri'} sizi bir ${request.subCategory} ilanında çift partneri olarak seçti.`,
+                { rivalId: id, subCategory: request.subCategory }
+            ).catch(() => {});
+        }
+
+        res.json(updated);
     } catch (error) { next(error); }
 };
 
@@ -619,7 +709,28 @@ export const respondToJoin = async (req, res, next) => {
         // otherwise fall back to single-player addition. Independent of matchMode — a doubles
         // pairing is a structural fact about who's joining, not about practice vs competitive.
         const rival = joinReq.rival;
-        const joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
+        let joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
+        let partnerJoinReqToAccept = null;
+
+        // Çiftler: bireysel başvurmuş ama karşılıklı partner eşleşmesi olan iki başvuru
+        // tek takım olarak birlikte kabul edilir.
+        if (rival.matchType === 'DOUBLE' && joiningTeam.length === 0 && joinReq.partnerId) {
+            const partnerReq = await prisma.rivalJoinRequest.findUnique({
+                where: { rivalId_userId: { rivalId: rival.id, userId: joinReq.partnerId } },
+                include: { user: { select: SENDER_SELECT } },
+            });
+            if (partnerReq && partnerReq.status === 'PENDING' && partnerReq.partnerId === joinReq.userId) {
+                const partnerInterest = await prisma.userInterest.findFirst({
+                    where: { userId: partnerReq.userId, subCategory: rival.subCategory },
+                    select: { skillRating: true, alias: true },
+                });
+                joiningTeam = [
+                    { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar },
+                    { id: partnerReq.userId, username: partnerReq.user.username, fullName: partnerReq.user.fullName, avatar: partnerReq.user.avatar, skillRating: partnerInterest?.skillRating ?? 0 },
+                ];
+                partnerJoinReqToAccept = partnerReq;
+            }
+        }
         const isTeamJoin = joiningTeam.length > 0;
 
         const u = joinReq.user;
@@ -663,10 +774,16 @@ export const respondToJoin = async (req, res, next) => {
             },
         });
 
+        // Çiftler: partner eşi de kabul edildi olarak işaretlenir (ikisi birlikte tek takım kabul edildi)
+        if (partnerJoinReqToAccept) {
+            await prisma.rivalJoinRequest.update({ where: { id: partnerJoinReqToAccept.id }, data: { status: 'ACCEPTED' } });
+        }
+
         // Push updated rival to creator's UI
         emitToUser(rival.senderId, 'rivalUpdate', updated);
         // Notify the joiner that they were accepted
         emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
+        if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         // Also notify all participants of the match status
         if (isFull) {
             updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
@@ -687,6 +804,18 @@ export const respondToJoin = async (req, res, next) => {
                 : `Your request to join a match was accepted.`,
             { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
         ).catch(() => {});
+
+        if (partnerJoinReqToAccept) {
+            createNotification(
+                partnerJoinReqToAccept.userId,
+                'MATCH_CONFIRMED',
+                isFull ? '🎉 Maç onaylandı!' : '✓ Katılım isteğin kabul edildi!',
+                isFull
+                    ? `${rival.sender?.username || ''} ile maçınız onaylandı — çift olarak kabul edildiniz, maç doldu!`
+                    : `Çift partneriniz ile birlikte maça katılım isteğiniz kabul edildi.`,
+                { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
+            ).catch(() => {});
+        }
     } catch (error) { next(error); }
 };
 

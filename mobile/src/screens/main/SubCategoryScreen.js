@@ -353,6 +353,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [inviteSearching, setInviteSearching] = useState(false);
     const [invitingUserId, setInvitingUserId] = useState(null);
 
+    // Çiftler: bireysel başvurmuşlar arası partner davet/kabul/geri çek
+    const [partnerActionLoading, setPartnerActionLoading] = useState(false);
+    const [showJoinInvitePicker, setShowJoinInvitePicker] = useState(false);
+    const [joinInviteCandidates, setJoinInviteCandidates] = useState([]);
+    const [seedingDemoRival, setSeedingDemoRival] = useState(false);
+
     useEffect(() => {
         setLocalParticipants(null);
         setLocalJoinRequests(null);
@@ -443,6 +449,99 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const rejectLocal = (jrId) => {
         setLocalJoinRequests(joinRequests.filter(r => r.id !== jrId));
         handleRespondJoin(jrId, 'reject');
+    };
+
+    // Çiftler: kendi bireysel başvurumun partner durumunu değiştirir — davet et / kabul et / geri çek
+    const setMyRivalJoinPartner = async (partnerId) => {
+        setPartnerActionLoading(true);
+        try {
+            const { data } = await api.patch(`/rivals/${item.id}/join-partner`, { partnerId: partnerId || null });
+            setLocalJoinRequests(prev => {
+                const base = prev ?? joinRequests;
+                return base.some(r => r.id === data.id) ? base.map(r => r.id === data.id ? { ...r, ...data } : r) : [...base, data];
+            });
+            setShowJoinInvitePicker(false);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setPartnerActionLoading(false);
+        }
+    };
+
+    // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
+    const renderRivalDuoCard = (p1, p2, solos, byUserId) => {
+        const nameOf = (jr) => jr?.user?.fullName || jr?.user?.username || '';
+        const ratingOf = (jr) => jr?.user?.interests?.find(i => i.subCategory === sub)?.skillRating;
+        const Half = ({ jr }) => (
+            <View>
+                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(jr)}</Text>
+                <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{jr?.user?.username}{ratingOf(jr) != null ? `  ${starEmoji(Number(ratingOf(jr)))} ${Number(ratingOf(jr)).toFixed(2)}` : ''}</Text>
+            </View>
+        );
+
+        let slot2;
+        if (p2) {
+            slot2 = <Half jr={p2} />;
+        } else {
+            const isMine = p1.userId === myId;
+            const invitedBy = solos.find(o => o.partnerId === p1.userId && o.userId !== p1.userId);
+            if (p1.partnerId) {
+                const target = byUserId.get(p1.partnerId);
+                slot2 = (
+                    <View>
+                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
+                        {isMine && (
+                            <TouchableOpacity onPress={() => setMyRivalJoinPartner(null)} disabled={partnerActionLoading} style={{ marginTop:2 }}>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>✕ Geri Çek</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                );
+            } else if (invitedBy) {
+                slot2 = (
+                    <View>
+                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} davet etti</Text>
+                        {isMine && (
+                            <TouchableOpacity onPress={() => setMyRivalJoinPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
+                                <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>✓ Kabul Et</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                );
+            } else {
+                slot2 = (
+                    <View>
+                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>Partner aranıyor</Text>
+                        {isMine && (
+                            <TouchableOpacity
+                                onPress={() => { setJoinInviteCandidates(solos.filter(s => s.userId !== myId)); setShowJoinInvitePicker(true); }}
+                                disabled={partnerActionLoading}
+                                style={{ marginTop:2, backgroundColor: cfg.color+'20', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
+                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }}>+ Davet Et</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                );
+            }
+        }
+
+        return (
+            <View key={p1.id} style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:6, paddingHorizontal:8, marginBottom:6 }}>
+                <Half jr={p1} />
+                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
+                {slot2}
+                {isOwner && (
+                    <View style={{ flexDirection:'row', gap:4, marginTop:4 }}>
+                        <TouchableOpacity onPress={() => acceptLocal(p1.id)} style={{ flex:1, backgroundColor:'#16a34a30', borderRadius:5, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
+                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>Kabul</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => rejectLocal(p1.id)} style={{ flex:1, backgroundColor:'#dc262630', borderRadius:5, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Red</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+            </View>
+        );
     };
 
     const sendComment = async () => {
@@ -563,11 +662,21 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         {filled === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                     </View>
 
-                    {/* İstekler (sadece ilan sahibine) — kendi gönderdiği davetler hariç */}
-                    {isOwner && joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
+                    {/* İstekler — çiftlerde herkes görür (ikili kart + partner davet/kabul),
+                        diğer türlerde sadece ilan sahibi (kabul/red) görür */}
+                    {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (isOwner || item.matchType === 'DOUBLE') && (
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
-                            {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
+                            {item.matchType === 'DOUBLE' ? (() => {
+                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER');
+                                const { pairs, solos, byUserId } = groupDoublesPairs(incoming);
+                                return (
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                        {pairs.map(([a, b]) => renderRivalDuoCard(a, b, solos, byUserId))}
+                                        {solos.map(s => renderRivalDuoCard(s, null, solos, byUserId))}
+                                    </View>
+                                );
+                            })() : joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
                                 <View key={jr.id} style={det.playerRow}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                     <View style={{ flex:1 }}>
@@ -596,6 +705,23 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 onPress={() => setInviteModalVisible(true)}
                             >
                                 <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(13) }]}>{t.inviteBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {isOwner && !isFull && (sub === 'tennis' || sub === 'padel') && (
+                            <TouchableOpacity
+                                disabled={seedingDemoRival}
+                                style={[s.joinBtn, { backgroundColor:'#7c3aed20', borderWidth:1, borderColor:'#7c3aed50', marginBottom:10, borderRadius: moderateScale(10), paddingVertical: moderateScale(9), opacity: seedingDemoRival ? 0.6 : 1 }]}
+                                onPress={async () => {
+                                    setSeedingDemoRival(true);
+                                    try {
+                                        const { data } = await api.post('/demo/rival-join', { rivalId: item.id });
+                                        Alert.alert('', `Demo başvuru gönderildi: ${data.joined.join(', ')}`);
+                                    } catch (e) {
+                                        Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                                    } finally { setSeedingDemoRival(false); }
+                                }}
+                            >
+                                <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(13) }]}>{seedingDemoRival ? '...' : '🤖 Demo Başvuru Gönder'}</Text>
                             </TouchableOpacity>
                         )}
                         {isOwner ? (
@@ -734,6 +860,31 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 </View>
             </View>
         </Modal>
+
+        {/* Çiftler: partner davet picker — bireysel başvuranlar arasından seç */}
+        <Modal visible={showJoinInvitePicker} animationType="fade" transparent onRequestClose={() => setShowJoinInvitePicker(false)}>
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:24 }}>
+                <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:20, borderWidth:1, borderColor: cfg.color+'40', width:'100%', maxHeight:'70%' }}>
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>👥 Partner Davet Et</Text>
+                    <ScrollView>
+                        {joinInviteCandidates.length === 0 ? (
+                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Davet edilebilecek bireysel başvuran yok</Text>
+                        ) : joinInviteCandidates.map(c => (
+                            <TouchableOpacity key={c.userId} onPress={() => setMyRivalJoinPartner(c.userId)} disabled={partnerActionLoading} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                <Avatar name={c.user?.username} avatar={c.user?.avatar} size={moderateScale(34)} color={cfg.color} />
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.fullName || c.user?.username}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{c.user?.username}{c.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${starEmoji(Number(c.user.interests.find(i => i.subCategory === sub).skillRating))} ${Number(c.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)}` : ''}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                    <TouchableOpacity onPress={() => setShowJoinInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:11, alignItems:'center' }}>
+                        <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
         </>
     );
 }
@@ -815,7 +966,18 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     };
 
     const handleJoinPress = () => {
-        if (item.matchType === 'DOUBLE') { setShowJoinPartnerSearch(true); return; }
+        if (item.matchType === 'DOUBLE') {
+            Alert.alert(
+                t.tournPartnerTitle || 'Partner',
+                t.tournPartnerMsg || 'Partnerinle mi katılacaksın?',
+                [
+                    { text: t.tournPartnerChoose || 'Partner Seç', onPress: () => setShowJoinPartnerSearch(true) },
+                    { text: t.tournPartnerSolo || 'Bireysel Başvur', onPress: () => handleJoin() },
+                    { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                ]
+            );
+            return;
+        }
         handleJoin();
     };
 
