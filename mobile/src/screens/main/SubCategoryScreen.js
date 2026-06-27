@@ -468,6 +468,27 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         }
     };
 
+    // İlan sahibi yanlışlıkla kabul ettiği bir katılımcıyı (çiftlerde takımın tamamını) çıkarır
+    const removeRivalParticipant = (participantUserId, participantName) => {
+        Alert.alert(
+            'Katılımcıyı Çıkar',
+            item.matchType === 'DOUBLE'
+                ? `${participantName || 'Bu takım'} maçtan çıkarılacak, ilan tekrar açık hâle gelecek. Emin misiniz?`
+                : `${participantName || 'Bu kullanıcı'} maçtan çıkarılacak, ilan tekrar açık hâle gelecek. Emin misiniz?`,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'Çıkar', style: 'destructive', onPress: async () => {
+                    try {
+                        const { data } = await api.delete(`/rivals/${item.id}/participants/${participantUserId}`);
+                        setLocalParticipants(Array.isArray(data?.request?.participants) ? data.request.participants : []);
+                    } catch (e) {
+                        Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                    }
+                }},
+            ]
+        );
+    };
+
     // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
     const renderRivalDuoCard = (p1, p2, solos, byUserId) => {
         const nameOf = (jr) => jr?.user?.fullName || jr?.user?.username || '';
@@ -634,32 +655,63 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {/* Oyuncular */}
                     <View style={det.section}>
                         <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
-                        <View style={det.playerRow}>
-                            <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
-                            <View style={{ flex:1 }}>
-                                <Text style={det.playerName}>{playerDisplayName(item.sender)}</Text>
-                                <Text style={det.playerSub}>@{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
-                            </View>
-                        </View>
-                        {Array.isArray(item.senderTeam) && item.senderTeam.map((p, i) => (
-                            <View key={p.id || `st-${i}`} style={det.playerRow}>
-                                <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
-                                <View style={{ flex:1 }}>
-                                    <Text style={det.playerName}>{playerDisplayName(p)}</Text>
-                                    <Text style={det.playerSub}>@{p.username} · {t.partnerLabel}</Text>
+                        {item.matchType === 'DOUBLE' ? (() => {
+                            const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+                            const TeamHalf = ({ p, fallback, sub: subLabel }) => p ? (
+                                <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })}>
+                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p.username}{subLabel ? ` · ${subLabel}` : ''}</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <Text style={{ color: colors.textMuted, fontSize:9 }}>{fallback}</Text>
+                            );
+                            return (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                    <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
+                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', marginBottom:4 }}>👑 Kurucu Takımı</Text>
+                                        <TeamHalf p={item.sender} />
+                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
+                                        <TeamHalf p={senderTeamArr[0]} fallback="Partner yok" />
+                                    </View>
+                                    <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
+                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
+                                        <TeamHalf p={participants[0]} fallback="Henüz katılan yok" />
+                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
+                                        <TeamHalf p={participants[1]} fallback="Henüz katılan yok" />
+                                        {isOwner && participants.length > 0 && (
+                                            <TouchableOpacity onPress={() => removeRivalParticipant(participants[0].id, `${participants[0]?.username}${participants[1] ? ' & ' + participants[1].username : ''}`)} style={{ marginTop:4 }}>
+                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
                                 </View>
-                            </View>
-                        ))}
-                        {participants.map((p, i) => (
-                            <View key={p.id || i} style={det.playerRow}>
-                                <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
-                                <View style={{ flex:1 }}>
-                                    <Text style={det.playerName}>{playerDisplayName(p)}</Text>
-                                    <Text style={det.playerSub}>@{p.username}</Text>
+                            );
+                        })() : (
+                            <>
+                                <View style={det.playerRow}>
+                                    <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
+                                    <View style={{ flex:1 }}>
+                                        <Text style={det.playerName}>{playerDisplayName(item.sender)}</Text>
+                                        <Text style={det.playerSub}>@{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                    </View>
                                 </View>
-                            </View>
-                        ))}
-                        {filled === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                                {participants.map((p, i) => (
+                                    <View key={p.id || i} style={det.playerRow}>
+                                        <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>{playerDisplayName(p)}</Text>
+                                            <Text style={det.playerSub}>@{p.username}</Text>
+                                        </View>
+                                        {isOwner && (
+                                            <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:6 }}>
+                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>Çıkar</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                ))}
+                                {filled === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                            </>
+                        )}
                     </View>
 
                     {/* İstekler — çiftlerde herkes görür (ikili kart + partner davet/kabul),

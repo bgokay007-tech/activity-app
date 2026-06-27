@@ -739,6 +739,12 @@ export const respondToJoin = async (req, res, next) => {
             select: { alias: true },
         });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        // Bir takım (eşleşmiş çift) kabul edilirken, halihazırda kabul edilmiş bireysel
+        // katılımcılar varsa (eski model — senderTeam'siz ilanlar) bunları sessizce silme,
+        // hata döndür — kurucu önce o eski katılımcıları çıkarmalı/reddetmeli.
+        if (isTeamJoin && participants.length > 0) {
+            return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var. Takım eşleşmesini kabul etmeden önce onları çıkarın.' });
+        }
         const updatedParticipants = isTeamJoin
             ? joiningTeam  // full opponent team replaces participants
             : [...participants, { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null }];
@@ -1377,6 +1383,57 @@ export const cancelRequest = async (req, res, next) => {
                 '❌ İlan İptal Edildi',
                 `${senderName} ilanı iptal etti.`,
                 { rivalId: id, subCategory: request.subCategory }
+            ).catch(() => {});
+        }
+    } catch (error) { next(error); }
+};
+
+// İlan sahibi yanlışlıkla kabul ettiği bir katılımcıyı (1v1'de rakibi, çiftlerde takımın
+// tamamını) listeden çıkarır — ilan tekrar OPEN'a döner, çıkarılan oyuncu(lar)a bildirim gider.
+export const removeRivalParticipant = async (req, res, next) => {
+    try {
+        const { id, userId } = req.params;
+        const rival = await prisma.activityRequest.findUnique({ where: { id }, include: { sender: { select: SENDER_SELECT } } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi katılımcı çıkarabilir' });
+
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const target = participants.find(p => p.id === userId);
+        if (!target) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
+
+        // Çiftler: takım halinde katıldıkları için biri çıkarılırsa ikisi de çıkar
+        const removeIds = rival.matchType === 'DOUBLE' ? participants.map(p => p.id) : [userId];
+        const updatedParticipants = participants.filter(p => !removeIds.includes(p.id));
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: {
+                participants: updatedParticipants,
+                status: 'OPEN',
+                receiverId: null,
+                schedulingDeadline: null,
+                matchDate: null,
+                matchTime: null,
+            },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+
+        await prisma.rivalJoinRequest.updateMany({
+            where: { rivalId: id, userId: { in: removeIds }, status: 'ACCEPTED' },
+            data: { status: 'REJECTED' },
+        });
+
+        broadcast('rivalUpdate', updated);
+        for (const uid of removeIds) emitToUser(uid, 'rivalUpdate', updated);
+
+        res.json({ removed: removeIds, request: updated });
+
+        const senderName = rival.sender?.username || 'İlan sahibi';
+        for (const uid of removeIds) {
+            createNotification(uid, 'MATCH_CANCELLED',
+                '⚠️ Katılımınız Kaldırıldı',
+                `${senderName} sizi "${rival.subCategory}" ilanından çıkardı. İlan tekrar açık hâle geldi.`,
+                { rivalId: id, subCategory: rival.subCategory }
             ).catch(() => {});
         }
     } catch (error) { next(error); }
