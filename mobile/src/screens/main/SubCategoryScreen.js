@@ -208,7 +208,7 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                                 )}
                                             </View>
                                             <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                                                {i.skillRating > 0 && (
+                                                {i.assessmentCompleted && (
                                                     <Text style={[s.profileRating, { color: colors.purple }]}>
                                                         {Number(i.skillRating).toFixed(2)} ★
                                                     </Text>
@@ -477,7 +477,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                         <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
                             <Text style={[s.cardName, { fontSize: moderateScale(14) }]}>{senderAlias(item.sender)}</Text>
-                            {item.sender?.interests?.[0]?.skillRating > 0 && (
+                            {item.sender?.interests?.[0]?.assessmentCompleted && (
                                 <Text style={{ color:'#facc15', fontSize:moderateScale(12), fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
                             )}
                         </View>
@@ -835,7 +835,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                     <View style={{ flex:1, minWidth:0 }}>
                         <Text style={[s.cardName, { fontSize: moderateScale(13) }]} numberOfLines={1}>{senderAlias(item.sender)}</Text>
-                        {item.sender?.interests?.[0]?.skillRating > 0 && (
+                        {item.sender?.interests?.[0]?.assessmentCompleted && (
                             <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(10) }]}>
                                 {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
                             </Text>

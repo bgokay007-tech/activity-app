@@ -126,7 +126,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                             <Text style={s.subEmoji}>{sub.emoji || '🏅'}</Text>
                                             <View style={{ flex: 1 }}>
                                                 <Text style={s.subName}>{sub.label || sub.id}</Text>
-                                                {existing?.skillRating > 0 && (
+                                                {existing?.assessmentCompleted && (
                                                     <Text style={[s.subRating, { color: activeColor }]}>
                                                         {Number(existing.skillRating).toFixed(2)} ★
                                                     </Text>

@@ -67,6 +67,9 @@ export default function LoginScreen({ navigation }) {
                         placeholderTextColor={colors.textMuted}
                         keyboardType="email-address"
                         autoCapitalize="none"
+                        textContentType="oneTimeCode"
+                        autoComplete="off"
+                        importantForAutofill="no"
                     />
                     <Text style={s.label}>{t.password}</Text>
                     <View style={s.passRow}>
@@ -77,6 +80,9 @@ export default function LoginScreen({ navigation }) {
                             placeholder="••••••••"
                             placeholderTextColor={colors.textMuted}
                             secureTextEntry={!showPass}
+                            textContentType="oneTimeCode"
+                            autoComplete="off"
+                            importantForAutofill="no"
                         />
                         <TouchableOpacity style={s.eyeBtn} onPress={() => setShowPass(v => !v)}>
                             <Text style={s.eyeIcon}>{showPass ? '🙈' : '👁️'}</Text>

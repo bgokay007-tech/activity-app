@@ -22,7 +22,7 @@ export const getProfile = async (req, res, next) => {
                 friendsListPrivacy: true, friendsListExclude: true,
                 activitiesPrivacy: true, activitiesExclude: true,
                 interests: {
-                    select: { id: true, category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true },
+                    select: { id: true, category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true, assessmentCompleted: true },
                     orderBy: { totalPoints: 'desc' },
                 },
                 _count: {

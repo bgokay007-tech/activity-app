@@ -460,7 +460,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     <Text style={fc.smallSportName} numberOfLines={1}>{item.subCategory?.toUpperCase()}</Text>
                                     {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1}>@{item.alias}</Text> : null}
                                 </View>
-                                {item.skillRating > 0 && (
+                                {item.assessmentCompleted && (
                                     <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 7, borderWidth: 1, borderColor: '#facc1540' }}>
                                         <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
                                         <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
@@ -2305,7 +2305,7 @@ export default function ProfileScreen({ route, navigation }) {
                                         <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
                                         <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }}>{i.subCategory}</Text>
                                         {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>@{i.alias}</Text> : null}
-                                        {i.skillRating > 0 && (
+                                        {i.assessmentCompleted && (
                                             <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
                                         )}
                                     </TouchableOpacity>
@@ -2393,7 +2393,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 {allP.map(p => (
                                                     <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
                                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
-                                                        {p.skillRating != null && p.skillRating > 0 && (
+                                                        {p.skillRating != null && (
                                                             <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
                                                         )}
                                                     </View>
