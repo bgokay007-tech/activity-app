@@ -161,7 +161,9 @@ const SENDER_SELECT = {
     id: true, username: true, fullName: true, avatar: true, city: true,
 };
 
-const REQUIRED_PARTICIPANTS = { SINGLE: 1, DOUBLE: 3 };
+// DOUBLE: 2 — taraflar artık eşleşmiş çift olarak katılıyor (senderTeam/joiningTeam),
+// tek bir takım katılımı maçı tamamlar (3 ayrı bireysel katılımcı değil).
+const REQUIRED_PARTICIPANTS = { SINGLE: 1, DOUBLE: 2 };
 
 function getRequired(request) {
     if (request.matchType === 'PLAYER_WANTED') return Number(request.levelDetail) || 999;

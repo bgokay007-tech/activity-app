@@ -348,7 +348,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const isOwner = item.senderId === myId;
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
-    const required = item.matchType === 'DOUBLE' ? 3 : (item.teamSize || 1);
+    const required = item.matchType === 'DOUBLE' ? 2 : (item.teamSize || 1);
+    const senderSideCount = 1 + (Array.isArray(item.senderTeam) ? item.senderTeam.length : 0);
     const filled = participants.length;
     const mySentReq = item._myJoinStatus;
     const isFull = filled >= required;
@@ -490,7 +491,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                     {/* Oyuncular */}
                     <View style={det.section}>
-                        <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({1 + filled} / {1 + required})</Text>
+                        <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
                         <View style={det.playerRow}>
                             <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                             <View style={{ flex:1 }}>
@@ -498,6 +499,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <Text style={det.playerSub}>@{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                             </View>
                         </View>
+                        {Array.isArray(item.senderTeam) && item.senderTeam.map((p, i) => (
+                            <View key={p.id || `st-${i}`} style={det.playerRow}>
+                                <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
+                                <View style={{ flex:1 }}>
+                                    <Text style={det.playerName}>{playerDisplayName(p)}</Text>
+                                    <Text style={det.playerSub}>@{p.username} · {t.partnerLabel}</Text>
+                                </View>
+                            </View>
+                        ))}
                         {participants.map((p, i) => (
                             <View key={p.id || i} style={det.playerRow}>
                                 <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
@@ -690,9 +700,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0 }) {
     const t = useT();
     const cfg = getConfig(sub);
+    const myUser = useSelector(s => s.auth.user);
     const isOwner = item.senderId === myId;
     const participants = Array.isArray(item.participants) ? item.participants : [];
-    const required = item.matchType === 'DOUBLE' ? 3 : (item.teamSize || 1);
+    const required = item.matchType === 'DOUBLE' ? 2 : (item.teamSize || 1);
     const filled = participants.length;
     const isFull = filled >= required;
     const [localJoinStatus, setLocalJoinStatus] = useState(null);
@@ -700,6 +711,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const myInvite = (Array.isArray(item.joinRequests) ? item.joinRequests : []).find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
     const [detailVisible, setDetailVisible] = useState(false);
     const [editVisible, setEditVisible] = useState(false);
+    const [showJoinPartnerSearch, setShowJoinPartnerSearch] = useState(false);
+    const [joinPartnerQuery, setJoinPartnerQuery] = useState('');
+    const [joinPartnerResults, setJoinPartnerResults] = useState([]);
+    const [joinPartnerSearching, setJoinPartnerSearching] = useState(false);
 
     useEffect(() => {
         if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
@@ -722,7 +737,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         return () => { offRejected(); offAccepted(); };
     }, [item.id]);
 
-    const handleJoin = async () => {
+    const handleJoin = async (partner) => {
         if (item.minRating != null && myRating < item.minRating) {
             Alert.alert('⚠️ Puan Limiti', `Bu ilan için en az ${item.minRating}★ puan gerekiyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
             return;
@@ -731,9 +746,15 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             Alert.alert('⚠️ Puan Limiti', `Bu ilan için en fazla ${item.maxRating}★ puan kabul ediliyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
             return;
         }
+        const joiningTeam = partner
+            ? [
+                { id: myId, username: myUser?.username, fullName: myUser?.fullName, skillRating: myRating },
+                { id: partner.id, username: partner.username, fullName: partner.fullName, skillRating: partner.interests?.[0]?.skillRating || 0 },
+            ]
+            : undefined;
         try {
             setLocalJoinStatus('PENDING'); // anlık göster
-            await api.post(`/rivals/${item.id}/respond`, {});
+            await api.post(`/rivals/${item.id}/respond`, joiningTeam ? { joiningTeam } : {});
             onRefresh();
         } catch (e) {
             if (!e?.response) { onRefresh(); return; } // network drop — sunucu aldı, yenile
@@ -746,6 +767,31 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             }
             Alert.alert(t.error, msg || t.requestFailed);
         }
+    };
+
+    const handleJoinPress = () => {
+        if (item.matchType === 'DOUBLE') { setShowJoinPartnerSearch(true); return; }
+        handleJoin();
+    };
+
+    useEffect(() => {
+        if (!showJoinPartnerSearch) return;
+        if (!joinPartnerQuery.trim() || joinPartnerQuery.trim().length < 2) { setJoinPartnerResults([]); return; }
+        setJoinPartnerSearching(true);
+        const task = setTimeout(() => {
+            api.get(`/users/search?q=${encodeURIComponent(joinPartnerQuery.trim())}&subCategory=${sub}&category=${item.category}`)
+                .then(res => setJoinPartnerResults(Array.isArray(res.data) ? res.data : []))
+                .catch(() => setJoinPartnerResults([]))
+                .finally(() => setJoinPartnerSearching(false));
+        }, 400);
+        return () => clearTimeout(task);
+    }, [joinPartnerQuery, showJoinPartnerSearch]);
+
+    const chooseJoinPartner = (user) => {
+        setShowJoinPartnerSearch(false);
+        setJoinPartnerQuery('');
+        setJoinPartnerResults([]);
+        handleJoin(user);
     };
 
     const handleCancel = async () => {
@@ -901,7 +947,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 ) : (
                     <TouchableOpacity
                         style={{ backgroundColor:cfg.color, borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
-                        onPress={handleJoin}
+                        onPress={handleJoinPress}
                     >
                         <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.joinBtn}</Text>
                     </TouchableOpacity>
@@ -918,7 +964,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             t={t}
             onClose={() => setDetailVisible(false)}
             navigation={navigation}
-            handleJoin={() => { setDetailVisible(false); setTimeout(handleJoin, 300); }}
+            handleJoin={() => { setDetailVisible(false); setTimeout(handleJoinPress, 300); }}
             handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
             handleRespondJoin={handleRespondJoin}
             onEdit={() => { setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
@@ -929,6 +975,45 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             onClose={() => setEditVisible(false)}
             onSave={onRefresh}
         />
+
+        {/* Çift maça katılım — partner arama modali */}
+        <Modal visible={showJoinPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowJoinPartnerSearch(false)}>
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:40, maxHeight:'80%' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.choosePartnerBtn}</Text>
+                        <TouchableOpacity onPress={() => { setShowJoinPartnerSearch(false); setJoinPartnerQuery(''); setJoinPartnerResults([]); }}>
+                            <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <TextInput
+                        style={s.fieldInput}
+                        value={joinPartnerQuery}
+                        onChangeText={setJoinPartnerQuery}
+                        placeholder={t.inviteSearchPh}
+                        placeholderTextColor={colors.textMuted}
+                        autoFocus
+                    />
+                    {joinPartnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                        {joinPartnerResults.map(u => (
+                            <TouchableOpacity key={u.id} onPress={() => chooseJoinPartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                        @{u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                        {!joinPartnerSearching && joinPartnerQuery.trim().length >= 2 && joinPartnerResults.length === 0 && (
+                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
+                        )}
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
         </>
     );
 }
@@ -2443,12 +2528,37 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         courtFeePerPerson: '',
         message: '',
         minRating: '', maxRating: '',
+        partner: null,
     };
     const [f, setF]               = useState(INIT);
+    const [showPartnerSearch, setShowPartnerSearch] = useState(false);
+    const [partnerQuery, setPartnerQuery] = useState('');
+    const [partnerResults, setPartnerResults] = useState([]);
+    const [partnerSearching, setPartnerSearching] = useState(false);
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [ratingPickerTarget, setRatingPickerTarget] = useState(null);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
+
+    useEffect(() => {
+        if (!showPartnerSearch) return;
+        if (!partnerQuery.trim() || partnerQuery.trim().length < 2) { setPartnerResults([]); return; }
+        setPartnerSearching(true);
+        const task = setTimeout(() => {
+            api.get(`/users/search?q=${encodeURIComponent(partnerQuery.trim())}&subCategory=${sub}&category=${category}`)
+                .then(res => setPartnerResults(Array.isArray(res.data) ? res.data : []))
+                .catch(() => setPartnerResults([]))
+                .finally(() => setPartnerSearching(false));
+        }, 400);
+        return () => clearTimeout(task);
+    }, [partnerQuery, showPartnerSearch]);
+
+    const choosePartner = (user) => {
+        set('partner', user);
+        setShowPartnerSearch(false);
+        setPartnerQuery('');
+        setPartnerResults([]);
+    };
 
     const searchCourts = async (text) => {
         set('courtSearchText', text);
@@ -2478,6 +2588,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
     const reset = () => setF(INIT);
 
     const submit = async () => {
+        if (!isTeamSport && f.matchType === 'DOUBLE' && !f.partner) {
+            Alert.alert('', t.missingPartner); return;
+        }
         if (!f.flexibleSchedule) {
             if (!f.matchDate)  { Alert.alert('', t.missingDate); return; }
             if (!f.matchTime)  { Alert.alert('', t.missingTime); return; }
@@ -2528,6 +2641,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                 message:   f.message || undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
+                senderTeam: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
+                    ? [{ id: f.partner.id, username: f.partner.username, fullName: f.partner.fullName, skillRating: f.partner.interests?.[0]?.skillRating || 0 }]
+                    : undefined,
             });
             onCreated();
             onClose();
@@ -2548,6 +2664,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
     const courtSurfaces = isFootball ? FOOTBALL_SURFACES : isVolleyball ? VOLLEYBALL_SURFACES : isPadel ? PADEL_SURFACES : TENNIS_SURFACES;
 
     return (
+        <>
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={s.modalOverlay}>
                 <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'} style={{ flex:1, justifyContent:'flex-end' }}>
@@ -2597,7 +2714,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             <Text style={s.fieldLabel}>{t.formatLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:0 }]}>
                                                 {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
-                                                    <TouchableOpacity key={fmt.id} onPress={() => set('matchType', fmt.id)}
+                                                    <TouchableOpacity key={fmt.id} onPress={() => setF(p => ({ ...p, matchType: fmt.id, partner: fmt.id === 'DOUBLE' ? p.partner : null }))}
                                                         style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive]}>
                                                         <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
                                                     </TouchableOpacity>
@@ -2605,6 +2722,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             </View>
                                         </View>
                                     </View>
+                                    {!isTeamSport && f.matchType === 'DOUBLE' && (
+                                        f.partner ? (
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:10, paddingVertical:8, marginBottom:8 }}>
+                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }}>👥 {t.partnerLabel}: {f.partner.fullName || f.partner.username}</Text>
+                                                <TouchableOpacity onPress={() => set('partner', null)}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:16 }}>✕</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : (
+                                            <TouchableOpacity onPress={() => setShowPartnerSearch(true)}
+                                                style={{ backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:10, paddingVertical:8, marginBottom:8, alignItems:'center' }}>
+                                                <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>👥+ {t.choosePartnerBtn}</Text>
+                                            </TouchableOpacity>
+                                        )
+                                    )}
                                     {(sub === 'tennis' || sub === 'padel') && f.flexibleSchedule && (
                                         <Text style={s.modeHint}>{t.multiSelectHint}</Text>
                                     )}
@@ -2888,6 +3020,46 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                 </KeyboardAvoidingView>
             </View>
         </Modal>
+
+        {/* Çift maç partneri — arama modali */}
+        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowPartnerSearch(false)}>
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:40, maxHeight:'80%' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.choosePartnerBtn}</Text>
+                        <TouchableOpacity onPress={() => { setShowPartnerSearch(false); setPartnerQuery(''); setPartnerResults([]); }}>
+                            <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <TextInput
+                        style={s.fieldInput}
+                        value={partnerQuery}
+                        onChangeText={setPartnerQuery}
+                        placeholder={t.inviteSearchPh}
+                        placeholderTextColor={colors.textMuted}
+                        autoFocus
+                    />
+                    {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                        {partnerResults.map(u => (
+                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                        @{u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                        {!partnerSearching && partnerQuery.trim().length >= 2 && partnerResults.length === 0 && (
+                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
+                        )}
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+        </>
     );
 }
 
