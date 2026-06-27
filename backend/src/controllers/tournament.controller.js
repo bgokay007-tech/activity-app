@@ -828,7 +828,10 @@ export const getJoinRequests = async (req, res, next) => {
         const { id } = req.params;
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not your tournament' });
+        // Çiftler Rekabetçi: katılımcılar da başvuru listesini ve eşleşen takımları görebilsin
+        if (tournament.creatorId !== req.userId && tournament.type !== '2') {
+            return res.status(403).json({ message: 'Not your tournament' });
+        }
 
         const requests = await prisma.tournamentParticipant.findMany({
             where: { tournamentId: id },

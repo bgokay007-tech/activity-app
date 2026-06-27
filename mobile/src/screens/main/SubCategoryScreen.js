@@ -3416,6 +3416,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         ? prev
                         : [...prev, participant]
                 );
+                setRequests(prev =>
+                    prev.some(r => r.userId === participant.userId)
+                        ? prev.map(r => r.userId === participant.userId ? { ...r, ...participant } : r)
+                        : [...prev, participant]
+                );
                 if (participant.userId === myId) setMyStatus('ACCEPTED');
             }
         });
@@ -3516,7 +3521,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         setPartnerActionLoading(true);
         try {
             await api.patch(`/tournaments/${item.id}/partner`, { partnerId: partnerId || null });
-            if (isCreator) await fetchRequests(); else await fetchParticipants();
+            if (isCreator || item.type === '2') await fetchRequests();
+            if (!isCreator) await fetchParticipants();
             setShowInvitePicker(false);
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
@@ -3529,7 +3535,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     useEffect(() => {
         const off = onSocket('tournament:partner_request', ({ tournamentId }) => {
             if (tournamentId !== item.id) return;
-            if (isCreator) fetchRequests(); else fetchParticipants();
+            if (isCreator || item.type === '2') fetchRequests();
+            if (!isCreator) fetchParticipants();
         });
         return off;
     }, [item.id, isCreator, fetchRequests, fetchParticipants]);
@@ -4188,7 +4195,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             )}
                             <TouchableOpacity
                                 style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
-                                onPress={() => { fetchParticipants(); setShowListModal(true); }}>
+                                onPress={() => { item.type === '2' ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
                                 {participantCount > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{participantCount}</Text>}
                                 <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
                                     {'Katılımcı'.split('').join('\n')}
@@ -4920,7 +4927,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </View>
                             );
                         })() : (() => {
-                            if (loadingParticipants) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
+                            if (item.type === '2' ? loadingRequests : loadingParticipants) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
                             const maxP = item.maxPlayers || participants.length;
 
                             if (item.status === 'IN_PROGRESS') {
@@ -4986,9 +4993,25 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     </View>
                                 )}
                                 {item.type === '2' ? (() => {
-                                    const { pairs, solos, byUserId } = groupDoublesPairs(participants);
+                                    const pending = requests.filter(r => r.status === 'PENDING');
+                                    const accepted = requests.filter(r => r.status === 'ACCEPTED');
+                                    const { pairs, solos, byUserId } = groupDoublesPairs(accepted);
                                     return (
                                         <View>
+                                            {pending.length > 0 && (
+                                                <View style={{ marginBottom:14 }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:6 }}>⏳ Bekleyen Başvurular ({pending.length})</Text>
+                                                    {pending.map((r, i) => (
+                                                        <View key={r.id || r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, borderBottomWidth: i < pending.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{r.user?.fullName || r.user?.username}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                            </View>
+                                                            <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>⏳ Bekliyor</Text>
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                            )}
                                             {isRegEnded() && (
                                                 <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>⏳ Son başvuru saati geçti — eşleşmeler otomatik oluşturulacak</Text>
                                             )}
