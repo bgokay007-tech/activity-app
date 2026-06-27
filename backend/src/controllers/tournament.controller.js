@@ -724,6 +724,105 @@ export const joinTournament = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Çiftler Rekabetçi: zaten başvurmuş (PENDING/ACCEPTED) bir oyuncunun partner seçimini
+// son başvuru saatine kadar değiştirmesini sağlar — davet gönderme, daveti kabul etme
+// (karşılıklı partnerId aynı kişiyi gösterince eşleşme tamamlanır) ve bireysele dönme
+// (partnerId: null) hepsi bu tek endpoint üzerinden yürür.
+export const setTournamentPartner = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { partnerId } = req.body;
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+        if (tournament.type !== '2') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi turnuvalarda mümkün' });
+
+        if (tournament.endDate) {
+            const regEnd = new Date(tournament.endDate);
+            if (tournament.endTime) {
+                const [h, m] = tournament.endTime.split(':').map(Number);
+                regEnd.setUTCHours(h, m, 0, 0);
+                regEnd.setTime(regEnd.getTime() - 3 * 60 * 60 * 1000); // Turkey UTC+3
+            }
+            if (regEnd.getTime() <= Date.now()) {
+                return res.status(400).json({ message: 'Son başvuru tarihi ve saati geçtiği için partner değişikliği yapılamaz' });
+            }
+        }
+
+        const me = await prisma.tournamentParticipant.findUnique({
+            where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
+        });
+        if (!me) return res.status(404).json({ message: 'Bu turnuvaya başvurunuz bulunamadı' });
+        if (!['PENDING', 'ACCEPTED'].includes(me.status)) return res.status(400).json({ message: 'Başvurunuz aktif değil' });
+
+        if (partnerId) {
+            if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
+            const partner = await prisma.tournamentParticipant.findUnique({
+                where: { tournamentId_userId: { tournamentId: id, userId: partnerId } },
+            });
+            if (!partner || !['PENDING', 'ACCEPTED'].includes(partner.status)) {
+                return res.status(404).json({ message: 'Seçtiğiniz oyuncu bu turnuvada bulunamadı' });
+            }
+            const partnerInterest = await prisma.userInterest.findUnique({
+                where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
+                select: { assessmentCompleted: true },
+            });
+            if (!partnerInterest?.assessmentCompleted) {
+                return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
+            }
+        }
+
+        // Önceden karşılıklı eşleşmiş olduğum partnerimi değiştiriyorsam/bırakıyorsam,
+        // onun tarafındaki partnerId'yi de temizle — eşleşme tek taraflı yarım kalmasın.
+        if (me.partnerId && me.partnerId !== partnerId) {
+            const prevPartner = await prisma.tournamentParticipant.findUnique({
+                where: { tournamentId_userId: { tournamentId: id, userId: me.partnerId } },
+            });
+            if (prevPartner?.partnerId === req.userId) {
+                await prisma.tournamentParticipant.update({ where: { id: prevPartner.id }, data: { partnerId: null } });
+                createNotification(
+                    prevPartner.userId, 'TOURNAMENT_JOIN', '💔 Çift Eşleşmesi Bozuldu',
+                    `"${tournament.name}" turnuvasındaki çift eşleşmeniz sonlandırıldı, bireysel listeye döndünüz.`,
+                    { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+                ).catch(() => {});
+            }
+        }
+
+        const updated = await prisma.tournamentParticipant.update({
+            where: { id: me.id },
+            data: { partnerId: partnerId || null },
+            include: {
+                user: {
+                    select: {
+                        id: true, username: true, fullName: true, avatar: true,
+                        interests: {
+                            where: { category: tournament.category, subCategory: tournament.subCategory },
+                            select: { skillRating: true, level: true },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (partnerId) {
+            const partnerRow = await prisma.tournamentParticipant.findUnique({
+                where: { tournamentId_userId: { tournamentId: id, userId: partnerId } },
+            });
+            const mutual = partnerRow?.partnerId === req.userId;
+            createNotification(
+                partnerId, 'TOURNAMENT_JOIN', mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
+                mutual
+                    ? `"${tournament.name}" turnuvasında çift olarak eşleştiniz.`
+                    : `${updated.user?.fullName || updated.user?.username} sizi "${tournament.name}" turnuvasında çift partneri olarak seçti. Onu partner göstererek seçerseniz çift olarak eşleşirsiniz.`,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+            emitToUser(partnerId, 'tournament:partner_request', { tournamentId: id, participant: updated, mutual });
+        }
+
+        res.json(updated);
+    } catch (e) { next(e); }
+};
+
 export const getJoinRequests = async (req, res, next) => {
     try {
         const { id } = req.params;

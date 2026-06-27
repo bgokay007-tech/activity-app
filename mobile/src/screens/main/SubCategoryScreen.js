@@ -97,6 +97,25 @@ const starEmoji = (rating) => rating > 5 ? '⭐⭐⭐' : '⭐';
 const senderAlias = (p) => p?.alias || p?.interests?.[0]?.alias || `@${p?.username}`;
 const playerDisplayName = (p) => p?.alias || p?.interests?.[0]?.alias || p?.fullName || p?.username || '';
 
+// Çiftler Rekabetçi: katılımcı/başvuru satırlarını karşılıklı partnerId'ye göre
+// ikili (pairs) ve bireysel (solos) olarak gruplar — backend formTeamsForTournament
+// ile aynı eşleşme mantığı (mutual partnerId).
+function groupDoublesPairs(rows) {
+    const byUserId = new Map(rows.filter(r => r.userId).map(r => [r.userId, r]));
+    const paired = new Set();
+    const pairs = [];
+    for (const r of rows) {
+        if (!r.userId || paired.has(r.userId) || !r.partnerId) continue;
+        const partner = byUserId.get(r.partnerId);
+        if (partner && partner.partnerId === r.userId && !paired.has(partner.userId)) {
+            paired.add(r.userId); paired.add(partner.userId);
+            pairs.push([r, partner]);
+        }
+    }
+    const solos = rows.filter(r => r.userId && !paired.has(r.userId));
+    return { pairs, solos, byUserId };
+}
+
 // Opens the device's maps app at the court location, falling back to a Google Maps search
 const openCourtMap = (courtName, courtLat, courtLng, courtAddress) => {
     if (courtLat && courtLng) {
@@ -3265,6 +3284,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [participants, setParticipants] = useState([]);
     const [loadingParticipants, setLoadingParticipants] = useState(false);
 
+    // Çiftler Rekabetçi: katılımcılar penceresi içinden partner davet/kabul/bireysele dön
+    const [partnerActionLoading, setPartnerActionLoading] = useState(false);
+    const [showInvitePicker, setShowInvitePicker] = useState(false);
+    const [inviteCandidates, setInviteCandidates] = useState([]);
+
     // Use accepted count from local requests list if loaded; otherwise fall back to server _count
     const participantCount = requests.length > 0
         ? requests.filter(r => r.status === 'ACCEPTED').length
@@ -3485,6 +3509,110 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 }
             }},
         ]);
+    };
+
+    // Çiftler Rekabetçi: partner davet et / daveti kabul et / bireysele dön — hepsi aynı endpoint
+    const setMyTournamentPartner = async (partnerId) => {
+        setPartnerActionLoading(true);
+        try {
+            await api.patch(`/tournaments/${item.id}/partner`, { partnerId: partnerId || null });
+            if (isCreator) await fetchRequests(); else await fetchParticipants();
+            setShowInvitePicker(false);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setPartnerActionLoading(false);
+        }
+    };
+
+    // Real-time: partner daveti gönderildi/eşleşti → listeyi tazele
+    useEffect(() => {
+        const off = onSocket('tournament:partner_request', ({ tournamentId }) => {
+            if (tournamentId !== item.id) return;
+            if (isCreator) fetchRequests(); else fetchParticipants();
+        });
+        return off;
+    }, [item.id, isCreator, fetchRequests, fetchParticipants]);
+
+    // Çiftler Rekabetçi: kabul edilmiş bir satırı (eşleşmiş çift ya da bireysel) ikili kart
+    // olarak render eder. p2 null ise p1 bireyseldir — slot 2'de davet/kabul/bekleme durumu gösterilir.
+    const renderDuoCard = (p1, p2, solos, byUserId, isCreatorView) => {
+        const regEnded = isRegEnded();
+        const nameOf = (p) => p?.manualName || p?.user?.fullName || p?.user?.username || '';
+        const ratingOf = (p) => p?.user?.interests?.[0]?.skillRating;
+        const PlayerHalf = ({ p }) => (
+            <View style={{ flex:1 }}>
+                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1}>{nameOf(p)}</Text>
+                {p?.manualName
+                    ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
+                    : <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1}>@{p?.user?.username}{ratingOf(p) != null ? `  ${starEmoji(Number(ratingOf(p)))} ${Number(ratingOf(p)).toFixed(2)}` : ''}</Text>
+                }
+                {isCreatorView && (
+                    <TouchableOpacity onPress={() => p?.manualName ? removeManualParticipant(p.id) : removeParticipant(p.userId)} style={{ marginTop:4 }}>
+                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        );
+
+        let slot2;
+        if (p2) {
+            slot2 = <PlayerHalf p={p2} />;
+        } else {
+            const isMine = p1.userId === myId;
+            const invitedBy = solos.find(o => o.partnerId === p1.userId && o.userId !== p1.userId);
+            if (p1.partnerId) {
+                const target = byUserId.get(p1.partnerId);
+                slot2 = (
+                    <View style={{ flex:1 }}>
+                        <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
+                        {isMine && !regEnded && (
+                            <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ marginTop:4 }}>
+                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>✕ Daveti Geri Çek</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                );
+            } else if (invitedBy) {
+                slot2 = (
+                    <View style={{ flex:1 }}>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} sizi davet etti</Text>
+                        {isMine && !regEnded && (
+                            <TouchableOpacity onPress={() => setMyTournamentPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:4, backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
+                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>✓ Kabul Et</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                );
+            } else {
+                slot2 = (
+                    <View style={{ flex:1 }}>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Partner aranıyor</Text>
+                        {isMine && !regEnded && (
+                            <TouchableOpacity
+                                onPress={() => { setInviteCandidates(solos.filter(s => s.userId !== myId)); setShowInvitePicker(true); }}
+                                style={{ marginTop:4, backgroundColor: cfg.color+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
+                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>+ Davet Et</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                );
+            }
+        }
+
+        const isMineCard = p1.userId === myId || p2?.userId === myId;
+        return (
+            <View key={p1.userId} style={{ flexDirection:'row', alignItems:'flex-start', gap:8, backgroundColor: isMineCard ? cfg.color+'10' : '#0f172a', borderRadius:10, borderWidth:1, borderColor: isMineCard ? cfg.color+'40' : colors.border+'40', padding:10, marginBottom:8 }}>
+                <PlayerHalf p={p1} />
+                <Text style={{ color: colors.textMuted, fontSize:14, fontWeight:'900', marginTop:2 }}>+</Text>
+                {slot2}
+                {p2 && isMineCard && !regEnded && (
+                    <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ paddingTop:2 }}>
+                        <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>✕</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        );
     };
 
     const [manualName, setManualName] = useState('');
@@ -4596,14 +4724,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             </Modal>
 
             {/* Participants / Requests Modal */}
-            <Modal visible={showListModal} animationType="slide" transparent onRequestClose={() => setShowListModal(false)}>
-                <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
-                    <View style={[s.modalBox, { maxHeight:'80%' }]}>
+            <Modal visible={showListModal} animationType="slide" onRequestClose={() => setShowListModal(false)}>
+                <View style={{ flex:1, backgroundColor: colors.surface, paddingTop: Platform.OS === 'ios' ? 50 : 24 }}>
+                    <View style={[s.modalBox, { flex:1, borderRadius:0, maxHeight:undefined }]}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{isCreator ? 'Başvurular' : 'Katılımcılar'}</Text>
                             <TouchableOpacity onPress={() => setShowListModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:2 }}>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:2, flex:1 }}>
                         {isCreator ? (() => {
                             if (loadingRequests) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
                             if (requests.length === 0) return <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Henüz başvuru yok</Text>;
@@ -4676,6 +4804,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
                             // OPEN status — show AS/YDK labels + PENDING section with action buttons
                             let mainIdx = 0;
+                            const isDoubles = item.type === '2';
+                            const listRows = isDoubles ? requests.filter(r => r.status !== 'ACCEPTED') : requests;
                             return (
                                 <View>
                                 {/* Manual participant add input */}
@@ -4693,7 +4823,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <Text style={{ color: manualName.trim() ? '#fff' : '#475569', fontSize:12, fontWeight:'800' }}>{addingManual ? '...' : '+ Ekle'}</Text>
                                     </TouchableOpacity>
                                 </View>
-                                {requests.map((r, i) => {
+                                {listRows.map((r, i) => {
                                     const isAccepted = r.status === 'ACCEPTED';
                                     let posLabel = null;
                                     if (isAccepted) {
@@ -4703,7 +4833,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             ? { text: `AS ${mainIdx}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }
                                             : { text: `YDK ${mainIdx - mainListCount}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' };
                                     }
-                                    const prevIsAccepted = i > 0 && requests[i-1].status === 'ACCEPTED';
+                                    const prevIsAccepted = i > 0 && listRows[i-1].status === 'ACCEPTED';
                                     const showDivider = i > 0 && r.status === 'PENDING' && prevIsAccepted;
                                     return (
                                         <View key={r.id || r.userId}>
@@ -4714,7 +4844,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
                                             </View>
                                         )}
-                                        <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < requests.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < listRows.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
                                             {posLabel ? (
                                                 <View style={{ backgroundColor: posLabel.bg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor: posLabel.border }}>
                                                     <Text style={{ color: posLabel.color, fontSize:9, fontWeight:'800' }}>{posLabel.text}</Text>
@@ -4768,6 +4898,25 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </View>
                                     );
                                 })}
+                                {isDoubles && (() => {
+                                    const accepted = requests.filter(r => r.status === 'ACCEPTED');
+                                    if (accepted.length === 0) return null;
+                                    const { pairs, solos, byUserId } = groupDoublesPairs(accepted);
+                                    return (
+                                        <View style={{ marginTop:14 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
+                                                <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
+                                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>✅ Kabul Edilenler — Çiftler</Text>
+                                                <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
+                                            </View>
+                                            {isRegEnded() && (
+                                                <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>⏳ Son başvuru saati geçti — eşleşmeler otomatik oluşturulacak</Text>
+                                            )}
+                                            {pairs.map(([a, b]) => renderDuoCard(a, b, solos, byUserId, true))}
+                                            {solos.map(s => renderDuoCard(s, null, solos, byUserId, true))}
+                                        </View>
+                                    );
+                                })()}
                                 </View>
                             );
                         })() : (() => {
@@ -4824,7 +4973,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 );
                             }
 
-                            // OPEN — show AS/YDK labels read-only
+                            // OPEN — show AS/YDK labels read-only (or duo-cards for Çiftler Rekabetçi)
                             return (
                                 <View>
                                 {myStatus === 'PENDING' && (
@@ -4836,7 +4985,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </View>
                                     </View>
                                 )}
-                                {participants.map((r, i) => {
+                                {item.type === '2' ? (() => {
+                                    const { pairs, solos, byUserId } = groupDoublesPairs(participants);
+                                    return (
+                                        <View>
+                                            {isRegEnded() && (
+                                                <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>⏳ Son başvuru saati geçti — eşleşmeler otomatik oluşturulacak</Text>
+                                            )}
+                                            {pairs.map(([a, b]) => renderDuoCard(a, b, solos, byUserId, false))}
+                                            {solos.map(s => renderDuoCard(s, null, solos, byUserId, false))}
+                                        </View>
+                                    );
+                                })() : participants.map((r, i) => {
                                     const isMain = i < maxP;
                                     const label = isMain ? `AS ${i+1}` : `YDK ${i+1-maxP}`;
                                     const labelColor = isMain ? '#4ade80' : '#fbbf24';
@@ -4887,6 +5047,31 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </View>
                                     </View>
                                 </KeyboardAvoidingView>
+                            </View>
+                        </Modal>
+
+                        {/* Partner davet picker (nested) — Çiftler Rekabetçi */}
+                        <Modal visible={showInvitePicker} animationType="fade" transparent onRequestClose={() => setShowInvitePicker(false)}>
+                            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:24 }}>
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:20, borderWidth:1, borderColor: cfg.color+'40', width:'100%', maxHeight:'70%' }}>
+                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>👥 Partner Davet Et</Text>
+                                    <ScrollView>
+                                        {inviteCandidates.length === 0 ? (
+                                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Davet edilebilecek bireysel başvuran yok</Text>
+                                        ) : inviteCandidates.map(c => (
+                                            <TouchableOpacity key={c.userId} onPress={() => setMyTournamentPartner(c.userId)} disabled={partnerActionLoading} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                                <Avatar name={c.user?.username} avatar={c.user?.avatar} size={moderateScale(34)} color={cfg.color} />
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.fullName || c.user?.username}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{c.user?.username}{c.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(c.user.interests[0].skillRating))} ${Number(c.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                    <TouchableOpacity onPress={() => setShowInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:11, alignItems:'center' }}>
+                                        <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         </Modal>
                     </View>

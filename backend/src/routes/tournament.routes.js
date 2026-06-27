@@ -4,6 +4,7 @@ import {
     createTournament,
     getTournaments,
     joinTournament,
+    setTournamentPartner,
     cancelJoin,
     requestCancellation,
     getJoinRequests,
@@ -41,6 +42,7 @@ router.get('/',                              getTournaments);
 router.get('/archived',                      getArchivedTournaments);
 router.post('/',                             createTournament);
 router.post('/:id/join',                     joinTournament);
+router.patch('/:id/partner',                 setTournamentPartner);
 router.delete('/:id/join',                   cancelJoin);
 router.post('/:id/cancel-request',           requestCancellation);
 router.post('/:id/complete',                 completeTournament);
