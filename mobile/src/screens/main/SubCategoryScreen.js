@@ -389,7 +389,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const isOwner = item.senderId === myId;
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
-    const required = item.matchType === 'DOUBLE' ? 2 : (item.teamSize || 1);
+    const required = item.matchType === 'DOUBLE'
+        ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
+        : (item.teamSize || 1);
     const senderSideCount = 1 + (Array.isArray(item.senderTeam) ? item.senderTeam.length : 0);
     const filled = participants.length;
     const mySentReq = item._myJoinStatus;
@@ -744,7 +746,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const myUser = useSelector(s => s.auth.user);
     const isOwner = item.senderId === myId;
     const participants = Array.isArray(item.participants) ? item.participants : [];
-    const required = item.matchType === 'DOUBLE' ? 2 : (item.teamSize || 1);
+    const required = item.matchType === 'DOUBLE'
+        ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
+        : (item.teamSize || 1);
     const filled = participants.length;
     const isFull = filled >= required;
     const [localJoinStatus, setLocalJoinStatus] = useState(null);

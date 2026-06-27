@@ -163,12 +163,18 @@ const SENDER_SELECT = {
 };
 
 // DOUBLE: 2 — taraflar artık eşleşmiş çift olarak katılıyor (senderTeam/joiningTeam),
-// tek bir takım katılımı maçı tamamlar (3 ayrı bireysel katılımcı değil).
+// tek bir takım katılımı maçı tamamlar (3 ayrı bireysel katılımcı değil). Ancak partner
+// sistemi gelmeden önce oluşturulmuş eski ilanlarda kurucunun senderTeam'i boştur —
+// o ilanlar hâlâ eski modele göre (kurucu dahil 4 kişi = 3 bireysel katılımcı) tamamlanmalı.
 const REQUIRED_PARTICIPANTS = { SINGLE: 1, DOUBLE: 2 };
 
 function getRequired(request) {
     if (request.matchType === 'PLAYER_WANTED') return Number(request.levelDetail) || 999;
     if (request.teamSize > 1) return 1; // volleyball: 1 opponent rep
+    if (request.matchType === 'DOUBLE') {
+        const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
+        return senderTeamArr.length > 0 ? 2 : 3;
+    }
     return REQUIRED_PARTICIPANTS[request.matchType] || 1;
 }
 
