@@ -1,10 +1,10 @@
-ï»¿import prisma from '../config/prisma.js';
+import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
 
-// Turnuva baÅŸlangÄ±Ã§ tarihini Turkey local time (UTC+3) olarak dÃ¶ner
+// Turnuva baþlangýç tarihini Turkey local time (UTC+3) olarak döner
 export function tournamentBaseDate(tournament) {
     if (!tournament.eventDate) return new Date();
     const dateStr = new Date(tournament.eventDate).toISOString().split('T')[0];
@@ -12,7 +12,7 @@ export function tournamentBaseDate(tournament) {
     return new Date(`${dateStr}T${timeStr}:00+03:00`);
 }
 
-// â”€â”€â”€ Tournament bracket helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ¦¦¦ Tournament bracket helpers ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
 function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
 
@@ -67,7 +67,7 @@ function seededMatches(players, tournamentId, matchesPerPlayer) {
     for (let round = 1; round <= k; round++) {
         const len = sorted.length;
         const roundPairs = [];
-        // Rotate the â€œtailâ€ each round so pairings change
+        // Rotate the “tail” each round so pairings change
         const tail = sorted.slice(Math.ceil(len / 2));
         const rotatedTail = [...tail.slice(round % tail.length), ...tail.slice(0, round % tail.length)];
         const bottom = [...rotatedTail, ...sorted.slice(Math.ceil(len / 2) + rotatedTail.length - tail.length)];
@@ -136,7 +136,7 @@ function eloBasedMatches(players, tournamentId, matchesPerPlayer) {
     return result;
 }
 
-/** Single-elimination bracket Ã¢â‚¬â€ all rounds pre-created with TBD slots */
+/** Single-elimination bracket â€” all rounds pre-created with TBD slots */
 function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYOFF') {
     const sorted = [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
     const size = nextPow2(sorted.length);
@@ -168,7 +168,7 @@ function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYO
 }
 
 /** Compute GROUP-phase standings from completed matches.
- *  Tiebreaker for type '1' (Bireysel RekabetÃ§i): puan â†’ averaj (gamesWon/totalGames) â†’ set oranÄ±
+ *  Tiebreaker for type '1' (Bireysel Rekabetçi): puan › averaj (gamesWon/totalGames) › set oraný
  */
 function computeStandings(players, matches, tournamentType) {
     const stats = {};
@@ -193,7 +193,7 @@ function computeStandings(players, matches, tournamentType) {
     }
     return Object.values(stats).sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
-        // Bireysel RekabetÃ§i (type '1') ve Ã‡iftler RekabetÃ§i (type '2'): averaj tiebreaker
+        // Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): averaj tiebreaker
         if (tournamentType === '1' || tournamentType === '2') {
             const averaj = (x) => {
                 const total = x.gamesWon + x.gamesLost;
@@ -256,7 +256,7 @@ async function getCurrentPlayerRatings(tournament, userIds) {
     }));
 }
 
-// Ã‡iftler RekabetÃ§i (type '2'): takÄ±mÄ±n gÃ¼ncel ortalama ELO'su â€” Ã¼yelerin o anki skillRating'inden hesaplanÄ±r.
+// Çiftler Rekabetçi (type '2'): takýmýn güncel ortalama ELO'su — üyelerin o anki skillRating'inden hesaplanýr.
 async function getCurrentTeamRatings(tournament, teamIds) {
     const teams = await prisma.tournamentTeam.findMany({ where: { id: { in: teamIds } } });
     const memberIds = [...new Set(teams.flatMap(t => [t.player1Id, t.player2Id]))];
@@ -272,12 +272,12 @@ async function getCurrentTeamRatings(tournament, teamIds) {
     }));
 }
 
-/** Bireysel RekabetÃ§i (type '1') ve Ã‡iftler RekabetÃ§i (type '2'): DB'den gÃ¼ncel ELO
- *  alarak sonraki GROUP turunu oluÅŸturur. Daha Ã¶nce eÅŸleÅŸmiÅŸ Ã§iftleri/takÄ±mlarÄ± tekrar
- *  eÅŸleÅŸtirmez. Deadline = eventDate + round*7 gÃ¼n.
+/** Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): DB'den güncel ELO
+ *  alarak sonraki GROUP turunu oluþturur. Daha önce eþleþmiþ çiftleri/takýmlarý tekrar
+ *  eþleþtirmez. Deadline = eventDate + round*7 gün.
  */
 async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
-    // 1. turdaki taraf ID'lerini al â€” sonradan eklenen katÄ±lÄ±mcÄ±lar/takÄ±mlar dahil edilmez
+    // 1. turdaki taraf ID'lerini al — sonradan eklenen katýlýmcýlar/takýmlar dahil edilmez
     const round1Matches = await prisma.tournamentMatch.findMany({
         where: { tournamentId: tournament.id, phase: 'GROUP', round: 1 },
         select: { p1Id: true, p2Id: true },
@@ -312,12 +312,12 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
     }));
 }
 
-// Ã‡iftler RekabetÃ§i (type '2'): kabul edilmiÅŸ katÄ±lÄ±mcÄ±lardan takÄ±m oluÅŸturur.
-// Ã–nce karÅŸÄ±lÄ±klÄ± partner seÃ§imi yapanlarÄ± eÅŸler, kalan bireysel baÅŸvuranlarÄ± ELO'ya
-// gÃ¶re en yakÄ±n olandan baÅŸlayarak ikiÅŸerli gruplar.
-// Bireysel baÅŸvuranlarÄ± ELO'ya en yakÄ±n olandan eÅŸleÅŸtirir; aynÄ± takÄ±mda iki kadÄ±n
-// oluÅŸmasÄ±na izin vermez (Rule 2). EÅŸi bulunamayan kalÄ±rsa (tek sayÄ± veya cinsiyet
-// uyumsuzluÄŸu) en dÃ¼ÅŸÃ¼k ELO'lu olandan baÅŸlayarak dÄ±ÅŸarÄ±da bÄ±rakÄ±lÄ±r (Rule 1).
+// Çiftler Rekabetçi (type '2'): kabul edilmiþ katýlýmcýlardan takým oluþturur.
+// Önce karþýlýklý partner seçimi yapanlarý eþler, kalan bireysel baþvuranlarý ELO'ya
+// göre en yakýn olandan baþlayarak ikiþerli gruplar.
+// Bireysel baþvuranlarý ELO'ya en yakýn olandan eþleþtirir; ayný takýmda iki kadýn
+// oluþmasýna izin vermez (Rule 2). Eþi bulunamayan kalýrsa (tek sayý veya cinsiyet
+// uyumsuzluðu) en düþük ELO'lu olandan baþlayarak dýþarýda býrakýlýr (Rule 1).
 function pairSoloPlayers(solo, avoidSameGenderFemale) {
     let pool = [...solo].sort((a, b) => a.rating - b.rating);
     const pairs = [];
@@ -392,7 +392,7 @@ export const fixGroupDeadlines = async (req, res, next) => {
             const u = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
             if (!u?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
         }
-        if (!tournament.eventDate) return res.status(400).json({ message: 'Turnuvada baÅŸlangÄ±Ã§ tarihi yok' });
+        if (!tournament.eventDate) return res.status(400).json({ message: 'Turnuvada baþlangýç tarihi yok' });
 
         const base = tournamentBaseDate(tournament);
 
@@ -433,26 +433,26 @@ export const regenCurrentGroupRound = async (req, res, next) => {
         const allGroupMatches = await prisma.tournamentMatch.findMany({
             where: { tournamentId: id, phase: 'GROUP' },
         });
-        if (allGroupMatches.length === 0) return res.status(400).json({ message: 'GROUP maÃ§ yok' });
+        if (allGroupMatches.length === 0) return res.status(400).json({ message: 'GROUP maç yok' });
 
         const maxRound = Math.max(...allGroupMatches.map(m => m.round));
         if (maxRound <= 1) return res.status(400).json({ message: '1. turdan sonraki bir tur yok' });
 
         const currentRoundMatches = allGroupMatches.filter(m => m.round === maxRound);
         const hasPlayed = currentRoundMatches.some(m => m.status === 'COMPLETED' || m.status === 'FORFEIT');
-        if (hasPlayed) return res.status(400).json({ message: 'Bu turun bazÄ± maÃ§larÄ± oynanmÄ±ÅŸ, silinemez' });
+        if (hasPlayed) return res.status(400).json({ message: 'Bu turun bazý maçlarý oynanmýþ, silinemez' });
 
-        // Ã–nceki turlardan oynanan Ã§iftler
+        // Önceki turlardan oynanan çiftler
         const playedPairKeys = allGroupMatches
             .filter(m => m.round < maxRound && m.p1Id && m.p2Id)
             .map(m => [m.p1Id, m.p2Id].sort().join('|'));
 
-        // Mevcut yanlÄ±ÅŸ turu sil
+        // Mevcut yanlýþ turu sil
         await prisma.tournamentMatch.deleteMany({ where: { tournamentId: id, phase: 'GROUP', round: maxRound } });
 
-        // DoÄŸru oyuncularla yeniden Ã¼ret (generateNextEloRound round 1 ID'lerini kullanÄ±r)
+        // Doðru oyuncularla yeniden üret (generateNextEloRound round 1 ID'lerini kullanýr)
         const newMatches = await generateNextEloRound(tournament, maxRound, playedPairKeys);
-        if (newMatches.length === 0) return res.status(400).json({ message: 'EÅŸleÅŸecek oyuncu bulunamadÄ±' });
+        if (newMatches.length === 0) return res.status(400).json({ message: 'Eþleþecek oyuncu bulunamadý' });
 
         await prisma.tournamentMatch.createMany({ data: newMatches });
 
@@ -470,7 +470,7 @@ export const createTournament = async (req, res, next) => {
         if (!creator?.isAdmin) {
             const perm = await prisma.tournamentPermissionRequest.findUnique({ where: { userId: req.userId }, select: { status: true } });
             if (perm?.status !== 'APPROVED') {
-                return res.status(403).json({ message: 'Turnuva oluÅŸturma izniniz yok. LÃ¼tfen admin onayÄ± alÄ±n.' });
+                return res.status(403).json({ message: 'Turnuva oluþturma izniniz yok. Lütfen admin onayý alýn.' });
             }
         }
         const {
@@ -542,7 +542,7 @@ export const createTournament = async (req, res, next) => {
 
         // Notify city-alert subscribers for tournaments tab (async, non-blocking)
         const creatorInfo = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true, username: true } }).catch(() => null);
-        // tournament.city can be "Ä°l / Ä°lÃ§e" (district appended) â€” alerts subscribe by plain province only
+        // tournament.city can be "Ýl / Ýlçe" (district appended) — alerts subscribe by plain province only
         const province = (tournament.city || creatorInfo?.city || '').split('/')[0].trim() || null;
         notifyCitySubscribers({
             subCategory: tournament.subCategory,
@@ -606,18 +606,18 @@ export const joinTournament = async (req, res, next) => {
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
 
         if (partnerId) {
-            if (tournament.type !== '2') return res.status(400).json({ message: 'Partner seÃ§imi sadece Ã‡iftler RekabetÃ§i turnuvalarda mÃ¼mkÃ¼n' });
-            if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seÃ§emezsiniz' });
+            if (tournament.type !== '2') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi turnuvalarda mümkün' });
+            if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
             const partnerInterest = await prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
                 select: { assessmentCompleted: true, wins: true, losses: true },
             });
             if (!partnerInterest?.assessmentCompleted) {
-                return res.status(400).json({ message: 'SeÃ§tiÄŸiniz partner bu spor dalÄ±nda henÃ¼z derecelendirme anketini tamamlamamÄ±ÅŸ' });
+                return res.status(400).json({ message: 'Seçtiðiniz partner bu spor dalýnda henüz derecelendirme anketini tamamlamamýþ' });
             }
             if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
                 (partnerInterest.wins + partnerInterest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
-                return res.status(400).json({ message: `SeÃ§tiÄŸiniz partner bu spor dalÄ±nda henÃ¼z en az ${MIN_MATCHES_FOR_TOURNAMENT} maÃ§ yapmamÄ±ÅŸ` });
+                return res.status(400).json({ message: `Seçtiðiniz partner bu spor dalýnda henüz en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmamýþ` });
             }
         }
 
@@ -626,15 +626,15 @@ export const joinTournament = async (req, res, next) => {
             select: { assessmentCompleted: true, wins: true, losses: true },
         });
         if (!myInterest?.assessmentCompleted) {
-            return res.status(403).json({ message: 'Bu spor dalÄ±nda maÃ§lara katÄ±labilmek iÃ§in Ã¶nce derecelendirme anketini tamamlamanÄ±z gerekiyor.' });
+            return res.status(403).json({ message: 'Bu spor dalýnda maçlara katýlabilmek için önce derecelendirme anketini tamamlamanýz gerekiyor.' });
         }
         if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
             (myInterest.wins + myInterest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
-            return res.status(403).json({ message: `Bu turnuvaya katÄ±labilmek iÃ§in bu spor dalÄ±nda uygulama Ã¼zerinden en az ${MIN_MATCHES_FOR_TOURNAMENT} maÃ§ yapmÄ±ÅŸ olmanÄ±z gerekiyor.` });
+            return res.status(403).json({ message: `Bu turnuvaya katýlabilmek için bu spor dalýnda uygulama üzerinden en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmýþ olmanýz gerekiyor.` });
         }
 
         if (!['OPEN', 'IN_PROGRESS'].includes(tournament.status)) {
-            return res.status(400).json({ message: 'Bu turnuvaya katÄ±lÄ±m mÃ¼mkÃ¼n deÄŸil' });
+            return res.status(400).json({ message: 'Bu turnuvaya katýlým mümkün deðil' });
         }
         if (tournament.endDate) {
             const regEnd = new Date(tournament.endDate);
@@ -644,7 +644,7 @@ export const joinTournament = async (req, res, next) => {
                 regEnd.setTime(regEnd.getTime() - 3 * 60 * 60 * 1000); // Turkey UTC+3
             }
             if (regEnd.getTime() <= Date.now()) {
-                return res.status(400).json({ message: 'Son baÅŸvuru tarihi ve saati geÃ§tiÄŸi iÃ§in bu turnuvaya katÄ±lÄ±m isteÄŸi gÃ¶nderilemez' });
+                return res.status(400).json({ message: 'Son baþvuru tarihi ve saati geçtiði için bu turnuvaya katýlým isteði gönderilemez' });
             }
         }
         if (tournament.status === 'IN_PROGRESS') {
@@ -656,7 +656,7 @@ export const joinTournament = async (req, res, next) => {
                 eventStart.setTime(eventStart.getTime() - 3 * 60 * 60 * 1000); // Turkey UTC+3
             }
             if (eventStart && eventStart.getTime() <= Date.now()) {
-                return res.status(400).json({ message: 'Etkinlik baÅŸlamÄ±ÅŸtÄ±r, katÄ±lÄ±m sÃ¼resi dolmuÅŸtur' });
+                return res.status(400).json({ message: 'Etkinlik baþlamýþtýr, katýlým süresi dolmuþtur' });
             }
         }
 
@@ -670,16 +670,16 @@ export const joinTournament = async (req, res, next) => {
         ]);
         if (userBan?.tournamentBanRemaining > 0) {
             await prisma.user.update({ where: { id: req.userId }, data: { tournamentBanRemaining: { decrement: 1 } } });
-            return res.status(403).json({ message: `GeÃ§ iptal cezasÄ± nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katÄ±lamazsÄ±nÄ±z.` });
+            return res.status(403).json({ message: `Geç iptal cezasý nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katýlamazsýnýz.` });
         }
 
         // Check rating limits
         const userRating = userInterest?.skillRating ?? 0;
         if (tournament.minRating !== null && tournament.minRating !== undefined && userRating < tournament.minRating) {
-            return res.status(403).json({ message: `Bu turnuvaya katÄ±lmak iÃ§in en az ${tournament.minRating}â˜… dereceniz olmasÄ± gerekiyor. Mevcut dereceniz: ${userRating.toFixed(2)}â˜…` });
+            return res.status(403).json({ message: `Bu turnuvaya katýlmak için en az ${tournament.minRating}? dereceniz olmasý gerekiyor. Mevcut dereceniz: ${userRating.toFixed(2)}?` });
         }
         if (tournament.maxRating !== null && tournament.maxRating !== undefined && userRating > tournament.maxRating) {
-            return res.status(403).json({ message: `Bu turnuva en fazla ${tournament.maxRating}â˜… dereceli oyuncular iÃ§indir. Mevcut dereceniz: ${userRating.toFixed(2)}â˜…` });
+            return res.status(403).json({ message: `Bu turnuva en fazla ${tournament.maxRating}? dereceli oyuncular içindir. Mevcut dereceniz: ${userRating.toFixed(2)}?` });
         }
 
         const existing = await prisma.tournamentParticipant.findUnique({
@@ -695,7 +695,7 @@ export const joinTournament = async (req, res, next) => {
                         id: true, username: true, fullName: true, avatar: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true, level: true },
+                            select: { skillRating: true, level: true, assessmentCompleted: true },
                         },
                     },
                 },
@@ -706,13 +706,13 @@ export const joinTournament = async (req, res, next) => {
         createNotification(
             tournament.creatorId,
             'TOURNAMENT_JOIN_REQUEST',
-            'ðŸ“¬ KatÄ±lÄ±m Ä°steÄŸi',
-            `${participant.user?.fullName || participant.user?.username} "${tournament.name}" turnuvasÄ±na katÄ±lmak istiyor.`,
+            '?? Katýlým Ýsteði',
+            `${participant.user?.fullName || participant.user?.username} "${tournament.name}" turnuvasýna katýlmak istiyor.`,
             { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
         ).catch(() => {});
 
         if (partnerId) {
-            // Partner zaten karÅŸÄ±lÄ±ktan baÅŸvurduysa (mutual), ikisine de eÅŸleÅŸtiklerini bildir
+            // Partner zaten karþýlýktan baþvurduysa (mutual), ikisine de eþleþtiklerini bildir
             const partnerParticipant = await prisma.tournamentParticipant.findUnique({
                 where: { tournamentId_userId: { tournamentId: id, userId: partnerId } },
             });
@@ -720,10 +720,10 @@ export const joinTournament = async (req, res, next) => {
             createNotification(
                 partnerId,
                 'TOURNAMENT_JOIN',
-                mutual ? 'ðŸ¤ Ã‡ift EÅŸleÅŸmesi TamamlandÄ±' : 'ðŸ¤ Ã‡ift Daveti',
+                mutual ? '?? Çift Eþleþmesi Tamamlandý' : '?? Çift Daveti',
                 mutual
-                    ? `"${tournament.name}" turnuvasÄ±nda Ã§ift olarak eÅŸleÅŸtiniz, organizatÃ¶r onayÄ± bekleniyor.`
-                    : `${participant.user?.fullName || participant.user?.username} sizi "${tournament.name}" turnuvasÄ±nda Ã§ift partneri olarak seÃ§ti. AynÄ± turnuvaya onu partner gÃ¶stererek baÅŸvurursanÄ±z Ã§ift olarak eÅŸleÅŸirsiniz.`,
+                    ? `"${tournament.name}" turnuvasýnda çift olarak eþleþtiniz, organizatör onayý bekleniyor.`
+                    : `${participant.user?.fullName || participant.user?.username} sizi "${tournament.name}" turnuvasýnda çift partneri olarak seçti. Ayný turnuvaya onu partner göstererek baþvurursanýz çift olarak eþleþirsiniz.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
         }
@@ -732,10 +732,10 @@ export const joinTournament = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
-// Ã‡iftler RekabetÃ§i: zaten baÅŸvurmuÅŸ (PENDING/ACCEPTED) bir oyuncunun partner seÃ§imini
-// son baÅŸvuru saatine kadar deÄŸiÅŸtirmesini saÄŸlar â€” davet gÃ¶nderme, daveti kabul etme
-// (karÅŸÄ±lÄ±klÄ± partnerId aynÄ± kiÅŸiyi gÃ¶sterince eÅŸleÅŸme tamamlanÄ±r) ve bireysele dÃ¶nme
-// (partnerId: null) hepsi bu tek endpoint Ã¼zerinden yÃ¼rÃ¼r.
+// Çiftler Rekabetçi: zaten baþvurmuþ (PENDING/ACCEPTED) bir oyuncunun partner seçimini
+// son baþvuru saatine kadar deðiþtirmesini saðlar — davet gönderme, daveti kabul etme
+// (karþýlýklý partnerId ayný kiþiyi gösterince eþleþme tamamlanýr) ve bireysele dönme
+// (partnerId: null) hepsi bu tek endpoint üzerinden yürür.
 export const setTournamentPartner = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -743,7 +743,7 @@ export const setTournamentPartner = async (req, res, next) => {
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        if (tournament.type !== '2') return res.status(400).json({ message: 'Partner seÃ§imi sadece Ã‡iftler RekabetÃ§i turnuvalarda mÃ¼mkÃ¼n' });
+        if (tournament.type !== '2') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi turnuvalarda mümkün' });
 
         if (tournament.endDate) {
             const regEnd = new Date(tournament.endDate);
@@ -753,35 +753,35 @@ export const setTournamentPartner = async (req, res, next) => {
                 regEnd.setTime(regEnd.getTime() - 3 * 60 * 60 * 1000); // Turkey UTC+3
             }
             if (regEnd.getTime() <= Date.now()) {
-                return res.status(400).json({ message: 'Son baÅŸvuru tarihi ve saati geÃ§tiÄŸi iÃ§in partner deÄŸiÅŸikliÄŸi yapÄ±lamaz' });
+                return res.status(400).json({ message: 'Son baþvuru tarihi ve saati geçtiði için partner deðiþikliði yapýlamaz' });
             }
         }
 
         const me = await prisma.tournamentParticipant.findUnique({
             where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
         });
-        if (!me) return res.status(404).json({ message: 'Bu turnuvaya baÅŸvurunuz bulunamadÄ±' });
-        if (!['PENDING', 'ACCEPTED'].includes(me.status)) return res.status(400).json({ message: 'BaÅŸvurunuz aktif deÄŸil' });
+        if (!me) return res.status(404).json({ message: 'Bu turnuvaya baþvurunuz bulunamadý' });
+        if (!['PENDING', 'ACCEPTED'].includes(me.status)) return res.status(400).json({ message: 'Baþvurunuz aktif deðil' });
 
         if (partnerId) {
-            if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seÃ§emezsiniz' });
+            if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
             const partner = await prisma.tournamentParticipant.findUnique({
                 where: { tournamentId_userId: { tournamentId: id, userId: partnerId } },
             });
             if (!partner || !['PENDING', 'ACCEPTED'].includes(partner.status)) {
-                return res.status(404).json({ message: 'SeÃ§tiÄŸiniz oyuncu bu turnuvada bulunamadÄ±' });
+                return res.status(404).json({ message: 'Seçtiðiniz oyuncu bu turnuvada bulunamadý' });
             }
             const partnerInterest = await prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
                 select: { assessmentCompleted: true },
             });
             if (!partnerInterest?.assessmentCompleted) {
-                return res.status(400).json({ message: 'SeÃ§tiÄŸiniz partner bu spor dalÄ±nda henÃ¼z derecelendirme anketini tamamlamamÄ±ÅŸ' });
+                return res.status(400).json({ message: 'Seçtiðiniz partner bu spor dalýnda henüz derecelendirme anketini tamamlamamýþ' });
             }
         }
 
-        // Ã–nceden karÅŸÄ±lÄ±klÄ± eÅŸleÅŸmiÅŸ olduÄŸum partnerimi deÄŸiÅŸtiriyorsam/bÄ±rakÄ±yorsam,
-        // onun tarafÄ±ndaki partnerId'yi de temizle â€” eÅŸleÅŸme tek taraflÄ± yarÄ±m kalmasÄ±n.
+        // Önceden karþýlýklý eþleþmiþ olduðum partnerimi deðiþtiriyorsam/býrakýyorsam,
+        // onun tarafýndaki partnerId'yi de temizle — eþleþme tek taraflý yarým kalmasýn.
         if (me.partnerId && me.partnerId !== partnerId) {
             const prevPartner = await prisma.tournamentParticipant.findUnique({
                 where: { tournamentId_userId: { tournamentId: id, userId: me.partnerId } },
@@ -789,8 +789,8 @@ export const setTournamentPartner = async (req, res, next) => {
             if (prevPartner?.partnerId === req.userId) {
                 await prisma.tournamentParticipant.update({ where: { id: prevPartner.id }, data: { partnerId: null } });
                 createNotification(
-                    prevPartner.userId, 'TOURNAMENT_JOIN', 'ðŸ’” Ã‡ift EÅŸleÅŸmesi Bozuldu',
-                    `"${tournament.name}" turnuvasÄ±ndaki Ã§ift eÅŸleÅŸmeniz sonlandÄ±rÄ±ldÄ±, bireysel listeye dÃ¶ndÃ¼nÃ¼z.`,
+                    prevPartner.userId, 'TOURNAMENT_JOIN', '?? Çift Eþleþmesi Bozuldu',
+                    `"${tournament.name}" turnuvasýndaki çift eþleþmeniz sonlandýrýldý, bireysel listeye döndünüz.`,
                     { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
                 ).catch(() => {});
             }
@@ -805,7 +805,7 @@ export const setTournamentPartner = async (req, res, next) => {
                         id: true, username: true, fullName: true, avatar: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true, level: true },
+                            select: { skillRating: true, level: true, assessmentCompleted: true },
                         },
                     },
                 },
@@ -818,10 +818,10 @@ export const setTournamentPartner = async (req, res, next) => {
             });
             const mutual = partnerRow?.partnerId === req.userId;
             createNotification(
-                partnerId, 'TOURNAMENT_JOIN', mutual ? 'ðŸ¤ Ã‡ift EÅŸleÅŸmesi TamamlandÄ±' : 'ðŸ¤ Ã‡ift Daveti',
+                partnerId, 'TOURNAMENT_JOIN', mutual ? '?? Çift Eþleþmesi Tamamlandý' : '?? Çift Daveti',
                 mutual
-                    ? `"${tournament.name}" turnuvasÄ±nda Ã§ift olarak eÅŸleÅŸtiniz.`
-                    : `${updated.user?.fullName || updated.user?.username} sizi "${tournament.name}" turnuvasÄ±nda Ã§ift partneri olarak seÃ§ti. Onu partner gÃ¶stererek seÃ§erseniz Ã§ift olarak eÅŸleÅŸirsiniz.`,
+                    ? `"${tournament.name}" turnuvasýnda çift olarak eþleþtiniz.`
+                    : `${updated.user?.fullName || updated.user?.username} sizi "${tournament.name}" turnuvasýnda çift partneri olarak seçti. Onu partner göstererek seçerseniz çift olarak eþleþirsiniz.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
             emitToUser(partnerId, 'tournament:partner_request', { tournamentId: id, participant: updated, mutual });
@@ -836,7 +836,7 @@ export const getJoinRequests = async (req, res, next) => {
         const { id } = req.params;
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        // Ã‡iftler RekabetÃ§i: katÄ±lÄ±mcÄ±lar da baÅŸvuru listesini ve eÅŸleÅŸen takÄ±mlarÄ± gÃ¶rebilsin
+        // Çiftler Rekabetçi: katýlýmcýlar da baþvuru listesini ve eþleþen takýmlarý görebilsin
         if (tournament.creatorId !== req.userId && tournament.type !== '2') {
             return res.status(403).json({ message: 'Not your tournament' });
         }
@@ -849,7 +849,7 @@ export const getJoinRequests = async (req, res, next) => {
                         id: true, username: true, fullName: true, avatar: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true, level: true },
+                            select: { skillRating: true, level: true, assessmentCompleted: true },
                         },
                     },
                 },
@@ -883,7 +883,7 @@ export const getParticipants = async (req, res, next) => {
                         id: true, username: true, fullName: true, avatar: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true, level: true },
+                            select: { skillRating: true, level: true, assessmentCompleted: true },
                         },
                     },
                 },
@@ -920,8 +920,8 @@ export const updateJoinRequest = async (req, res, next) => {
         }
 
         if (status === 'REJECTED') {
-            const body = reason ? `"${tournament.name}" turnuvasÄ±na baÅŸvurunuz reddedildi. Neden: ${reason}` : `"${tournament.name}" turnuvasÄ±na baÅŸvurunuz reddedildi.`;
-            await createNotification(userId, 'TOURNAMENT_REJECT', 'âŒ BaÅŸvurunuz Reddedildi', body, { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
+            const body = reason ? `"${tournament.name}" turnuvasýna baþvurunuz reddedildi. Neden: ${reason}` : `"${tournament.name}" turnuvasýna baþvurunuz reddedildi.`;
+            await createNotification(userId, 'TOURNAMENT_REJECT', '? Baþvurunuz Reddedildi', body, { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
         }
 
         res.json(updated);
@@ -941,7 +941,7 @@ export const cancelJoin = async (req, res, next) => {
         });
         if (!existing) return res.status(404).json({ message: 'Not registered' });
 
-        // Within 24h of event start Ã¢â€ â€™ send cancel request to creator instead of direct cancel
+        // Within 24h of event start â†’ send cancel request to creator instead of direct cancel
         const now = new Date();
         const eventStart = tournament.eventDate ? new Date(tournament.eventDate) : null;
         const msUntilEvent = eventStart ? eventStart.getTime() - now.getTime() : Infinity;
@@ -983,8 +983,8 @@ export const cancelJoin = async (req, res, next) => {
             await createNotification(
                 tournament.creatorId,
                 'TOURNAMENT_CANCEL_REQUEST',
-                "âš ï¸ Ä°ptal Talebi",
-                `${updatedUser.fullName || updatedUser.username} "${tournament.name}" turnuvasÄ±ndan ayrÄ±lmak istiyor (etkinliÄŸe 24 saat kaldÄ±)`,
+                "?? Ýptal Talebi",
+                `${updatedUser.fullName || updatedUser.username} "${tournament.name}" turnuvasýndan ayrýlmak istiyor (etkinliðe 24 saat kaldý)`,
                 { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
             );
             // Notify creator's open modal in real-time
@@ -1026,13 +1026,13 @@ async function _promoteNextPending(tournamentId, tournament) {
     await createNotification(
         nextUp.userId,
         'TOURNAMENT_JOIN_ACCEPTED',
-        "ðŸŽ‰ Turnuvaya Kabul Edildiniz",
-        `"${tourn.name}" turnuvasÄ±na yedek listesinden kabul edildiniz.`,
+        "?? Turnuvaya Kabul Edildiniz",
+        `"${tourn.name}" turnuvasýna yedek listesinden kabul edildiniz.`,
         { tournamentId, category: tourn.category, subCategory: tourn.subCategory },
     );
 }
 
-// Helper: after an AS-list member cancels, promote the first YEDEK to AS, or PENDINGÃ¢â€ â€™ACCEPTED if no YEDEK
+// Helper: after an AS-list member cancels, promote the first YEDEK to AS, or PENDINGâ†’ACCEPTED if no YEDEK
 async function _promoteOnCancel(tournamentId, tournament) {
     const maxP = tournament.maxPlayers;
     const tourn = tournament || await prisma.tournament.findUnique({ where: { id: tournamentId } });
@@ -1045,17 +1045,17 @@ async function _promoteOnCancel(tournamentId, tournament) {
         orderBy: [{ acceptedAt: 'asc' }, { createdAt: 'asc' }],
     });
     if (acceptedNow.length >= maxP) {
-        // Person now at index maxP-1 just moved from YEDEK to AS Ã¢â‚¬â€ notify them
+        // Person now at index maxP-1 just moved from YEDEK to AS â€” notify them
         const promoted = acceptedNow[maxP - 1];
         await createNotification(
             promoted.userId,
             'TOURNAMENT_JOIN_ACCEPTED',
-            "ðŸŽ‰ Ana Listeye AlÄ±ndÄ±nÄ±z",
-            `"${tourn.name}" turnuvasÄ±nda yedek listesinden AS LÄ°STE'ye geÃ§tiniz!`,
+            "?? Ana Listeye Alýndýnýz",
+            `"${tourn.name}" turnuvasýnda yedek listesinden AS LÝSTE'ye geçtiniz!`,
             { tournamentId, category: tourn.category, subCategory: tourn.subCategory },
         );
     } else {
-        // No YEDEK available Ã¢â‚¬â€ promote first PENDING
+        // No YEDEK available â€” promote first PENDING
         await _promoteNextPending(tournamentId, tourn);
     }
 }
@@ -1088,8 +1088,8 @@ export const approveCancelRequest = async (req, res, next) => {
             await prisma.tournamentParticipant.delete({
                 where: { tournamentId_userId: { tournamentId: id, userId } },
             });
-            await createNotification(userId, "TOURNAMENT_CANCEL_APPROVED", "âœ… Ä°ptal Talebiniz OnaylandÄ±",
-                `"${tournament.name}" turnuvasÄ±ndan ayrÄ±lma talebiniz onaylandÄ±.`,
+            await createNotification(userId, "TOURNAMENT_CANCEL_APPROVED", "? Ýptal Talebiniz Onaylandý",
+                `"${tournament.name}" turnuvasýndan ayrýlma talebiniz onaylandý.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
             if (wasAS) {
                 await _promoteOnCancel(id, tournament);
@@ -1099,8 +1099,8 @@ export const approveCancelRequest = async (req, res, next) => {
                 where: { tournamentId_userId: { tournamentId: id, userId } },
                 data: { cancelRequested: false },
             });
-            await createNotification(userId, "TOURNAMENT_CANCEL_REJECTED", "âŒ Ä°ptal Talebiniz Reddedildi",
-                `"${tournament.name}" turnuvasÄ±ndan ayrÄ±lma talebiniz reddedildi.`,
+            await createNotification(userId, "TOURNAMENT_CANCEL_REJECTED", "? Ýptal Talebiniz Reddedildi",
+                `"${tournament.name}" turnuvasýndan ayrýlma talebiniz reddedildi.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
         }
 
@@ -1128,8 +1128,8 @@ export const removeParticipant = async (req, res, next) => {
             where: { tournamentId_userId: { tournamentId: id, userId } },
         });
 
-        await createNotification(userId, "TOURNAMENT_REMOVED", "âŒ Turnuvadan Ã‡Ä±karÄ±ldÄ±nÄ±z",
-            `"${tournament.name}" turnuvasÄ±ndan Ã§Ä±karÄ±ldÄ±nÄ±z.`,
+        await createNotification(userId, "TOURNAMENT_REMOVED", "? Turnuvadan Çýkarýldýnýz",
+            `"${tournament.name}" turnuvasýndan çýkarýldýnýz.`,
             { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
 
         if (wasAccepted) { await _promoteNextPending(id, tournament); }
@@ -1143,7 +1143,7 @@ export const addManualParticipant = async (req, res, next) => {
         const { id } = req.params;
         const { name } = req.body;
 
-        if (!name?.trim()) return res.status(400).json({ message: "Ä°sim zorunludur" });
+        if (!name?.trim()) return res.status(400).json({ message: "Ýsim zorunludur" });
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: "Tournament not found" });
@@ -1190,8 +1190,8 @@ export const requestCancellation = async (req, res, next) => {
         await createNotification(
             tournament.creatorId,
             'CANCELLATION_REQUEST',
-            "âš ï¸ GeÃ§ Ä°ptal Talebi",
-            `${user.fullName || user.username} "${tournament.name}" turnuvasÄ±ndan ayrÄ±lmak istiyor (baÅŸlangÄ±ca 24 saatten az kaldÄ±).`,
+            "?? Geç Ýptal Talebi",
+            `${user.fullName || user.username} "${tournament.name}" turnuvasýndan ayrýlmak istiyor (baþlangýca 24 saatten az kaldý).`,
             { tournamentId: id, userId: req.userId, category: tournament.category, subCategory: tournament.subCategory },
         );
         res.json({ message: 'Cancellation request sent to creator' });
@@ -1322,7 +1322,7 @@ export const completeTournament = async (req, res, next) => {
 
 // Shared by the manual "/start" route and the auto-start job. `actorUserId` is the
 // creator when started manually (skipped in the notify loop since they already know);
-// pass null for the auto-start job so every accepted participant â€” creator included â€” gets notified.
+// pass null for the auto-start job so every accepted participant — creator included — gets notified.
 // Throws an Error with a `.status` for expected validation failures (caller decides how to surface it).
 export async function runStartTournament(tournament, { actorUserId = null } = {}) {
     const { id } = tournament;
@@ -1345,7 +1345,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
 
     // Main list = first maxPlayers accepted (by acceptance order); waitlist = the rest
     if (!tournament.maxPlayers) {
-        throw Object.assign(new Error('LÃ¼tfen turnuva baÅŸlatmadan Ã¶nce maksimum oyuncu sayÄ±sÄ±nÄ± (AS kadro) belirleyin.'), { status: 400 });
+        throw Object.assign(new Error('Lütfen turnuva baþlatmadan önce maksimum oyuncu sayýsýný (AS kadro) belirleyin.'), { status: 400 });
     }
     const mainList = rawParticipants.slice(0, tournament.maxPlayers);
 
@@ -1370,24 +1370,24 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     let excludedFromTeams = [];
 
     if (tournament.type === '1') {
-        // Bireysel RekabetÃ§i: sadece round 1 oluÅŸtur, sonraki turlar dinamik
+        // Bireysel Rekabetçi: sadece round 1 oluþtur, sonraki turlar dinamik
         matches = eloBasedMatches(players, id, 1);
         const deadline = new Date(baseDate);
         deadline.setDate(deadline.getDate() + 7);
         matches = matches.map(m => ({ ...m, deadline }));
     } else if (tournament.type === '2') {
-        // Ã‡iftler RekabetÃ§i: Ã¶nce takÄ±mlarÄ± oluÅŸtur (partner eÅŸleÅŸenler + ELO'ya gÃ¶re
-        // otomatik eÅŸleÅŸen bireysel baÅŸvurular), sonra takÄ±mlar arasÄ± sadece round 1
-        // oluÅŸtur â€” sonraki turlar Bireysel RekabetÃ§i gibi dinamik Ã¼retilir.
+        // Çiftler Rekabetçi: önce takýmlarý oluþtur (partner eþleþenler + ELO'ya göre
+        // otomatik eþleþen bireysel baþvurular), sonra takýmlar arasý sadece round 1
+        // oluþtur — sonraki turlar Bireysel Rekabetçi gibi dinamik üretilir.
         const { teamsData, excluded } = await formTeamsForTournament(tournament, mainList);
         excludedFromTeams = excluded;
         if (teamsData.length < 2) {
-            throw Object.assign(new Error('Ã‡iftler RekabetÃ§i turnuvasÄ± iÃ§in en az 2 takÄ±m (4 oyuncu) gerekli.'), { status: 400 });
+            throw Object.assign(new Error('Çiftler Rekabetçi turnuvasý için en az 2 takým (4 oyuncu) gerekli.'), { status: 400 });
         }
         for (const ex of excluded) {
             createNotification(
-                ex.userId, 'TOURNAMENT_REMOVED', 'âš ï¸ TakÄ±m EÅŸleÅŸmesi BulunamadÄ±',
-                `"${tournament.name}" turnuvasÄ±nda size eÅŸleÅŸecek bir partner bulunamadÄ±ÄŸÄ± iÃ§in bu turda yer alamadÄ±nÄ±z.`,
+                ex.userId, 'TOURNAMENT_REMOVED', '?? Takým Eþleþmesi Bulunamadý',
+                `"${tournament.name}" turnuvasýnda size eþleþecek bir partner bulunamadýðý için bu turda yer alamadýnýz.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
         }
@@ -1403,7 +1403,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         deadline.setDate(deadline.getDate() + 7);
         matches = matches.map(m => ({ ...m, deadline }));
     } else {
-        // DiÄŸer tÃ¼rler
+        // Diðer türler
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
         if (mmType === 'RANDOM') {
             matches = randomMatches(players, id, matchesPerPlayer);
@@ -1441,14 +1441,14 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     }
 
     // Notify real (non-manual) participants + socket push for instant UI update
-    // (takÄ±m eÅŸleÅŸmesi bulunamayan oyuncular zaten ayrÄ± bir bildirim aldÄ±, bunu almasÄ±nlar)
+    // (takým eþleþmesi bulunamayan oyuncular zaten ayrý bir bildirim aldý, bunu almasýnlar)
     const excludedIds = new Set(excludedFromTeams.map(ex => ex.userId));
     for (const p of mainList) {
         if (p.userId && p.userId !== actorUserId && !excludedIds.has(p.userId)) {
             emitToUser(p.userId, 'tournament:started', { tournamentId: id });
             await createNotification(
-                p.userId, 'TOURNAMENT_STARTED', 'ðŸ† Turnuva BaÅŸladÄ±',
-                `"${tournament.name}" turnuvasÄ± baÅŸladÄ±! EÅŸleÅŸmelerinizi kontrol edin.`,
+                p.userId, 'TOURNAMENT_STARTED', '?? Turnuva Baþladý',
+                `"${tournament.name}" turnuvasý baþladý! Eþleþmelerinizi kontrol edin.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
             );
         }
@@ -1503,10 +1503,10 @@ export const rematchTournament = async (req, res, next) => {
                 },
             },
         });
-        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadÄ±' });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadý' });
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Yetkiniz yok' });
-        if (tournament.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Turnuva devam etmekte deÄŸil' });
-        if (tournament.type === '2') return res.status(400).json({ message: 'Eleme turnuvalarÄ± yeniden eÅŸleÅŸtirilemez' });
+        if (tournament.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Turnuva devam etmekte deðil' });
+        if (tournament.type === '2') return res.status(400).json({ message: 'Eleme turnuvalarý yeniden eþleþtirilemez' });
 
         // Fetch participants with correct interest filter
         const rawParticipants = await prisma.tournamentParticipant.findMany({
@@ -1560,13 +1560,13 @@ export const getTournamentMatches = async (req, res, next) => {
                 where: { tournamentId: id },
                 orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
             }),
-            // Ã‡iftler RekabetÃ§i: maÃ§larda p1Id/p2Id takÄ±m id'sidir â€” istemcinin "bu maÃ§ bana mÄ± ait"
-            // kontrolÃ¼ yapabilmesi iÃ§in kendi takÄ±m id'sini de dÃ¶ndÃ¼rÃ¼yoruz.
+            // Çiftler Rekabetçi: maçlarda p1Id/p2Id takým id'sidir — istemcinin "bu maç bana mý ait"
+            // kontrolü yapabilmesi için kendi takým id'sini de döndürüyoruz.
             prisma.tournamentTeam.findFirst({
                 where: { tournamentId: id, OR: [{ player1Id: req.userId }, { player2Id: req.userId }] },
             }),
-            // TakÄ±mlarÄ±n gÃ¼ncel ortalama ELO'su â€” istemci henÃ¼z skorlanmamÄ±ÅŸ maÃ§larda da
-            // takÄ±m yÄ±ldÄ±z puanÄ±nÄ± gÃ¶sterebilsin diye.
+            // Takýmlarýn güncel ortalama ELO'su — istemci henüz skorlanmamýþ maçlarda da
+            // takým yýldýz puanýný gösterebilsin diye.
             prisma.tournamentTeam.findMany({
                 where: { tournamentId: id },
                 select: { id: true, avgRating: true },
@@ -1591,15 +1591,15 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             },
         });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        // COMPLETED allowed too â€” creator may still need to correct a score after the
+        // COMPLETED allowed too — creator may still need to correct a score after the
         // tournament auto-completed when its last pending match was scored.
         if (!['IN_PROGRESS', 'COMPLETED'].includes(tournament.status)) return res.status(400).json({ message: 'Tournament not in progress' });
 
         const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
         if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Match not found' });
 
-        // Ã‡iftler RekabetÃ§i (type '2'): p1Id/p2Id bir takÄ±m id'sidir, kullanÄ±cÄ± deÄŸil â€”
-        // her tarafÄ±n 1 veya 2 Ã¼ye kullanÄ±cÄ± id'sine Ã§Ã¶zÃ¼lÃ¼r.
+        // Çiftler Rekabetçi (type '2'): p1Id/p2Id bir takým id'sidir, kullanýcý deðil —
+        // her tarafýn 1 veya 2 üye kullanýcý id'sine çözülür.
         const isTeamTournament = tournament.type === '2';
         let p1Members = [match.p1Id].filter(Boolean);
         let p2Members = [match.p2Id].filter(Boolean);
@@ -1629,8 +1629,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const loserId  = winner === 'p1' ? match.p2Id : match.p1Id;
         const isCorrection = match.status === 'COMPLETED';
 
-        // Apply competitive points â€” same system as rival matches (totalPoints + skillRating 0-5).
-        // Ã‡iftler RekabetÃ§i: aynÄ± delta her iki taraftaki TÃœM Ã¼yelere ayrÄ± ayrÄ± uygulanÄ±r.
+        // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5).
+        // Çiftler Rekabetçi: ayný delta her iki taraftaki TÜM üyelere ayrý ayrý uygulanýr.
         let p1EloDelta = 0, p2EloDelta = 0;
         let p1RatingBefore = null, p1RatingAfter = null, p2RatingBefore = null, p2RatingAfter = null;
         // If match was already scored, reverse previous ELO before re-applying
@@ -1689,9 +1689,9 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             const avgRating = (uids) => uids.reduce((sum, uid) => sum + (interests.find(i => i.userId === uid)?.skillRating || 0), 0) / uids.length;
             const wAvg = avgRating(winnerMembers);
             const lAvg = avgRating(loserMembers);
-            // Taraflardan biri bu kategoride hiÃ§ oynamamÄ±ÅŸsa (derecesi bilinmiyor),
-            // rakibinin puanÄ±nÄ± bilinmeyen bir seviyeye gÃ¶re deÄŸiÅŸtirmek anlamsÄ±z â€”
-            // hiÃ§bir tarafÄ±n puanÄ± artmaz/azalmaz.
+            // Taraflardan biri bu kategoride hiç oynamamýþsa (derecesi bilinmiyor),
+            // rakibinin puanýný bilinmeyen bir seviyeye göre deðiþtirmek anlamsýz —
+            // hiçbir tarafýn puaný artmaz/azalmaz.
             if (missing.length === 0) {
                 const ratingDiff = Math.abs(wAvg - lAvg);
                 let winnerGames = 0, totalGames = 0;
@@ -1700,7 +1700,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 let wStep, lStep, transferWin, transferLose;
                 let reassessFlags = [];
                 if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory)) {
-                    // Tenis/Padel: kullanÄ±cÄ±nÄ±n verdiÄŸi sabit ELO puan tablosu â€” takÄ±m ortalamasÄ±na gÃ¶re
+                    // Tenis/Padel: kullanýcýnýn verdiði sabit ELO puan tablosu — takým ortalamasýna göre
                     const dominant = totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD;
                     const lowerRatedWon = wAvg < lAvg;
                     const { winnerGain, loserLoss } = getTennisPadelEloDelta(ratingDiff, dominant, lowerRatedWon);
@@ -1709,8 +1709,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     transferWin = parseFloat((wStep * 20).toFixed(3));
                     transferLose = parseFloat((lStep * 20).toFixed(3));
 
-                    // Anket doÄŸruluÄŸu kontrolÃ¼: anketten sonraki ilk 3 maÃ§Ä±nda kendinden â‰¥1.0
-                    // puan yÃ¼ksek bir rakibe karÅŸÄ± kazanan oyuncu varsa, bu maÃ§ ELO'ya sayÄ±lmaz.
+                    // Anket doðruluðu kontrolü: anketten sonraki ilk 3 maçýnda kendinden ?1.0
+                    // puan yüksek bir rakibe karþý kazanan oyuncu varsa, bu maç ELO'ya sayýlmaz.
                     const winnerInterestsForCheck = winnerMembers.map(uid => interests.find(i => i.userId === uid));
                     const loserInterestsForCheck = loserMembers.map(uid => interests.find(i => i.userId === uid));
                     reassessFlags = getReassessmentFlags(winnerInterestsForCheck, loserInterestsForCheck, wAvg, lAvg);
@@ -1727,13 +1727,13 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     const divisor = tournament.type === "1" ? 2 : 1;
                     let ratingStep = parseFloat((transfer * 0.05 / divisor).toFixed(3));
 
-                    // Algoritma 2: ratingDiff'e gÃ¶re Ã§arpan uygula (kim kazanÄ±rsa kazansÄ±n)
+                    // Algoritma 2: ratingDiff'e göre çarpan uygula (kim kazanýrsa kazansýn)
                     if (ratingDiff < 0.25)       ratingStep = parseFloat((ratingStep * 3/4).toFixed(4));
                     else if (ratingDiff < 0.75)  ratingStep = parseFloat((ratingStep * 1/2).toFixed(4));
                     else if (ratingDiff < 1.5)   ratingStep = parseFloat((ratingStep * 1/4).toFixed(4));
-                    // 1.5+ â†’ deÄŸiÅŸiklik yok
+                    // 1.5+ › deðiþiklik yok
 
-                    // Algoritma 3: dÃ¼ÅŸÃ¼k ELO'lu kazanÄ±rsa kazanan iki kat alÄ±r
+                    // Algoritma 3: düþük ELO'lu kazanýrsa kazanan iki kat alýr
                     const lowerRatedWon = wAvg < lAvg;
                     wStep = lowerRatedWon ? parseFloat((ratingStep * 2).toFixed(4)) : ratingStep;
                     lStep = ratingStep;
@@ -1776,8 +1776,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     for (const flag of reassessFlags) {
                         createNotification(
                             flag.userId, 'ASSESSMENT_RECHECK',
-                            'ðŸ“‹ Derecelendirme Anketini Tekrar Doldurun',
-                            `${tournament.subCategory} dalÄ±nda anketten sonraki ilk maÃ§larÄ±nÄ±zda dereceniz beklenenden farklÄ± Ã§Ä±ktÄ±. Daha doÄŸru bir eÅŸleÅŸme iÃ§in lÃ¼tfen derecelendirme anketini tekrar doldurun.`,
+                            '?? Derecelendirme Anketini Tekrar Doldurun',
+                            `${tournament.subCategory} dalýnda anketten sonraki ilk maçlarýnýzda dereceniz beklenenden farklý çýktý. Daha doðru bir eþleþme için lütfen derecelendirme anketini tekrar doldurun.`,
                             { category: tournament.category, subCategory: tournament.subCategory }
                         ).catch(() => {});
                     }
@@ -1814,8 +1814,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             }
         }
 
-        // Bireysel RekabetÃ§i (type '1') ve Ã‡iftler RekabetÃ§i (type '2'): dinamik tur yÃ¶netimi
-        // Sadece ilk skor giriÅŸinde â€” bir dÃ¼zeltme zaten oluÅŸturulmuÅŸ turu tekrar oluÅŸturmasÄ±n
+        // Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): dinamik tur yönetimi
+        // Sadece ilk skor giriþinde — bir düzeltme zaten oluþturulmuþ turu tekrar oluþturmasýn
         if (!isCorrection && (tournament.type === '1' || tournament.type === '2') && match.phase === 'GROUP') {
             const allGroupMatches = await prisma.tournamentMatch.findMany({
                 where: { tournamentId: id, phase: 'GROUP' },
@@ -1832,7 +1832,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 });
 
                 if (maxRound < matchesPerPlayer && !existingPlayoff) {
-                    // Sonraki GROUP turunu gÃ¼ncel ELO ile oluÅŸtur
+                    // Sonraki GROUP turunu güncel ELO ile oluþtur
                     const playedPairKeys = allGroupMatches
                         .filter(m => m.p1Id && m.p2Id)
                         .map(m => [m.p1Id, m.p2Id].sort().join('|'));
@@ -1841,7 +1841,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                         await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
                     }
                 } else if (!existingPlayoff) {
-                    // TÃ¼m GROUP turlarÄ± bitti â†’ playoff oluÅŸtur (ELO sÄ±ralamasÄ± + averaj tiebreaker)
+                    // Tüm GROUP turlarý bitti › playoff oluþtur (ELO sýralamasý + averaj tiebreaker)
                     const players = isTeamTournament
                         ? (await prisma.tournamentTeam.findMany({ where: { tournamentId: id } })).map(t => ({
                             id: t.id, fullName: `${t.player1Name} & ${t.player2Name}`, username: `${t.player1Name} & ${t.player2Name}`, skillRating: 0,
@@ -1853,7 +1853,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     const qualifiers = tournament.playoffQualifiers || 4;
                     const topStandings = standings.slice(0, Math.min(qualifiers, standings.length));
 
-                    // Play-off eÅŸleÅŸmesi: ELO puanÄ±na en yakÄ±n oyuncular/takÄ±mlar (Rule 2)
+                    // Play-off eþleþmesi: ELO puanýna en yakýn oyuncular/takýmlar (Rule 2)
                     const topPlayers = isTeamTournament
                         ? (await getCurrentTeamRatings(tournament, topStandings.map(s => s.userId))).sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0))
                         : (await (async () => {
@@ -1926,9 +1926,9 @@ export const enterTournamentMatchScore = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
-/** Joker hakkÄ± kullanÄ±mÄ± â€” Bireysel RekabetÃ§i (type '1') turnuvalara Ã¶zgÃ¼
- *  - Sadece bu oyuncu: joker tÃ¼kenir, deadline +7 gÃ¼n
- *  - KarÅŸÄ±lÄ±klÄ± joker: joker tÃ¼ketilmez, deadline +7 gÃ¼n (Rule 4)
+/** Joker hakký kullanýmý — Bireysel Rekabetçi (type '1') turnuvalara özgü
+ *  - Sadece bu oyuncu: joker tükenir, deadline +7 gün
+ *  - Karþýlýklý joker: joker tüketilmez, deadline +7 gün (Rule 4)
  */
 export const useJoker = async (req, res, next) => {
     try {
@@ -1938,16 +1938,16 @@ export const useJoker = async (req, res, next) => {
             where: { id },
             include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
         });
-        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadÄ±.' });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadý.' });
         if (tournament.type !== '1' && tournament.type !== '2') {
-            return res.status(400).json({ message: 'Joker hakkÄ± sadece Bireysel RekabetÃ§i ve Ã‡iftler RekabetÃ§i turnuvalarda kullanÄ±labilir.' });
+            return res.status(400).json({ message: 'Joker hakký sadece Bireysel Rekabetçi ve Çiftler Rekabetçi turnuvalarda kullanýlabilir.' });
         }
 
         const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
-        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'MaÃ§ bulunamadÄ±.' });
-        if (match.status !== 'PENDING') return res.status(400).json({ message: 'Bu maÃ§ zaten tamamlanmÄ±ÅŸ.' });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadý.' });
+        if (match.status !== 'PENDING') return res.status(400).json({ message: 'Bu maç zaten tamamlanmýþ.' });
 
-        // Ã‡iftler RekabetÃ§i: p1Id/p2Id takÄ±m id'sidir â€” kendi tarafÄ±mÄ±n Ã¼yelerine Ã§Ã¶zÃ¼lÃ¼r.
+        // Çiftler Rekabetçi: p1Id/p2Id takým id'sidir — kendi tarafýmýn üyelerine çözülür.
         const isTeamTournament = tournament.type === '2';
         let p1Members = [match.p1Id].filter(Boolean);
         let p2Members = [match.p2Id].filter(Boolean);
@@ -1961,7 +1961,7 @@ export const useJoker = async (req, res, next) => {
 
         const isP1 = p1Members.includes(req.userId);
         const isP2 = p2Members.includes(req.userId);
-        if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maÃ§ta yer almÄ±yorsunuz.' });
+        if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maçta yer almýyorsunuz.' });
 
         const myMembers    = isP1 ? p1Members : p2Members;
         const otherMembers = isP1 ? p2Members : p1Members;
@@ -1971,7 +1971,7 @@ export const useJoker = async (req, res, next) => {
         });
         const myParticipants = sideParticipants.filter(p => myMembers.includes(p.userId));
         const otherParticipants = sideParticipants.filter(p => otherMembers.includes(p.userId));
-        if (myParticipants.length === 0) return res.status(404).json({ message: 'KatÄ±lÄ±mcÄ± bulunamadÄ±.' });
+        if (myParticipants.length === 0) return res.status(404).json({ message: 'Katýlýmcý bulunamadý.' });
 
         const otherJokerRequested = isP1 ? match.p2JokerRequested : match.p1JokerRequested;
         const newDeadline = new Date(match.deadline || new Date());
@@ -1989,12 +1989,12 @@ export const useJoker = async (req, res, next) => {
         };
 
         if (otherJokerRequested) {
-            // KarÅŸÄ±lÄ±klÄ± joker: rakip taraf ilk tÄ±kladÄ±ÄŸÄ±nda tek kullanÄ±m sayÄ±lÄ±p deadline +7 uzamÄ±ÅŸ ve
-            // kendi hakkÄ± tÃ¼ketilmiÅŸti. Bu tarafÄ±n da onaylamasÄ±yla durum "karÅŸÄ±lÄ±klÄ±" oluyor:
-            // sÃ¼re tekrar +7 EKLENMEZ (toplam hep +7 kalÄ±r) ve iki tarafÄ±n da joker hakkÄ± geri verilir/korunur.
-            // Onay hakkÄ± kendi baÅŸÄ±na turnuva boyunca oyuncu/takÄ±m baÅŸÄ±na 1 kez kullanÄ±labilir.
+            // Karþýlýklý joker: rakip taraf ilk týkladýðýnda tek kullaným sayýlýp deadline +7 uzamýþ ve
+            // kendi hakký tüketilmiþti. Bu tarafýn da onaylamasýyla durum "karþýlýklý" oluyor:
+            // süre tekrar +7 EKLENMEZ (toplam hep +7 kalýr) ve iki tarafýn da joker hakký geri verilir/korunur.
+            // Onay hakký kendi baþýna turnuva boyunca oyuncu/takým baþýna 1 kez kullanýlabilir.
             if (myParticipants.some(p => p.mutualJokerUsed)) {
-                return res.status(400).json({ message: 'KarÅŸÄ±lÄ±klÄ± joker onay hakkÄ±nÄ±zÄ± bu turnuvada daha Ã¶nce kullandÄ±nÄ±z.' });
+                return res.status(400).json({ message: 'Karþýlýklý joker onay hakkýnýzý bu turnuvada daha önce kullandýnýz.' });
             }
             await prisma.$transaction([
                 prisma.tournamentMatch.update({
@@ -2011,12 +2011,12 @@ export const useJoker = async (req, res, next) => {
                 })),
             ]);
             await emitMatchUpdate();
-            return res.json({ mutual: true, message: 'KarÅŸÄ±lÄ±klÄ± joker onaylandÄ± â€” sÃ¼re +7 gÃ¼n (tekrar eklenmedi), iki tarafÄ±n da joker hakkÄ± tÃ¼kenmedi.', deadline: match.deadline });
+            return res.json({ mutual: true, message: 'Karþýlýklý joker onaylandý — süre +7 gün (tekrar eklenmedi), iki tarafýn da joker hakký tükenmedi.', deadline: match.deadline });
         } else {
             if (myParticipants.some(p => p.jokerUsed)) {
-                return res.status(400).json({ message: isTeamTournament ? 'TakÄ±mÄ±nÄ±z joker hakkÄ±nÄ± daha Ã¶nce kullandÄ±.' : 'Joker hakkÄ±nÄ±zÄ± daha Ã¶nce kullandÄ±nÄ±z.' });
+                return res.status(400).json({ message: isTeamTournament ? 'Takýmýnýz joker hakkýný daha önce kullandý.' : 'Joker hakkýnýzý daha önce kullandýnýz.' });
             }
-            // Tek joker: +7 gÃ¼n, joker tÃ¼kenir (Ã‡iftler RekabetÃ§i'de takÄ±mÄ±n HER Ä°KÄ° Ã¼yesi iÃ§in de tÃ¼kenir)
+            // Tek joker: +7 gün, joker tükenir (Çiftler Rekabetçi'de takýmýn HER ÝKÝ üyesi için de tükenir)
             const field = isP1 ? 'p1JokerRequested' : 'p2JokerRequested';
             await prisma.$transaction([
                 prisma.tournamentMatch.update({
@@ -2029,23 +2029,23 @@ export const useJoker = async (req, res, next) => {
                 })),
             ]);
             await emitMatchUpdate();
-            return res.json({ mutual: false, message: 'Joker hakkÄ±nÄ±z kullanÄ±ldÄ± â€” deadline 7 gÃ¼n uzatÄ±ldÄ±.', deadline: newDeadline });
+            return res.json({ mutual: false, message: 'Joker hakkýnýz kullanýldý — deadline 7 gün uzatýldý.', deadline: newDeadline });
         }
     } catch (e) { next(e); }
 };
 
-// Turnuva grup sohbeti â€” sadece turnuva sahibi ve AS/yedek olarak onaylanmÄ±ÅŸ (ACCEPTED) katÄ±lÄ±mcÄ±lar
+// Turnuva grup sohbeti — sadece turnuva sahibi ve AS/yedek olarak onaylanmýþ (ACCEPTED) katýlýmcýlar
 export const getTournamentChat = async (req, res, next) => {
     try {
         const { id } = req.params;
         const tournament = await prisma.tournament.findUnique({ where: { id }, select: { creatorId: true } });
-        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadÄ±.' });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadý.' });
 
         if (tournament.creatorId !== req.userId) {
             const participant = await prisma.tournamentParticipant.findFirst({
                 where: { tournamentId: id, userId: req.userId, status: 'ACCEPTED' },
             });
-            if (!participant) return res.status(403).json({ message: 'Bu turnuvanÄ±n sohbetine eriÅŸiminiz yok.' });
+            if (!participant) return res.status(403).json({ message: 'Bu turnuvanýn sohbetine eriþiminiz yok.' });
         }
 
         const messages = await prisma.tournamentMessage.findMany({
@@ -2062,17 +2062,17 @@ export const sendTournamentChatMessage = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { content } = req.body;
-        if (!content || !content.trim()) return res.status(400).json({ message: 'Mesaj boÅŸ olamaz.' });
+        if (!content || !content.trim()) return res.status(400).json({ message: 'Mesaj boþ olamaz.' });
 
         const tournament = await prisma.tournament.findUnique({
             where: { id },
             include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
         });
-        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadÄ±.' });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadý.' });
 
         const isCreator = tournament.creatorId === req.userId;
         const isParticipant = tournament.participants.some(p => p.userId === req.userId);
-        if (!isCreator && !isParticipant) return res.status(403).json({ message: 'Bu turnuvanÄ±n sohbetine eriÅŸiminiz yok.' });
+        if (!isCreator && !isParticipant) return res.status(403).json({ message: 'Bu turnuvanýn sohbetine eriþiminiz yok.' });
 
         const message = await prisma.tournamentMessage.create({
             data: { tournamentId: id, senderId: req.userId, content: content.trim().slice(0, 1000) },
@@ -2085,7 +2085,7 @@ export const sendTournamentChatMessage = async (req, res, next) => {
             emitToUser(uid, 'tournament:chat_message', { tournamentId: id, message });
         }
 
-        // Bildirim sadece bu turnuva sohbeti iÃ§in aÃ§Ä±k olan alÄ±cÄ±lara gider (varsayÄ±lan kapalÄ±)
+        // Bildirim sadece bu turnuva sohbeti için açýk olan alýcýlara gider (varsayýlan kapalý)
         if (recipientIds.size > 0) {
             const optedIn = await prisma.tournamentChatNotify.findMany({
                 where: { tournamentId: id, userId: { in: [...recipientIds] }, enabled: true },
@@ -2095,7 +2095,7 @@ export const sendTournamentChatMessage = async (req, res, next) => {
             for (const { userId } of optedIn) {
                 createNotification(
                     userId, 'TOURNAMENT_CHAT_MESSAGE',
-                    `ðŸ’¬ ${tournament.name}`,
+                    `?? ${tournament.name}`,
                     `${senderName}: ${message.content}`,
                     { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
                 ).catch(() => {});
@@ -2106,7 +2106,7 @@ export const sendTournamentChatMessage = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
-// Turnuva sohbeti bildirim tercihi â€” varsayÄ±lan kapalÄ±, kullanÄ±cÄ± kendisi aÃ§ar/kapatÄ±r
+// Turnuva sohbeti bildirim tercihi — varsayýlan kapalý, kullanýcý kendisi açar/kapatýr
 export const getChatNotifyPref = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -2185,8 +2185,8 @@ export const requestTournamentPermission = async (req, res, next) => {
         for (const admin of admins) {
             createNotification(
                 admin.id, 'TOURNAMENT_PERMISSION_REQUEST',
-                'ðŸ“‹ Turnuva Ä°zin Talebi',
-                `${user.username} turnuva oluÅŸturma izni talep etti.`,
+                '?? Turnuva Ýzin Talebi',
+                `${user.username} turnuva oluþturma izni talep etti.`,
                 { requestUserId: req.userId, requestUsername: user.username }
             ).catch(() => {});
         }

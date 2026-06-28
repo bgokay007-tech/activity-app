@@ -2530,10 +2530,23 @@ function SubCategoryPage() {
     const [newTournamentTime, setNewTournamentTime] = useState('');
     const [newTournamentEndDate, setNewTournamentEndDate] = useState('');
     const [newTournamentEndTime, setNewTournamentEndTime] = useState('');
+    const [newTournamentRegDate, setNewTournamentRegDate] = useState('');
+    const [newTournamentRegTime, setNewTournamentRegTime] = useState('');
+    const [newTournamentMinPlayers, setNewTournamentMinPlayers] = useState('');
+    const [newTournamentMaxPlayers, setNewTournamentMaxPlayers] = useState('');
+    const [newTournamentGenderType, setNewTournamentGenderType] = useState('MIX');
     const [newTournamentSurface, setNewTournamentSurface] = useState('');
     const [newTournamentIsIndoor, setNewTournamentIsIndoor] = useState(null); // null | true | false
     const [selectedTournamentType, setSelectedTournamentType] = useState(null);
     const [expandedTournament, setExpandedTournament] = useState(null);
+    const [tournPartnerLoading, setTournPartnerLoading] = useState(false);
+    const [tournInvitePicker, setTournInvitePicker] = useState(null); // { tournamentId, candidates }
+    const [matchesModalTournament, setMatchesModalTournament] = useState(null);
+    const [tournMatchesData, setTournMatchesData] = useState({ matches: [], myTeamId: null, teams: [] });
+    const [matchTab, setMatchTab] = useState('matches'); // 'matches' | 'standings'
+    const [scoreEntryMatchId, setScoreEntryMatchId] = useState(null);
+    const [scoreSets, setScoreSets] = useState([{ p1: '', p2: '' }, { p1: '', p2: '' }]);
+    const [matchActionLoading, setMatchActionLoading] = useState(false);
     const [rulesOpen, setRulesOpen] = useState(false);
     const [managingTournament, setManagingTournament] = useState(null);
     const [joinRequests, setJoinRequests] = useState({}); // { [tournamentId]: [...] }
@@ -2689,7 +2702,7 @@ function SubCategoryPage() {
                 if (coachesRes) setCoachListings(coachesRes.data);
                 if (storiesRes) setBranchStories(storiesRes.data);
                 const tList = tournamentsRes?.data || [];
-                setTournaments(tList);
+                setTournaments(tList.map(tn => ({ ...tn, _myRequest: tn.participants?.[0]?.status || null })));
 
                 // Auto-open manage view if ?manageTournament= is in URL
                 const manageTid = searchParams.get('manageTournament');
@@ -3826,37 +3839,213 @@ function SubCategoryPage() {
                     {/* TOURNAMENTS TAB */}
                     {activeTab === 'tournaments' && (() => {
 
+                        const TOURN_RULES = { '1': t('tournament.rules1'), '2': t('tournament.rules2') };
+                        const TOURN_TYPE_NAME = { '1': t('tournament.type1'), '2': t('tournament.type2') };
+
                         if (rulesOpen) return (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
                                 onClick={() => setRulesOpen(false)}>
-                                <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+                                <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[80vh] overflow-y-auto"
                                     onClick={e => e.stopPropagation()}>
                                     <div className="flex items-center justify-between mb-4">
-                                        <p className="text-white font-bold text-base">📋 Rules</p>
-                                        <button onClick={() => setRulesOpen(false)} className="text-gray-500 hover:text-white text-lg transition">✕</button>
+                                        <p className="text-white font-bold text-base">📋 {TOURN_TYPE_NAME[rulesOpen] || ''}</p>
+                                        <button onClick={() => setRulesOpen(false)} className="text-gray-500 hover:text-white text-lg transition flex-shrink-0">✕</button>
                                     </div>
-                                    <ol className="space-y-3">
-                                        {[1,2,3,4,5].map(n => (
-                                            <li key={n} className="flex items-start gap-3">
-                                                <span className="w-5 h-5 rounded-full bg-purple-600/30 border border-purple-500/40 text-purple-300 text-[10px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">{n}</span>
-                                                <span className="text-gray-500 text-sm">—</span>
-                                            </li>
+                                    <div className="space-y-3">
+                                        {(TOURN_RULES[rulesOpen] || '').split('\n\n').filter(Boolean).map((para, i) => (
+                                            <p key={i} className="text-gray-400 text-sm leading-relaxed whitespace-pre-line">{para}</p>
                                         ))}
-                                    </ol>
+                                    </div>
                                 </div>
                             </div>
                         );
 
+                        /* ── MATCHES / STANDINGS MODAL ── */
+                        if (matchesModalTournament) {
+                            const mt = matchesModalTournament;
+                            const matches = tournMatchesData.matches || [];
+                            const groupMatches   = matches.filter(m => m.phase === 'GROUP');
+                            const playoffMatches = matches.filter(m => m.phase === 'PLAYOFF');
+                            const standings = computeStandings(matches, mt.type);
+                            const isCreator = mt.creatorId === myId;
+
+                            const sideId = (side) => mt.type === '2' ? tournMatchesData.myTeamId : myId;
+                            const myMatchSide = (m) => {
+                                const sid = sideId();
+                                if (!sid) return null;
+                                if (m.p1Id === sid) return 'p1';
+                                if (m.p2Id === sid) return 'p2';
+                                return null;
+                            };
+
+                            const closeModal = () => { setMatchesModalTournament(null); setScoreEntryMatchId(null); };
+
+                            const MatchCard = ({ m }) => {
+                                const mySide = myMatchSide(m);
+                                const otherSide = mySide === 'p1' ? 'p2' : mySide === 'p2' ? 'p1' : null;
+                                const canScore = isCreator || mySide != null;
+                                const editing = scoreEntryMatchId === m.id;
+                                const sc = m.score || {};
+                                return (
+                                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white text-sm font-bold truncate">{m.p1Name || 'TBD'} <span className="text-gray-500">vs</span> {m.p2Name || 'TBD'}</p>
+                                                {m.status === 'COMPLETED' && (
+                                                    <p className="text-green-400 text-xs mt-0.5">
+                                                        {(sc.sets || []).map((s, i) => `${s.p1}-${s.p2}`).join(', ')} · {m.winnerId === m.p1Id ? m.p1Name : m.p2Name} won
+                                                    </p>
+                                                )}
+                                                {m.status === 'BYE' && <p className="text-gray-500 text-xs mt-0.5">BYE</p>}
+                                                {m.status === 'PENDING' && m.deadline && (
+                                                    <p className="text-gray-500 text-[11px] mt-0.5">⏰ {new Date(m.deadline).toLocaleDateString('tr-TR')}</p>
+                                                )}
+                                            </div>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${m.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' : m.status === 'BYE' ? 'bg-gray-700 text-gray-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                                                {m.status}
+                                            </span>
+                                        </div>
+
+                                        {m.status === 'PENDING' && canScore && !editing && (
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => openScoreEntry(m)}
+                                                    className={`flex-1 bg-gradient-to-r ${config.color} text-white text-xs font-bold py-1.5 rounded-lg`}>
+                                                    📝 Enter Score
+                                                </button>
+                                                {mySide && !m[`${mySide}JokerRequested`] && (
+                                                    <button onClick={() => submitJoker(mt.id, m.id)} disabled={matchActionLoading}
+                                                        className="bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-bold px-3 py-1.5 rounded-lg">
+                                                        🃏{m[`${otherSide}JokerRequested`] ? ' Mutual' : ' Joker'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                        {m.status === 'COMPLETED' && isCreator && !editing && (
+                                            <button onClick={() => openScoreEntry(m)} className="text-purple-400 text-[11px] font-bold">✏️ Correct score</button>
+                                        )}
+
+                                        {editing && (
+                                            <div className="bg-gray-950 border border-gray-700 rounded-lg p-2.5 space-y-2">
+                                                {scoreSets.map((s, i) => (
+                                                    <div key={i} className="flex items-center gap-2">
+                                                        <span className="text-gray-500 text-[10px] w-10">Set {i + 1}</span>
+                                                        <input type="number" min="0" value={s.p1} onChange={e => setScoreSets(prev => prev.map((x, idx) => idx === i ? { ...x, p1: e.target.value } : x))}
+                                                            className="w-12 bg-gray-800 border border-gray-700 rounded text-white text-center text-sm py-1" />
+                                                        <span className="text-gray-600 text-xs">-</span>
+                                                        <input type="number" min="0" value={s.p2} onChange={e => setScoreSets(prev => prev.map((x, idx) => idx === i ? { ...x, p2: e.target.value } : x))}
+                                                            className="w-12 bg-gray-800 border border-gray-700 rounded text-white text-center text-sm py-1" />
+                                                        {scoreSets.length > 1 && (
+                                                            <button onClick={() => setScoreSets(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 text-xs">✕</button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => setScoreSets(prev => [...prev, { p1: '', p2: '' }])} className="text-purple-400 text-[11px] font-bold">+ Add set</button>
+                                                    <div className="flex-1" />
+                                                    <button onClick={() => setScoreEntryMatchId(null)} className="text-gray-400 text-xs font-bold px-2">Cancel</button>
+                                                    <button onClick={() => submitMatchScore(mt.id, m)} disabled={matchActionLoading}
+                                                        className={`bg-gradient-to-r ${config.color} text-white text-xs font-bold px-3 py-1.5 rounded-lg`}>
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            };
+
+                            const roundsOf = (list) => [...new Set(list.map(m => m.round))].sort((a, b) => a - b);
+
+                            return (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+                                    onClick={closeModal}>
+                                    <div className="bg-gray-950 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col"
+                                        onClick={e => e.stopPropagation()}>
+                                        <div className="flex items-center justify-between p-4 border-b border-gray-800 flex-shrink-0">
+                                            <div className="min-w-0">
+                                                <p className="text-white font-bold text-sm truncate">{mt.name}</p>
+                                                <p className="text-gray-500 text-[11px]">{TYPE_LABEL[mt.type]}</p>
+                                            </div>
+                                            <button onClick={closeModal} className="text-gray-500 hover:text-white text-lg flex-shrink-0">✕</button>
+                                        </div>
+                                        <div className="flex border-b border-gray-800 flex-shrink-0">
+                                            {['matches', 'standings'].map(tb => (
+                                                <button key={tb} onClick={() => setMatchTab(tb)}
+                                                    className={`flex-1 py-2.5 text-xs font-bold transition ${matchTab === tb ? 'text-white border-b-2 border-purple-500' : 'text-gray-500 hover:text-gray-300'}`}>
+                                                    {tb === 'matches' ? `📅 ${t('tournament.title')}` : '📊 Standings'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="overflow-y-auto p-4 space-y-4 flex-1">
+                                            {matchTab === 'matches' ? (
+                                                matches.length === 0 ? (
+                                                    <p className="text-gray-500 text-sm text-center py-8">No matches yet.</p>
+                                                ) : (
+                                                    <>
+                                                        {roundsOf(groupMatches).map(r => (
+                                                            <div key={`g${r}`}>
+                                                                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide mb-2">Round {r}</p>
+                                                                <div className="space-y-2">
+                                                                    {groupMatches.filter(m => m.round === r).map(m => <MatchCard key={m.id} m={m} />)}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {roundsOf(playoffMatches).map(r => (
+                                                            <div key={`p${r}`}>
+                                                                <p className="text-purple-400 text-[10px] font-bold uppercase tracking-wide mb-2">Playoff — Round {r}</p>
+                                                                <div className="space-y-2">
+                                                                    {playoffMatches.filter(m => m.round === r).map(m => <MatchCard key={m.id} m={m} />)}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </>
+                                                )
+                                            ) : (
+                                                standings.length === 0 ? (
+                                                    <p className="text-gray-500 text-sm text-center py-8">No completed group matches yet.</p>
+                                                ) : (
+                                                    <table className="w-full text-xs">
+                                                        <thead>
+                                                            <tr className="text-gray-500 text-left border-b border-gray-800">
+                                                                <th className="py-2 pr-2">#</th>
+                                                                <th className="py-2 pr-2">Player/Team</th>
+                                                                <th className="py-2 px-1 text-center">P</th>
+                                                                <th className="py-2 px-1 text-center">W</th>
+                                                                <th className="py-2 px-1 text-center">L</th>
+                                                                <th className="py-2 px-1 text-center">±Set</th>
+                                                                <th className="py-2 pl-1 text-center">Pts</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {standings.map((s, i) => (
+                                                                <tr key={s.id} className="text-gray-300 border-b border-gray-900">
+                                                                    <td className="py-1.5 pr-2 text-gray-500">{i + 1}</td>
+                                                                    <td className="py-1.5 pr-2 truncate max-w-[140px]">{s.name}</td>
+                                                                    <td className="py-1.5 px-1 text-center">{s.played}</td>
+                                                                    <td className="py-1.5 px-1 text-center text-green-400">{s.won}</td>
+                                                                    <td className="py-1.5 px-1 text-center text-red-400">{s.lost}</td>
+                                                                    <td className="py-1.5 px-1 text-center">{s.setsW - s.setsL > 0 ? '+' : ''}{s.setsW - s.setsL}</td>
+                                                                    <td className="py-1.5 pl-1 text-center font-bold text-white">{s.pts}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        }
+
                         const TOURNAMENT_TYPES = [
-                            { id: 'mix_double', label: 'Mix Double Surprise Tournament', emoji: '🎾', desc: '32 players · Random pairs · Group stage + Final' },
-                            { id: 'singles',    label: 'Singles Elimination',             emoji: '🏆', desc: '32 players · Single elimination bracket' },
-                            { id: 'team',       label: 'Team Tournament (4v4)',            emoji: '👥', desc: 'Team entry · Pool stage + Knockout' },
+                            { id: '1', label: t('tournament.type1'), emoji: '🏆', desc: t('tournament.type1_desc') },
+                            { id: '2', label: t('tournament.type2'), emoji: '👬', desc: t('tournament.type2_desc') },
                         ];
 
                         const TYPE_LABEL = {
-                            mix_double: '🎾 Mix Double Surprise Tournament',
-                            singles:    '🏆 Singles Elimination',
-                            team:       '👥 Team Tournament (4v4)',
+                            '1': `🏆 ${t('tournament.type1')}`,
+                            '2': `👬 ${t('tournament.type2')}`,
                         };
 
                         const generateBracket = () => {
@@ -3911,20 +4100,25 @@ function SubCategoryPage() {
 
                         const handleCreateTournament = async () => {
                             if (!newTournamentName.trim()) { alert('Enter a tournament name'); return; }
+                            if (!newTournamentRegDate) { alert(t('tournament.reg_deadline')); return; }
                             try {
                                 const { data } = await api.post('/tournaments', {
                                     name: newTournamentName.trim(),
                                     type: selectedTournamentType,
                                     category: categoryUpper,
                                     subCategory: sub,
-                                    maxPlayers: selectedTournamentType === 'team' ? 16 : 32,
+                                    genderType: newTournamentGenderType,
+                                    minPlayers: newTournamentMinPlayers ? parseInt(newTournamentMinPlayers) : undefined,
+                                    maxPlayers: newTournamentMaxPlayers ? parseInt(newTournamentMaxPlayers) : 32,
                                     location: newTournamentLocation.trim() || undefined,
                                     surface: newTournamentSurface || undefined,
                                     isIndoor: newTournamentIsIndoor ?? undefined,
                                     eventDate: newTournamentDate || undefined,
-                                    startTime: newTournamentTime || undefined,
-                                    endDate: newTournamentEndDate || undefined,
-                                    endTime: newTournamentEndTime || undefined,
+                                    eventTime: newTournamentTime || undefined,
+                                    eventEndDate: newTournamentEndDate || undefined,
+                                    eventEndTime: newTournamentEndTime || undefined,
+                                    endDate: newTournamentRegDate || undefined,
+                                    endTime: newTournamentRegTime || undefined,
                                 });
                                 setTournaments(prev => [data, ...prev]);
                                 setNewTournamentName('');
@@ -3935,6 +4129,11 @@ function SubCategoryPage() {
                                 setNewTournamentTime('');
                                 setNewTournamentEndDate('');
                                 setNewTournamentEndTime('');
+                                setNewTournamentRegDate('');
+                                setNewTournamentRegTime('');
+                                setNewTournamentMinPlayers('');
+                                setNewTournamentMaxPlayers('');
+                                setNewTournamentGenderType('MIX');
                                 setSelectedTournamentType(null);
                                 setTournamentView(null);
                             } catch (e) { alert(e?.response?.data?.message || 'Error'); }
@@ -3966,6 +4165,171 @@ function SubCategoryPage() {
                                     [tournamentId]: (prev[tournamentId] || []).map(r => (r.userId === userId || r.user?.id === userId) ? { ...r, status } : r),
                                 }));
                             } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                        };
+
+                        // Çiftler Rekabetçi: kendi başvurumun partner durumunu değiştirir — davet et / kabul et / geri çek
+                        const setMyTournamentPartner = async (tournamentId, partnerId) => {
+                            setTournPartnerLoading(true);
+                            try {
+                                const { data } = await api.patch(`/tournaments/${tournamentId}/partner`, { partnerId: partnerId || null });
+                                setJoinRequests(prev => ({
+                                    ...prev,
+                                    [tournamentId]: (prev[tournamentId] || []).map(r => r.id === data.id ? { ...r, ...data } : r),
+                                }));
+                                setTournInvitePicker(null);
+                            } catch (err) { alert(err?.response?.data?.message || 'Error'); }
+                            finally { setTournPartnerLoading(false); }
+                        };
+
+                        // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
+                        const renderTournamentDuoCard = (tournamentId, p1, p2, solos, byUserId, isOwnerView) => {
+                            const nameOf = (r) => r?.user?.fullName || r?.user?.username || '';
+                            const ratingOf = (r) => (r?.user?.interests || [])[0]?.skillRating;
+                            const Half = ({ r }) => (
+                                <div className="min-w-0">
+                                    <p className="text-white text-xs font-bold truncate">{nameOf(r)}</p>
+                                    <p className="text-gray-500 text-[10px] truncate">
+                                        @{r?.user?.username}{ratingOf(r) != null ? `  ${Number(ratingOf(r)).toFixed(2)}★` : ''}
+                                    </p>
+                                </div>
+                            );
+
+                            let slot2;
+                            if (p2) {
+                                slot2 = <Half r={p2} />;
+                            } else {
+                                const isMine = p1.userId === myId;
+                                const invitedBy = solos.find(o => o.partnerId === p1.userId && o.userId !== p1.userId);
+                                if (p1.partnerId) {
+                                    const target = byUserId.get(p1.partnerId);
+                                    slot2 = (
+                                        <div className="min-w-0">
+                                            <p className="text-yellow-400 text-[10px] font-bold truncate">⏳ {nameOf(target) || '...'} ({t('tournament.waiting')})</p>
+                                            {isMine && (
+                                                <button onClick={() => setMyTournamentPartner(tournamentId, null)} disabled={tournPartnerLoading}
+                                                    className="text-red-400 text-[10px] font-bold mt-0.5">{t('tournament.withdraw_invite')}</button>
+                                            )}
+                                        </div>
+                                    );
+                                } else if (invitedBy) {
+                                    slot2 = (
+                                        <div className="min-w-0">
+                                            <p className="text-green-400 text-[10px] font-bold truncate">{nameOf(invitedBy)} {t('tournament.invited_you')}</p>
+                                            {isMine && (
+                                                <button onClick={() => setMyTournamentPartner(tournamentId, invitedBy.userId)} disabled={tournPartnerLoading}
+                                                    className="bg-green-600/30 border border-green-500/50 text-green-400 text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg">{t('tournament.accept_invite')}</button>
+                                            )}
+                                        </div>
+                                    );
+                                } else {
+                                    slot2 = (
+                                        <div className="min-w-0">
+                                            <p className="text-gray-500 text-[10px]">{t('tournament.looking_for_partner')}</p>
+                                            {isMine && (
+                                                <button
+                                                    onClick={() => setTournInvitePicker({ tournamentId, candidates: solos.filter(s => s.userId !== myId) })}
+                                                    disabled={tournPartnerLoading}
+                                                    className={`bg-gradient-to-r ${config.color} text-white text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg`}>
+                                                    {t('tournament.invite_partner')}
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                }
+                            }
+
+                            const isMineCard = p1.userId === myId || p2?.userId === myId;
+                            return (
+                                <div key={p1.id} className={`rounded-xl p-2 border ${isMineCard ? `${config.border} bg-gray-700/60` : 'border-gray-700 bg-gray-800'}`}>
+                                    <div className="flex items-start gap-2">
+                                        <Half r={p1} />
+                                        <span className="text-gray-500 text-xs font-black">+</span>
+                                        {slot2}
+                                    </div>
+                                    {isOwnerView && (
+                                        <div className="flex gap-1.5 mt-1.5">
+                                            <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'ACCEPTED')}
+                                                className="flex-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-bold py-1 rounded-lg transition">✓ Accept</button>
+                                            <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'REJECTED')}
+                                                className="flex-1 bg-gray-700 hover:bg-red-600/40 text-gray-300 hover:text-red-400 text-[10px] font-bold py-1 rounded-lg transition">✕ Reject</button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        };
+
+                        const fetchTournMatches = async (tournamentId) => {
+                            try {
+                                const { data } = await api.get(`/tournaments/${tournamentId}/matches`);
+                                setTournMatchesData(data);
+                            } catch { setTournMatchesData({ matches: [], myTeamId: null, teams: [] }); }
+                        };
+
+                        const openMatchesModal = (tournament) => {
+                            setMatchesModalTournament(tournament);
+                            setMatchTab('matches');
+                            fetchTournMatches(tournament.id);
+                        };
+
+                        const handleStartTournament = async (tournament) => {
+                            if (!confirm(`${tournament.name} — start this tournament now? No more join requests will be accepted after this.`)) return;
+                            setMatchActionLoading(true);
+                            try {
+                                const { data } = await api.post(`/tournaments/${tournament.id}/start`);
+                                setTournaments(prev => prev.map(x => x.id === tournament.id ? { ...x, ...data } : x));
+                                openMatchesModal({ ...tournament, ...data });
+                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                            finally { setMatchActionLoading(false); }
+                        };
+
+                        const computeStandings = (matches, type) => {
+                            const stats = {};
+                            const ensure = (id, name) => { if (!stats[id]) stats[id] = { id, name, played: 0, won: 0, lost: 0, setsW: 0, setsL: 0, pts: 0 }; };
+                            matches.filter(m => m.phase === 'GROUP' && m.status === 'COMPLETED' && m.p1Id && m.p2Id).forEach(m => {
+                                ensure(m.p1Id, m.p1Name); ensure(m.p2Id, m.p2Name);
+                                const sc = m.score || {};
+                                stats[m.p1Id].played++; stats[m.p2Id].played++;
+                                stats[m.p1Id].setsW += sc.p1Sets || 0; stats[m.p1Id].setsL += sc.p2Sets || 0;
+                                stats[m.p2Id].setsW += sc.p2Sets || 0; stats[m.p2Id].setsL += sc.p1Sets || 0;
+                                if (m.winnerId === m.p1Id) { stats[m.p1Id].won++; stats[m.p1Id].pts += 3; stats[m.p2Id].lost++; }
+                                else if (m.winnerId === m.p2Id) { stats[m.p2Id].won++; stats[m.p2Id].pts += 3; stats[m.p1Id].lost++; }
+                            });
+                            return Object.values(stats).sort((a, b) => b.pts - a.pts || (b.setsW - b.setsL) - (a.setsW - a.setsL));
+                        };
+
+                        const openScoreEntry = (match) => {
+                            const existing = match.score?.sets;
+                            setScoreEntryMatchId(match.id);
+                            setScoreSets(existing && existing.length ? existing.map(s => ({ p1: String(s.p1 ?? ''), p2: String(s.p2 ?? '') })) : [{ p1: '', p2: '' }, { p1: '', p2: '' }]);
+                        };
+
+                        const submitMatchScore = async (tournamentId, match) => {
+                            const sets = scoreSets
+                                .map(s => ({ p1: parseInt(s.p1), p2: parseInt(s.p2) }))
+                                .filter(s => !isNaN(s.p1) && !isNaN(s.p2));
+                            if (sets.length === 0) { alert('Enter at least one set score'); return; }
+                            let p1Sets = 0, p2Sets = 0;
+                            sets.forEach(s => { if (s.p1 > s.p2) p1Sets++; else if (s.p2 > s.p1) p2Sets++; });
+                            if (p1Sets === p2Sets) { alert('Sets are tied — cannot determine a winner'); return; }
+                            const winner = p1Sets > p2Sets ? 'p1' : 'p2';
+                            setMatchActionLoading(true);
+                            try {
+                                const { data } = await api.patch(`/tournaments/${tournamentId}/matches/${match.id}/score`, { sets, winner });
+                                setTournMatchesData(prev => ({ ...prev, matches: data }));
+                                setScoreEntryMatchId(null);
+                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                            finally { setMatchActionLoading(false); }
+                        };
+
+                        const submitJoker = async (tournamentId, matchId) => {
+                            if (!confirm('Use your joker for this match? This grants +7 days but uses up your joker right (unless mutual).')) return;
+                            setMatchActionLoading(true);
+                            try {
+                                const { data } = await api.post(`/tournaments/${tournamentId}/matches/${matchId}/joker`);
+                                alert(data.message);
+                                fetchTournMatches(tournamentId);
+                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                            finally { setMatchActionLoading(false); }
                         };
 
                         /* ── NULL: Tournament list ── */
@@ -4000,7 +4364,7 @@ function SubCategoryPage() {
                                                                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'OPEN' ? 'bg-green-500/20 text-green-400' : 'bg-gray-700 text-gray-500'}`}>
                                                                         {t.status === 'OPEN' ? '🟢 Open' : t.status}
                                                                     </span>
-                                                                    <button onClick={() => setRulesOpen(true)}
+                                                                    <button onClick={() => setRulesOpen(t.type)}
                                                                         className="text-[10px] text-purple-400 hover:text-purple-300 underline underline-offset-2 transition">
                                                                         Rules
                                                                     </button>
@@ -4122,29 +4486,39 @@ function SubCategoryPage() {
                                                                 {/* Main slots */}
                                                                 <div>
                                                                     <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide mb-2">Participants ({main.length}/{t.maxPlayers})</p>
-                                                                    <div className="grid grid-cols-2 gap-1.5">
-                                                                        {main.map((r, idx) => (
-                                                                            <div key={r.id} className="flex items-center gap-2 bg-gray-900 rounded-xl px-3 py-2">
-                                                                                <span className="text-gray-600 text-[10px] font-mono w-5">{idx + 1}</span>
-                                                                                <div className="w-5 h-5 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 flex items-center justify-center text-white text-[9px] font-black flex-shrink-0">
-                                                                                    {r.user?.fullName?.[0]?.toUpperCase() || r.user?.username?.[0]?.toUpperCase()}
+                                                                    {t.type === '2' ? (() => {
+                                                                        const { pairs, solos, byUserId } = groupDoublesPairs(main);
+                                                                        return (
+                                                                            <div className="grid grid-cols-2 gap-1.5">
+                                                                                {pairs.map(([p1, p2]) => renderTournamentDuoCard(t.id, p1, p2, solos, byUserId, false))}
+                                                                                {solos.filter(s => !pairs.some(([p1, p2]) => p1.id === s.id || p2.id === s.id)).map(s => renderTournamentDuoCard(t.id, s, null, solos, byUserId, false))}
+                                                                            </div>
+                                                                        );
+                                                                    })() : (
+                                                                        <div className="grid grid-cols-2 gap-1.5">
+                                                                            {main.map((r, idx) => (
+                                                                                <div key={r.id} className="flex items-center gap-2 bg-gray-900 rounded-xl px-3 py-2">
+                                                                                    <span className="text-gray-600 text-[10px] font-mono w-5">{idx + 1}</span>
+                                                                                    <div className="w-5 h-5 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 flex items-center justify-center text-white text-[9px] font-black flex-shrink-0">
+                                                                                        {r.user?.fullName?.[0]?.toUpperCase() || r.user?.username?.[0]?.toUpperCase()}
+                                                                                    </div>
+                                                                                    <span className="text-gray-300 text-xs truncate flex-1">{r.user?.fullName || r.user?.username}</span>
+                                                                                    {isOwn ? (
+                                                                                        <button onClick={() => removeMain(r)}
+                                                                                            className="text-red-500/60 hover:text-red-400 text-xs flex-shrink-0 transition">✕</button>
+                                                                                    ) : (
+                                                                                        <span className="text-green-400 text-[9px] font-bold">✓</span>
+                                                                                    )}
                                                                                 </div>
-                                                                                <span className="text-gray-300 text-xs truncate flex-1">{r.user?.fullName || r.user?.username}</span>
-                                                                                {isOwn ? (
-                                                                                    <button onClick={() => removeMain(r)}
-                                                                                        className="text-red-500/60 hover:text-red-400 text-xs flex-shrink-0 transition">✕</button>
-                                                                                ) : (
-                                                                                    <span className="text-green-400 text-[9px] font-bold">✓</span>
-                                                                                )}
-                                                                            </div>
-                                                                        ))}
-                                                                        {Array.from({ length: emptyCount }).map((_, i) => (
-                                                                            <div key={`empty-${i}`} className="flex items-center gap-2 bg-gray-900/30 rounded-xl px-3 py-2 border border-dashed border-gray-800">
-                                                                                <span className="text-gray-700 text-[10px] font-mono w-5">{main.length + i + 1}</span>
-                                                                                <span className="text-gray-700 text-xs">Empty slot</span>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
+                                                                            ))}
+                                                                            {Array.from({ length: emptyCount }).map((_, i) => (
+                                                                                <div key={`empty-${i}`} className="flex items-center gap-2 bg-gray-900/30 rounded-xl px-3 py-2 border border-dashed border-gray-800">
+                                                                                    <span className="text-gray-700 text-[10px] font-mono w-5">{main.length + i + 1}</span>
+                                                                                    <span className="text-gray-700 text-xs">Empty slot</span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 {/* Reserve */}
                                                                 {reserve.length > 0 && (
@@ -4178,6 +4552,23 @@ function SubCategoryPage() {
                                                                                 </div>
                                                                             ))}
                                                                         </div>
+                                                                    </div>
+                                                                )}
+                                                                {/* Real tournament types ('1'/'2'): Start + Matches buttons */}
+                                                                {(t.type === '1' || t.type === '2') && (
+                                                                    <div className="flex gap-2">
+                                                                        {isOwn && t.status === 'OPEN' && (
+                                                                            <button onClick={() => handleStartTournament(t)} disabled={matchActionLoading || main.length < (t.minPlayers || 2)}
+                                                                                className={`flex-1 bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-40`}>
+                                                                                🚀 {t('tournament.start')}
+                                                                            </button>
+                                                                        )}
+                                                                        {(t.status === 'IN_PROGRESS' || t.status === 'COMPLETED') && (
+                                                                            <button onClick={() => openMatchesModal(t)}
+                                                                                className="flex-1 bg-purple-600/20 border border-purple-500/40 text-purple-300 font-bold py-2 rounded-xl text-sm hover:bg-purple-600/30 transition">
+                                                                                📅 {t('tournament.bracket')}
+                                                                            </button>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                                 {/* Archive button — creator only, when bracket is done in localStorage */}
@@ -4322,16 +4713,13 @@ function SubCategoryPage() {
                                     </div>
 
                                     {/* Rules section */}
-                                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 max-h-48 overflow-y-auto">
                                         <p className="text-white font-bold text-sm mb-3">📋 Rules</p>
-                                        <ol className="space-y-2">
-                                            {[1,2,3,4,5].map(n => (
-                                                <li key={n} className="flex items-start gap-3">
-                                                    <span className="w-5 h-5 rounded-full bg-purple-600/30 border border-purple-500/40 text-purple-300 text-[10px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">{n}</span>
-                                                    <span className="text-gray-500 text-sm">—</span>
-                                                </li>
+                                        <div className="space-y-2">
+                                            {(TOURN_RULES[selectedTournamentType] || '').split('\n\n').filter(Boolean).map((para, i) => (
+                                                <p key={i} className="text-gray-400 text-xs leading-relaxed whitespace-pre-line">{para}</p>
                                             ))}
-                                        </ol>
+                                        </div>
                                     </div>
 
                                     {/* Tournament name */}
@@ -4387,10 +4775,37 @@ function SubCategoryPage() {
                                         );
                                     })()}
 
-                                    {/* Start Date · Start Time / Finish Date · Finish Time */}
+                                    {/* Gender type */}
+                                    <div>
+                                        <label className={labelCls}>{t('tournament.gender_type')}</label>
+                                        <div className="flex gap-1.5">
+                                            {[['MIX', t('tournament.gender_mix')], ['MALE', t('tournament.gender_male')], ['FEMALE', t('tournament.gender_female')]].map(([id, lbl]) => (
+                                                <button key={id} type="button" onClick={() => setNewTournamentGenderType(id)}
+                                                    className={`flex-1 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${newTournamentGenderType === id ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'}`}>
+                                                    {lbl}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Min / Max players */}
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <label className={labelCls}>📅 Start Date</label>
+                                            <label className={labelCls}>{t('tournament.min_players')}</label>
+                                            <input type="number" min="2" value={newTournamentMinPlayers} onChange={e => setNewTournamentMinPlayers(e.target.value)}
+                                                placeholder="4" className={inputCls} />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>{t('tournament.max_players')}</label>
+                                            <input type="number" min="2" value={newTournamentMaxPlayers} onChange={e => setNewTournamentMaxPlayers(e.target.value)}
+                                                placeholder="32" className={inputCls} />
+                                        </div>
+                                    </div>
+
+                                    {/* Event Start Date · Time / Event End Date · Time */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className={labelCls}>📅 {t('tournament.event_date')}</label>
                                             <input type="date" value={newTournamentDate} onChange={e => setNewTournamentDate(e.target.value)}
                                                 onClick={e => e.target.showPicker?.()}
                                                 className={inputCls + " [color-scheme:dark] cursor-pointer"} />
@@ -4408,6 +4823,20 @@ function SubCategoryPage() {
                                         <div>
                                             <label className={labelCls}>🕐 Finish Time</label>
                                             <TimeSelect value={newTournamentEndTime} onChange={setNewTournamentEndTime} className="w-full" />
+                                        </div>
+                                    </div>
+
+                                    {/* Registration deadline */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className={labelCls}>⏳ {t('tournament.reg_deadline')} *</label>
+                                            <input type="date" value={newTournamentRegDate} onChange={e => setNewTournamentRegDate(e.target.value)}
+                                                onClick={e => e.target.showPicker?.()}
+                                                className={inputCls + " [color-scheme:dark] cursor-pointer"} />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>🕐 {t('rival.time')}</label>
+                                            <TimeSelect value={newTournamentRegTime} onChange={setNewTournamentRegTime} className="w-full" />
                                         </div>
                                     </div>
 
@@ -6355,6 +6784,38 @@ function SubCategoryPage() {
                                         <p className="text-gray-500 text-xs truncate">
                                             @{c.user?.username}{(c.user?.interests || []).find(i => i.subCategory === sub)?.skillRating != null
                                                 ? `  ${Number((c.user.interests.find(i => i.subCategory === sub)).skillRating).toFixed(2)}★` : ''}
+                                        </p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {tournInvitePicker && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-sm max-h-[70vh] flex flex-col">
+                        <div className="flex justify-between items-center px-5 py-4 border-b border-gray-800">
+                            <h4 className="text-white font-bold text-sm">👥 {t('tournament.invite_partner')}</h4>
+                            <button onClick={() => setTournInvitePicker(null)} className="text-gray-400 hover:text-white text-lg">✕</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-5 py-3">
+                            {tournInvitePicker.candidates.length === 0 ? (
+                                <p className="text-gray-500 text-sm text-center py-6">No other solo applicants to invite yet</p>
+                            ) : tournInvitePicker.candidates.map(c => (
+                                <button key={c.userId}
+                                    onClick={() => setMyTournamentPartner(tournInvitePicker.tournamentId, c.userId)}
+                                    disabled={tournPartnerLoading}
+                                    className="w-full flex items-center gap-3 py-2.5 border-b border-gray-800 hover:bg-gray-800/60 transition text-left">
+                                    <div className={`w-9 h-9 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+                                        {c.user?.username?.[0]?.toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-white text-sm font-bold truncate">{c.user?.fullName || c.user?.username}</p>
+                                        <p className="text-gray-500 text-xs truncate">
+                                            @{c.user?.username}{(c.user?.interests || [])[0]?.skillRating != null
+                                                ? `  ${Number(c.user.interests[0].skillRating).toFixed(2)}★` : ''}
                                         </p>
                                     </div>
                                 </button>
