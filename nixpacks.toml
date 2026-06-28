@@ -1,8 +1,9 @@
 [phases.setup]
-# Vite 8 (frontend) requires node ^20.19.0 || >=22.12.0 — nodejs_20 silently failed to
-# satisfy this (npm ci never produced node_modules/.bin/vite, build step no-op'd via
-# `|| true`), so backend/public kept serving a stale frontend bundle for a long time.
-nixPkgs = ["nodejs_22"]
+# nodejs_22 doesn't exist in this pinned nixpkgs snapshot (build error: "undefined
+# variable 'nodejs_22'") — reverted to nodejs_20. The actual root cause of the frontend
+# build failure was a stale package-lock.json (see frontend/package-lock.json fix),
+# not the node version.
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
 cmds = [
