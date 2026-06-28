@@ -42,6 +42,11 @@ export function getTennisPadelEloDelta(ratingDiff, dominant, lowerRatedWon) {
 export const ASSESSMENT_GRACE_MATCHES = 3;
 export const ASSESSMENT_GRACE_RATING_GAP = 1.0;
 
+// Turnuvaya katılabilmek için uygulama üzerinden (Rakip Bul/turnuva) en az bu kadar
+// gerçek maç oynamış olmak gerekir — sadece anket doldurmuş ama hiç maç yapmamış
+// oyuncuların rekabetçi bir turnuvaya doğrudan girmesini önler.
+export const MIN_MATCHES_FOR_TOURNAMENT = 3;
+
 // winnerInterests/loserInterests: o taraftaki oyuncuların UserInterest kayıtları
 // (matchesSinceAssessment alanı dahil). winnerAvg/loserAvg: taraf ortalama skillRating.
 // Dönüş: anketi tekrar doldurması gereken kazanan taraf UserInterest kayıtları (boşsa flag yok).
