@@ -16,6 +16,25 @@ async function fetchCourtsFromDB(city, sport) {
     return data;
 }
 
+// Çiftler (tenis/padel): bireysel başvuru satırlarını karşılıklı partnerId'ye göre
+// eşleşmiş çift (pairs) ve partner arayan bireysel (solos) olarak gruplar — backend
+// respondToJoin/formTeamsForTournament ile aynı eşleşme mantığı (mutual partnerId).
+function groupDoublesPairs(rows) {
+    const byUserId = new Map(rows.filter(r => r.userId).map(r => [r.userId, r]));
+    const paired = new Set();
+    const pairs = [];
+    for (const r of rows) {
+        if (!r.userId || paired.has(r.userId) || !r.partnerId) continue;
+        const partner = byUserId.get(r.partnerId);
+        if (partner && partner.partnerId === r.userId && !paired.has(partner.userId)) {
+            paired.add(r.userId); paired.add(partner.userId);
+            pairs.push([r, partner]);
+        }
+    }
+    const solos = rows.filter(r => r.userId && !paired.has(r.userId));
+    return { pairs, solos, byUserId };
+}
+
 const SUB_CONFIG = {
     tennis: { name: 'Tennis',   emoji: '🎾', color: 'from-yellow-500 to-orange-500', bg: 'bg-yellow-500/10',  border: 'border-yellow-500/30'  },
     padel:  { name: 'Padel',    emoji: '🏓', color: 'from-cyan-500 to-blue-500',    bg: 'bg-cyan-500/10',    border: 'border-cyan-500/30'    },
@@ -150,7 +169,10 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     const [teamSearchLoading, setTeamSearchLoading] = useState(false);
 
     const isCompetitiveTeam = sub === 'football' && form.matchMode === 'COMPETITIVE' && form.teamSize > 1;
-    const isTeamBuilder     = sub === 'football' && form.teamSize > 1;
+    // Tenis/Padel çiftler: ilanı oluştururken partner seçimi zorunlu (mevcut takım kurucu
+    // arayüzü 1 partner aramak için tekrar kullanılıyor — teamSize zaten varsayılan 2).
+    const needsPartner     = (sub === 'tennis' || sub === 'padel') && form.matchType === 'DOUBLE';
+    const isTeamBuilder     = (sub === 'football' && form.teamSize > 1) || needsPartner;
     const spotsLeft = form.teamSize - 1 - senderTeam.length; // how many more teammates needed
 
     const searchTeammates = async (q) => {
@@ -165,7 +187,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     const addTeammate = (user) => {
         if (senderTeam.length >= form.teamSize - 1) return;
         const interest = (user.interests || []).find(i => i.subCategory === sub);
-        setSenderTeam(prev => [...prev, { id: user.id, username: user.username, fullName: user.fullName, skillRating: interest?.skillRating || 0 }]);
+        setSenderTeam(prev => [...prev, { id: user.id, username: user.username, fullName: user.fullName, skillRating: interest?.skillRating || 0, assessmentCompleted: interest?.assessmentCompleted || false }]);
         setTeamSearchResults([]);
         setTeamSearchQ('');
     };
@@ -261,6 +283,10 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 setValidationError(`Please fill in: ${missing.join(', ')}`);
                 return;
             }
+        }
+        if (needsPartner && senderTeam.length === 0) {
+            setValidationError(t('rival.choose_partner_warn'));
+            return;
         }
 
         setIsSubmitting(true);
@@ -412,7 +438,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                             <div className="flex-1 min-w-0">
                                 <p className="text-white text-xs font-bold">{t('rival.you_captain')}</p>
                             </div>
-                            {myInterest?.skillRating > 0 && (
+                            {myInterest?.assessmentCompleted && (
                                 <span className={`text-[10px] font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
                                     {Number(myInterest.skillRating).toFixed(2)}★
                                 </span>
@@ -427,7 +453,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                                     <p className="text-white text-xs font-bold truncate">{tm.fullName || tm.username}</p>
                                     <p className="text-gray-500 text-[10px]">@{tm.username}</p>
                                 </div>
-                                {tm.skillRating > 0 && (
+                                {tm.assessmentCompleted && (
                                     <span className={`text-[10px] font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
                                         {Number(tm.skillRating).toFixed(2)}★
                                     </span>
@@ -465,7 +491,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                                                     <p className="text-white text-xs font-bold truncate">{u.fullName || u.username}</p>
                                                     <p className="text-gray-500 text-[10px]">@{u.username}</p>
                                                 </div>
-                                                {interest?.skillRating > 0 ? (
+                                                {interest?.assessmentCompleted ? (
                                                     <span className={`text-[10px] font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent flex-shrink-0`}>
                                                         {Number(interest.skillRating).toFixed(2)}★
                                                     </span>
@@ -483,7 +509,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     {spotsLeft === 0 && (
                         <p className="text-green-400 text-xs text-center font-bold">{t('rival.team_full')}</p>
                     )}
-                    {isCompetitiveTeam && (
+                    {(isCompetitiveTeam || needsPartner) && (
                         <p className="text-yellow-400 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
                             {t('rival.team_elo_note', { avg: teamAvgRating })}
                         </p>
@@ -955,9 +981,9 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             </div>
             )}
 
-            {isCompetitiveTeam && spotsLeft > 0 && (
+            {(isCompetitiveTeam || needsPartner) && spotsLeft > 0 && (
                 <p className="text-red-400 text-xs text-center font-bold">
-                    {t('rival.fill_spots', { n: form.teamSize })}
+                    {needsPartner ? t('rival.choose_partner_warn') : t('rival.fill_spots', { n: form.teamSize })}
                 </p>
             )}
             {validationError && (
@@ -967,7 +993,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             )}
             <button
                 type="submit"
-                disabled={isSubmitting || (!form.flexibleSchedule && isCompetitiveTeam && spotsLeft > 0)}
+                disabled={isSubmitting || (!form.flexibleSchedule && (isCompetitiveTeam || needsPartner) && spotsLeft > 0)}
                 className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50 transition hover:opacity-90`}
             >
                 {isSubmitting ? t('rival.posting') : t('rival.post_request')}
@@ -1006,7 +1032,7 @@ function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInteres
     const addPlayer = (user) => {
         if (joiningTeam.length >= rival.teamSize - 1) return;
         const interest = (user.interests || []).find(i => i.subCategory === sub);
-        setJoiningTeam(prev => [...prev, { id: user.id, username: user.username, fullName: user.fullName, skillRating: interest?.skillRating || 0 }]);
+        setJoiningTeam(prev => [...prev, { id: user.id, username: user.username, fullName: user.fullName, skillRating: interest?.skillRating || 0, assessmentCompleted: interest?.assessmentCompleted || false }]);
         setSearchResults([]);
         setSearchQ('');
     };
@@ -1072,7 +1098,7 @@ function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInteres
                             <div className="flex items-center gap-2 bg-gray-800 rounded-xl px-3 py-2">
                                 <div className={`w-6 h-6 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[10px] font-bold`}>★</div>
                                 <p className="text-white text-xs font-bold flex-1">{t('rival.you_captain')}</p>
-                                {myInterest?.skillRating > 0 && (
+                                {myInterest?.assessmentCompleted && (
                                     <span className={`text-[10px] font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
                                         {Number(myInterest.skillRating).toFixed(2)}★
                                     </span>
@@ -1087,7 +1113,7 @@ function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInteres
                                         <p className="text-white text-xs font-bold truncate">{t.fullName || t.username}</p>
                                         <p className="text-gray-500 text-[10px]">@{t.username}</p>
                                     </div>
-                                    {t.skillRating > 0 && (
+                                    {t.assessmentCompleted && (
                                         <span className={`text-[10px] font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
                                             {Number(t.skillRating).toFixed(2)}★
                                         </span>
@@ -1123,7 +1149,7 @@ function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInteres
                                                         <p className="text-white text-xs font-bold truncate">{u.fullName || u.username}</p>
                                                         <p className="text-gray-500 text-[10px]">@{u.username}</p>
                                                     </div>
-                                                    {interest?.skillRating > 0 ? (
+                                                    {interest?.assessmentCompleted ? (
                                                         <span className={`text-[10px] font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
                                                             {Number(interest.skillRating).toFixed(2)}★
                                                         </span>
@@ -2531,6 +2557,9 @@ function SubCategoryPage() {
     const [expandedArchiveTIds, setExpandedArchiveTIds] = useState(new Set());
     const [scoringMatch, setScoringMatch] = useState(null);
     const [teamChallengeRival, setTeamChallengeRival] = useState(null);
+    // Çiftler: bireysel başvurular arası partner davet/kabul/geri çek
+    const [partnerActionLoading, setPartnerActionLoading] = useState(false);
+    const [joinInvitePicker, setJoinInvitePicker] = useState(null); // { rivalId, candidates }
     const [posts, setPosts] = useState([]);
     const [mediaPosts, setMediaPosts] = useState([]);
     const [coachListings, setCoachListings] = useState([]);
@@ -2836,6 +2865,102 @@ function SubCategoryPage() {
         }
     };
 
+    // Çiftler: kendi bireysel başvurumun partner durumunu değiştirir — davet et / kabul et / geri çek
+    const setMyRivalJoinPartner = async (rivalId, partnerId) => {
+        setPartnerActionLoading(true);
+        try {
+            const { data } = await api.patch(`/rivals/${rivalId}/join-partner`, { partnerId: partnerId || null });
+            setRivals(prev => prev.map(r => r.id !== rivalId ? r : {
+                ...r,
+                joinRequests: (r.joinRequests || []).some(jr => jr.id === data.id)
+                    ? r.joinRequests.map(jr => jr.id === data.id ? { ...jr, ...data } : jr)
+                    : [...(r.joinRequests || []), data],
+            }));
+            setJoinInvitePicker(null);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Error');
+        } finally {
+            setPartnerActionLoading(false);
+        }
+    };
+
+    // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
+    const renderRivalDuoCard = (rival, p1, p2, solos, byUserId, isOwnerView) => {
+        const nameOf = (jr) => jr?.user?.fullName || jr?.user?.username || '';
+        const ratingOf = (jr) => (jr?.user?.interests || []).find(i => i.subCategory === sub)?.skillRating;
+        const Half = ({ jr }) => (
+            <div className="min-w-0">
+                <p className="text-white text-xs font-bold truncate">{nameOf(jr)}</p>
+                <p className="text-gray-500 text-[10px] truncate">
+                    @{jr?.user?.username}{ratingOf(jr) != null ? `  ${Number(ratingOf(jr)).toFixed(2)}★` : ''}
+                </p>
+            </div>
+        );
+
+        let slot2;
+        if (p2) {
+            slot2 = <Half jr={p2} />;
+        } else {
+            const isMine = p1.userId === myId;
+            const invitedBy = solos.find(o => o.partnerId === p1.userId && o.userId !== p1.userId);
+            if (p1.partnerId) {
+                const target = byUserId.get(p1.partnerId);
+                slot2 = (
+                    <div className="min-w-0">
+                        <p className="text-yellow-400 text-[10px] font-bold truncate">⏳ {nameOf(target) || '...'} (waiting)</p>
+                        {isMine && (
+                            <button onClick={() => setMyRivalJoinPartner(rival.id, null)} disabled={partnerActionLoading}
+                                className="text-red-400 text-[10px] font-bold mt-0.5">✕ Withdraw</button>
+                        )}
+                    </div>
+                );
+            } else if (invitedBy) {
+                slot2 = (
+                    <div className="min-w-0">
+                        <p className="text-green-400 text-[10px] font-bold truncate">{nameOf(invitedBy)} invited you</p>
+                        {isMine && (
+                            <button onClick={() => setMyRivalJoinPartner(rival.id, invitedBy.userId)} disabled={partnerActionLoading}
+                                className="bg-green-600/30 border border-green-500/50 text-green-400 text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg">✓ Accept</button>
+                        )}
+                    </div>
+                );
+            } else {
+                slot2 = (
+                    <div className="min-w-0">
+                        <p className="text-gray-500 text-[10px]">Looking for partner</p>
+                        {isMine && (
+                            <button
+                                onClick={() => setJoinInvitePicker({ rivalId: rival.id, candidates: solos.filter(s => s.userId !== myId) })}
+                                disabled={partnerActionLoading}
+                                className={`bg-gradient-to-r ${config.color} text-white text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg`}>
+                                + Invite
+                            </button>
+                        )}
+                    </div>
+                );
+            }
+        }
+
+        const isMineCard = p1.userId === myId || p2?.userId === myId;
+        return (
+            <div key={p1.id} className={`rounded-xl p-2 border ${isMineCard ? `${config.border} bg-gray-700/60` : 'border-gray-700 bg-gray-800'}`}>
+                <div className="flex items-start gap-2">
+                    <Half jr={p1} />
+                    <span className="text-gray-500 text-xs font-black">+</span>
+                    {slot2}
+                </div>
+                {isOwnerView && (
+                    <div className="flex gap-1.5 mt-1.5">
+                        <button onClick={() => handleRespondJoin(p1.id, 'accept', rival.id)}
+                            className="flex-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-bold py-1 rounded-lg transition">✓ Accept</button>
+                        <button onClick={() => handleRespondJoin(p1.id, 'reject', rival.id)}
+                            className="flex-1 bg-gray-700 hover:bg-red-600/40 text-gray-300 hover:text-red-400 text-[10px] font-bold py-1 rounded-lg transition">✕ Reject</button>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const handleExpandPost = async (postId) => {
         if (expandedPostId === postId) {
             setExpandedPostId(null);
@@ -3051,6 +3176,7 @@ function SubCategoryPage() {
                                     sub={sub}
                                     myId={myId}
                                     myInterest={myInterest}
+                                    defaultMatchType={sub === 'padel' ? 'DOUBLE' : 'SINGLE'}
                                     onSubmit={(data) => {
                                         setRivals(prev => [data, ...prev]);
                                         setShowRivalForm(false);
@@ -3069,7 +3195,10 @@ function SubCategoryPage() {
                             ) : (
                                 rivals.map(rival => {
                                     const participants = Array.isArray(rival.participants) ? rival.participants : [];
-                                    const required = rival.matchType === 'DOUBLE' ? 3 : 1;
+                                    // Partner sistemi öncesi oluşturulmuş eski ilanlarda kurucunun senderTeam'i
+                                    // boştur — onlar hâlâ eski modele göre (3 bireysel katılımcı) tamamlanır.
+                                    const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+                                    const required = rival.matchType === 'DOUBLE' ? (senderTeamArr.length > 0 ? 2 : 3) : 1;
                                     const filled = participants.length;
                                     return (
                                         <div key={rival.id} className={`${config.bg} border ${config.border} rounded-2xl px-4 pt-3 pb-1`}>
@@ -3081,7 +3210,7 @@ function SubCategoryPage() {
                                                 <div className="flex-shrink-0">
                                                     <p className="text-white font-bold">{rival.sender?.fullName}</p>
                                                     <p className="text-gray-400 text-xs">@{rival.sender?.username}</p>
-                                                    {rival.senderId === myId && myInterest && myInterest.skillRating > 0 && (
+                                                    {rival.senderId === myId && myInterest?.assessmentCompleted && (
                                                         <span className={`font-black text-xs bg-gradient-to-r ${config.color} bg-clip-text text-transparent mt-1 block`}>
                                                             {Number(myInterest.skillRating).toFixed(2)} ★
                                                         </span>
@@ -3200,6 +3329,7 @@ function SubCategoryPage() {
                                                 const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
                                                 if (senderTeamArr.length === 0) return null;
                                                 const senderRating = (rival.sender?.interests?.[0]?.skillRating || 0);
+                                                const senderAssessed = !!rival.sender?.interests?.[0]?.assessmentCompleted;
                                                 const teamAvg = ((senderRating + senderTeamArr.reduce((s, t) => s + (t.skillRating || 0), 0)) / (senderTeamArr.length + 1)).toFixed(2);
                                                 return (
                                                     <div className="bg-gray-800/60 rounded-xl p-3 mb-3">
@@ -3211,11 +3341,11 @@ function SubCategoryPage() {
                                                         </div>
                                                         <div className="flex flex-wrap gap-1">
                                                             <span className="text-gray-300 text-xs bg-gray-700 rounded-full px-2 py-0.5">
-                                                                {rival.sender?.username} {senderRating > 0 ? `(${Number(senderRating).toFixed(1)}★)` : ''}
+                                                                {rival.sender?.username} {senderAssessed ? `(${Number(senderRating).toFixed(1)}★)` : ''}
                                                             </span>
                                                             {senderTeamArr.map(t => (
                                                                 <span key={t.id} className="text-gray-400 text-xs bg-gray-700/60 rounded-full px-2 py-0.5">
-                                                                    {t.username} {t.skillRating > 0 ? `(${Number(t.skillRating).toFixed(1)}★)` : ''}
+                                                                    {t.username} {t.assessmentCompleted ? `(${Number(t.skillRating).toFixed(1)}★)` : ''}
                                                                 </span>
                                                             ))}
                                                         </div>
@@ -3238,10 +3368,28 @@ function SubCategoryPage() {
                                                 </div>
                                             )}
 
+                                            {/* Çiftler: herkese ikili kart (eşleşmiş çift / partner arayan bireysel) —
+                                                owner ayrıca kabul/red görür */}
+                                            {rival.matchType === 'DOUBLE' && (rival.joinRequests || []).length > 0 && (() => {
+                                                const { pairs, solos, byUserId } = groupDoublesPairs(rival.joinRequests);
+                                                const isOwnerView = rival.senderId === myId;
+                                                return (
+                                                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 mb-2">
+                                                        <p className="text-gray-400 text-xs font-bold">
+                                                            📬 Requests ({rival.joinRequests.length})
+                                                        </p>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {pairs.map(([a, b]) => renderRivalDuoCard(rival, a, b, solos, byUserId, isOwnerView))}
+                                                            {solos.map(s => renderRivalDuoCard(rival, s, null, solos, byUserId, isOwnerView))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+
                                             {rival.senderId === myId ? (
                                                 <div className="space-y-2">
-                                                    {/* Pending join requests */}
-                                                    {(rival.joinRequests || []).length > 0 && (
+                                                    {/* Pending join requests (non-doubles: football team challenge, single matches) */}
+                                                    {rival.matchType !== 'DOUBLE' && (rival.joinRequests || []).length > 0 && (
                                                         <div className="bg-gray-800 rounded-xl p-3 space-y-2">
                                                             <p className="text-gray-400 text-xs font-bold">
                                                                 📬 Join Requests ({rival.joinRequests.length})
@@ -3308,7 +3456,7 @@ function SubCategoryPage() {
                                                                             <div className="flex flex-wrap gap-1">
                                                                                 {jTeam.map(t => (
                                                                                     <span key={t.id} className="text-gray-300 text-[10px] bg-gray-700 rounded-full px-2 py-0.5">
-                                                                                        {t.username} {t.skillRating > 0 ? `(${Number(t.skillRating).toFixed(1)}★)` : ''}
+                                                                                        {t.username} {t.assessmentCompleted ? `(${Number(t.skillRating).toFixed(1)}★)` : ''}
                                                                                     </span>
                                                                                 ))}
                                                                             </div>
@@ -3438,7 +3586,7 @@ function SubCategoryPage() {
                                                         {p.username?.[0]?.toUpperCase()}
                                                     </div>
                                                     <span className="text-gray-300 text-xs truncate">{p.fullName || p.username}</span>
-                                                    {p.skillRating > 0 && (
+                                                    {p.skillRating != null && (
                                                         <span className="text-yellow-400 text-[10px] ml-auto flex-shrink-0">{Number(p.skillRating).toFixed(1)}★</span>
                                                     )}
                                                 </div>
@@ -3455,10 +3603,10 @@ function SubCategoryPage() {
                                 const UpcomingCard = ({ m, isPastCard = false }) => {
                                     const parts = Array.isArray(m.participants) ? m.participants : [];
                                     const sTeam = Array.isArray(m.senderTeam) ? m.senderTeam : [];
-                                    const isTeamMatch = m.matchMode === 'COMPETITIVE' && sTeam.length > 0 && sub === 'football';
+                                    const isTeamMatch = (m.matchMode === 'COMPETITIVE' && sTeam.length > 0 && sub === 'football') || m.matchType === 'DOUBLE';
 
                                     const creatorTeam = isTeamMatch
-                                        ? [{ id: m.senderId, username: m.sender?.username, fullName: m.sender?.fullName, skillRating: 0 }, ...sTeam]
+                                        ? [{ id: m.senderId, username: m.sender?.username, fullName: m.sender?.fullName, skillRating: m.senderSkillRating ?? null }, ...sTeam]
                                         : null;
                                     const opponentTeam = isTeamMatch ? parts : null;
 
@@ -6182,6 +6330,38 @@ function SubCategoryPage() {
                         setTeamChallengeRival(null);
                     }}
                 />
+            )}
+
+            {joinInvitePicker && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-sm max-h-[70vh] flex flex-col">
+                        <div className="flex justify-between items-center px-5 py-4 border-b border-gray-800">
+                            <h4 className="text-white font-bold text-sm">👥 Invite a Partner</h4>
+                            <button onClick={() => setJoinInvitePicker(null)} className="text-gray-400 hover:text-white text-lg">✕</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-5 py-3">
+                            {joinInvitePicker.candidates.length === 0 ? (
+                                <p className="text-gray-500 text-sm text-center py-6">No other solo applicants to invite yet</p>
+                            ) : joinInvitePicker.candidates.map(c => (
+                                <button key={c.userId}
+                                    onClick={() => setMyRivalJoinPartner(joinInvitePicker.rivalId, c.userId)}
+                                    disabled={partnerActionLoading}
+                                    className="w-full flex items-center gap-3 py-2.5 border-b border-gray-800 hover:bg-gray-800/60 transition text-left">
+                                    <div className={`w-9 h-9 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+                                        {c.user?.username?.[0]?.toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-white text-sm font-bold truncate">{c.user?.fullName || c.user?.username}</p>
+                                        <p className="text-gray-500 text-xs truncate">
+                                            @{c.user?.username}{(c.user?.interests || []).find(i => i.subCategory === sub)?.skillRating != null
+                                                ? `  ${Number((c.user.interests.find(i => i.subCategory === sub)).skillRating).toFixed(2)}★` : ''}
+                                        </p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             )}
 
             {showCreateModal && (

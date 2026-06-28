@@ -552,8 +552,8 @@ export const sendJoinRequest = async (req, res, next) => {
         const updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
-                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, totalPoints: true, wins: true, losses: true } } } },
-                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
+                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
+                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
         broadcast('rivalUpdate', updatedRival);
@@ -622,8 +622,8 @@ export const setRivalJoinPartner = async (req, res, next) => {
         const updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
-                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, totalPoints: true, wins: true, losses: true } } } },
-                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
+                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
+                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
         broadcast('rivalUpdate', updatedRival);
@@ -696,7 +696,7 @@ export const inviteToRival = async (req, res, next) => {
             where: { id },
             include: {
                 sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, totalPoints: true, wins: true, losses: true, alias: true } } } },
-                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true } } } } } },
+                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
         emitToUser(userId, 'rivalUpdate', updatedRival);
@@ -799,7 +799,7 @@ export const respondToJoin = async (req, res, next) => {
                             select: {
                                 ...SENDER_SELECT,
                                 interests: {
-                                    select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true },
+                                    select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true },
                                 },
                             },
                         },

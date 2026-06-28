@@ -299,7 +299,7 @@ export const searchUsers = async (req, res, next) => {
                             subCategory,
                             ...(category && { category }),
                         },
-                        select: { subCategory: true, skillRating: true, totalPoints: true, level: true, alias: true },
+                        select: { subCategory: true, skillRating: true, totalPoints: true, level: true, alias: true, assessmentCompleted: true },
                     },
                 }),
             },

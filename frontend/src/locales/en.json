@@ -86,6 +86,7 @@
     "team_full": "✓ Team is full! Ready to post.",
     "team_elo_note": "⚔️ Team average rating ({{avg}}★) will be used for ELO calculations",
     "fill_spots": "⚠️ Fill all {{n}} spots before posting a Competitive match",
+    "choose_partner_warn": "⚠️ Please choose your doubles partner",
     "description": "Description",
     "description_placeholder": "Looking for a {{sport}} rival...",
     "level_detail": "Level Detail",

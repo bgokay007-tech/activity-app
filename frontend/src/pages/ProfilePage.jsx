@@ -751,7 +751,7 @@ function ActivityCard({ interest, navigate, isOwn }) {
                         </div>
                         <div className="flex items-end justify-between">
                             <div>
-                                {interest.skillRating > 0 ? (
+                                {interest.assessmentCompleted ? (
                                     <>
                                         <div className="flex items-baseline gap-1">
                                             <p className={`text-3xl font-black bg-gradient-to-r ${cfg.color} bg-clip-text text-transparent`}>

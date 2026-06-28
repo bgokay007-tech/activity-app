@@ -86,6 +86,7 @@
     "team_full": "✓ Takım tamam! İlan verebilirsiniz.",
     "team_elo_note": "⚔️ Takım ortalama derecesi ({{avg}}★) ELO hesaplamalarında kullanılacak",
     "fill_spots": "⚠️ Rekabetçi maç için {{n}} oyuncu da seçilmeli",
+    "choose_partner_warn": "⚠️ Lütfen çift partnerinizi seçin",
     "description": "Açıklama",
     "description_placeholder": "{{sport}} rakibi arıyorum...",
     "level_detail": "Seviye Detayı",
