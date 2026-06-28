@@ -1,5 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+# Vite 8 (frontend) requires node ^20.19.0 || >=22.12.0 — nodejs_20 silently failed to
+# satisfy this (npm ci never produced node_modules/.bin/vite, build step no-op'd via
+# `|| true`), so backend/public kept serving a stale frontend bundle for a long time.
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [
