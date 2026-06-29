@@ -4235,7 +4235,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </Text>
                         )}
                     </>)}
-                    {item.type === '1' && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
+                    {(item.type === '1' || item.type === '2') && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:2 }}>
                             {item.setsPerMatch && (
                                 <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
@@ -4799,8 +4799,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <Switch value={editIsIndoor} onValueChange={setEditIsIndoor} trackColor={{ true: infoColor }} />
                                 </View>
 
-                                {/* Type-1 specific */}
-                                {item.type === '1' && (<>
+                                {/* Bireysel ve Çiftler Rekabetçi'de geçerli */}
+                                {(item.type === '1' || item.type === '2') && (<>
                                     <Text style={s.fieldLabel}>Set Sayısı</Text>
                                     <View style={s.chipRow}>
                                         {['1','3','5'].map(n => (
@@ -5758,7 +5758,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 prize2: f.prize2.trim() || undefined,
                 prize3: f.prize3.trim() || undefined,
                 contactPhone: f.contactPhone.trim() || undefined,
-                ...(f.type === '1' && {
+                ...((f.type === '1' || f.type === '2') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : undefined,
                     advantageScoring: f.advantageScoring,
                     matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : undefined,
@@ -6253,8 +6253,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             </View>
 
-                            {/* Type-1 specific config (scoring + matches/qualifiers) */}
-                            {f.type === '1' && (
+                            {/* Scoring + matches/qualifiers — Bireysel ve Çiftler Rekabetçi'de geçerli */}
+                            {(f.type === '1' || f.type === '2') && (
                                 <>
                                     <Text style={s.fieldLabel}>{t.tournScoringLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
