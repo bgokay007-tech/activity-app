@@ -3877,6 +3877,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         finally { setLoadingMatches(false); }
     }, [item.id]);
 
+    const [confirmingMatchId, setConfirmingMatchId] = useState(null);
+    const confirmTournamentScore = async (match) => {
+        setConfirmingMatchId(match.id);
+        try {
+            const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/confirm`);
+            setTournMatches(Array.isArray(data) ? data : tournMatches);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setConfirmingMatchId(null); }
+    };
+
     const handleStartTournament = () => {
         Alert.alert('Turnuvayı Başlat', 'Eşleşmeler otomatik oluşturulacak ve turnuva başlayacak. Onaylıyor musunuz?', [
             { text: 'İptal', style: 'cancel' },
@@ -4659,13 +4670,37 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     </TouchableOpacity>
                                                                 );
                                                             })()}
-                                                            {isDone && (isCreator || myIsAdmin) && !isEntering && (
-                                                                <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                    style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
-                                                                    <Text style={{ color:'#fbbf24', fontSize:12 }}>✏️</Text>
-                                                                    <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>Düzelt</Text>
-                                                                </TouchableOpacity>
-                                                            )}
+                                                            {(() => {
+                                                                if (!isDone) return null;
+                                                                const bothConfirmed = match.p1Confirmed && match.p2Confirmed;
+                                                                const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
+                                                                    : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
+                                                                return (
+                                                                    <>
+                                                                        {!bothConfirmed && myUnconfirmedSide && !isEntering && (
+                                                                            <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
+                                                                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60', alignItems:'center' }}>
+                                                                                <Text style={{ color:'#4ade80', fontSize:12 }}>✓</Text>
+                                                                                <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>Onayla</Text>
+                                                                            </TouchableOpacity>
+                                                                        )}
+                                                                        {!bothConfirmed && (isCreator || myIsAdmin) && !isEntering && (
+                                                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
+                                                                                <Text style={{ color:'#fbbf24', fontSize:12 }}>✏️</Text>
+                                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>Düzelt</Text>
+                                                                            </TouchableOpacity>
+                                                                        )}
+                                                                        {bothConfirmed ? (
+                                                                            <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>✓ Onaylandı</Text>
+                                                                        ) : (
+                                                                            <Text style={{ color: colors.textMuted, fontSize:8 }}>
+                                                                                {match.p1Confirmed && !match.p2Confirmed ? 'Rakip onayı bekleniyor' : !match.p1Confirmed && match.p2Confirmed ? 'Rakip onayı bekleniyor' : 'Onay bekleniyor'}
+                                                                            </Text>
+                                                                        )}
+                                                                    </>
+                                                                );
+                                                            })()}
                                                         </View>
                                                     </View>
                                                     {isEntering && (

@@ -566,6 +566,9 @@ model TournamentMatch {
   deadline           DateTime?
   p1JokerRequested   Boolean   @default(false)
   p2JokerRequested   Boolean   @default(false)
+  scoreEnteredBy     String?   // skoru giren kullanıcının id'si — kendi tarafı otomatik onaylanır
+  p1Confirmed        Boolean   @default(false) // p1 tarafından biri (Çiftler'de takım üyesi) skoru onayladı
+  p2Confirmed        Boolean   @default(false) // p2 tarafından biri skoru onayladı — ikisi de true olunca skor kilitlenir, Düzelt kalkar
   createdAt          DateTime  @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)

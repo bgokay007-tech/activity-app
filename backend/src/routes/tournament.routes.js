@@ -17,6 +17,7 @@ import {
     startTournament,
     getTournamentMatches,
     enterTournamentMatchScore,
+    confirmTournamentMatchScore,
     approveCancelRequest,
     removeParticipant,
     addManualParticipant,
@@ -57,6 +58,7 @@ router.post('/:id/start',                               startTournament);
 router.post('/:id/rematch',                             rematchTournament);
 router.get('/:id/matches',                   getTournamentMatches);
 router.patch('/:id/matches/:matchId/score',  enterTournamentMatchScore);
+router.post('/:id/matches/:matchId/confirm', confirmTournamentMatchScore);
 router.post('/:id/matches/:matchId/joker',   useJoker);
 router.post('/:id/regen-round',              regenCurrentGroupRound);
 router.post('/:id/fix-deadlines',            fixGroupDeadlines);

@@ -1689,6 +1689,18 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const loserId  = winner === 'p1' ? match.p2Id : match.p1Id;
         const isCorrection = match.status === 'COMPLETED';
 
+        // Skor her iki taraf tarafından onaylandıysa kilitlenir — admin/oluşturucu dahil
+        // kimse artık düzenleyemez.
+        if (isCorrection && match.p1Confirmed && match.p2Confirmed) {
+            return res.status(400).json({ message: 'Skor her iki taraf tarafından onaylandı, artık düzenlenemez.' });
+        }
+
+        // Skoru giren taraf otomatik onaylanır (kendi tarafı için); diğer taraf ayrıca onaylamalı.
+        // Skoru giren ne p1 ne p2 tarafındaysa (sadece oluşturucu/admin olarak giriyorsa), hiçbir
+        // taraf otomatik onaylanmaz — ikisi de ayrıca onaylamak zorunda.
+        const enteredByP1 = p1Members.includes(req.userId);
+        const enteredByP2 = p2Members.includes(req.userId);
+
         // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5).
         // Çiftler Rekabetçi: aynı delta her iki taraftaki TÜM üyelere ayrı ayrı uygulanır.
         let p1EloDelta = 0, p2EloDelta = 0;
@@ -1873,7 +1885,12 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
         await prisma.tournamentMatch.update({
             where: { id: matchId },
-            data: { score, status: 'COMPLETED', winnerId },
+            data: {
+                score, status: 'COMPLETED', winnerId,
+                scoreEnteredBy: req.userId,
+                p1Confirmed: enteredByP1,
+                p2Confirmed: enteredByP2,
+            },
         });
 
         // Advance winner through PLAYOFF bracket
@@ -1999,6 +2016,51 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             }
         }
 
+        res.json(allMatches);
+    } catch (e) { next(e); }
+};
+
+/** Skoru girmemiş taraf, kendi tarafından biri (Çiftler'de takım üyesi) olarak skoru
+ *  onaylar. İki taraf da onaylayınca skor kilitlenir — bundan sonra admin/oluşturucu
+ *  dahil kimse Düzelt ile değiştiremez (enterTournamentMatchScore'daki kilit kontrolü).
+ */
+export const confirmTournamentMatchScore = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
+
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı.' });
+        if (match.status !== 'COMPLETED') return res.status(400).json({ message: 'Bu maç için henüz skor girilmedi.' });
+
+        const isTeamTournament = tournament.type === '2';
+        let p1Members = [match.p1Id].filter(Boolean);
+        let p2Members = [match.p2Id].filter(Boolean);
+        if (isTeamTournament) {
+            const teams = await prisma.tournamentTeam.findMany({ where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } } });
+            const t1 = teams.find(t => t.id === match.p1Id);
+            const t2 = teams.find(t => t.id === match.p2Id);
+            if (t1) p1Members = [t1.player1Id, t1.player2Id];
+            if (t2) p2Members = [t2.player1Id, t2.player2Id];
+        }
+
+        const isP1 = p1Members.includes(req.userId);
+        const isP2 = p2Members.includes(req.userId);
+        if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maçta yer almıyorsunuz.' });
+
+        await prisma.tournamentMatch.update({
+            where: { id: matchId },
+            data: { ...(isP1 && { p1Confirmed: true }), ...(isP2 && { p2Confirmed: true }) },
+        });
+
+        const allMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+        for (const uid of [...p1Members, ...p2Members]) {
+            emitToUser(uid, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
+        }
         res.json(allMatches);
     } catch (e) { next(e); }
 };
