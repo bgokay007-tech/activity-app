@@ -6791,6 +6791,28 @@ function SubCategoryPage() {
 
                 const closeModal = () => { setMatchesModalTournament(null); setScoreEntryMatchId(null); };
 
+                const ratingOf = (uid) => tournMatchesData.playerRatings?.[uid];
+                const fmtR = (r) => r != null ? `${Number(r).toFixed(2)}★` : '—';
+                const teamById = (tid) => (tournMatchesData.teams || []).find(t => t.id === tid);
+
+                // Çiftler Rekabetçi: her iki oyuncunun güncel bireysel puanı + takım ortalaması.
+                // Bireysel Rekabetçi: tek oyuncunun güncel puanı.
+                const SideLabel = ({ sid, name }) => {
+                    if (mt.type === '2') {
+                        const team = teamById(sid);
+                        if (!team) return <span>{name || 'TBD'}</span>;
+                        return (
+                            <span>
+                                {team.player1Name} <span className="text-gray-500 text-[10px]">({fmtR(ratingOf(team.player1Id))})</span>
+                                {' & '}
+                                {team.player2Name} <span className="text-gray-500 text-[10px]">({fmtR(ratingOf(team.player2Id))})</span>
+                                {' '}<span className="text-gray-400 text-[10px] font-bold">— Avg {fmtR(team.avgRating)}</span>
+                            </span>
+                        );
+                    }
+                    return <span>{name || 'TBD'} <span className="text-gray-500 text-[10px]">({fmtR(ratingOf(sid))})</span></span>;
+                };
+
                 const MatchCard = ({ m }) => {
                     const mySide = myMatchSide(m);
                     const otherSide = mySide === 'p1' ? 'p2' : mySide === 'p2' ? 'p1' : null;
@@ -6801,7 +6823,9 @@ function SubCategoryPage() {
                         <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
                             <div className="flex items-center justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-white text-sm font-bold truncate">{m.p1Name || 'TBD'} <span className="text-gray-500">vs</span> {m.p2Name || 'TBD'}</p>
+                                    <p className="text-white text-sm font-bold truncate">
+                                        <SideLabel sid={m.p1Id} name={m.p1Name} /> <span className="text-gray-500">vs</span> <SideLabel sid={m.p2Id} name={m.p2Name} />
+                                    </p>
                                     {m.status === 'COMPLETED' && (
                                         <p className="text-green-400 text-xs mt-0.5">
                                             {(sc.sets || []).map((s, i) => `${s.p1}-${s.p2}`).join(', ')} · {m.winnerId === m.p1Id ? m.p1Name : m.p2Name} won

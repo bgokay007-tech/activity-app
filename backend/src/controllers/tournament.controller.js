@@ -1583,6 +1583,9 @@ export const rematchTournament = async (req, res, next) => {
 export const getTournamentMatches = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { category: true, subCategory: true } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
         const [matches, myTeam, teams] = await Promise.all([
             prisma.tournamentMatch.findMany({
                 where: { tournamentId: id },
@@ -1593,14 +1596,43 @@ export const getTournamentMatches = async (req, res, next) => {
             prisma.tournamentTeam.findFirst({
                 where: { tournamentId: id, OR: [{ player1Id: req.userId }, { player2Id: req.userId }] },
             }),
-            // Takımların güncel ortalama ELO'su — istemci henüz skorlanmamış maçlarda da
-            // takım yıldız puanını gösterebilsin diye.
+            // Takım üyeleri (id + ad) — güncel bireysel/ortalama puan ayrıca hesaplanır.
             prisma.tournamentTeam.findMany({
                 where: { tournamentId: id },
-                select: { id: true, avgRating: true },
+                select: { id: true, player1Id: true, player1Name: true, player2Id: true, player2Name: true },
             }),
         ]);
-        res.json({ matches, myTeamId: myTeam?.id || null, teams });
+
+        // Her oyuncunun GÜNCEL bireysel puanı — takımın sabit avgRating snapshot'ı değil,
+        // skor girildikten sonra değişen anlık skillRating'e göre hesaplanır (Bireysel ve
+        // Çiftler Rekabetçi'de maç kartlarında her zaman en güncel puanlar görünsün diye).
+        const userIds = new Set();
+        for (const m of matches) {
+            if (m.p1Id) userIds.add(m.p1Id);
+            if (m.p2Id) userIds.add(m.p2Id);
+        }
+        for (const t of teams) { userIds.add(t.player1Id); userIds.add(t.player2Id); }
+
+        const interests = await prisma.userInterest.findMany({
+            where: { userId: { in: [...userIds] }, category: tournament.category, subCategory: tournament.subCategory },
+            select: { userId: true, skillRating: true },
+        });
+        const ratingOf = (uid) => interests.find(i => i.userId === uid)?.skillRating ?? null;
+
+        const playerRatings = {};
+        for (const uid of userIds) playerRatings[uid] = ratingOf(uid);
+
+        const teamsEnriched = teams.map(t => {
+            const r1 = ratingOf(t.player1Id), r2 = ratingOf(t.player2Id);
+            return {
+                id: t.id,
+                player1Id: t.player1Id, player1Name: t.player1Name,
+                player2Id: t.player2Id, player2Name: t.player2Name,
+                avgRating: (r1 != null && r2 != null) ? (r1 + r2) / 2 : null,
+            };
+        });
+
+        res.json({ matches, myTeamId: myTeam?.id || null, teams: teamsEnriched, playerRatings });
     } catch (e) { next(e); }
 };
 
