@@ -3466,6 +3466,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [myTeamId, setMyTeamId] = useState(null); // Çiftler Rekabetçi: maçlarda p1Id/p2Id benim değil takımımın id'si
     const [tournTeams, setTournTeams] = useState([]); // Çiftler Rekabetçi: takım id -> avgRating (skorlanmamış maçlarda da puan göstermek için)
     const [tournPlayerRatings, setTournPlayerRatings] = useState({}); // userId -> güncel bireysel skillRating (backend'den canlı)
+    const [matchesError, setMatchesError] = useState(false); // /matches isteği başarısız oldu — "maç yok" ile karıştırılmasın
     const mySideId = item.type === '2' ? myTeamId : myId;
     const [loadingMatches, setLoadingMatches] = useState(false);
     const [showMatchesModal, setShowMatchesModal] = useState(false);
@@ -3857,13 +3858,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     const fetchMatches = useCallback(async () => {
         setLoadingMatches(true);
+        setMatchesError(false);
         try {
             const { data } = await api.get(`/tournaments/${item.id}/matches`);
             setTournMatches(Array.isArray(data?.matches) ? data.matches : []);
             setMyTeamId(data?.myTeamId || null);
             setTournTeams(Array.isArray(data?.teams) ? data.teams : []);
             setTournPlayerRatings(data?.playerRatings || {});
-        } catch { /* silent */ }
+        } catch (e) {
+            // Önceden burada hata sessizce yutuluyordu — geçici bir ağ hatasında ekran
+            // "Maç yok" gösteriyordu (gerçekten maç olmamasıyla ayırt edilemiyordu),
+            // kullanıcı modalı kapatıp tekrar açınca (fetchMatches yeniden tetiklenince)
+            // düzeliyordu. Artık hata durumu ayrı gösteriliyor ve "Tekrar Dene" ile aynı
+            // modalı kapatmadan yeniden denenebiliyor.
+            console.log('[fetchMatches] failed:', e?.message);
+            setMatchesError(true);
+        }
         finally { setLoadingMatches(false); }
     }, [item.id]);
 
@@ -4429,6 +4439,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <ScrollView showsVerticalScrollIndicator={false}>
                 {loadingMatches ? (
                     <ActivityIndicator size="small" color="#4ade80" style={{ marginVertical:8 }} />
+                ) : matchesError ? (
+                    <View style={{ alignItems:'center', paddingVertical:10 }}>
+                        <Text style={{ color:'#f87171', fontSize:12, marginBottom:8 }}>Maçlar yüklenemedi (bağlantı sorunu olabilir)</Text>
+                        <TouchableOpacity onPress={fetchMatches} style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:14, paddingVertical:6, borderWidth:1, borderColor:'#16a34a60' }}>
+                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>↻ Tekrar Dene</Text>
+                        </TouchableOpacity>
+                    </View>
                 ) : matchTab === 'standings' ? (
                     standings.length === 0
                         ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz maç sonucu yok</Text>
