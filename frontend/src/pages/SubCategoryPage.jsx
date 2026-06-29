@@ -3094,6 +3094,11 @@ function SubCategoryPage() {
                     <span className="text-gray-500 text-xs font-black">+</span>
                     {slot2}
                 </div>
+                {p2 && ratingOf(p1) != null && ratingOf(p2) != null && (
+                    <p className="text-purple-300 text-[10px] font-bold text-center mt-1">
+                        Takım Ort: {((Number(ratingOf(p1)) + Number(ratingOf(p2))) / 2).toFixed(2)}★
+                    </p>
+                )}
                 {isOwnerView && (
                     <div className="flex gap-1.5 mt-1.5">
                         <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'ACCEPTED')}
@@ -6795,22 +6800,29 @@ function SubCategoryPage() {
                 const fmtR = (r) => r != null ? `${Number(r).toFixed(2)}★` : '—';
                 const teamById = (tid) => (tournMatchesData.teams || []).find(t => t.id === tid);
 
-                // Çiftler Rekabetçi: her iki oyuncunun güncel bireysel puanı + takım ortalaması.
-                // Bireysel Rekabetçi: tek oyuncunun güncel puanı.
-                const SideLabel = ({ sid, name }) => {
+                // Çiftler Rekabetçi: her iki oyuncunun güncel bireysel puanı + takım ortalaması,
+                // alt alta (truncate olmadan, hepsi sığsın diye). Bireysel Rekabetçi: tek satır.
+                const SideBlock = ({ sid, name }) => {
                     if (mt.type === '2') {
                         const team = teamById(sid);
-                        if (!team) return <span>{name || 'TBD'}</span>;
+                        if (!team) return <p className="text-white text-sm font-bold">{name || 'TBD'}</p>;
                         return (
-                            <span>
-                                {team.player1Name} <span className="text-gray-500 text-[10px]">({fmtR(ratingOf(team.player1Id))})</span>
-                                {' & '}
-                                {team.player2Name} <span className="text-gray-500 text-[10px]">({fmtR(ratingOf(team.player2Id))})</span>
-                                {' '}<span className="text-gray-400 text-[10px] font-bold">— Avg {fmtR(team.avgRating)}</span>
-                            </span>
+                            <div className="text-sm">
+                                <p className="text-white font-bold leading-tight">
+                                    {team.player1Name} <span className="text-gray-400 text-[11px] font-normal">({fmtR(ratingOf(team.player1Id))})</span>
+                                </p>
+                                <p className="text-white font-bold leading-tight">
+                                    {team.player2Name} <span className="text-gray-400 text-[11px] font-normal">({fmtR(ratingOf(team.player2Id))})</span>
+                                </p>
+                                <p className="text-purple-300 text-[11px] font-bold mt-0.5">Takım Ort: {fmtR(team.avgRating)}</p>
+                            </div>
                         );
                     }
-                    return <span>{name || 'TBD'} <span className="text-gray-500 text-[10px]">({fmtR(ratingOf(sid))})</span></span>;
+                    return (
+                        <p className="text-white text-sm font-bold truncate">
+                            {name || 'TBD'} <span className="text-gray-400 text-[11px] font-normal">({fmtR(ratingOf(sid))})</span>
+                        </p>
+                    );
                 };
 
                 const MatchCard = ({ m }) => {
@@ -6821,11 +6833,21 @@ function SubCategoryPage() {
                     const sc = m.score || {};
                     return (
                         <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-white text-sm font-bold truncate">
-                                        <SideLabel sid={m.p1Id} name={m.p1Name} /> <span className="text-gray-500">vs</span> <SideLabel sid={m.p2Id} name={m.p2Name} />
-                                    </p>
+                                    {mt.type === '2' ? (
+                                        <div className="space-y-1.5">
+                                            <SideBlock sid={m.p1Id} name={m.p1Name} />
+                                            <p className="text-gray-500 text-[10px] font-black">vs</p>
+                                            <SideBlock sid={m.p2Id} name={m.p2Name} />
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <SideBlock sid={m.p1Id} name={m.p1Name} />
+                                            <span className="text-gray-500 text-sm flex-shrink-0">vs</span>
+                                            <SideBlock sid={m.p2Id} name={m.p2Name} />
+                                        </div>
+                                    )}
                                     {m.status === 'COMPLETED' && (
                                         <p className="text-green-400 text-xs mt-0.5">
                                             {(sc.sets || []).map((s, i) => `${s.p1}-${s.p2}`).join(', ')} · {m.winnerId === m.p1Id ? m.p1Name : m.p2Name} won
