@@ -1701,6 +1701,17 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const enteredByP1 = p1Members.includes(req.userId);
         const enteredByP2 = p2Members.includes(req.userId);
 
+        // Test/demo kolaylığı: bir taraf TAMAMEN demo oyunculardan oluşuyorsa (demo_ ön ekli
+        // kullanıcı adı), o taraf otomatik onaylanır — demo hesaplara giriş yapıp manuel
+        // onaylamaya gerek kalmaz.
+        const memberUsers = await prisma.user.findMany({
+            where: { id: { in: [...p1Members, ...p2Members] } },
+            select: { id: true, username: true },
+        });
+        const isDemoUser = (uid) => !!memberUsers.find(u => u.id === uid)?.username?.startsWith('demo_');
+        const p1AllDemo = p1Members.length > 0 && p1Members.every(isDemoUser);
+        const p2AllDemo = p2Members.length > 0 && p2Members.every(isDemoUser);
+
         // Apply competitive points — same system as rival matches (totalPoints + skillRating 0-5).
         // Çiftler Rekabetçi: aynı delta her iki taraftaki TÜM üyelere ayrı ayrı uygulanır.
         let p1EloDelta = 0, p2EloDelta = 0;
@@ -1888,8 +1899,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             data: {
                 score, status: 'COMPLETED', winnerId,
                 scoreEnteredBy: req.userId,
-                p1Confirmed: enteredByP1,
-                p2Confirmed: enteredByP2,
+                p1Confirmed: enteredByP1 || p1AllDemo,
+                p2Confirmed: enteredByP2 || p2AllDemo,
             },
         });
 
