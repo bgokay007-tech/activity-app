@@ -342,15 +342,20 @@ function pairSoloPlayers(solo, avoidSameGenderFemale) {
     return { pairs, excluded };
 }
 
-async function formTeamsForTournament(tournament, mainList) {
-    const byUserId = new Map(mainList.filter(p => p.userId).map(p => [p.userId, p]));
+// `acceptedList` = TÜM kabul edilmiş başvuranlar (maxPlayers'a göre kesilmemiş).
+// Eşleştirme tüm havuzda yapılır, sonra sonuç maxPlayers/2 takıma göre kesilir —
+// böylece ilk maxPlayers içinde eşi bulunamayan biri, sıradaki yedeklerden uygun
+// bir eş varsa onunla eşleşip turnuvaya girebilir; kapasite sınırı yine de korunur.
+async function formTeamsForTournament(tournament, acceptedList) {
+    const byUserId = new Map(acceptedList.filter(p => p.userId).map(p => [p.userId, p]));
     const ratingOf = (p) => p.user?.interests?.[0]?.skillRating || 0;
     const nameOf   = (p) => p.user?.fullName || p.user?.username || 'Oyuncu';
     const genderOf = (p) => p.user?.gender || null;
+    const orderOf  = (p) => (p.acceptedAt || p.createdAt)?.getTime() ?? Infinity;
     const paired = new Set();
     const teamsData = [];
 
-    for (const p of mainList) {
+    for (const p of acceptedList) {
         if (!p.userId || paired.has(p.userId) || !p.partnerId) continue;
         const partner = byUserId.get(p.partnerId);
         if (partner && partner.partnerId === p.userId && !paired.has(partner.userId)) {
@@ -360,13 +365,14 @@ async function formTeamsForTournament(tournament, mainList) {
                 player1Id: p.userId, player1Name: nameOf(p),
                 player2Id: partner.userId, player2Name: nameOf(partner),
                 avgRating: (ratingOf(p) + ratingOf(partner)) / 2,
+                _order: Math.min(orderOf(p), orderOf(partner)),
             });
         }
     }
 
-    const solo = mainList
+    const solo = acceptedList
         .filter(p => p.userId && !paired.has(p.userId))
-        .map(p => ({ userId: p.userId, name: nameOf(p), rating: ratingOf(p), gender: genderOf(p) }));
+        .map(p => ({ userId: p.userId, name: nameOf(p), rating: ratingOf(p), gender: genderOf(p), order: orderOf(p) }));
 
     const { pairs, excluded } = pairSoloPlayers(solo, tournament.genderType === 'MIX');
     for (const [a, b] of pairs) {
@@ -375,10 +381,23 @@ async function formTeamsForTournament(tournament, mainList) {
             player1Id: a.userId, player1Name: a.name,
             player2Id: b.userId, player2Name: b.name,
             avgRating: (a.rating + b.rating) / 2,
+            _order: Math.min(a.order, b.order),
         });
     }
 
-    return { teamsData, excluded };
+    // Kapasite: maxPlayers/2 takım. Havuzda kapasiteden fazla eşleşme oluştuysa,
+    // en erken kabul edilenler önceliklidir — fazlalık bu turda yer alamaz (yedek).
+    const maxTeams = tournament.maxPlayers ? Math.floor(tournament.maxPlayers / 2) : teamsData.length;
+    teamsData.sort((a, b) => a._order - b._order);
+    const finalTeams = teamsData.slice(0, maxTeams);
+    for (const ex of excluded) ex.reason = 'no_partner';
+    for (const bumped of teamsData.slice(maxTeams)) {
+        excluded.push({ userId: bumped.player1Id, name: bumped.player1Name, reason: 'capacity' });
+        excluded.push({ userId: bumped.player2Id, name: bumped.player2Name, reason: 'capacity' });
+    }
+    for (const team of finalTeams) delete team._order;
+
+    return { teamsData: finalTeams, excluded };
 }
 
 export const fixGroupDeadlines = async (req, res, next) => {
@@ -1379,15 +1398,21 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         // Çiftler Rekabetçi: önce takımları oluştur (partner eşleşenler + ELO'ya göre
         // otomatik eşleşen bireysel başvurular), sonra takımlar arası sadece round 1
         // oluştur — sonraki turlar Bireysel Rekabetçi gibi dinamik üretilir.
-        const { teamsData, excluded } = await formTeamsForTournament(tournament, mainList);
+        // NOT: maxPlayers kapasitesine kadar TÜM kabul edilmiş başvuranlar (sadece ilk
+        // maxPlayers kişi değil) eşleştirmeye dahil edilir — aksi halde ilk maxPlayers
+        // içinde cinsiyet dengesizliği yüzünden eşi bulunamayan biri, yedekte uygun bir
+        // eşi olsa bile turnuvaya alınamıyordu (bkz. formTeamsForTournament).
+        const { teamsData, excluded } = await formTeamsForTournament(tournament, rawParticipants);
         excludedFromTeams = excluded;
         if (teamsData.length < 2) {
             throw Object.assign(new Error('Çiftler Rekabetçi turnuvası için en az 2 takım (4 oyuncu) gerekli.'), { status: 400 });
         }
         for (const ex of excluded) {
+            const body = ex.reason === 'capacity'
+                ? `"${tournament.name}" turnuvasında kontenjan dolduğu için bu turda yer alamadınız.`
+                : `"${tournament.name}" turnuvasında size eşleşecek bir partner bulunamadığı için bu turda yer alamadınız.`;
             createNotification(
-                ex.userId, 'TOURNAMENT_REMOVED', '⚠️ Takım Eşleşmesi Bulunamadı',
-                `"${tournament.name}" turnuvasında size eşleşecek bir partner bulunamadığı için bu turda yer alamadınız.`,
+                ex.userId, 'TOURNAMENT_REMOVED', '⚠️ Takım Eşleşmesi Bulunamadı', body,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
         }
@@ -1441,9 +1466,12 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     }
 
     // Notify real (non-manual) participants + socket push for instant UI update
-    // (takım eşleşmesi bulunamayan oyuncular zaten ayrı bir bildirim aldı, bunu almasınlar)
+    // (takım eşleşmesi bulunamayan oyuncular zaten ayrı bir bildirim aldı, bunu almasınlar).
+    // Çiftler Rekabetçi'de yedekten takıma çekilen oyuncular da bildirim almalı, bu yüzden
+    // type '2' için mainList değil tüm kabul edilenler (rawParticipants) taranır.
     const excludedIds = new Set(excludedFromTeams.map(ex => ex.userId));
-    for (const p of mainList) {
+    const notifyList = tournament.type === '2' ? rawParticipants : mainList;
+    for (const p of notifyList) {
         if (p.userId && p.userId !== actorUserId && !excludedIds.has(p.userId)) {
             emitToUser(p.userId, 'tournament:started', { tournamentId: id });
             await createNotification(
