@@ -2547,6 +2547,8 @@ function SubCategoryPage() {
     const [scoreEntryMatchId, setScoreEntryMatchId] = useState(null);
     const [scoreSets, setScoreSets] = useState([{ p1: '', p2: '' }, { p1: '', p2: '' }]);
     const [matchActionLoading, setMatchActionLoading] = useState(false);
+    const [tournChatMessages, setTournChatMessages] = useState([]);
+    const [tournChatInput, setTournChatInput] = useState('');
     const [rulesOpen, setRulesOpen] = useState(false);
     const [managingTournament, setManagingTournament] = useState(null);
     const [joinRequests, setJoinRequests] = useState({}); // { [tournamentId]: [...] }
@@ -2878,6 +2880,30 @@ function SubCategoryPage() {
         }
     };
 
+    // İlan sahibi yanlışlıkla kabul ettiği bir katılımcıyı (çiftlerde takımın tamamını) çıkarır
+    const removeRivalParticipant = async (rivalId, participantUserId, participantName) => {
+        if (!confirm(`${participantName ? '@' + participantName : 'This user'} will be removed from the match and the listing will reopen. Are you sure?`)) return;
+        try {
+            const { data } = await api.delete(`/rivals/${rivalId}/participants/${participantUserId}`);
+            setRivals(prev => prev.map(r => r.id === rivalId ? { ...r, ...data.request } : r));
+        } catch (err) {
+            alert(err.response?.data?.message || 'Error');
+        }
+    };
+
+    const [seedingDemoRivalId, setSeedingDemoRivalId] = useState(null);
+    const sendRivalDemoJoin = async (rivalId) => {
+        setSeedingDemoRivalId(rivalId);
+        try {
+            const { data } = await api.post('/demo/rival-join', { rivalId });
+            alert(`Demo join request(s) sent: ${data.joined.join(', ')}`);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Error');
+        } finally {
+            setSeedingDemoRivalId(null);
+        }
+    };
+
     // Çiftler: kendi bireysel başvurumun partner durumunu değiştirir — davet et / kabul et / geri çek
     const setMyRivalJoinPartner = async (rivalId, partnerId) => {
         setPartnerActionLoading(true);
@@ -2972,6 +2998,225 @@ function SubCategoryPage() {
                 )}
             </div>
         );
+    };
+
+    const TYPE_LABEL = {
+        '1': `🏆 ${t('tournament.type1')}`,
+        '2': `👬 ${t('tournament.type2')}`,
+    };
+
+    const handleRequestAction = async (tournamentId, userId, status) => {
+        try {
+            await api.patch(`/tournaments/${tournamentId}/requests/${userId}`, { status });
+            setJoinRequests(prev => ({
+                ...prev,
+                [tournamentId]: (prev[tournamentId] || []).map(r => (r.userId === userId || r.user?.id === userId) ? { ...r, status } : r),
+            }));
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
+    // Çiftler Rekabetçi: kendi başvurumun partner durumunu değiştirir — davet et / kabul et / geri çek
+    const setMyTournamentPartner = async (tournamentId, partnerId) => {
+        setTournPartnerLoading(true);
+        try {
+            const { data } = await api.patch(`/tournaments/${tournamentId}/partner`, { partnerId: partnerId || null });
+            setJoinRequests(prev => ({
+                ...prev,
+                [tournamentId]: (prev[tournamentId] || []).map(r => r.id === data.id ? { ...r, ...data } : r),
+            }));
+            setTournInvitePicker(null);
+        } catch (err) { alert(err?.response?.data?.message || 'Error'); }
+        finally { setTournPartnerLoading(false); }
+    };
+
+    // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
+    const renderTournamentDuoCard = (tournamentId, p1, p2, solos, byUserId, isOwnerView) => {
+        const nameOf = (r) => r?.user?.fullName || r?.user?.username || '';
+        const ratingOf = (r) => (r?.user?.interests || [])[0]?.skillRating;
+        const Half = ({ r }) => (
+            <div className="min-w-0">
+                <p className="text-white text-xs font-bold truncate">{nameOf(r)}</p>
+                <p className="text-gray-500 text-[10px] truncate">
+                    @{r?.user?.username}{ratingOf(r) != null ? `  ${Number(ratingOf(r)).toFixed(2)}★` : ''}
+                </p>
+            </div>
+        );
+
+        let slot2;
+        if (p2) {
+            slot2 = <Half r={p2} />;
+        } else {
+            const isMine = p1.userId === myId;
+            const invitedBy = solos.find(o => o.partnerId === p1.userId && o.userId !== p1.userId);
+            if (p1.partnerId) {
+                const target = byUserId.get(p1.partnerId);
+                slot2 = (
+                    <div className="min-w-0">
+                        <p className="text-yellow-400 text-[10px] font-bold truncate">⏳ {nameOf(target) || '...'} ({t('tournament.waiting')})</p>
+                        {isMine && (
+                            <button onClick={() => setMyTournamentPartner(tournamentId, null)} disabled={tournPartnerLoading}
+                                className="text-red-400 text-[10px] font-bold mt-0.5">{t('tournament.withdraw_invite')}</button>
+                        )}
+                    </div>
+                );
+            } else if (invitedBy) {
+                slot2 = (
+                    <div className="min-w-0">
+                        <p className="text-green-400 text-[10px] font-bold truncate">{nameOf(invitedBy)} {t('tournament.invited_you')}</p>
+                        {isMine && (
+                            <button onClick={() => setMyTournamentPartner(tournamentId, invitedBy.userId)} disabled={tournPartnerLoading}
+                                className="bg-green-600/30 border border-green-500/50 text-green-400 text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg">{t('tournament.accept_invite')}</button>
+                        )}
+                    </div>
+                );
+            } else {
+                slot2 = (
+                    <div className="min-w-0">
+                        <p className="text-gray-500 text-[10px]">{t('tournament.looking_for_partner')}</p>
+                        {isMine && (
+                            <button
+                                onClick={() => setTournInvitePicker({ tournamentId, candidates: solos.filter(s => s.userId !== myId) })}
+                                disabled={tournPartnerLoading}
+                                className={`bg-gradient-to-r ${config.color} text-white text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg`}>
+                                {t('tournament.invite_partner')}
+                            </button>
+                        )}
+                    </div>
+                );
+            }
+        }
+
+        const isMineCard = p1.userId === myId || p2?.userId === myId;
+        return (
+            <div key={p1.id} className={`rounded-xl p-2 border ${isMineCard ? `${config.border} bg-gray-700/60` : 'border-gray-700 bg-gray-800'}`}>
+                <div className="flex items-start gap-2">
+                    <Half r={p1} />
+                    <span className="text-gray-500 text-xs font-black">+</span>
+                    {slot2}
+                </div>
+                {isOwnerView && (
+                    <div className="flex gap-1.5 mt-1.5">
+                        <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'ACCEPTED')}
+                            className="flex-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-bold py-1 rounded-lg transition">✓ Accept</button>
+                        <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'REJECTED')}
+                            className="flex-1 bg-gray-700 hover:bg-red-600/40 text-gray-300 hover:text-red-400 text-[10px] font-bold py-1 rounded-lg transition">✕ Reject</button>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const fetchTournMatches = async (tournamentId) => {
+        try {
+            const { data } = await api.get(`/tournaments/${tournamentId}/matches`);
+            setTournMatchesData(data);
+        } catch { setTournMatchesData({ matches: [], myTeamId: null, teams: [] }); }
+    };
+
+    const openMatchesModal = (tournament) => {
+        setMatchesModalTournament(tournament);
+        setMatchTab('matches');
+        fetchTournMatches(tournament.id);
+        fetchTournChat(tournament.id);
+    };
+
+    const handleStartTournament = async (tournament) => {
+        if (!confirm(`${tournament.name} — start this tournament now? No more join requests will be accepted after this.`)) return;
+        setMatchActionLoading(true);
+        try {
+            const { data } = await api.post(`/tournaments/${tournament.id}/start`);
+            setTournaments(prev => prev.map(x => x.id === tournament.id ? { ...x, ...data } : x));
+            openMatchesModal({ ...tournament, ...data });
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        finally { setMatchActionLoading(false); }
+    };
+
+    const computeTournamentStandings = (matches) => {
+        const stats = {};
+        const ensure = (id, name) => { if (!stats[id]) stats[id] = { id, name, played: 0, won: 0, lost: 0, setsW: 0, setsL: 0, pts: 0 }; };
+        matches.filter(m => m.phase === 'GROUP' && m.status === 'COMPLETED' && m.p1Id && m.p2Id).forEach(m => {
+            ensure(m.p1Id, m.p1Name); ensure(m.p2Id, m.p2Name);
+            const sc = m.score || {};
+            stats[m.p1Id].played++; stats[m.p2Id].played++;
+            stats[m.p1Id].setsW += sc.p1Sets || 0; stats[m.p1Id].setsL += sc.p2Sets || 0;
+            stats[m.p2Id].setsW += sc.p2Sets || 0; stats[m.p2Id].setsL += sc.p1Sets || 0;
+            if (m.winnerId === m.p1Id) { stats[m.p1Id].won++; stats[m.p1Id].pts += 3; stats[m.p2Id].lost++; }
+            else if (m.winnerId === m.p2Id) { stats[m.p2Id].won++; stats[m.p2Id].pts += 3; stats[m.p1Id].lost++; }
+        });
+        return Object.values(stats).sort((a, b) => b.pts - a.pts || (b.setsW - b.setsL) - (a.setsW - a.setsL));
+    };
+
+    const openScoreEntry = (match) => {
+        const existing = match.score?.sets;
+        setScoreEntryMatchId(match.id);
+        setScoreSets(existing && existing.length ? existing.map(s => ({ p1: String(s.p1 ?? ''), p2: String(s.p2 ?? '') })) : [{ p1: '', p2: '' }, { p1: '', p2: '' }]);
+    };
+
+    const submitMatchScore = async (tournamentId, match) => {
+        const sets = scoreSets
+            .map(s => ({ p1: parseInt(s.p1), p2: parseInt(s.p2) }))
+            .filter(s => !isNaN(s.p1) && !isNaN(s.p2));
+        if (sets.length === 0) { alert('Enter at least one set score'); return; }
+        let p1Sets = 0, p2Sets = 0;
+        sets.forEach(s => { if (s.p1 > s.p2) p1Sets++; else if (s.p2 > s.p1) p2Sets++; });
+        if (p1Sets === p2Sets) { alert('Sets are tied — cannot determine a winner'); return; }
+        const winner = p1Sets > p2Sets ? 'p1' : 'p2';
+        setMatchActionLoading(true);
+        try {
+            const { data } = await api.patch(`/tournaments/${tournamentId}/matches/${match.id}/score`, { sets, winner });
+            setTournMatchesData(prev => ({ ...prev, matches: data }));
+            setScoreEntryMatchId(null);
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        finally { setMatchActionLoading(false); }
+    };
+
+    const submitJoker = async (tournamentId, matchId) => {
+        if (!confirm('Use your joker for this match? This grants +7 days but uses up your joker right (unless mutual).')) return;
+        setMatchActionLoading(true);
+        try {
+            const { data } = await api.post(`/tournaments/${tournamentId}/matches/${matchId}/joker`);
+            alert(data.message);
+            fetchTournMatches(tournamentId);
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        finally { setMatchActionLoading(false); }
+    };
+
+    const submitRematch = async (tournament) => {
+        if (!confirm(`${tournament.name} — regenerate this tournament's matches? Existing match history for the current stage will be reset.`)) return;
+        setMatchActionLoading(true);
+        try {
+            const { data } = await api.post(`/tournaments/${tournament.id}/rematch`);
+            setTournaments(prev => prev.map(x => x.id === tournament.id ? { ...x, ...data } : x));
+            fetchTournMatches(tournament.id);
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        finally { setMatchActionLoading(false); }
+    };
+
+    const submitRegenRound = async (tournamentId) => {
+        if (!confirm('Regenerate the current pending round\'s matchups?')) return;
+        setMatchActionLoading(true);
+        try {
+            await api.post(`/tournaments/${tournamentId}/regen-round`);
+            fetchTournMatches(tournamentId);
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        finally { setMatchActionLoading(false); }
+    };
+
+    const fetchTournChat = async (tournamentId) => {
+        try {
+            const { data } = await api.get(`/tournaments/${tournamentId}/chat`);
+            setTournChatMessages(data);
+        } catch { setTournChatMessages([]); }
+    };
+
+    const sendTournChat = async (tournamentId) => {
+        if (!tournChatInput.trim()) return;
+        const content = tournChatInput.trim();
+        setTournChatInput('');
+        try {
+            const { data } = await api.post(`/tournaments/${tournamentId}/chat`, { content });
+            setTournChatMessages(prev => [...prev, data]);
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
     };
 
     const handleExpandPost = async (postId) => {
@@ -3366,19 +3611,29 @@ function SubCategoryPage() {
                                                 );
                                             })()}
 
-                                            {/* Participant avatars (non-competitive or practice) */}
-                                            {participants.length > 0 && rival.matchMode !== 'COMPETITIVE' && (
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <span className="text-gray-500 text-xs">Joined:</span>
-                                                    <div className="flex -space-x-2">
-                                                        {participants.map(p => (
-                                                            <div key={p.id} title={p.fullName || p.username}
-                                                                className={`w-7 h-7 rounded-full bg-gradient-to-b ${config.color} border-2 border-gray-900 flex items-center justify-center text-white text-xs font-bold`}>
+                                            {/* Accepted participants — owner can remove a wrongly-accepted one */}
+                                            {participants.length > 0 && (
+                                                <div className="flex flex-wrap items-center gap-2 mb-3">
+                                                    <span className="text-gray-500 text-xs flex-shrink-0">Joined:</span>
+                                                    {participants.map(p => (
+                                                        <div key={p.id} className="flex items-center gap-1.5 bg-gray-800 rounded-full pl-1 pr-2 py-1">
+                                                            <div className={`w-6 h-6 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
                                                                 {p.username?.[0]?.toUpperCase()}
                                                             </div>
-                                                        ))}
-                                                    </div>
+                                                            <span className="text-gray-300 text-xs">{p.username}</span>
+                                                            {rival.senderId === myId && (
+                                                                <button onClick={() => removeRivalParticipant(rival.id, p.id, p.username)}
+                                                                    className="text-red-500/70 hover:text-red-400 text-xs font-bold ml-0.5">✕</button>
+                                                            )}
+                                                        </div>
+                                                    ))}
                                                 </div>
+                                            )}
+                                            {rival.senderId === myId && filled < required && (sub === 'tennis' || sub === 'padel') && (
+                                                <button onClick={() => sendRivalDemoJoin(rival.id)} disabled={seedingDemoRivalId === rival.id}
+                                                    className="w-full bg-purple-600/10 border border-purple-500/30 text-purple-400 hover:bg-purple-600/20 font-bold text-xs px-3 py-1.5 rounded-xl transition mb-3 disabled:opacity-50">
+                                                    {seedingDemoRivalId === rival.id ? '...' : '🤖 Send Demo Join Request'}
+                                                </button>
                                             )}
 
                                             {/* Çiftler: herkese ikili kart (eşleşmiş çift / partner arayan bireysel) —
@@ -3614,6 +3869,39 @@ function SubCategoryPage() {
                                 );
 
                                 const UpcomingCard = ({ m, isPastCard = false }) => {
+                                    const [showComments, setShowComments] = useState(false);
+                                    const [matchComments, setMatchComments] = useState([]);
+                                    const [commentsLoaded, setCommentsLoaded] = useState(false);
+                                    const [commentInput, setCommentInput] = useState('');
+                                    const [commentSending, setCommentSending] = useState(false);
+
+                                    const toggleComments = async () => {
+                                        if (!showComments && !commentsLoaded) {
+                                            try {
+                                                const { data } = await api.get(`/rivals/${m.id}/comments`);
+                                                setMatchComments(data);
+                                            } catch { setMatchComments([]); }
+                                            setCommentsLoaded(true);
+                                        }
+                                        setShowComments(prev => !prev);
+                                    };
+                                    const sendMatchComment = async () => {
+                                        if (!commentInput.trim()) return;
+                                        setCommentSending(true);
+                                        try {
+                                            const { data } = await api.post(`/rivals/${m.id}/comments`, { content: commentInput.trim() });
+                                            setMatchComments(prev => [...prev, data]);
+                                            setCommentInput('');
+                                        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                                        finally { setCommentSending(false); }
+                                    };
+                                    const deleteMatchComment = async (commentId) => {
+                                        try {
+                                            await api.delete(`/rivals/comments/${commentId}`);
+                                            setMatchComments(prev => prev.filter(c => c.id !== commentId));
+                                        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                                    };
+
                                     const parts = Array.isArray(m.participants) ? m.participants : [];
                                     const sTeam = Array.isArray(m.senderTeam) ? m.senderTeam : [];
                                     const isTeamMatch = (m.matchMode === 'COMPETITIVE' && sTeam.length > 0 && sub === 'football') || m.matchType === 'DOUBLE';
@@ -3718,6 +4006,41 @@ function SubCategoryPage() {
                                                     className="mt-1 w-full bg-red-600/10 hover:bg-red-600/30 border border-red-500/30 text-red-400 font-bold py-2 rounded-xl text-xs transition">
                                                     {t('rival.cancel')} Match
                                                 </button>
+                                            )}
+
+                                            {/* Comments */}
+                                            <button onClick={toggleComments}
+                                                className="mt-2 text-gray-400 hover:text-white text-xs font-bold transition">
+                                                💬 Comments{matchComments.length > 0 ? ` (${matchComments.length})` : ''} {showComments ? '▲' : '▼'}
+                                            </button>
+                                            {showComments && (
+                                                <div className="mt-2 space-y-2">
+                                                    {matchComments.length === 0 ? (
+                                                        <p className="text-gray-500 text-xs text-center py-2">No comments yet.</p>
+                                                    ) : matchComments.map(c => (
+                                                        <div key={c.id} className="bg-gray-800/60 rounded-lg px-3 py-2">
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-purple-300 text-[11px] font-bold">@{c.user?.username}</p>
+                                                                    <p className="text-gray-200 text-xs mt-0.5">{c.content}</p>
+                                                                </div>
+                                                                {(c.userId === myId || m.senderId === myId) && (
+                                                                    <button onClick={() => deleteMatchComment(c.id)} className="text-red-500/70 hover:text-red-400 text-xs flex-shrink-0">✕</button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    <div className="flex items-center gap-2">
+                                                        <input value={commentInput} onChange={e => setCommentInput(e.target.value)}
+                                                            onKeyDown={e => e.key === 'Enter' && sendMatchComment()}
+                                                            placeholder="Write a comment..."
+                                                            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500" />
+                                                        <button onClick={sendMatchComment} disabled={commentSending}
+                                                            className={`bg-gradient-to-r ${config.color} text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50`}>
+                                                            Send
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                     );
@@ -3860,193 +4183,10 @@ function SubCategoryPage() {
                             </div>
                         );
 
-                        /* ── MATCHES / STANDINGS MODAL ── */
-                        if (matchesModalTournament) {
-                            const mt = matchesModalTournament;
-                            const matches = tournMatchesData.matches || [];
-                            const groupMatches   = matches.filter(m => m.phase === 'GROUP');
-                            const playoffMatches = matches.filter(m => m.phase === 'PLAYOFF');
-                            const standings = computeStandings(matches, mt.type);
-                            const isCreator = mt.creatorId === myId;
-
-                            const sideId = (side) => mt.type === '2' ? tournMatchesData.myTeamId : myId;
-                            const myMatchSide = (m) => {
-                                const sid = sideId();
-                                if (!sid) return null;
-                                if (m.p1Id === sid) return 'p1';
-                                if (m.p2Id === sid) return 'p2';
-                                return null;
-                            };
-
-                            const closeModal = () => { setMatchesModalTournament(null); setScoreEntryMatchId(null); };
-
-                            const MatchCard = ({ m }) => {
-                                const mySide = myMatchSide(m);
-                                const otherSide = mySide === 'p1' ? 'p2' : mySide === 'p2' ? 'p1' : null;
-                                const canScore = isCreator || mySide != null;
-                                const editing = scoreEntryMatchId === m.id;
-                                const sc = m.score || {};
-                                return (
-                                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-white text-sm font-bold truncate">{m.p1Name || 'TBD'} <span className="text-gray-500">vs</span> {m.p2Name || 'TBD'}</p>
-                                                {m.status === 'COMPLETED' && (
-                                                    <p className="text-green-400 text-xs mt-0.5">
-                                                        {(sc.sets || []).map((s, i) => `${s.p1}-${s.p2}`).join(', ')} · {m.winnerId === m.p1Id ? m.p1Name : m.p2Name} won
-                                                    </p>
-                                                )}
-                                                {m.status === 'BYE' && <p className="text-gray-500 text-xs mt-0.5">BYE</p>}
-                                                {m.status === 'PENDING' && m.deadline && (
-                                                    <p className="text-gray-500 text-[11px] mt-0.5">⏰ {new Date(m.deadline).toLocaleDateString('tr-TR')}</p>
-                                                )}
-                                            </div>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${m.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' : m.status === 'BYE' ? 'bg-gray-700 text-gray-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                                                {m.status}
-                                            </span>
-                                        </div>
-
-                                        {m.status === 'PENDING' && canScore && !editing && (
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => openScoreEntry(m)}
-                                                    className={`flex-1 bg-gradient-to-r ${config.color} text-white text-xs font-bold py-1.5 rounded-lg`}>
-                                                    📝 Enter Score
-                                                </button>
-                                                {mySide && !m[`${mySide}JokerRequested`] && (
-                                                    <button onClick={() => submitJoker(mt.id, m.id)} disabled={matchActionLoading}
-                                                        className="bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-bold px-3 py-1.5 rounded-lg">
-                                                        🃏{m[`${otherSide}JokerRequested`] ? ' Mutual' : ' Joker'}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                        {m.status === 'COMPLETED' && isCreator && !editing && (
-                                            <button onClick={() => openScoreEntry(m)} className="text-purple-400 text-[11px] font-bold">✏️ Correct score</button>
-                                        )}
-
-                                        {editing && (
-                                            <div className="bg-gray-950 border border-gray-700 rounded-lg p-2.5 space-y-2">
-                                                {scoreSets.map((s, i) => (
-                                                    <div key={i} className="flex items-center gap-2">
-                                                        <span className="text-gray-500 text-[10px] w-10">Set {i + 1}</span>
-                                                        <input type="number" min="0" value={s.p1} onChange={e => setScoreSets(prev => prev.map((x, idx) => idx === i ? { ...x, p1: e.target.value } : x))}
-                                                            className="w-12 bg-gray-800 border border-gray-700 rounded text-white text-center text-sm py-1" />
-                                                        <span className="text-gray-600 text-xs">-</span>
-                                                        <input type="number" min="0" value={s.p2} onChange={e => setScoreSets(prev => prev.map((x, idx) => idx === i ? { ...x, p2: e.target.value } : x))}
-                                                            className="w-12 bg-gray-800 border border-gray-700 rounded text-white text-center text-sm py-1" />
-                                                        {scoreSets.length > 1 && (
-                                                            <button onClick={() => setScoreSets(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 text-xs">✕</button>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => setScoreSets(prev => [...prev, { p1: '', p2: '' }])} className="text-purple-400 text-[11px] font-bold">+ Add set</button>
-                                                    <div className="flex-1" />
-                                                    <button onClick={() => setScoreEntryMatchId(null)} className="text-gray-400 text-xs font-bold px-2">Cancel</button>
-                                                    <button onClick={() => submitMatchScore(mt.id, m)} disabled={matchActionLoading}
-                                                        className={`bg-gradient-to-r ${config.color} text-white text-xs font-bold px-3 py-1.5 rounded-lg`}>
-                                                        Save
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            };
-
-                            const roundsOf = (list) => [...new Set(list.map(m => m.round))].sort((a, b) => a - b);
-
-                            return (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
-                                    onClick={closeModal}>
-                                    <div className="bg-gray-950 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col"
-                                        onClick={e => e.stopPropagation()}>
-                                        <div className="flex items-center justify-between p-4 border-b border-gray-800 flex-shrink-0">
-                                            <div className="min-w-0">
-                                                <p className="text-white font-bold text-sm truncate">{mt.name}</p>
-                                                <p className="text-gray-500 text-[11px]">{TYPE_LABEL[mt.type]}</p>
-                                            </div>
-                                            <button onClick={closeModal} className="text-gray-500 hover:text-white text-lg flex-shrink-0">✕</button>
-                                        </div>
-                                        <div className="flex border-b border-gray-800 flex-shrink-0">
-                                            {['matches', 'standings'].map(tb => (
-                                                <button key={tb} onClick={() => setMatchTab(tb)}
-                                                    className={`flex-1 py-2.5 text-xs font-bold transition ${matchTab === tb ? 'text-white border-b-2 border-purple-500' : 'text-gray-500 hover:text-gray-300'}`}>
-                                                    {tb === 'matches' ? `📅 ${t('tournament.title')}` : '📊 Standings'}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <div className="overflow-y-auto p-4 space-y-4 flex-1">
-                                            {matchTab === 'matches' ? (
-                                                matches.length === 0 ? (
-                                                    <p className="text-gray-500 text-sm text-center py-8">No matches yet.</p>
-                                                ) : (
-                                                    <>
-                                                        {roundsOf(groupMatches).map(r => (
-                                                            <div key={`g${r}`}>
-                                                                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide mb-2">Round {r}</p>
-                                                                <div className="space-y-2">
-                                                                    {groupMatches.filter(m => m.round === r).map(m => <MatchCard key={m.id} m={m} />)}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                        {roundsOf(playoffMatches).map(r => (
-                                                            <div key={`p${r}`}>
-                                                                <p className="text-purple-400 text-[10px] font-bold uppercase tracking-wide mb-2">Playoff — Round {r}</p>
-                                                                <div className="space-y-2">
-                                                                    {playoffMatches.filter(m => m.round === r).map(m => <MatchCard key={m.id} m={m} />)}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </>
-                                                )
-                                            ) : (
-                                                standings.length === 0 ? (
-                                                    <p className="text-gray-500 text-sm text-center py-8">No completed group matches yet.</p>
-                                                ) : (
-                                                    <table className="w-full text-xs">
-                                                        <thead>
-                                                            <tr className="text-gray-500 text-left border-b border-gray-800">
-                                                                <th className="py-2 pr-2">#</th>
-                                                                <th className="py-2 pr-2">Player/Team</th>
-                                                                <th className="py-2 px-1 text-center">P</th>
-                                                                <th className="py-2 px-1 text-center">W</th>
-                                                                <th className="py-2 px-1 text-center">L</th>
-                                                                <th className="py-2 px-1 text-center">±Set</th>
-                                                                <th className="py-2 pl-1 text-center">Pts</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {standings.map((s, i) => (
-                                                                <tr key={s.id} className="text-gray-300 border-b border-gray-900">
-                                                                    <td className="py-1.5 pr-2 text-gray-500">{i + 1}</td>
-                                                                    <td className="py-1.5 pr-2 truncate max-w-[140px]">{s.name}</td>
-                                                                    <td className="py-1.5 px-1 text-center">{s.played}</td>
-                                                                    <td className="py-1.5 px-1 text-center text-green-400">{s.won}</td>
-                                                                    <td className="py-1.5 px-1 text-center text-red-400">{s.lost}</td>
-                                                                    <td className="py-1.5 px-1 text-center">{s.setsW - s.setsL > 0 ? '+' : ''}{s.setsW - s.setsL}</td>
-                                                                    <td className="py-1.5 pl-1 text-center font-bold text-white">{s.pts}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                )
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        }
-
                         const TOURNAMENT_TYPES = [
                             { id: '1', label: t('tournament.type1'), emoji: '🏆', desc: t('tournament.type1_desc') },
                             { id: '2', label: t('tournament.type2'), emoji: '👬', desc: t('tournament.type2_desc') },
                         ];
-
-                        const TYPE_LABEL = {
-                            '1': `🏆 ${t('tournament.type1')}`,
-                            '2': `👬 ${t('tournament.type2')}`,
-                        };
 
                         const generateBracket = () => {
                             // Accept any player with at least one name field (covers single-word usernames → lastName = "")
@@ -4155,181 +4295,6 @@ function SubCategoryPage() {
                                 const { data } = await api.get(`/tournaments/${tournament.id}/requests`);
                                 setJoinRequests(prev => ({ ...prev, [tournament.id]: data }));
                             } catch { setJoinRequests(prev => ({ ...prev, [tournament.id]: [] })); }
-                        };
-
-                        const handleRequestAction = async (tournamentId, userId, status) => {
-                            try {
-                                await api.patch(`/tournaments/${tournamentId}/requests/${userId}`, { status });
-                                setJoinRequests(prev => ({
-                                    ...prev,
-                                    [tournamentId]: (prev[tournamentId] || []).map(r => (r.userId === userId || r.user?.id === userId) ? { ...r, status } : r),
-                                }));
-                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
-                        };
-
-                        // Çiftler Rekabetçi: kendi başvurumun partner durumunu değiştirir — davet et / kabul et / geri çek
-                        const setMyTournamentPartner = async (tournamentId, partnerId) => {
-                            setTournPartnerLoading(true);
-                            try {
-                                const { data } = await api.patch(`/tournaments/${tournamentId}/partner`, { partnerId: partnerId || null });
-                                setJoinRequests(prev => ({
-                                    ...prev,
-                                    [tournamentId]: (prev[tournamentId] || []).map(r => r.id === data.id ? { ...r, ...data } : r),
-                                }));
-                                setTournInvitePicker(null);
-                            } catch (err) { alert(err?.response?.data?.message || 'Error'); }
-                            finally { setTournPartnerLoading(false); }
-                        };
-
-                        // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
-                        const renderTournamentDuoCard = (tournamentId, p1, p2, solos, byUserId, isOwnerView) => {
-                            const nameOf = (r) => r?.user?.fullName || r?.user?.username || '';
-                            const ratingOf = (r) => (r?.user?.interests || [])[0]?.skillRating;
-                            const Half = ({ r }) => (
-                                <div className="min-w-0">
-                                    <p className="text-white text-xs font-bold truncate">{nameOf(r)}</p>
-                                    <p className="text-gray-500 text-[10px] truncate">
-                                        @{r?.user?.username}{ratingOf(r) != null ? `  ${Number(ratingOf(r)).toFixed(2)}★` : ''}
-                                    </p>
-                                </div>
-                            );
-
-                            let slot2;
-                            if (p2) {
-                                slot2 = <Half r={p2} />;
-                            } else {
-                                const isMine = p1.userId === myId;
-                                const invitedBy = solos.find(o => o.partnerId === p1.userId && o.userId !== p1.userId);
-                                if (p1.partnerId) {
-                                    const target = byUserId.get(p1.partnerId);
-                                    slot2 = (
-                                        <div className="min-w-0">
-                                            <p className="text-yellow-400 text-[10px] font-bold truncate">⏳ {nameOf(target) || '...'} ({t('tournament.waiting')})</p>
-                                            {isMine && (
-                                                <button onClick={() => setMyTournamentPartner(tournamentId, null)} disabled={tournPartnerLoading}
-                                                    className="text-red-400 text-[10px] font-bold mt-0.5">{t('tournament.withdraw_invite')}</button>
-                                            )}
-                                        </div>
-                                    );
-                                } else if (invitedBy) {
-                                    slot2 = (
-                                        <div className="min-w-0">
-                                            <p className="text-green-400 text-[10px] font-bold truncate">{nameOf(invitedBy)} {t('tournament.invited_you')}</p>
-                                            {isMine && (
-                                                <button onClick={() => setMyTournamentPartner(tournamentId, invitedBy.userId)} disabled={tournPartnerLoading}
-                                                    className="bg-green-600/30 border border-green-500/50 text-green-400 text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg">{t('tournament.accept_invite')}</button>
-                                            )}
-                                        </div>
-                                    );
-                                } else {
-                                    slot2 = (
-                                        <div className="min-w-0">
-                                            <p className="text-gray-500 text-[10px]">{t('tournament.looking_for_partner')}</p>
-                                            {isMine && (
-                                                <button
-                                                    onClick={() => setTournInvitePicker({ tournamentId, candidates: solos.filter(s => s.userId !== myId) })}
-                                                    disabled={tournPartnerLoading}
-                                                    className={`bg-gradient-to-r ${config.color} text-white text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg`}>
-                                                    {t('tournament.invite_partner')}
-                                                </button>
-                                            )}
-                                        </div>
-                                    );
-                                }
-                            }
-
-                            const isMineCard = p1.userId === myId || p2?.userId === myId;
-                            return (
-                                <div key={p1.id} className={`rounded-xl p-2 border ${isMineCard ? `${config.border} bg-gray-700/60` : 'border-gray-700 bg-gray-800'}`}>
-                                    <div className="flex items-start gap-2">
-                                        <Half r={p1} />
-                                        <span className="text-gray-500 text-xs font-black">+</span>
-                                        {slot2}
-                                    </div>
-                                    {isOwnerView && (
-                                        <div className="flex gap-1.5 mt-1.5">
-                                            <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'ACCEPTED')}
-                                                className="flex-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-bold py-1 rounded-lg transition">✓ Accept</button>
-                                            <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'REJECTED')}
-                                                className="flex-1 bg-gray-700 hover:bg-red-600/40 text-gray-300 hover:text-red-400 text-[10px] font-bold py-1 rounded-lg transition">✕ Reject</button>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        };
-
-                        const fetchTournMatches = async (tournamentId) => {
-                            try {
-                                const { data } = await api.get(`/tournaments/${tournamentId}/matches`);
-                                setTournMatchesData(data);
-                            } catch { setTournMatchesData({ matches: [], myTeamId: null, teams: [] }); }
-                        };
-
-                        const openMatchesModal = (tournament) => {
-                            setMatchesModalTournament(tournament);
-                            setMatchTab('matches');
-                            fetchTournMatches(tournament.id);
-                        };
-
-                        const handleStartTournament = async (tournament) => {
-                            if (!confirm(`${tournament.name} — start this tournament now? No more join requests will be accepted after this.`)) return;
-                            setMatchActionLoading(true);
-                            try {
-                                const { data } = await api.post(`/tournaments/${tournament.id}/start`);
-                                setTournaments(prev => prev.map(x => x.id === tournament.id ? { ...x, ...data } : x));
-                                openMatchesModal({ ...tournament, ...data });
-                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
-                            finally { setMatchActionLoading(false); }
-                        };
-
-                        const computeStandings = (matches, type) => {
-                            const stats = {};
-                            const ensure = (id, name) => { if (!stats[id]) stats[id] = { id, name, played: 0, won: 0, lost: 0, setsW: 0, setsL: 0, pts: 0 }; };
-                            matches.filter(m => m.phase === 'GROUP' && m.status === 'COMPLETED' && m.p1Id && m.p2Id).forEach(m => {
-                                ensure(m.p1Id, m.p1Name); ensure(m.p2Id, m.p2Name);
-                                const sc = m.score || {};
-                                stats[m.p1Id].played++; stats[m.p2Id].played++;
-                                stats[m.p1Id].setsW += sc.p1Sets || 0; stats[m.p1Id].setsL += sc.p2Sets || 0;
-                                stats[m.p2Id].setsW += sc.p2Sets || 0; stats[m.p2Id].setsL += sc.p1Sets || 0;
-                                if (m.winnerId === m.p1Id) { stats[m.p1Id].won++; stats[m.p1Id].pts += 3; stats[m.p2Id].lost++; }
-                                else if (m.winnerId === m.p2Id) { stats[m.p2Id].won++; stats[m.p2Id].pts += 3; stats[m.p1Id].lost++; }
-                            });
-                            return Object.values(stats).sort((a, b) => b.pts - a.pts || (b.setsW - b.setsL) - (a.setsW - a.setsL));
-                        };
-
-                        const openScoreEntry = (match) => {
-                            const existing = match.score?.sets;
-                            setScoreEntryMatchId(match.id);
-                            setScoreSets(existing && existing.length ? existing.map(s => ({ p1: String(s.p1 ?? ''), p2: String(s.p2 ?? '') })) : [{ p1: '', p2: '' }, { p1: '', p2: '' }]);
-                        };
-
-                        const submitMatchScore = async (tournamentId, match) => {
-                            const sets = scoreSets
-                                .map(s => ({ p1: parseInt(s.p1), p2: parseInt(s.p2) }))
-                                .filter(s => !isNaN(s.p1) && !isNaN(s.p2));
-                            if (sets.length === 0) { alert('Enter at least one set score'); return; }
-                            let p1Sets = 0, p2Sets = 0;
-                            sets.forEach(s => { if (s.p1 > s.p2) p1Sets++; else if (s.p2 > s.p1) p2Sets++; });
-                            if (p1Sets === p2Sets) { alert('Sets are tied — cannot determine a winner'); return; }
-                            const winner = p1Sets > p2Sets ? 'p1' : 'p2';
-                            setMatchActionLoading(true);
-                            try {
-                                const { data } = await api.patch(`/tournaments/${tournamentId}/matches/${match.id}/score`, { sets, winner });
-                                setTournMatchesData(prev => ({ ...prev, matches: data }));
-                                setScoreEntryMatchId(null);
-                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
-                            finally { setMatchActionLoading(false); }
-                        };
-
-                        const submitJoker = async (tournamentId, matchId) => {
-                            if (!confirm('Use your joker for this match? This grants +7 days but uses up your joker right (unless mutual).')) return;
-                            setMatchActionLoading(true);
-                            try {
-                                const { data } = await api.post(`/tournaments/${tournamentId}/matches/${matchId}/joker`);
-                                alert(data.message);
-                                fetchTournMatches(tournamentId);
-                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
-                            finally { setMatchActionLoading(false); }
                         };
 
                         /* ── NULL: Tournament list ── */
@@ -6437,6 +6402,20 @@ function SubCategoryPage() {
                                     {filteredTournaments.length === 0
                                         ? <p className="text-gray-500 text-sm text-center py-8">{t('archive.no_tournament_archive')}</p>
                                         : <div className="divide-y divide-gray-800">{filteredTournaments.map(t => {
+                                            if (t.type === '1' || t.type === '2') return (
+                                                <button key={t.id} onClick={() => openMatchesModal(t)}
+                                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800/50 transition text-left">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-white font-bold text-sm truncate">{t.name}</p>
+                                                        <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                                            <span className="text-gray-500 text-xs">{TYPE_LABEL[t.type]}</span>
+                                                            {t.completedAt && <span className="text-gray-600 text-xs">{new Date(t.completedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                                                            {(t.city || t.location) && <span className="text-gray-600 text-xs">📍 {(t.city || t.location).split(',')[0]}</span>}
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-gray-400 text-xl flex-shrink-0">›</span>
+                                                </button>
+                                            );
                                             const bracket   = t.bracketData;
                                             const teams     = bracket?.teams || [];
                                             const teamFull  = (team) => team ? `${team.p1?.firstName || ''} ${team.p1?.lastName || ''} & ${team.p2?.firstName || ''} ${team.p2?.lastName || ''}` : '?';
@@ -6792,6 +6771,224 @@ function SubCategoryPage() {
                     </div>
                 </div>
             )}
+
+            {matchesModalTournament && (() => {
+                const mt = matchesModalTournament;
+                const matches = tournMatchesData.matches || [];
+                const groupMatches   = matches.filter(m => m.phase === 'GROUP');
+                const playoffMatches = matches.filter(m => m.phase === 'PLAYOFF');
+                const standings = computeTournamentStandings(matches);
+                const isCreator = mt.creatorId === myId;
+
+                const sideId = () => mt.type === '2' ? tournMatchesData.myTeamId : myId;
+                const myMatchSide = (m) => {
+                    const sid = sideId();
+                    if (!sid) return null;
+                    if (m.p1Id === sid) return 'p1';
+                    if (m.p2Id === sid) return 'p2';
+                    return null;
+                };
+
+                const closeModal = () => { setMatchesModalTournament(null); setScoreEntryMatchId(null); };
+
+                const MatchCard = ({ m }) => {
+                    const mySide = myMatchSide(m);
+                    const otherSide = mySide === 'p1' ? 'p2' : mySide === 'p2' ? 'p1' : null;
+                    const canScore = isCreator || mySide != null;
+                    const editing = scoreEntryMatchId === m.id;
+                    const sc = m.score || {};
+                    return (
+                        <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-white text-sm font-bold truncate">{m.p1Name || 'TBD'} <span className="text-gray-500">vs</span> {m.p2Name || 'TBD'}</p>
+                                    {m.status === 'COMPLETED' && (
+                                        <p className="text-green-400 text-xs mt-0.5">
+                                            {(sc.sets || []).map((s, i) => `${s.p1}-${s.p2}`).join(', ')} · {m.winnerId === m.p1Id ? m.p1Name : m.p2Name} won
+                                        </p>
+                                    )}
+                                    {m.status === 'BYE' && <p className="text-gray-500 text-xs mt-0.5">BYE</p>}
+                                    {m.status === 'PENDING' && m.deadline && (
+                                        <p className="text-gray-500 text-[11px] mt-0.5">⏰ {new Date(m.deadline).toLocaleDateString('tr-TR')}</p>
+                                    )}
+                                </div>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${m.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' : m.status === 'BYE' ? 'bg-gray-700 text-gray-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                                    {m.status}
+                                </span>
+                            </div>
+
+                            {m.status === 'PENDING' && canScore && !editing && (
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => openScoreEntry(m)}
+                                        className={`flex-1 bg-gradient-to-r ${config.color} text-white text-xs font-bold py-1.5 rounded-lg`}>
+                                        📝 Enter Score
+                                    </button>
+                                    {mySide && !m[`${mySide}JokerRequested`] && (
+                                        <button onClick={() => submitJoker(mt.id, m.id)} disabled={matchActionLoading}
+                                            className="bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-bold px-3 py-1.5 rounded-lg">
+                                            🃏{m[`${otherSide}JokerRequested`] ? ' Mutual' : ' Joker'}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                            {m.status === 'COMPLETED' && isCreator && !editing && (
+                                <button onClick={() => openScoreEntry(m)} className="text-purple-400 text-[11px] font-bold">✏️ Correct score</button>
+                            )}
+
+                            {editing && (
+                                <div className="bg-gray-950 border border-gray-700 rounded-lg p-2.5 space-y-2">
+                                    {scoreSets.map((s, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                            <span className="text-gray-500 text-[10px] w-10">Set {i + 1}</span>
+                                            <input type="number" min="0" value={s.p1} onChange={e => setScoreSets(prev => prev.map((x, idx) => idx === i ? { ...x, p1: e.target.value } : x))}
+                                                className="w-12 bg-gray-800 border border-gray-700 rounded text-white text-center text-sm py-1" />
+                                            <span className="text-gray-600 text-xs">-</span>
+                                            <input type="number" min="0" value={s.p2} onChange={e => setScoreSets(prev => prev.map((x, idx) => idx === i ? { ...x, p2: e.target.value } : x))}
+                                                className="w-12 bg-gray-800 border border-gray-700 rounded text-white text-center text-sm py-1" />
+                                            {scoreSets.length > 1 && (
+                                                <button onClick={() => setScoreSets(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 text-xs">✕</button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => setScoreSets(prev => [...prev, { p1: '', p2: '' }])} className="text-purple-400 text-[11px] font-bold">+ Add set</button>
+                                        <div className="flex-1" />
+                                        <button onClick={() => setScoreEntryMatchId(null)} className="text-gray-400 text-xs font-bold px-2">Cancel</button>
+                                        <button onClick={() => submitMatchScore(mt.id, m)} disabled={matchActionLoading}
+                                            className={`bg-gradient-to-r ${config.color} text-white text-xs font-bold px-3 py-1.5 rounded-lg`}>
+                                            Save
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                };
+
+                const roundsOf = (list) => [...new Set(list.map(m => m.round))].sort((a, b) => a - b);
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+                        onClick={closeModal}>
+                        <div className="bg-gray-950 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col"
+                            onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-4 border-b border-gray-800 flex-shrink-0">
+                                <div className="min-w-0">
+                                    <p className="text-white font-bold text-sm truncate">{mt.name}</p>
+                                    <p className="text-gray-500 text-[11px]">{TYPE_LABEL[mt.type]}</p>
+                                </div>
+                                <button onClick={closeModal} className="text-gray-500 hover:text-white text-lg flex-shrink-0">✕</button>
+                            </div>
+                            <div className="flex border-b border-gray-800 flex-shrink-0">
+                                {['matches', 'standings', 'chat'].map(tb => (
+                                    <button key={tb} onClick={() => setMatchTab(tb)}
+                                        className={`flex-1 py-2.5 text-xs font-bold transition ${matchTab === tb ? 'text-white border-b-2 border-purple-500' : 'text-gray-500 hover:text-gray-300'}`}>
+                                        {tb === 'matches' ? `📅 ${t('tournament.title')}` : tb === 'standings' ? '📊 Standings' : '💬 Chat'}
+                                    </button>
+                                ))}
+                            </div>
+                            {isCreator && mt.status === 'IN_PROGRESS' && matchTab === 'matches' && (
+                                <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800 flex-shrink-0">
+                                    <button onClick={() => submitRegenRound(mt.id)} disabled={matchActionLoading}
+                                        className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[11px] font-bold py-1.5 rounded-lg transition">
+                                        🔁 Regenerate Round
+                                    </button>
+                                    <button onClick={() => submitRematch(mt)} disabled={matchActionLoading}
+                                        className="flex-1 bg-orange-600/20 border border-orange-500/40 text-orange-300 text-[11px] font-bold py-1.5 rounded-lg transition">
+                                        ♻️ Rematch
+                                    </button>
+                                </div>
+                            )}
+                            <div className="overflow-y-auto p-4 space-y-4 flex-1">
+                                {matchTab === 'matches' ? (
+                                    matches.length === 0 ? (
+                                        <p className="text-gray-500 text-sm text-center py-8">No matches yet.</p>
+                                    ) : (
+                                        <>
+                                            {roundsOf(groupMatches).map(r => (
+                                                <div key={`g${r}`}>
+                                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide mb-2">Round {r}</p>
+                                                    <div className="space-y-2">
+                                                        {groupMatches.filter(m => m.round === r).map(m => <MatchCard key={m.id} m={m} />)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {roundsOf(playoffMatches).map(r => (
+                                                <div key={`p${r}`}>
+                                                    <p className="text-purple-400 text-[10px] font-bold uppercase tracking-wide mb-2">Playoff — Round {r}</p>
+                                                    <div className="space-y-2">
+                                                        {playoffMatches.filter(m => m.round === r).map(m => <MatchCard key={m.id} m={m} />)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )
+                                ) : matchTab === 'standings' ? (
+                                    standings.length === 0 ? (
+                                        <p className="text-gray-500 text-sm text-center py-8">No completed group matches yet.</p>
+                                    ) : (
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="text-gray-500 text-left border-b border-gray-800">
+                                                    <th className="py-2 pr-2">#</th>
+                                                    <th className="py-2 pr-2">Player/Team</th>
+                                                    <th className="py-2 px-1 text-center">P</th>
+                                                    <th className="py-2 px-1 text-center">W</th>
+                                                    <th className="py-2 px-1 text-center">L</th>
+                                                    <th className="py-2 px-1 text-center">±Set</th>
+                                                    <th className="py-2 pl-1 text-center">Pts</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {standings.map((s, i) => (
+                                                    <tr key={s.id} className="text-gray-300 border-b border-gray-900">
+                                                        <td className="py-1.5 pr-2 text-gray-500">{i + 1}</td>
+                                                        <td className="py-1.5 pr-2 truncate max-w-[140px]">{s.name}</td>
+                                                        <td className="py-1.5 px-1 text-center">{s.played}</td>
+                                                        <td className="py-1.5 px-1 text-center text-green-400">{s.won}</td>
+                                                        <td className="py-1.5 px-1 text-center text-red-400">{s.lost}</td>
+                                                        <td className="py-1.5 px-1 text-center">{s.setsW - s.setsL > 0 ? '+' : ''}{s.setsW - s.setsL}</td>
+                                                        <td className="py-1.5 pl-1 text-center font-bold text-white">{s.pts}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )
+                                ) : (
+                                    <div className="flex flex-col h-full">
+                                        <div className="flex-1 space-y-3 mb-3">
+                                            {tournChatMessages.length === 0 ? (
+                                                <p className="text-gray-500 text-sm text-center py-8">No messages yet.</p>
+                                            ) : tournChatMessages.map(msg => (
+                                                <div key={msg.id} className={`flex ${msg.senderId === myId ? 'justify-end' : 'justify-start'}`}>
+                                                    <div className={`max-w-[75%] rounded-xl px-3 py-2 ${msg.senderId === myId ? `bg-gradient-to-r ${config.color} text-white` : 'bg-gray-800 text-gray-200'}`}>
+                                                        {msg.senderId !== myId && (
+                                                            <p className="text-[10px] font-bold opacity-70 mb-0.5">{msg.sender?.fullName || msg.sender?.username}</p>
+                                                        )}
+                                                        <p className="text-xs">{msg.content}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            {matchTab === 'chat' && (
+                                <div className="flex items-center gap-2 p-3 border-t border-gray-800 flex-shrink-0">
+                                    <input value={tournChatInput} onChange={e => setTournChatInput(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && sendTournChat(mt.id)}
+                                        placeholder="Type a message..."
+                                        className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                    <button onClick={() => sendTournChat(mt.id)}
+                                        className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm`}>
+                                        Send
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {tournInvitePicker && (
                 <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
