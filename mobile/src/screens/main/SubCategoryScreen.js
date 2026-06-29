@@ -3471,6 +3471,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [loadingMatches, setLoadingMatches] = useState(false);
     const [showMatchesModal, setShowMatchesModal] = useState(false);
     const [matchTab, setMatchTab] = useState('matches');
+    const [selectedRoundKey, setSelectedRoundKey] = useState(null); // "GROUP|1" gibi — Maçlar sekmesinde hangi tur açık
     const [starting, setStarting] = useState(false);
     const [scoreEntry, setScoreEntry] = useState(null);
     const [scoreSets, setScoreSets] = useState([]);
@@ -4496,11 +4497,50 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             const roundKeys = tournMatches
                                 .filter(m => { const k=`${m.phase}|${m.round}`; if (seen.has(k)) return false; seen.add(k); return true; })
                                 .map(m => ({ phase:m.phase, round:m.round }));
-                            return roundKeys.map(({ phase, round }) => {
-                                const rMatches = tournMatches.filter(m => m.phase === phase && m.round === round);
-                                return (
-                                    <View key={`${phase}|${round}`} style={{ marginBottom:8 }}>
-                                        <Text style={{ color: infoColor, fontSize:11, fontWeight:'800', marginBottom:4 }}>{getRoundLabel(round, phase)}</Text>
+
+                            // Her tur için hafta aralığı: bitiş = o turun deadline'ı, başlangıç = önceki
+                            // turun deadline'ı (1. tur için turnuva başlangıç tarihi).
+                            const fmtD = (d) => d.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
+                            let prevDeadline = item.eventDate ? new Date(item.eventDate) : null;
+                            const roundRanges = {};
+                            for (const { phase, round } of roundKeys) {
+                                const rm = tournMatches.find(m => m.phase === phase && m.round === round && m.deadline);
+                                const key = `${phase}|${round}`;
+                                if (rm) {
+                                    const end = new Date(rm.deadline);
+                                    roundRanges[key] = prevDeadline ? `${fmtD(prevDeadline)} - ${fmtD(end)}` : fmtD(end);
+                                    prevDeadline = end;
+                                } else {
+                                    roundRanges[key] = null;
+                                }
+                            }
+
+                            const activeKey = (selectedRoundKey && roundKeys.some(({ phase, round }) => `${phase}|${round}` === selectedRoundKey))
+                                ? selectedRoundKey
+                                : (roundKeys.length > 0 ? `${roundKeys[roundKeys.length - 1].phase}|${roundKeys[roundKeys.length - 1].round}` : null);
+                            const [activePhase, activeRoundStr] = (activeKey || '').split('|');
+                            const activeRound = parseInt(activeRoundStr);
+                            const rMatches = tournMatches.filter(m => m.phase === activePhase && m.round === activeRound);
+
+                            return (
+                                <>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                        <View style={{ flexDirection:'row', gap:6 }}>
+                                            {roundKeys.map(({ phase, round }) => {
+                                                const key = `${phase}|${round}`;
+                                                const isActive = key === activeKey;
+                                                return (
+                                                    <TouchableOpacity key={key} onPress={() => setSelectedRoundKey(key)}
+                                                        style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, backgroundColor: isActive ? infoColor+'30' : '#1e293b', borderWidth:1, borderColor: isActive ? infoColor+'60' : colors.border, alignItems:'center' }}>
+                                                        <Text style={{ color: isActive ? infoColor : colors.textMuted, fontSize:11, fontWeight:'800' }}>{getRoundLabel(round, phase)}</Text>
+                                                        {roundRanges[key] && (
+                                                            <Text style={{ color: isActive ? infoColor : colors.textMuted, fontSize:8, marginTop:1 }}>{roundRanges[key]}</Text>
+                                                        )}
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                    </ScrollView>
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {rMatches.map(match => {
                                             const isBye = match.status === 'BYE';
@@ -4739,9 +4779,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             );
                                         })}
                                         </View>
-                                    </View>
-                                );
-                            });
+                                </>
+                            );
                           })()
                 )}
                     <View style={{ height:16 }} />
