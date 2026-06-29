@@ -6802,25 +6802,43 @@ function SubCategoryPage() {
 
                 // Çiftler Rekabetçi: her iki oyuncunun güncel bireysel puanı + takım ortalaması,
                 // alt alta (truncate olmadan, hepsi sığsın diye). Bireysel Rekabetçi: tek satır.
-                const SideBlock = ({ sid, name }) => {
+                // Maç tamamlandıysa (skor girildiyse), her oyuncu ve takım ortalaması için
+                // "eski puan → yeni puan" gösterilir; tamamlanmadıysa sadece güncel puan.
+                const SideBlock = ({ m, side }) => {
+                    const sid = m[`${side}Id`];
+                    const name = m[`${side}Name`];
+                    const isDone = m.status === 'COMPLETED';
+                    const memberRatings = m.score?.[`${side}MemberRatings`] || [];
+                    const memberFor = (uid) => memberRatings.find(mr => mr.userId === uid);
+                    const teamBefore = m.score?.[`${side}RatingBefore`];
+                    const teamAfter  = m.score?.[`${side}RatingAfter`];
+
+                    const playerDisplay = (uid) => {
+                        const mr = memberFor(uid);
+                        return (isDone && mr) ? `${fmtR(mr.before)} → ${fmtR(mr.after)}` : fmtR(ratingOf(uid));
+                    };
+
                     if (mt.type === '2') {
                         const team = teamById(sid);
                         if (!team) return <p className="text-white text-sm font-bold">{name || 'TBD'}</p>;
+                        const avgDisplay = (isDone && teamBefore != null && teamAfter != null)
+                            ? `${fmtR(teamBefore)} → ${fmtR(teamAfter)}`
+                            : fmtR(team.avgRating);
                         return (
                             <div className="text-sm">
                                 <p className="text-white font-bold leading-tight">
-                                    {team.player1Name} <span className="text-gray-400 text-[11px] font-normal">({fmtR(ratingOf(team.player1Id))})</span>
+                                    {team.player1Name} <span className="text-gray-400 text-[11px] font-normal">({playerDisplay(team.player1Id)})</span>
                                 </p>
                                 <p className="text-white font-bold leading-tight">
-                                    {team.player2Name} <span className="text-gray-400 text-[11px] font-normal">({fmtR(ratingOf(team.player2Id))})</span>
+                                    {team.player2Name} <span className="text-gray-400 text-[11px] font-normal">({playerDisplay(team.player2Id)})</span>
                                 </p>
-                                <p className="text-purple-300 text-[11px] font-bold mt-0.5">Takım Ort: {fmtR(team.avgRating)}</p>
+                                <p className="text-purple-300 text-[11px] font-bold mt-0.5">Takım Ort: {avgDisplay}</p>
                             </div>
                         );
                     }
                     return (
                         <p className="text-white text-sm font-bold truncate">
-                            {name || 'TBD'} <span className="text-gray-400 text-[11px] font-normal">({fmtR(ratingOf(sid))})</span>
+                            {name || 'TBD'} <span className="text-gray-400 text-[11px] font-normal">({playerDisplay(sid)})</span>
                         </p>
                     );
                 };
@@ -6837,15 +6855,15 @@ function SubCategoryPage() {
                                 <div className="flex-1 min-w-0">
                                     {mt.type === '2' ? (
                                         <div className="space-y-1.5">
-                                            <SideBlock sid={m.p1Id} name={m.p1Name} />
+                                            <SideBlock m={m} side="p1" />
                                             <p className="text-gray-500 text-[10px] font-black">vs</p>
-                                            <SideBlock sid={m.p2Id} name={m.p2Name} />
+                                            <SideBlock m={m} side="p2" />
                                         </div>
                                     ) : (
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <SideBlock sid={m.p1Id} name={m.p1Name} />
+                                            <SideBlock m={m} side="p1" />
                                             <span className="text-gray-500 text-sm flex-shrink-0">vs</span>
-                                            <SideBlock sid={m.p2Id} name={m.p2Name} />
+                                            <SideBlock m={m} side="p2" />
                                         </div>
                                     )}
                                     {m.status === 'COMPLETED' && (

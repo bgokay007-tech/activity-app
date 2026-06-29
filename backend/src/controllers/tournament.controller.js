@@ -1693,10 +1693,21 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         // Çiftler Rekabetçi: aynı delta her iki taraftaki TÜM üyelere ayrı ayrı uygulanır.
         let p1EloDelta = 0, p2EloDelta = 0;
         let p1RatingBefore = null, p1RatingAfter = null, p2RatingBefore = null, p2RatingAfter = null;
-        // If match was already scored, reverse previous ELO before re-applying
+        // Çiftler Rekabetçi'de p1RatingBefore/After takım ORTALAMASIdır; her üyenin kendi
+        // önceki/sonraki bireysel puanı ayrıca burada saklanır (web/mobil "X puanı → Y puanı"
+        // şeklinde her oyuncuyu ayrı ayrı gösterebilsin diye). Bireysel Rekabetçi'de tek elemanlı dizi.
+        let p1MemberRatings = [], p2MemberRatings = [];
+        // If match was already scored, reverse previous ELO before re-applying.
+        // Bireysel before/after kayıtlıysa (p1MemberRatings/p2MemberRatings) onlar kullanılır —
+        // takım ortalamasına göre geri alırsak, farklı başlangıç puanına sahip iki üye yanlışlıkla
+        // birbirine eşitlenirdi.
         if (match.status === "COMPLETED" && match.score && match.p1Id && match.p2Id) {
             const prev = match.score;
             if (prev.p1EloDelta !== 0 || prev.p2EloDelta !== 0) {
+                const prevMemberBefore = (uid) => {
+                    const entry = [...(prev.p1MemberRatings || []), ...(prev.p2MemberRatings || [])].find(m => m.userId === uid);
+                    return entry?.before;
+                };
                 const prevInterests = await prisma.userInterest.findMany({
                     where: { userId: { in: [...p1Members, ...p2Members] }, category: tournament.category, subCategory: tournament.subCategory },
                 });
@@ -1709,7 +1720,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                             totalPoints: Math.max(0, ir.totalPoints - prev.p1EloDelta),
                             wins:   { decrement: prev.p1EloDelta > 0 ? 1 : 0 },
                             losses: { decrement: prev.p1EloDelta < 0 ? 1 : 0 },
-                            skillRating: prev.p1RatingBefore ?? ir.skillRating,
+                            skillRating: prevMemberBefore(uid) ?? prev.p1RatingBefore ?? ir.skillRating,
                         },
                     });
                 }
@@ -1722,7 +1733,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                             totalPoints: Math.max(0, ir.totalPoints - prev.p2EloDelta),
                             wins:   { decrement: prev.p2EloDelta > 0 ? 1 : 0 },
                             losses: { decrement: prev.p2EloDelta < 0 ? 1 : 0 },
-                            skillRating: prev.p2RatingBefore ?? ir.skillRating,
+                            skillRating: prevMemberBefore(uid) ?? prev.p2RatingBefore ?? ir.skillRating,
                         },
                     });
                 }
@@ -1804,10 +1815,13 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 const skipElo = reassessFlags.length > 0;
                 const isTennisPadel = TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory);
                 const updates = [];
+                const winnerMemberRatings = [];
+                const loserMemberRatings = [];
                 for (const uid of winnerMembers) {
                     const wi = interests.find(i => i.userId === uid);
                     let wRatingAfter = parseFloat((wi.skillRating + wStep).toFixed(4));
                     if (wi.skillRating < 5 && wRatingAfter >= 5) wRatingAfter = parseFloat((wRatingAfter + 2).toFixed(4));
+                    winnerMemberRatings.push({ userId: uid, before: wi.skillRating, after: skipElo ? wi.skillRating : wRatingAfter });
                     updates.push(prisma.userInterest.update({
                         where: { id: wi.id },
                         data: {
@@ -1821,6 +1835,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 for (const uid of loserMembers) {
                     const li = interests.find(i => i.userId === uid);
                     const lRatingAfter = Math.max(0, parseFloat((li.skillRating - lStep).toFixed(4)));
+                    loserMemberRatings.push({ userId: uid, before: li.skillRating, after: skipElo ? li.skillRating : lRatingAfter });
                     updates.push(prisma.userInterest.update({
                         where: { id: li.id },
                         data: {
@@ -1831,6 +1846,8 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     }));
                 }
                 await Promise.all(updates);
+                p1MemberRatings = winner === 'p1' ? winnerMemberRatings : loserMemberRatings;
+                p2MemberRatings = winner === 'p2' ? winnerMemberRatings : loserMemberRatings;
 
                 if (skipElo) {
                     for (const flag of reassessFlags) {
@@ -1852,7 +1869,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             }
         }
 
-        const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta, p1RatingBefore, p1RatingAfter, p2RatingBefore, p2RatingAfter };
+        const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta, p1RatingBefore, p1RatingAfter, p2RatingBefore, p2RatingAfter, p1MemberRatings, p2MemberRatings };
 
         await prisma.tournamentMatch.update({
             where: { id: matchId },
