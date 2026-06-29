@@ -4240,7 +4240,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {item.setsPerMatch && (
                                 <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>
-                                        {item.setsPerMatch === 1 ? '1 Set' : `En İyi ${item.setsPerMatch}`}
+                                        {`Set Sayısı: ${item.setsPerMatch}`}
                                     </Text>
                                 </View>
                             )}
@@ -4805,7 +4805,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <View style={s.chipRow}>
                                         {['1','3','5'].map(n => (
                                             <TouchableOpacity key={n} onPress={() => setEditSetsPerMatch(n)} style={[s.chipBtn, { flex:1 }, editSetsPerMatch===n && s.chipBtnActive]}>
-                                                <Text style={[s.chipBtnText, editSetsPerMatch===n && s.chipBtnTextActive]}>{n==='1'?'1 Set':`En İyi ${n}`}</Text>
+                                                <Text style={[s.chipBtnText, editSetsPerMatch===n && s.chipBtnTextActive]}>{`Set Sayısı: ${n}`}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
