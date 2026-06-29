@@ -2,12 +2,11 @@
 // Source: user-provided spreadsheet. "Dominant" = 6-0/6-1/6-2-style sets (winner took
 // the clear majority of games); "Competitive" = 6-3/6-4/7-5/7-6-style sets (close match).
 // Each bucket gives 4 values per score type: what the lower-rated player gains when
-// they win / lose, and what the higher-rated player gains when they win / lose. In
-// practice winner-gain on one side always equals loser-loss on the other (zero-sum),
-// except one row in the source table where a minor inconsistency was kept as given.
+// they win / lose, and what the higher-rated player gains when they win / lose.
+// Winner-gain equals loser-loss (zero-sum) in every row.
 const TABLE = [
     { max: 0.03, dominant: { lowWin: 0.03,  lowLose: 0.02,   highWin: 0.02,   highLose: 0.03  }, competitive: { lowWin: 0.0175, lowLose: 0.01,   highWin: 0.01,   highLose: 0.0175 } },
-    { max: 0.05, dominant: { lowWin: 0.04,  lowLose: 0.0175, highWin: 0.0175, highLose: 0.03  }, competitive: { lowWin: 0.02,   lowLose: 0.0125, highWin: 0.0125, highLose: 0.02   } },
+    { max: 0.05, dominant: { lowWin: 0.04,  lowLose: 0.0175, highWin: 0.0175, highLose: 0.04  }, competitive: { lowWin: 0.02,   lowLose: 0.0125, highWin: 0.0125, highLose: 0.02   } },
     { max: 0.10, dominant: { lowWin: 0.05,  lowLose: 0.03,   highWin: 0.03,   highLose: 0.05  }, competitive: { lowWin: 0.035,  lowLose: 0.015,  highWin: 0.015,  highLose: 0.035  } },
     { max: 0.25, dominant: { lowWin: 0.10,  lowLose: 0.05,   highWin: 0.05,   highLose: 0.10  }, competitive: { lowWin: 0.06,   lowLose: 0.03,   highWin: 0.03,   highLose: 0.06   } },
     { max: 0.50, dominant: { lowWin: 0.25,  lowLose: 0.04,   highWin: 0.04,   highLose: 0.25  }, competitive: { lowWin: 0.15,   lowLose: 0.025,  highWin: 0.025,  highLose: 0.15   } },

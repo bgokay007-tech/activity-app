@@ -136,8 +136,8 @@ async function applyCompetitivePoints(request, winnerUserId) {
             }));
         }
         pointChanges = skipElo ? [] : [
-            ...winnerInterests.map(wi => ({ userId: wi.userId, change: +transferWin })),
-            ...loserInterests.map(li => ({ userId: li.userId, change: -transferLose })),
+            ...winnerInterests.map(wi => ({ userId: wi.userId, change: +winnerGain })),
+            ...loserInterests.map(li => ({ userId: li.userId, change: -loserLoss })),
         ];
 
         if (skipElo) {
@@ -1171,15 +1171,24 @@ export const confirmScore = async (req, res, next) => {
         }
 
         // Build rating snapshot and store it in score JSON
+        // For tennis/padel: change is in skillRating units (e.g. 0.04).
+        // For other sports: change is in totalPoints units (e.g. 3).
+        const isTennisPadelMatch = TENNIS_PADEL_SUBCATEGORIES.includes(request.subCategory);
         const ratingSnapshot = {};
         for (const i of interestsBefore) {
             const change = pointChanges.find(c => c.userId === i.userId);
-            const ptsBefore = i.totalPoints;
-            const ptsAfter = change ? Math.max(0, ptsBefore + change.change) : ptsBefore;
+            let skillRatingAfter;
+            if (isTennisPadelMatch && change) {
+                skillRatingAfter = parseFloat(Math.max(0, i.skillRating + change.change).toFixed(4));
+            } else {
+                const ptsBefore = i.totalPoints;
+                const ptsAfter = change ? Math.max(0, ptsBefore + change.change) : ptsBefore;
+                skillRatingAfter = parseFloat((ptsAfter / 100 * 5).toFixed(2));
+            }
             ratingSnapshot[i.userId] = {
                 username: userMap[i.userId]?.username || '',
                 skillRating_before: i.skillRating,
-                skillRating_after: parseFloat((ptsAfter / 100 * 5).toFixed(2)),
+                skillRating_after: skillRatingAfter,
                 change: change?.change || 0,
             };
         }
