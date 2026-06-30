@@ -1,4 +1,63 @@
 import prisma from '../config/prisma.js';
+import { emitToUser } from '../config/socket.js';
+import { createNotification } from '../controllers/notification.controller.js';
+
+// ELO is already applied when the score is entered (enterTournamentMatchScore) — confirmation
+// just locks the score against further correction. If the opposing side doesn't confirm/dispute
+// within 1h, auto-confirm so the "Düzelt" button clears and the result locks in.
+async function autoConfirmTournamentScores() {
+    try {
+        const cutoff = new Date(Date.now() - 60 * 60 * 1000);
+
+        const pending = await prisma.tournamentMatch.findMany({
+            where: {
+                status: 'COMPLETED',
+                scoreSubmittedAt: { lte: cutoff },
+                OR: [{ p1Confirmed: false }, { p2Confirmed: false }],
+            },
+        });
+
+        if (pending.length === 0) return;
+
+        const tournamentIds = [...new Set(pending.map(m => m.tournamentId))];
+        const teamIds = [...new Set(pending.flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean))];
+        const teams = await prisma.tournamentTeam.findMany({ where: { id: { in: teamIds } } });
+        const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
+
+        await prisma.tournamentMatch.updateMany({
+            where: { id: { in: pending.map(m => m.id) } },
+            data: { p1Confirmed: true, p2Confirmed: true },
+        });
+
+        for (const tid of tournamentIds) {
+            const allMatches = await prisma.tournamentMatch.findMany({
+                where: { tournamentId: tid },
+                orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+            });
+            const matchesForThisTournament = pending.filter(m => m.tournamentId === tid);
+            const memberIds = new Set();
+            for (const m of matchesForThisTournament) {
+                const t1 = teamMap[m.p1Id], t2 = teamMap[m.p2Id];
+                for (const uid of [t1 ? t1.player1Id : m.p1Id, t1 ? t1.player2Id : null, t2 ? t2.player1Id : m.p2Id, t2 ? t2.player2Id : null]) {
+                    if (uid) memberIds.add(uid);
+                }
+            }
+            for (const uid of memberIds) {
+                emitToUser(uid, 'tournament:match_scored', { tournamentId: tid, matches: allMatches });
+                createNotification(
+                    uid, 'SCORE_CONFIRMED',
+                    '⏱️ Skor otomatik onaylandı',
+                    'Rakip 1 saat içinde skoru onaylamadı, skor otomatik olarak onaylandı.',
+                    { tournamentId: tid }
+                ).catch(() => {});
+            }
+        }
+
+        console.log(`[autoConfirmTournamentScores] Auto-confirmed ${pending.length} tournament match score(s)`);
+    } catch (err) {
+        console.error('[autoConfirmTournamentScores] Error:', err.message);
+    }
+}
 
 async function cleanupExpiredTournaments() {
     try {
@@ -33,6 +92,9 @@ async function cleanupExpiredTournaments() {
 
 export function startTournamentCleanupJob() {
     cleanupExpiredTournaments();
+    autoConfirmTournamentScores();
     setInterval(cleanupExpiredTournaments, 2 * 60 * 1000); // every 2 minutes
+    setInterval(autoConfirmTournamentScores, 5 * 60 * 1000); // every 5 minutes, 1h timeout
     console.log('🧹 Tournament cleanup job started (every 2 min)');
+    console.log('⏰ Tournament auto-confirm score job started (every 5 min, 1h timeout)');
 }

@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { emitToUser } from '../config/socket.js';
 import { createNotification } from '../controllers/notification.controller.js';
+import { runScoreConfirmation } from '../controllers/rival.controller.js';
 
 export async function autoCompleteExpiredMatches() {
     try {
@@ -118,6 +119,39 @@ export async function autoDrawUnscored() {
     }
 }
 
+// Opponent didn't confirm/dispute a submitted score within 1h → auto-confirm it (same ELO path as manual confirm)
+export async function autoConfirmPendingScores() {
+    try {
+        const cutoff = new Date(Date.now() - 60 * 60 * 1000);
+
+        const pending = await prisma.activityRequest.findMany({
+            where: { scoreStatus: 'PENDING', completedAt: { lte: cutoff } },
+        });
+
+        if (pending.length === 0) return;
+
+        for (const request of pending) {
+            const { updated, pointChanges } = await runScoreConfirmation(request);
+
+            const participants = Array.isArray(request.participants) ? request.participants : [];
+            const allIds = [...new Set([request.senderId, ...participants.map(p => p.id)])];
+            const eloMsg = pointChanges.length > 0 ? ' Puanlar maç sonucuna göre güncellendi.' : '';
+            for (const uid of allIds) {
+                createNotification(
+                    uid, 'SCORE_CONFIRMED',
+                    '⏱️ Skor otomatik onaylandı',
+                    `Rakip 1 saat içinde skoru onaylamadı, skor otomatik olarak onaylandı.${eloMsg}`,
+                    { rivalId: updated.id, pointChanges, category: request.category, subCategory: request.subCategory }
+                ).catch(() => {});
+            }
+        }
+
+        console.log(`[autoConfirmScore] Auto-confirmed ${pending.length} pending score(s)`);
+    } catch (err) {
+        console.error('[autoConfirmScore] Error:', err.message);
+    }
+}
+
 // Delete flexible MATCHED matches whose 24h scheduling deadline passed without agreeing on date/time/location
 export async function autoDeleteExpiredFlexibleScheduling() {
     try {
@@ -163,10 +197,13 @@ export function startAutoCompleteJob() {
     autoCompleteExpiredMatches();
     autoDrawUnscored();
     autoDeleteExpiredFlexibleScheduling();
+    autoConfirmPendingScores();
     setInterval(autoCompleteExpiredMatches, 2 * 60 * 1000);
     setInterval(autoDrawUnscored, 10 * 60 * 1000);
     setInterval(autoDeleteExpiredFlexibleScheduling, 5 * 60 * 1000);
+    setInterval(autoConfirmPendingScores, 5 * 60 * 1000);
     console.log('⏰ Auto-complete job started (every 2 min)');
     console.log('⏰ Auto-draw unscored job started (every 10 min)');
     console.log('⏰ Flexible scheduling cleanup job started (every 5 min)');
+    console.log('⏰ Auto-confirm pending scores job started (every 5 min, 1h timeout)');
 }

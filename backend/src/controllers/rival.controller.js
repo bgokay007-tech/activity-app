@@ -1113,6 +1113,80 @@ export const enterScore = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Shared by confirmScore (user action) and the 1h auto-confirm job. Applies ELO,
+// builds the rating snapshot and marks the request CONFIRMED. Caller handles auth + notification.
+export async function runScoreConfirmation(request) {
+    const participants = Array.isArray(request.participants) ? request.participants : [];
+    const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
+
+    await prisma.activityRequest.update({
+        where: { id: request.id },
+        data: { scoreStatus: 'CONFIRMED', archived: true, completedAt: new Date() },
+    });
+
+    // Snapshot ratings BEFORE ELO changes
+    const allPlayerIds = [
+        request.senderId,
+        ...participants.map(p => p.id),
+        ...senderTeamArr.map(m => m.id),
+    ];
+    const [interestsBefore, playersInfo] = await Promise.all([
+        prisma.userInterest.findMany({
+            where: { userId: { in: allPlayerIds }, category: request.category, subCategory: request.subCategory },
+        }),
+        prisma.user.findMany({
+            where: { id: { in: allPlayerIds } },
+            select: { id: true, username: true, fullName: true },
+        }),
+    ]);
+    const userMap = Object.fromEntries(playersInfo.map(u => [u.id, u]));
+
+    // ELO transfer for competitive matches — skip if draw
+    let pointChanges = [];
+    if (request.matchMode === 'COMPETITIVE' && request.score && request.score.winner !== 'draw') {
+        const score = request.score;
+        const winnerUserId = score.winner === 'sender'
+            ? request.senderId
+            : (participants[0]?.id || request.receiverId);
+        if (winnerUserId) {
+            pointChanges = await applyCompetitivePoints(request, winnerUserId);
+        }
+    }
+
+    // Build rating snapshot and store it in score JSON
+    // For tennis/padel: change is in skillRating units (e.g. 0.04).
+    // For other sports: change is in totalPoints units (e.g. 3).
+    const isTennisPadelMatch = TENNIS_PADEL_SUBCATEGORIES.includes(request.subCategory);
+    const ratingSnapshot = {};
+    for (const i of interestsBefore) {
+        const change = pointChanges.find(c => c.userId === i.userId);
+        let skillRatingAfter;
+        if (isTennisPadelMatch && change) {
+            skillRatingAfter = parseFloat(Math.max(0, i.skillRating + change.change).toFixed(4));
+        } else {
+            const ptsBefore = i.totalPoints;
+            const ptsAfter = change ? Math.max(0, ptsBefore + change.change) : ptsBefore;
+            skillRatingAfter = parseFloat((ptsAfter / 100 * 5).toFixed(2));
+        }
+        ratingSnapshot[i.userId] = {
+            username: userMap[i.userId]?.username || '',
+            skillRating_before: i.skillRating,
+            skillRating_after: skillRatingAfter,
+            change: change?.change || 0,
+        };
+    }
+    const updated = await prisma.activityRequest.update({
+        where: { id: request.id },
+        data: { score: { ...request.score, ratingSnapshot } },
+    });
+
+    // Emit to all players so their screens update in real-time
+    const allPlayerIds2 = [...new Set([request.senderId, ...participants.map(p => p.id)])];
+    for (const uid of allPlayerIds2) emitToUser(uid, 'rivalUpdate', updated);
+
+    return { updated, pointChanges };
+}
+
 export const confirmScore = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -1135,71 +1209,7 @@ export const confirmScore = async (req, res, next) => {
         if (scorerInA && confirmerInA) return res.status(400).json({ message: 'Your team entered this score — wait for opponents to confirm' });
         if (!scorerInA && confirmerInB) return res.status(400).json({ message: 'Your team entered this score — wait for opponents to confirm' });
 
-        await prisma.activityRequest.update({
-            where: { id },
-            data: { scoreStatus: 'CONFIRMED', archived: true, completedAt: new Date() },
-        });
-
-        // Snapshot ratings BEFORE ELO changes
-        const allPlayerIds = [
-            request.senderId,
-            ...participants.map(p => p.id),
-            ...senderTeamArr.map(m => m.id),
-        ];
-        const [interestsBefore, playersInfo] = await Promise.all([
-            prisma.userInterest.findMany({
-                where: { userId: { in: allPlayerIds }, category: request.category, subCategory: request.subCategory },
-            }),
-            prisma.user.findMany({
-                where: { id: { in: allPlayerIds } },
-                select: { id: true, username: true, fullName: true },
-            }),
-        ]);
-        const userMap = Object.fromEntries(playersInfo.map(u => [u.id, u]));
-
-        // ELO transfer for competitive matches — skip if draw
-        let pointChanges = [];
-        if (request.matchMode === 'COMPETITIVE' && request.score && request.score.winner !== 'draw') {
-            const score = request.score;
-            const participants = Array.isArray(request.participants) ? request.participants : [];
-            const winnerUserId = score.winner === 'sender'
-                ? request.senderId
-                : (participants[0]?.id || request.receiverId);
-            if (winnerUserId) {
-                pointChanges = await applyCompetitivePoints(request, winnerUserId);
-            }
-        }
-
-        // Build rating snapshot and store it in score JSON
-        // For tennis/padel: change is in skillRating units (e.g. 0.04).
-        // For other sports: change is in totalPoints units (e.g. 3).
-        const isTennisPadelMatch = TENNIS_PADEL_SUBCATEGORIES.includes(request.subCategory);
-        const ratingSnapshot = {};
-        for (const i of interestsBefore) {
-            const change = pointChanges.find(c => c.userId === i.userId);
-            let skillRatingAfter;
-            if (isTennisPadelMatch && change) {
-                skillRatingAfter = parseFloat(Math.max(0, i.skillRating + change.change).toFixed(4));
-            } else {
-                const ptsBefore = i.totalPoints;
-                const ptsAfter = change ? Math.max(0, ptsBefore + change.change) : ptsBefore;
-                skillRatingAfter = parseFloat((ptsAfter / 100 * 5).toFixed(2));
-            }
-            ratingSnapshot[i.userId] = {
-                username: userMap[i.userId]?.username || '',
-                skillRating_before: i.skillRating,
-                skillRating_after: skillRatingAfter,
-                change: change?.change || 0,
-            };
-        }
-        const updated = await prisma.activityRequest.update({
-            where: { id },
-            data: { score: { ...request.score, ratingSnapshot } },
-        });
-
-        // Emit to all players so their screens update in real-time
-        const allPlayerIds2 = [...new Set([request.senderId, ...(Array.isArray(request.participants) ? request.participants.map(p => p.id) : [])])];
-        for (const uid of allPlayerIds2) emitToUser(uid, 'rivalUpdate', updated);
+        const { updated, pointChanges } = await runScoreConfirmation(request);
 
         res.json(updated);
 

@@ -1901,6 +1901,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 scoreEnteredBy: req.userId,
                 p1Confirmed: enteredByP1 || p1AllDemo,
                 p2Confirmed: enteredByP2 || p2AllDemo,
+                scoreSubmittedAt: new Date(),
             },
         });
 
