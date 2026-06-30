@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
 import { logout, setUser } from '../../store/slices/authSlice';
 import { setLang } from '../../store/slices/langSlice';
 import useT from '../../hooks/useT';
@@ -1437,6 +1438,9 @@ export default function ProfileScreen({ route, navigation }) {
     const [stories, setStories] = useState([]);
     const [archivedStories, setArchivedStories] = useState([]);
     const [storyViewIdx, setStoryViewIdx] = useState(null);
+    const [storyProgress, setStoryProgress] = useState(0);
+    const storyMusicRef = useRef(null);
+    const goStoryNextRef = useRef(null);
     const [archiveOpen, setArchiveOpen] = useState(false);
     const [pickedMedia, setPickedMedia] = useState(null);
     const [storyBranch, setStoryBranch] = useState(null);
@@ -1756,6 +1760,12 @@ export default function ProfileScreen({ route, navigation }) {
             api.get(`/posts/user/${userId}?type=POST`).then(({ data }) => {
                 if (Array.isArray(data)) { setPosts(data); setPostCount(data.length); }
             }).catch(() => {});
+            api.get(`/posts/user/${userId}?type=REEL`).then(({ data }) => {
+                if (Array.isArray(data)) { setReels(data); setReelCount(data.length); }
+            }).catch(() => {});
+            api.get(`/posts/user/${userId}?type=STORY`).then(({ data }) => {
+                if (Array.isArray(data)) setStories(data);
+            }).catch(() => {});
             api.get(isOwnProfile ? '/auth/me' : `/users/${userId}`).then(({ data }) => {
                 setProfile(data);
                 if (isOwnProfile) dispatch(setUser(data));
@@ -1771,6 +1781,69 @@ export default function ProfileScreen({ route, navigation }) {
         });
         return unsubscribe;
     }, [navigation, userId, isOwnProfile]);
+
+    const goStoryNext = useCallback(() => {
+        if (storyViewIdx !== null && storyViewIdx < stories.length - 1) {
+            const newIdx = storyViewIdx + 1;
+            setStoryViewIdx(newIdx);
+            setViewedStoryIds(prev => new Set([...prev, stories[newIdx].id]));
+            api.post(`/posts/${stories[newIdx].id}/view`).catch(() => {});
+            if (isOwnProfile) {
+                api.get(`/posts/${stories[newIdx].id}/views`)
+                    .then(r => setStoryViewers(r.data)).catch(() => setStoryViewers([]));
+            }
+        } else {
+            setStoryViewIdx(null);
+        }
+    }, [storyViewIdx, stories, isOwnProfile]);
+
+    const goStoryPrev = useCallback(() => {
+        if (storyViewIdx !== null && storyViewIdx > 0) {
+            const newIdx = storyViewIdx - 1;
+            setStoryViewIdx(newIdx);
+            if (isOwnProfile) {
+                api.get(`/posts/${stories[newIdx].id}/views`)
+                    .then(r => setStoryViewers(r.data)).catch(() => setStoryViewers([]));
+            }
+        }
+    }, [storyViewIdx, stories, isOwnProfile]);
+
+    useEffect(() => { goStoryNextRef.current = goStoryNext; }, [goStoryNext]);
+
+    useEffect(() => {
+        if (storyViewIdx === null) return;
+        setStoryProgress(0);
+        const story = stories[storyViewIdx];
+        const duration = story?.musicName
+            ? Math.max(1000, ((story.musicEndTime || 15) - (story.musicStartTime || 0)) * 1000)
+            : 15000;
+        const TICK = 100;
+        const interval = setInterval(() => {
+            setStoryProgress(p => {
+                const next = p + TICK / duration;
+                if (next >= 1) { clearInterval(interval); goStoryNextRef.current?.(); return 1; }
+                return next;
+            });
+        }, TICK);
+        let stopTimeout;
+        const startMs = (story?.musicStartTime || 0) * 1000;
+        const endMs = (story?.musicEndTime || 30) * 1000;
+        if (story?.musicUrl) {
+            Audio.setAudioModeAsync({ playsInSilentModeIOS: true })
+                .then(() => Audio.Sound.createAsync({ uri: story.musicUrl }, { shouldPlay: true, positionMillis: startMs }))
+                .then(({ sound }) => {
+                    storyMusicRef.current = sound;
+                    stopTimeout = setTimeout(() => sound.stopAsync().catch(() => {}), endMs - startMs + 500);
+                }).catch(() => {});
+        }
+        return () => {
+            clearInterval(interval);
+            if (stopTimeout) clearTimeout(stopTimeout);
+            storyMusicRef.current?.stopAsync().catch(() => {});
+            storyMusicRef.current?.unloadAsync().catch(() => {});
+            storyMusicRef.current = null;
+        };
+    }, [storyViewIdx]);
 
     const handleToggleFollow = async () => {
         setFollowLoading(true);
@@ -3188,78 +3261,89 @@ export default function ProfileScreen({ route, navigation }) {
             </Modal>
 
             {/* ── Story Viewer Modal ── */}
-            <Modal visible={storyViewIdx !== null} animationType="fade" transparent onRequestClose={() => setStoryViewIdx(null)}>
-                <View style={{ flex: 1, backgroundColor: '#000000ee', justifyContent: 'center', alignItems: 'center' }}>
-                    <TouchableOpacity style={{ position: 'absolute', top: 56, right: 20, zIndex: 10 }} onPress={() => setStoryViewIdx(null)}>
-                        <Text style={{ color: '#fff', fontSize: 28, fontWeight: '700' }}>✕</Text>
-                    </TouchableOpacity>
-                    {storyViewIdx !== null && stories[storyViewIdx] && (
-                        <>
-                            {stories[storyViewIdx].imageUrl
-                                ? <Image source={{ uri: stories[storyViewIdx].imageUrl }} style={{ width: '100%', height: '70%' }} resizeMode="contain" />
-                                : <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text><Text style={{ color: '#fff', marginTop: 8 }}>Video</Text></View>
-                            }
-                            <View style={{ position: 'absolute', top: 56, left: 20 }}>
-                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', opacity: 0.7 }}>
-                                    {SUB_EMOJI[stories[storyViewIdx].subCategory] || '📸'} {stories[storyViewIdx].subCategory}
-                                </Text>
-                            </View>
-                            <View style={{ position: 'absolute', flexDirection: 'row', bottom: isOwnProfile && storyViewers.length > 0 ? 160 : 40, gap: 20 }}>
-                                {storyViewIdx > 0 && (
-                                    <TouchableOpacity style={s.storyNavBtn} onPress={() => {
-                                        const newIdx = storyViewIdx - 1;
-                                        setStoryViewIdx(newIdx);
-                                        if (isOwnProfile) {
-                                            api.get(`/posts/${stories[newIdx].id}/views`)
-                                                .then(r => setStoryViewers(r.data)).catch(() => setStoryViewers([]));
-                                        }
-                                    }}>
-                                        <Text style={{ color: '#fff', fontWeight: '700' }}>‹ Önceki</Text>
-                                    </TouchableOpacity>
+            <Modal visible={storyViewIdx !== null} animationType="fade" statusBarTranslucent onRequestClose={() => setStoryViewIdx(null)}>
+                {storyViewIdx !== null && stories[storyViewIdx] && (() => {
+                    const story = stories[storyViewIdx];
+                    return (
+                        <View style={{ flex: 1, backgroundColor: '#000' }}>
+                            {/* Tam ekran görsel */}
+                            <View style={{ flex: 1 }}>
+                                {story.imageUrl
+                                    ? <Image source={{ uri: story.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                    : story.videoUrl
+                                        ? <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text></View>
+                                        : <View style={{ flex: 1, backgroundColor: '#111' }} />
+                                }
+                                {/* Müzik — sol üst */}
+                                {!!story.musicName && (
+                                    <View style={{ position: 'absolute', top: 90, left: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#00000075', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, maxWidth: '65%' }}>
+                                        <Text style={{ fontSize: 14 }}>🎵</Text>
+                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{story.musicName}{story.musicArtist ? ` – ${story.musicArtist}` : ''}</Text>
+                                    </View>
                                 )}
-                                {storyViewIdx < stories.length - 1 && (
-                                    <TouchableOpacity style={s.storyNavBtn} onPress={() => {
-                                        const newIdx = storyViewIdx + 1;
-                                        setStoryViewIdx(newIdx);
-                                        if (isOwnProfile) {
-                                            api.get(`/posts/${stories[newIdx].id}/views`)
-                                                .then(r => setStoryViewers(r.data)).catch(() => setStoryViewers([]));
-                                        }
-                                    }}>
-                                        <Text style={{ color: '#fff', fontWeight: '700' }}>Sonraki ›</Text>
-                                    </TouchableOpacity>
+                                {/* Konum — sağ alt */}
+                                {!!story.location && (
+                                    <View style={{ position: 'absolute', bottom: isOwnProfile ? 180 : 72, right: 14, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}>
+                                        <Text style={{ fontSize: 12 }}>📍</Text>
+                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{story.location}</Text>
+                                    </View>
                                 )}
-                            </View>
-                            {isOwnProfile && (
-                                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#000000cc', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 30 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 10 }}>
-                                        👁 {storyViewers.length} kişi baktı
-                                    </Text>
-                                    {storyViewers.length === 0
-                                        ? <Text style={{ color: colors.textMuted, fontSize: 12 }}>Henüz kimse bakmadı</Text>
-                                        : (
-                                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                                {storyViewers.map((v) => (
-                                                    <View key={v.id} style={{ alignItems: 'center', marginRight: 14 }}>
-                                                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.purple + '60', justifyContent: 'center', alignItems: 'center' }}>
-                                                            {v.user?.avatar
-                                                                ? <Image source={{ uri: v.user.avatar }} style={{ width: 36, height: 36, borderRadius: 18 }} />
-                                                                : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{v.user?.username?.[0]?.toUpperCase()}</Text>
-                                                            }
+                                {/* Yazı overlay — ortada */}
+                                {!!story.content && (
+                                    <View style={{ position: 'absolute', left: 20, right: 20, bottom: story.location ? (isOwnProfile ? 240 : 130) : (isOwnProfile ? 180 : 72), alignItems: 'center' }}>
+                                        <View style={{ backgroundColor: '#00000065', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+                                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', lineHeight: 23 }}>{story.content}</Text>
+                                        </View>
+                                    </View>
+                                )}
+                                {/* Kim baktı — sadece kendi profilinde */}
+                                {isOwnProfile && (
+                                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#000000cc', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 30 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 10 }}>
+                                            👁 {storyViewers.length} kişi baktı
+                                        </Text>
+                                        {storyViewers.length === 0
+                                            ? <Text style={{ color: colors.textMuted, fontSize: 12 }}>Henüz kimse bakmadı</Text>
+                                            : (
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                                    {storyViewers.map((v) => (
+                                                        <View key={v.id} style={{ alignItems: 'center', marginRight: 14 }}>
+                                                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.purple + '60', justifyContent: 'center', alignItems: 'center' }}>
+                                                                {v.user?.avatar
+                                                                    ? <Image source={{ uri: v.user.avatar }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                                                                    : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{v.user?.username?.[0]?.toUpperCase()}</Text>
+                                                                }
+                                                            </View>
+                                                            <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600', marginTop: 4 }} numberOfLines={1}>
+                                                                {v.user?.username}
+                                                            </Text>
                                                         </View>
-                                                        <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600', marginTop: 4 }} numberOfLines={1}>
-                                                            {v.user?.username}
-                                                        </Text>
-                                                    </View>
-                                                ))}
-                                            </ScrollView>
-                                        )
-                                    }
-                                </View>
-                            )}
-                        </>
-                    )}
-                </View>
+                                                    ))}
+                                                </ScrollView>
+                                            )
+                                        }
+                                    </View>
+                                )}
+                                {/* Dokunma bölgeleri */}
+                                <TouchableOpacity style={{ position: 'absolute', left: 0, top: 60, bottom: isOwnProfile ? 140 : 0, width: '35%' }} onPress={goStoryPrev} activeOpacity={1} />
+                                <TouchableOpacity style={{ position: 'absolute', right: 0, top: 60, bottom: isOwnProfile ? 140 : 0, width: '65%' }} onPress={goStoryNext} activeOpacity={1} />
+                            </View>
+                            {/* İlerleme çubukları — en üstte */}
+                            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', gap: 3, paddingHorizontal: 12, paddingTop: 52, paddingBottom: 8 }}>
+                                {stories.map((_, i) => (
+                                    <View key={i} style={{ flex: 1, height: 2.5, borderRadius: 2, backgroundColor: '#ffffff35', overflow: 'hidden' }}>
+                                        {i < storyViewIdx
+                                            ? <View style={{ flex: 1, backgroundColor: '#fff' }} />
+                                            : i === storyViewIdx
+                                                ? <View style={{ width: `${Math.min(storyProgress * 100, 100)}%`, height: '100%', backgroundColor: '#fff' }} />
+                                                : null
+                                        }
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    );
+                })()}
             </Modal>
 
             {/* ── Profile Info Modal ── */}
