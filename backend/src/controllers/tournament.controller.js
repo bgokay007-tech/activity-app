@@ -208,29 +208,46 @@ function computeStandings(players, matches, tournamentType) {
     });
 }
 
-/** Pairs candidates by closest skillRating, never repeating a pair already in playedPairKeys. */
+/**
+ * Pairs candidates by closest skillRating, never repeating a pair already in playedPairKeys.
+ * Uses backtracking (most-constrained-player-first) instead of pure greedy: a naive greedy
+ * nearest-ELO pass can paint itself into a corner and leave players unmatched even when a
+ * valid full pairing exists for the round. Backtracking guarantees a full pairing is found
+ * whenever one exists, leaving at most one player without an opponent (odd headcount).
+ */
 function pairByClosestElo(players, playedPairKeys) {
-    const sorted = [...players].sort((a, b) => (a.skillRating || 0) - (b.skillRating || 0));
     const played = new Set(playedPairKeys);
-    const unmatched = new Set(sorted.map(p => p.id));
-    const roundPairs = [];
-    for (const player of sorted) {
-        if (!unmatched.has(player.id)) continue;
-        const candidates = sorted
-            .filter(p => p.id !== player.id && unmatched.has(p.id))
-            .map(p => ({ ...p, d: Math.abs((p.skillRating || 0) - (player.skillRating || 0)) }))
-            .sort((a, b) => a.d - b.d);
-        for (const opp of candidates) {
-            const key = [player.id, opp.id].sort().join('|');
-            if (played.has(key)) continue;
-            played.add(key);
-            unmatched.delete(player.id);
-            unmatched.delete(opp.id);
-            roundPairs.push({ p1: player, p2: opp });
-            break;
+    const byId = new Map(players.map(p => [p.id, p]));
+
+    const validOpponents = (id, pool) => pool
+        .filter(oid => oid !== id && !played.has([id, oid].sort().join('|')))
+        .sort((a, b) => Math.abs((byId.get(a).skillRating || 0) - (byId.get(id).skillRating || 0))
+            - Math.abs((byId.get(b).skillRating || 0) - (byId.get(id).skillRating || 0)));
+
+    function search(pool) {
+        if (pool.length <= 1) return { pairs: [], leftover: pool };
+        let pivot = null, pivotCands = null;
+        for (const id of pool) {
+            const cands = validOpponents(id, pool);
+            if (pivotCands === null || cands.length < pivotCands.length) {
+                pivot = id; pivotCands = cands;
+                if (cands.length === 0) break;
+            }
         }
+        for (const opp of pivotCands) {
+            const rest = pool.filter(x => x !== pivot && x !== opp);
+            const sub = search(rest);
+            if (sub.leftover.length === 0) {
+                return { pairs: [[pivot, opp], ...sub.pairs], leftover: [] };
+            }
+        }
+        const rest = pool.filter(x => x !== pivot);
+        const sub = search(rest);
+        return { pairs: sub.pairs, leftover: [pivot, ...sub.leftover] };
     }
-    return roundPairs;
+
+    const { pairs } = search(players.map(p => p.id));
+    return pairs.map(([a, b]) => ({ p1: byId.get(a), p2: byId.get(b) }));
 }
 
 async function getCurrentPlayerRatings(tournament, userIds) {
