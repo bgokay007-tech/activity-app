@@ -282,6 +282,10 @@ export const createRivalRequest = async (req, res, next) => {
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
             refereePayment,
             minRating, maxRating,
+            genderReq = 'MIX',
+            partnerGenderReq = 'MIX',
+            opp1GenderReq = 'MIX',
+            opp2GenderReq = 'MIX',
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
@@ -332,6 +336,10 @@ export const createRivalRequest = async (req, res, next) => {
                 ...(minRating !== undefined && minRating !== null && minRating !== '' && { minRating: parseFloat(minRating) }),
                 ...(maxRating !== undefined && maxRating !== null && maxRating !== '' && { maxRating: parseFloat(maxRating) }),
                 ...(courtFeePerPerson !== undefined && courtFeePerPerson !== null && { courtFeePerPerson: parseInt(courtFeePerPerson, 10) }),
+                genderReq: genderReq || 'MIX',
+                partnerGenderReq: partnerGenderReq || 'MIX',
+                opp1GenderReq: opp1GenderReq || 'MIX',
+                opp2GenderReq: opp2GenderReq || 'MIX',
                 status: 'OPEN',
             },
             include: { sender: { select: SENDER_SELECT } },
@@ -517,6 +525,18 @@ export const sendJoinRequest = async (req, res, next) => {
         });
         if (existing && existing.status !== 'REJECTED') {
             return res.status(400).json({ message: 'You already sent a request', status: existing.status });
+        }
+
+        // Gender restriction check (SINGLE only)
+        if (request.matchType === 'SINGLE' && request.genderReq && request.genderReq !== 'MIX') {
+            const joiner = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
+            if (joiner?.gender && joiner.gender !== 'OTHER') {
+                const genderOk = request.genderReq === joiner.gender; // 'MALE' === 'MALE' or 'FEMALE' === 'FEMALE'
+                if (!genderOk) {
+                    const label = request.genderReq === 'MALE' ? 'erkek' : 'kadın';
+                    return res.status(400).json({ message: `Bu ilan yalnızca ${label} oyuncular için açık.` });
+                }
+            }
         }
 
         if (request.minRating !== null || request.maxRating !== null) {

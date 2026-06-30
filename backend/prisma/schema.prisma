@@ -397,6 +397,10 @@ model ActivityRequest {
   archived        Boolean      @default(false)
   expiresAt            DateTime?
   mutualCancelRequests Json     @default("[]") // [userId, ...] — tracks who requested mutual cancel
+  genderReq        String  @default("MIX")  // MIX | MALE | FEMALE — who can join (singles: opponent; display hint for doubles)
+  partnerGenderReq String  @default("MIX")  // doubles: partner/teammate gender requirement
+  opp1GenderReq    String  @default("MIX")  // doubles: opponent 1 gender requirement
+  opp2GenderReq    String  @default("MIX")  // doubles: opponent 2 gender requirement
   scheduleProposal    Json?                   // {userId, date, time, location, courtName, proposedAt}
   schedulingDeadline  DateTime?               // 24h after MATCHED for flexible matches
   createdAt       DateTime     @default(now())

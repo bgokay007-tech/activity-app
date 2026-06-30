@@ -656,6 +656,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                             </Text>
                         </View>
+                        {item.genderReq && item.genderReq !== 'MIX' && (
+                            <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(3) }}>
+                                <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(10), fontWeight:'800' }}>
+                                    {item.genderReq === 'MALE' ? '👨 Erkek' : '👩 Kadın'}
+                                </Text>
+                            </View>
+                        )}
+                        {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (
+                            <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(3) }}>
+                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>⚥ Kısıtlı</Text>
+                            </View>
+                        )}
                     </View>
                     {item.message && <Text style={[s.cardMsg, { marginBottom:12, fontSize: moderateScale(13) }]}>{item.message}</Text>}
 
@@ -2748,6 +2760,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         message: '',
         minRating: '', maxRating: '',
         partner: null,
+        genderReq: 'MIX',
+        partnerGenderReq: 'MIX',
+        opp1GenderReq: 'MIX',
+        opp2GenderReq: 'MIX',
     };
     const [f, setF]               = useState(INIT);
     const [showPartnerSearch, setShowPartnerSearch] = useState(false);
@@ -2860,6 +2876,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                 message:   f.message || undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
+                genderReq: (sub === 'tennis' || sub === 'padel') ? f.genderReq : undefined,
+                partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
+                opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
+                opp2GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp2GenderReq : undefined,
                 senderTeam: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
                     ? [{ id: f.partner.id, username: f.partner.username, fullName: f.partner.fullName, skillRating: f.partner.interests?.[0]?.skillRating || 0 }]
                     : undefined,
@@ -2956,6 +2976,42 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             </TouchableOpacity>
                                         )
                                     )}
+                                    {(sub === 'tennis' || sub === 'padel') && (() => {
+                                        const GENDERS = [
+                                            { id:'MIX', label: t.genderMix || '🤝 Mix' },
+                                            { id:'MALE', label: t.genderMale || '👨 Erkek' },
+                                            { id:'FEMALE', label: t.genderFemale || '👩 Kadın' },
+                                        ];
+                                        const GenderRow = ({ label, field }) => (
+                                            <View style={{ flex:1 }}>
+                                                <Text style={[s.fieldLabel, { marginBottom:4, fontSize:11 }]}>{label}</Text>
+                                                <View style={{ flexDirection:'row', gap:4 }}>
+                                                    {GENDERS.map(g => (
+                                                        <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
+                                                            style={[s.chipBtn, { flex:1, paddingHorizontal:2, paddingVertical:4 }, f[field]===g.id && s.chipBtnActive]}>
+                                                            <Text style={[s.chipBtnText, { fontSize:10 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </View>
+                                        );
+                                        if (f.matchType === 'SINGLE') {
+                                            return (
+                                                <View style={{ marginBottom:8 }}>
+                                                    <GenderRow label={t.genderReqLabel || 'Rakip Cinsiyeti'} field="genderReq" />
+                                                </View>
+                                            );
+                                        }
+                                        return (
+                                            <View style={{ marginBottom:8, gap:8 }}>
+                                                <GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti'} field="partnerGenderReq" />
+                                                <View style={{ flexDirection:'row', gap:8 }}>
+                                                    <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
+                                                    <GenderRow label={t.opp2GenderLabel || 'Rakip 2 Cinsiyeti'} field="opp2GenderReq" />
+                                                </View>
+                                            </View>
+                                        );
+                                    })()}
                                     {(sub === 'tennis' || sub === 'padel') && f.flexibleSchedule && (
                                         <Text style={s.modeHint}>{t.multiSelectHint}</Text>
                                     )}
