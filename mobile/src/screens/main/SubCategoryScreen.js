@@ -7993,7 +7993,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* İlan ver formu Modal */}
                             <Modal visible={showEquipmentForm} animationType="slide" onRequestClose={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }}>
                                 <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
-                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
+                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
                                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20 }}>
                                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎾 Ekipman İlanı Ver</Text>
                                             <View style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
@@ -8063,7 +8063,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* İlan detay Modal */}
                             <Modal visible={!!selectedEquipment} animationType="slide" transparent onRequestClose={() => setSelectedEquipment(null)}>
                                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
-                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36, maxHeight:'85%' }}>
+                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36, maxHeight:'85%' }}>
                                         <ScrollView showsVerticalScrollIndicator={false}>
                                             {selectedEquipment?.images?.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:12 }}>
@@ -8228,7 +8228,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── Antrenör İlanı Oluştur ── */}
                     <Modal visible={showCreateCoach} animationType="slide" onRequestClose={() => setShowCreateCoach(false)}>
                         <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
-                            <View style={{ backgroundColor: colors.card, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
+                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20 }}>
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎓 Antrenör İlanı Oluştur</Text>
 
@@ -8355,7 +8355,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── Antrenör CV Yükle (tekil hızlı yükleme) ── */}
                     <Modal visible={showCvUploadModal} animationType="fade" transparent onRequestClose={() => setShowCvUploadModal(false)}>
                         <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', padding:24 }}>
-                            <View style={{ backgroundColor: colors.card, borderRadius:16, padding:20 }}>
+                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:20 }}>
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:10 }}>📄 CV Yükle</Text>
                                 <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:14 }}>İlanınıza eklenecek CV fotoğrafını seçin.</Text>
                                 {standaloneCvImage ? (
@@ -8763,7 +8763,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {/* Tip seçim sheet */}
                                 <Modal visible={showMediaTypeSheet} animationType="slide" transparent onRequestClose={() => setShowMediaTypeSheet(false)}>
                                     <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000080' }} activeOpacity={1} onPress={() => setShowMediaTypeSheet(false)}>
-                                        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 }}>
+                                        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 }}>
                                             <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center', marginBottom: 16 }}>Ne paylaşmak istiyorsun?</Text>
                                             {[
                                                 { type: 'POST',  emoji: '🖼️', label: 'Gönderi',  desc: 'Fotoğraf veya video paylaş' },
@@ -8786,7 +8786,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {/* Medya paylaş modal */}
                                 <Modal visible={showMediaShare} animationType="slide" transparent onRequestClose={() => setShowMediaShare(false)}>
                                     <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                                        <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+                                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
                                             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>
                                                 {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
                                             </Text>
@@ -8843,7 +8843,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {/* Müzik Kırp Modal */}
                                             <Modal visible={musicTrimOpen} animationType="slide" transparent onRequestClose={() => { setMusicTrimOpen(false); stopMusicPreview(); }}>
                                                 <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                                                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+                                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
                                                             {shareMusic?.coverUrl
                                                                 ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} />
