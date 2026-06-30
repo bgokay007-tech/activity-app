@@ -6306,6 +6306,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
                                         'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
                                         'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
+                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
                                     ].map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -6327,6 +6328,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
                                         'Play-off öncesi lig tablosunda puanı eşit olan takımlar varsa averaj (oynanan oyun oranı) dikkate alınır.',
                                         'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
+                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
                                     ].map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
