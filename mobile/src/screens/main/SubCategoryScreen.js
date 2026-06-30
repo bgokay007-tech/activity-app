@@ -4551,7 +4551,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                             const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                             return (
-                                                <View key={match.id} style={{ width: isEntering ? '100%' : '48.5%', backgroundColor:'#0f172a', borderRadius:8, padding:3, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
+                                                <View key={match.id} style={{ width: '100%', backgroundColor:'#0f172a', borderRadius:8, padding:3, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
                                                         <View style={{ flex:1 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
@@ -4578,12 +4578,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                             <View style={{ flex:1 }}>
                                                                                 {team ? (
                                                                                     <>
-                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{playerLine(team.player1Id, team.player1Name)}</Text>
-                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{playerLine(team.player2Id, team.player2Name)}</Text>
+                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', flexWrap:'wrap' }}>{playerLine(team.player1Id, team.player1Name)}</Text>
+                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', flexWrap:'wrap' }}>{playerLine(team.player2Id, team.player2Name)}</Text>
                                                                                         {avgLine ? <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'800' }}>{avgLine}</Text> : null}
                                                                                     </>
                                                                                 ) : (
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
+                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flexWrap:'wrap' }}>{match.p1Name || 'TBD'}</Text>
                                                                                 )}
                                                                             </View>
                                                                             {setsRow}
@@ -4594,13 +4594,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const hasRating = rB != null && rA != null;
                                                                 const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
                                                                 const eloStr = hasRating
-                                                                    ? `  ${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
-                                                                    : (match.p1Id && skillRatingMap[match.p1Id] != null ? `  ${starEmoji(Number(skillRatingMap[match.p1Id]))} ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
+                                                                    ? `${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                    : (match.p1Id && skillRatingMap[match.p1Id] != null ? `${starEmoji(Number(skillRatingMap[match.p1Id]))} ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
                                                                 return (
-                                                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                                                            {match.p1Name || 'TBD'}{eloStr}
-                                                                        </Text>
+                                                                    <View style={{ flexDirection:'row', alignItems:'flex-start' }}>
+                                                                        <View style={{ flex:1, flexShrink:1 }}>
+                                                                            <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flexWrap:'wrap' }}>
+                                                                                {match.p1Name || 'TBD'}
+                                                                            </Text>
+                                                                            {eloStr ? <Text style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:10, flexWrap:'wrap' }}>{eloStr}</Text> : null}
+                                                                        </View>
                                                                         {setsRow}
                                                                     </View>
                                                                 );
@@ -4631,12 +4634,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                             <View style={{ flex:1 }}>
                                                                                 {team ? (
                                                                                     <>
-                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{playerLine(team.player1Id, team.player1Name)}</Text>
-                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{playerLine(team.player2Id, team.player2Name)}</Text>
+                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', flexWrap:'wrap' }}>{playerLine(team.player1Id, team.player1Name)}</Text>
+                                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', flexWrap:'wrap' }}>{playerLine(team.player2Id, team.player2Name)}</Text>
                                                                                         {avgLine ? <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'800' }}>{avgLine}</Text> : null}
                                                                                     </>
                                                                                 ) : (
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{match.p2Name || 'TBD'}</Text>
+                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flexWrap:'wrap' }}>{match.p2Name || 'TBD'}</Text>
                                                                                 )}
                                                                             </View>
                                                                             {setsRow}
@@ -4647,13 +4650,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const hasRating = rB != null && rA != null;
                                                                 const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
                                                                 const eloStr = hasRating
-                                                                    ? `  ${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
-                                                                    : (match.p2Id && skillRatingMap[match.p2Id] != null ? `  ${starEmoji(Number(skillRatingMap[match.p2Id]))} ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
+                                                                    ? `${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                    : (match.p2Id && skillRatingMap[match.p2Id] != null ? `${starEmoji(Number(skillRatingMap[match.p2Id]))} ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
                                                                 return (
-                                                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                                                            {match.p2Name || 'TBD'}{eloStr}
-                                                                        </Text>
+                                                                    <View style={{ flexDirection:'row', alignItems:'flex-start' }}>
+                                                                        <View style={{ flex:1, flexShrink:1 }}>
+                                                                            <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flexWrap:'wrap' }}>
+                                                                                {match.p2Name || 'TBD'}
+                                                                            </Text>
+                                                                            {eloStr ? <Text style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:10, flexWrap:'wrap' }}>{eloStr}</Text> : null}
+                                                                        </View>
                                                                         {setsRow}
                                                                     </View>
                                                                 );
