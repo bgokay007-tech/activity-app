@@ -2,6 +2,56 @@ import prisma from '../config/prisma.js';
 
 const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
+// Bir kullanıcının (veya Çiftler Rekabetçi'de takımının) belirli bir turnuvadaki
+// yerleşimini hesaplar: playoff finaline/yarı finaline bakar, yoksa bracketData
+// standings'e düşer. Hem achievement listesinde hem de arşiv listesinde kullanılır.
+export async function computeTournamentPlacement(tournamentId, userId, bracketData) {
+    let placement = null;
+
+    // Çiftler Rekabetçi: bu kullanıcının takımının id'sini bul — maçlarda p1Id/p2Id/winnerId
+    // kullanıcı değil takım id'sidir.
+    let effectiveId = userId;
+    const myTeam = await prisma.tournamentTeam.findFirst({
+        where: { tournamentId, OR: [{ player1Id: userId }, { player2Id: userId }] },
+    });
+    if (myTeam) effectiveId = myTeam.id;
+
+    // Playoff maçlarına bak
+    const playoffMatches = await prisma.tournamentMatch.findMany({
+        where: { tournamentId, phase: 'PLAYOFF', status: { in: ['COMPLETED', 'FORFEIT'] } },
+        orderBy: { round: 'desc' },
+    });
+
+    if (playoffMatches.length > 0) {
+        const maxRound = playoffMatches[0].round;
+        const final = playoffMatches.find(m => m.round === maxRound);
+        if (final) {
+            if (final.winnerId === effectiveId) placement = 1;
+            else if (final.p1Id === effectiveId || final.p2Id === effectiveId) placement = 2;
+        }
+        if (!placement) {
+            // Yarı finalde elendiyse → 3.
+            const semiFinals = playoffMatches.filter(m => m.round === maxRound - 1);
+            const lostSemi = semiFinals.find(m =>
+                (m.p1Id === effectiveId || m.p2Id === effectiveId) && m.winnerId !== effectiveId
+            );
+            if (lostSemi) placement = 3;
+        }
+    }
+
+    // Playoff yoksa bracketData standings'e bak
+    if (!placement && bracketData) {
+        try {
+            const bd = typeof bracketData === 'string' ? JSON.parse(bracketData) : bracketData;
+            const standings = Array.isArray(bd) ? bd : (bd?.standings || bd?.groupStandings || []);
+            const idx = standings.findIndex(s => s.userId === effectiveId);
+            if (idx >= 0 && idx < 3) placement = idx + 1;
+        } catch {}
+    }
+
+    return { placement, myTeam };
+}
+
 async function getTournamentPlacements(userId) {
     // Kullanıcının katıldığı tamamlanmış turnuvalar
     const tournaments = await prisma.tournament.findMany({
@@ -19,48 +69,7 @@ async function getTournamentPlacements(userId) {
     const placements = [];
 
     for (const t of tournaments) {
-        let placement = null;
-
-        // Çiftler Rekabetçi: bu kullanıcının takımının id'sini bul — maçlarda p1Id/p2Id/winnerId
-        // kullanıcı değil takım id'sidir.
-        let effectiveId = userId;
-        const myTeam = await prisma.tournamentTeam.findFirst({
-            where: { tournamentId: t.id, OR: [{ player1Id: userId }, { player2Id: userId }] },
-        });
-        if (myTeam) effectiveId = myTeam.id;
-
-        // Playoff maçlarına bak
-        const playoffMatches = await prisma.tournamentMatch.findMany({
-            where: { tournamentId: t.id, phase: 'PLAYOFF', status: { in: ['COMPLETED', 'FORFEIT'] } },
-            orderBy: { round: 'desc' },
-        });
-
-        if (playoffMatches.length > 0) {
-            const maxRound = playoffMatches[0].round;
-            const final = playoffMatches.find(m => m.round === maxRound);
-            if (final) {
-                if (final.winnerId === effectiveId) placement = 1;
-                else if (final.p1Id === effectiveId || final.p2Id === effectiveId) placement = 2;
-            }
-            if (!placement) {
-                // Yarı finalde elendiyse → 3.
-                const semiFinals = playoffMatches.filter(m => m.round === maxRound - 1);
-                const lostSemi = semiFinals.find(m =>
-                    (m.p1Id === effectiveId || m.p2Id === effectiveId) && m.winnerId !== effectiveId
-                );
-                if (lostSemi) placement = 3;
-            }
-        }
-
-        // Playoff yoksa bracketData standings'e bak
-        if (!placement && t.bracketData) {
-            try {
-                const bd = typeof t.bracketData === 'string' ? JSON.parse(t.bracketData) : t.bracketData;
-                const standings = Array.isArray(bd) ? bd : (bd?.standings || bd?.groupStandings || []);
-                const idx = standings.findIndex(s => s.userId === effectiveId);
-                if (idx >= 0 && idx < 3) placement = idx + 1;
-            } catch {}
-        }
+        const { placement, myTeam } = await computeTournamentPlacement(t.id, userId, t.bracketData);
 
         if (placement) {
             placements.push({

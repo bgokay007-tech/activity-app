@@ -115,13 +115,19 @@ export const getDailySpotlight = async (req, res, next) => {
         const { subCategory = 'tennis' } = req.query;
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true } });
 
-        const [international, national, localTournament] = await Promise.all([
+        const [internationalTournament, nationalTournament, localTournament] = await Promise.all([
             getYesterdayTournamentTop3(subCategory, 'ULUSLARARASI'),
             getYesterdayTournamentTop3(subCategory, 'ULUSAL'),
             getYesterdayTournamentTop3(subCategory, 'YEREL'),
         ]);
 
-        const local = localTournament || await getYesterdayMostWins(subCategory, me?.city);
+        // O katmanda dün biten bir turnuva yoksa, Yerel'deki gibi en çok galibiyet
+        // alan oyuncunun adı fallback olarak gösterilir — kart hiçbir zaman boş kalmaz.
+        const [international, national, local] = await Promise.all([
+            internationalTournament ? Promise.resolve(internationalTournament) : getYesterdayMostWins(subCategory),
+            nationalTournament ? Promise.resolve(nationalTournament) : getYesterdayMostWins(subCategory),
+            localTournament ? Promise.resolve(localTournament) : getYesterdayMostWins(subCategory, me?.city),
+        ]);
 
         res.json({
             pro: { available: false }, // RapidAPI tennis-data integration pending

@@ -372,7 +372,7 @@ function TennisDailyAnimation({ color, lang }) {
     );
 }
 
-function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId }) {
+function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId, onViewTournament }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [matchListType, setMatchListType] = useState(null);
@@ -678,6 +678,10 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 isOwnProfile={isOwnProfile}
                 lang={lang}
                 cfg={cfg}
+                onViewTournament={(achievement) => {
+                    setShowAchievements(false);
+                    onViewTournament && onViewTournament(achievement);
+                }}
             />
             <DartModal visible={showDart} onClose={() => setShowDart(false)} lang={lang} cfg={cfg} />
         </Modal>
@@ -920,7 +924,7 @@ function DartModal({ visible, onClose, lang, cfg }) {
 
 // ─── Başarılar Modalı ─────────────────────────────────────────────────────────
 
-function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang, cfg }) {
+function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang, cfg, onViewTournament }) {
     const [data, setData] = useState({ tournament: [], custom: [] });
     const [loading, setLoading] = useState(false);
     const [showAdd, setShowAdd] = useState(false);
@@ -1058,7 +1062,9 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                             🏅 {tr ? 'TURNUVA BAŞARILARI' : 'TOURNAMENT ACHIEVEMENTS'}
                                         </Text>
                                         {data.tournament.map((item, i) => (
-                                            <View key={i} style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f59e0b30', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                            <TouchableOpacity key={i} activeOpacity={0.7}
+                                                onPress={() => onViewTournament && onViewTournament(item)}
+                                                style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f59e0b30', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                                                 <Text style={{ fontSize: 32 }}>{item.medal}</Text>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{item.name}</Text>
@@ -1072,7 +1078,8 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                                         </Text>
                                                     )}
                                                 </View>
-                                            </View>
+                                                <Text style={{ color: '#f59e0b', fontSize: 16 }}>›</Text>
+                                            </TouchableOpacity>
                                         ))}
                                         <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 14 }} />
                                     </>
@@ -2526,7 +2533,16 @@ export default function ProfileScreen({ route, navigation }) {
                                     <View key={tourn.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
                                         <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
                                             <View style={{ flex:1 }}>
-                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:2 }}>{tourn.name}</Text>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:2 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flexShrink:1 }} numberOfLines={1}>{tourn.name}</Text>
+                                                    {tourn.myPlacement ? (
+                                                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                            <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'800' }}>
+                                                                {{ 1:'🥇', 2:'🥈', 3:'🥉' }[tourn.myPlacement]} {tourn.myPlacement}.
+                                                            </Text>
+                                                        </View>
+                                                    ) : null}
+                                                </View>
                                                 <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'700' }}>{SUB_EMOJI[tourn.subCategory] || '🏅'} {tourn.subCategory}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>
                                                     👤 {tourn.creator?.fullName || tourn.creator?.username}
@@ -2816,6 +2832,10 @@ export default function ProfileScreen({ route, navigation }) {
                 onEditAlias={() => cardModalItem && (setAliasValue(cardModalItem.alias || ''), setAliasEditId(cardModalItem.id))}
                 onUpcoming={() => { setCardModalItem(null); cardModalItem && openMyUpcoming(cardModalItem.subCategory); }}
                 onArchive={() => { setCardModalItem(null); cardModalItem && openMyArchive(cardModalItem.subCategory); }}
+                onViewTournament={(achievement) => {
+                    setCardModalItem(null);
+                    setSelectedArchiveTournament({ id: achievement.tournamentId, name: achievement.name, subCategory: achievement.subCategory, category: achievement.category });
+                }}
                 userId={myUser?.id}
                 profileUserId={profile?.id}
             />

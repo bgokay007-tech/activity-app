@@ -3,6 +3,7 @@ import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
+import { computeTournamentPlacement } from './achievement.controller.js';
 
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
 export function tournamentBaseDate(tournament) {
@@ -2410,7 +2411,16 @@ export const getArchivedTournaments = async (req, res, next) => {
             orderBy: { completedAt: 'desc' },
         });
 
-        res.json(all);
+        // Liste ekranında detaya girmeden de "kaçıncı oldu" göstermek için, filtrelenen
+        // kullanıcının (participantId) her turnuvadaki yerleşimini hesaplayıp ekliyoruz.
+        const result = filterUserId
+            ? await Promise.all(all.map(async (t) => {
+                const { placement } = await computeTournamentPlacement(t.id, filterUserId, t.bracketData);
+                return { ...t, myPlacement: placement };
+            }))
+            : all;
+
+        res.json(result);
     } catch (e) { next(e); }
 };
 
