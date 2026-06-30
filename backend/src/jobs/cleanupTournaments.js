@@ -12,8 +12,12 @@ async function autoConfirmTournamentScores() {
         const pending = await prisma.tournamentMatch.findMany({
             where: {
                 status: 'COMPLETED',
-                scoreSubmittedAt: { lte: cutoff },
-                OR: [{ p1Confirmed: false }, { p2Confirmed: false }],
+                AND: [
+                    { OR: [{ p1Confirmed: false }, { p2Confirmed: false }] },
+                    // scoreSubmittedAt is null for matches scored before this field existed —
+                    // treat those as already past the 1h window too, not exempt forever.
+                    { OR: [{ scoreSubmittedAt: { lte: cutoff } }, { scoreSubmittedAt: null }] },
+                ],
             },
         });
 
