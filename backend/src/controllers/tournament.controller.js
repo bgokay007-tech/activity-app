@@ -177,6 +177,26 @@ function stableTiebreakHash(tournamentId, playerId) {
     return h;
 }
 
+/** Real-stat comparator (puan → averaj → set oranı → game oranı), without the final kura
+ *  fallback. Returns 0 only when two standings rows are genuinely indistinguishable —
+ *  used to detect a tie straddling the playoff cutoff so an extra round can be played
+ *  instead of deciding qualification by lot. */
+function compareStandingsCore(a, b, tournamentType) {
+    if (b.points !== a.points) return b.points - a.points;
+    if (tournamentType === '1' || tournamentType === '2') {
+        const averaj = (x) => {
+            const total = x.gamesWon + x.gamesLost;
+            return total === 0 ? 0 : x.gamesWon / total;
+        };
+        if (Math.abs(averaj(b) - averaj(a)) > 0.001) return averaj(b) - averaj(a);
+    }
+    const sr = (x) => x.setsLost === 0 ? (x.setsWon === 0 ? 0 : Infinity) : x.setsWon / x.setsLost;
+    if (Math.abs(sr(b) - sr(a)) > 0.001) return sr(b) - sr(a);
+    const gr = (x) => x.gamesLost === 0 ? (x.gamesWon === 0 ? 0 : Infinity) : x.gamesWon / x.gamesLost;
+    if (gr(b) !== gr(a)) return gr(b) - gr(a);
+    return 0;
+}
+
 /** Compute GROUP-phase standings from completed matches.
  *  Tiebreaker for type '1' (Bireysel Rekabetçi): puan → averaj (gamesWon/totalGames) → set oranı
  *  → game oranı → (hepsi de eşitse) sabit kura
@@ -203,19 +223,8 @@ function computeStandings(players, matches, tournamentType, tournamentId) {
         else if (sc.winner === 'p2') { s2.won++; s2.points += 3; s1.lost++; }
     }
     return Object.values(stats).sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        // Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): averaj tiebreaker
-        if (tournamentType === '1' || tournamentType === '2') {
-            const averaj = (x) => {
-                const total = x.gamesWon + x.gamesLost;
-                return total === 0 ? 0 : x.gamesWon / total;
-            };
-            if (Math.abs(averaj(b) - averaj(a)) > 0.001) return averaj(b) - averaj(a);
-        }
-        const sr = (x) => x.setsLost === 0 ? (x.setsWon === 0 ? 0 : Infinity) : x.setsWon / x.setsLost;
-        if (Math.abs(sr(b) - sr(a)) > 0.001) return sr(b) - sr(a);
-        const gr = (x) => x.gamesLost === 0 ? (x.gamesWon === 0 ? 0 : Infinity) : x.gamesWon / x.gamesLost;
-        if (gr(b) !== gr(a)) return gr(b) - gr(a);
+        const core = compareStandingsCore(a, b, tournamentType);
+        if (core !== 0) return core;
         if (!tournamentId) return 0;
         return stableTiebreakHash(tournamentId, b.userId) - stableTiebreakHash(tournamentId, a.userId);
     });
@@ -1987,6 +1996,40 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                         }));
                     const standings = computeStandings(players, allGroupMatches, tournament.type, id);
                     const qualifiers = tournament.playoffQualifiers || 4;
+
+                    // Son playoff kontenjanı sınırında gerçek (kura hariç) bir eşitlik varsa,
+                    // kurayla karar vermek yerine bir tur daha ekleyip (oynamayanları en yakın
+                    // ELO'lu rakiple eşleştirerek) eşitliğin doğal yoldan bozulmasını bekle.
+                    const boundaryTied = standings.length > qualifiers &&
+                        compareStandingsCore(standings[qualifiers - 1], standings[qualifiers], tournament.type) === 0;
+
+                    let extraRoundMatches = [];
+                    if (boundaryTied) {
+                        const playedPairKeys = allGroupMatches
+                            .filter(m => m.p1Id && m.p2Id)
+                            .map(m => [m.p1Id, m.p2Id].sort().join('|'));
+                        extraRoundMatches = await generateNextEloRound(tournament, maxRound + 1, playedPairKeys);
+                    }
+
+                    if (boundaryTied && extraRoundMatches.length > 0) {
+                        await prisma.tournamentMatch.createMany({ data: extraRoundMatches });
+
+                        const tiedNames = standings
+                            .filter(s => compareStandingsCore(s, standings[qualifiers - 1], tournament.type) === 0)
+                            .map(s => s.name).join(', ');
+                        const recipients = isTeamTournament
+                            ? [...new Set((await prisma.tournamentTeam.findMany({ where: { tournamentId: id } }))
+                                .flatMap(t => [t.player1Id, t.player2Id]).filter(Boolean))]
+                            : tournament.participants.map(p => p.userId).filter(Boolean);
+                        for (const uid of recipients) {
+                            createNotification(
+                                uid, 'TOURNAMENT_EXTRA_ROUND',
+                                '⚖️ Play-off öncesi ek tur eklendi',
+                                `${tournament.name}: play-off kontenjanı sınırında puan/averaj/set/oyun oranı tamamen eşit olan oyuncular var (${tiedNames}). Eşitlik bozulana kadar bir tur daha eklendi.`,
+                                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory }
+                            ).catch(() => {});
+                        }
+                    } else {
                     const topStandings = standings.slice(0, Math.min(qualifiers, standings.length));
 
                     // Play-off eşleşmesi: ELO puanına en yakın oyuncular/takımlar (Rule 2)
@@ -2030,6 +2073,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                                 data: slot === 'p1' ? { p1Id: bye.winnerId, p1Name: winnerName } : { p2Id: bye.winnerId, p2Name: winnerName },
                             });
                         }
+                    }
                     }
                 }
             }
