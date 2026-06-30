@@ -3344,7 +3344,7 @@ const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' }
 const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
-function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened }) {
+function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, onMatchOpened }) {
     const myPart = item.participants?.[0];
     const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
     useEffect(() => { setMyStatus(myPart?.status ?? null); }, [myPart?.status]);
@@ -3471,6 +3471,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [showMatchesModal, setShowMatchesModal] = useState(false);
     const [matchTab, setMatchTab] = useState('matches');
     const [selectedRoundKey, setSelectedRoundKey] = useState(null); // "GROUP|1" gibi — Maçlar sekmesinde hangi tur açık
+    const [highlightMatchId, setHighlightMatchId] = useState(null); // skor onayı bildiriminden açılan maç — kartı vurgula
     const [starting, setStarting] = useState(false);
     const [scoreEntry, setScoreEntry] = useState(null);
     const [scoreSets, setScoreSets] = useState([]);
@@ -3535,6 +3536,23 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             onChatOpened?.();
         }
     }, [openChatTournamentId, item.id]);
+
+    // "Skor girildi, onaylar mısın?" bildirimine tıklanınca onay bekleyen maç otomatik açılsın
+    useEffect(() => {
+        if (openMatchId && openMatchTournamentId === item.id) {
+            (async () => {
+                const matches = await fetchMatches();
+                const target = matches.find(m => m.id === openMatchId);
+                if (target) {
+                    setSelectedRoundKey(`${target.phase}|${target.round}`);
+                    setMatchTab('matches');
+                    setHighlightMatchId(target.id);
+                }
+                setShowMatchesModal(true);
+                onMatchOpened?.();
+            })();
+        }
+    }, [openMatchId, openMatchTournamentId, item.id]);
 
     useEffect(() => {
         const off = onSocket('tournament:chat_message', ({ tournamentId, message }) => {
@@ -3861,10 +3879,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         setMatchesError(false);
         try {
             const { data } = await api.get(`/tournaments/${item.id}/matches`);
-            setTournMatches(Array.isArray(data?.matches) ? data.matches : []);
+            const matches = Array.isArray(data?.matches) ? data.matches : [];
+            setTournMatches(matches);
             setMyTeamId(data?.myTeamId || null);
             setTournTeams(Array.isArray(data?.teams) ? data.teams : []);
             setTournPlayerRatings(data?.playerRatings || {});
+            return matches;
         } catch (e) {
             // Önceden burada hata sessizce yutuluyordu — geçici bir ağ hatasında ekran
             // "Maç yok" gösteriyordu (gerçekten maç olmamasıyla ayırt edilemiyordu),
@@ -3873,6 +3893,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             // modalı kapatmadan yeniden denenebiliyor.
             console.log('[fetchMatches] failed:', e?.message);
             setMatchesError(true);
+            return [];
         }
         finally { setLoadingMatches(false); }
     }, [item.id]);
@@ -4418,12 +4439,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         )}
 
         {/* IN_PROGRESS: matches & standings Modal */}
-        <Modal visible={showMatchesModal} animationType="slide" transparent onRequestClose={() => setShowMatchesModal(false)}>
+        <Modal visible={showMatchesModal} animationType="slide" transparent onRequestClose={() => { setShowMatchesModal(false); setHighlightMatchId(null); }}>
             <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
                 <View style={[s.modalBox, { maxHeight:'90%' }]}>
                     <View style={s.modalHeader}>
                         <Text style={s.modalTitle}>📋 Maçlar & Puan Tablosu</Text>
-                        <TouchableOpacity onPress={() => setShowMatchesModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => { setShowMatchesModal(false); setHighlightMatchId(null); }}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                     </View>
                     {/* Rules summary bar */}
                     {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
@@ -4551,7 +4572,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                             const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                             return (
-                                                <View key={match.id} style={{ width: '100%', backgroundColor:'#0f172a', borderRadius:8, padding:3, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
+                                                <View key={match.id} style={{ width: '100%', backgroundColor:'#0f172a', borderRadius:8, padding:3, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
                                                         <View style={{ flex:1 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
@@ -6547,7 +6568,7 @@ const spot = StyleSheet.create({
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
-    const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId } = route.params;
+    const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -6696,6 +6717,15 @@ export default function SubCategoryScreen({ route, navigation }) {
             setTournSubTab(target.status === 'OPEN' ? 'open' : target.status === 'COMPLETED' ? 'completed' : 'inprogress');
         }
     }, [openChatTournamentId, tournaments]);
+
+    // Skor onayı bildirimine tıklanınca doğru alt sekmeye geçip ilgili kartın render olmasını sağla
+    useEffect(() => {
+        if (!openMatchTournamentId || tournaments.length === 0) return;
+        const target = tournaments.find(tn => tn.id === openMatchTournamentId);
+        if (target) {
+            setTournSubTab(target.status === 'OPEN' ? 'open' : target.status === 'COMPLETED' ? 'completed' : 'inprogress');
+        }
+    }, [openMatchTournamentId, tournaments]);
 
     // Comments modal — lifted out of UpcomingCard so it renders outside ScrollView
     const [commentMatch, setCommentMatch] = useState(null);
@@ -7731,6 +7761,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 onUpdated={loadTournaments}
                                 openChatTournamentId={openChatTournamentId}
                                 onChatOpened={() => navigation.setParams({ openChatTournamentId: undefined })}
+                                openMatchId={openMatchId}
+                                openMatchTournamentId={openMatchTournamentId}
+                                onMatchOpened={() => navigation.setParams({ openMatchId: undefined, openMatchTournamentId: undefined })}
                             />
                         );
                         return (

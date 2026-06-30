@@ -94,7 +94,14 @@ export default function NotificationsScreen({ navigation }) {
                 navigation.navigate('ProfileTab');
             }
         } else if (type === 'SCORE_SUBMITTED') {
-            goToSub(data.tournamentId ? 'tournaments' : 'rivals');
+            if (data.tournamentId) {
+                navigation.push('SubCategory', {
+                    category: data.category, sub: data.subCategory, initialTab: 'tournaments',
+                    openMatchId: data.matchId || null, openMatchTournamentId: data.tournamentId,
+                });
+            } else {
+                goToSub('rivals');
+            }
         } else if (type === 'MATCH_CONFIRMED') {
             goToSub('rivals');
         } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') {
