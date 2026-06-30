@@ -1951,11 +1951,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         <View style={[s.card, { width: '100%', paddingHorizontal:3, paddingTop:3, paddingBottom:3, borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
             {/* Tappable info — opens comments modal */}
             <TouchableOpacity activeOpacity={0.75} onPress={() => onOpenComments?.(match)}>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap' }}>
+                <View>
                     {allPlayers.map((p, idx) => (
-                        <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                            {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
-                            <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7}>
+                        <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
+                            <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7} style={{ flexShrink:1 }}>
                                 <Text style={s.cardName}>{senderAlias(p)}</Text>
                             </TouchableOpacity>
                             {p.skillRating != null && (
