@@ -8618,26 +8618,82 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                     ))}
                                 </View>
-                                {/* Grid */}
+                                {/* Instagram akışı */}
                                 {filtered.length === 0
                                     ? <EmptyState emoji="📸" text={t.emptyMedia} />
-                                    : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                                        {filtered.map((post, idx) => (
-                                            <TouchableOpacity key={post.id}
-                                                style={{ width: '31.5%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface2 }}
-                                                onPress={() => setMediaViewIdx(idx)}>
-                                                {post.imageUrl
-                                                    ? <Image source={{ uri: post.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                                    : <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontSize: 30 }}>🎬</Text></View>
-                                                }
-                                                {post.type === 'STORY' && (
-                                                    <View style={{ position: 'absolute', top: 4, right: 4, backgroundColor: colors.purple, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1 }}>
-                                                        <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>24s</Text>
-                                                    </View>
-                                                )}
-                                            </TouchableOpacity>
-                                        ))}
-                                      </View>
+                                    : (() => {
+                                        const fmtAgo = (d) => {
+                                            const diff = Date.now() - new Date(d).getTime();
+                                            const m = Math.floor(diff / 60000);
+                                            if (m < 1) return t.timeNow || 'şimdi';
+                                            if (m < 60) return `${m}${t.timeMinSuffix || 'dk'}`;
+                                            const h = Math.floor(m / 60);
+                                            if (h < 24) return `${h}${t.timeHourSuffix || 's'}`;
+                                            return `${Math.floor(h / 24)}${t.timeDaySuffix || 'g'}`;
+                                        };
+                                        return (
+                                            <View style={{ gap: 1 }}>
+                                                {filtered.map((post) => {
+                                                    const actualIdx = mediaPosts.findIndex(p => p.id === post.id);
+                                                    const isLiked = mediaLiked[post.id] ?? (Array.isArray(post.likes) && post.likes.length > 0);
+                                                    const likeCount = mediaLikeCounts[post.id] ?? (post._count?.likes || 0);
+                                                    const commentCount = post._count?.comments || 0;
+                                                    const toggleLike = async () => {
+                                                        const next = !isLiked;
+                                                        setMediaLiked(prev => ({ ...prev, [post.id]: next }));
+                                                        setMediaLikeCounts(prev => ({ ...prev, [post.id]: next ? likeCount + 1 : Math.max(0, likeCount - 1) }));
+                                                        try { await api.post(`/posts/${post.id}/like`); }
+                                                        catch {
+                                                            setMediaLiked(prev => ({ ...prev, [post.id]: !next }));
+                                                            setMediaLikeCounts(prev => ({ ...prev, [post.id]: next ? Math.max(0, likeCount - 1) : likeCount + 1 }));
+                                                        }
+                                                    };
+                                                    return (
+                                                        <View key={post.id} style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 }}>
+                                                            {/* Başlık: avatar + kullanıcı + zaman */}
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 }}>
+                                                                <Avatar name={post.user?.username} avatar={post.user?.avatar} size={36} color={cfg.color} />
+                                                                <View style={{ flex: 1 }}>
+                                                                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{post.user?.fullName || post.user?.username}</Text>
+                                                                    <Text style={{ color: colors.textMuted, fontSize: 11 }}>@{post.user?.username} · {fmtAgo(post.createdAt)}</Text>
+                                                                </View>
+                                                                {post.type === 'REEL' && <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '800' }}>🎬</Text>}
+                                                            </View>
+                                                            {/* Görsel */}
+                                                            <TouchableOpacity activeOpacity={0.95} onPress={() => setMediaViewIdx(actualIdx)}>
+                                                                {post.imageUrl
+                                                                    ? <Image source={{ uri: post.imageUrl }} style={{ width: '100%', aspectRatio: 1 }} resizeMode="cover" />
+                                                                    : <View style={{ width: '100%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a14' }}>
+                                                                        <Text style={{ fontSize: 52 }}>🎬</Text>
+                                                                      </View>
+                                                                }
+                                                            </TouchableOpacity>
+                                                            {/* Aksiyon satırı */}
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6 }}>
+                                                                <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                                    <Text style={{ color: isLiked ? '#f43f5e' : colors.textMuted, fontSize: 22 }}>♥</Text>
+                                                                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{likeCount}</Text>
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity onPress={() => setMediaViewIdx(actualIdx)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                                    <Text style={{ color: colors.textMuted, fontSize: 20 }}>💬</Text>
+                                                                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{commentCount}</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                            {/* Açıklama */}
+                                                            {post.content ? (
+                                                                <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+                                                                    <Text style={{ color: '#fff', fontSize: 13, lineHeight: 19 }}>
+                                                                        <Text style={{ fontWeight: '800' }}>{post.user?.username} </Text>
+                                                                        {post.content}
+                                                                    </Text>
+                                                                </View>
+                                                            ) : <View style={{ paddingBottom: 4 }} />}
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                        );
+                                    })()
                                 }
                                 {/* Hikaye görüntüleyici */}
                                 <Modal visible={storyViewer.visible} animationType="fade" statusBarTranslucent onRequestClose={() => setStoryViewer(v => ({ ...v, visible: false }))}>
