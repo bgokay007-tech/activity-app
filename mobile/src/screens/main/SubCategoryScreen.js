@@ -37,6 +37,15 @@ const TR_PROVINCES = [
 
 const TEAM_SPORTS = new Set(['football', 'volleyball']);
 
+// Tüm istatistikler eşit olduğunda kullanılan sabit (deterministik) kura — backend'deki
+// stableTiebreakHash ile birebir aynı, böylece sıralama her açılışta değişmez.
+function stableTiebreakHash(tournamentId, playerId) {
+    const str = `${tournamentId}:${playerId}`;
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return h;
+}
+
 const FOOTBALL_SURFACES = [
     { id: 'HALI_SAHA', label: 'Halı Saha', emoji: '🟩' },
     { id: 'CIM_SAHA',  label: 'Çim Saha',  emoji: '🌿' },
@@ -4170,7 +4179,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
             if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
             const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
-            return gr(b)-gr(a);
+            if (gr(b)!==gr(a)) return gr(b)-gr(a);
+            return stableTiebreakHash(item.id, b.id) - stableTiebreakHash(item.id, a.id);
         });
     })();
 
@@ -9103,7 +9113,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
                                     if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
                                     const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
-                                    return gr(b)-gr(a);
+                                    if (gr(b)!==gr(a)) return gr(b)-gr(a);
+                                    return stableTiebreakHash(tourn.id, b.id) - stableTiebreakHash(tourn.id, a.id);
                                 });
                             })();
                             const hasGroup = archiveModalMatches.some(m => m.phase === 'GROUP');

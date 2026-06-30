@@ -167,10 +167,21 @@ function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYO
     return all;
 }
 
+/** Deterministic, fair last-resort tiebreaker: a stable hash of (tournamentId + playerId)
+ *  acts like a transparent, reproducible kura (lot draw) when all real stats are tied —
+ *  nobody is systematically favored, and the result doesn't shift on every reload. */
+function stableTiebreakHash(tournamentId, playerId) {
+    const str = `${tournamentId}:${playerId}`;
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return h;
+}
+
 /** Compute GROUP-phase standings from completed matches.
  *  Tiebreaker for type '1' (Bireysel Rekabetçi): puan → averaj (gamesWon/totalGames) → set oranı
+ *  → game oranı → (hepsi de eşitse) sabit kura
  */
-function computeStandings(players, matches, tournamentType) {
+function computeStandings(players, matches, tournamentType, tournamentId) {
     const stats = {};
     for (const p of players) {
         stats[p.id] = { userId: p.id, name: p.fullName || p.username, played: 0, won: 0, lost: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0 };
@@ -204,7 +215,9 @@ function computeStandings(players, matches, tournamentType) {
         const sr = (x) => x.setsLost === 0 ? (x.setsWon === 0 ? 0 : Infinity) : x.setsWon / x.setsLost;
         if (Math.abs(sr(b) - sr(a)) > 0.001) return sr(b) - sr(a);
         const gr = (x) => x.gamesLost === 0 ? (x.gamesWon === 0 ? 0 : Infinity) : x.gamesWon / x.gamesLost;
-        return gr(b) - gr(a);
+        if (gr(b) !== gr(a)) return gr(b) - gr(a);
+        if (!tournamentId) return 0;
+        return stableTiebreakHash(tournamentId, b.userId) - stableTiebreakHash(tournamentId, a.userId);
     });
 }
 
@@ -1972,7 +1985,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                         : tournament.participants.map(p => ({
                             id: p.userId, fullName: p.user.fullName, username: p.user.username, skillRating: 0,
                         }));
-                    const standings = computeStandings(players, allGroupMatches, tournament.type);
+                    const standings = computeStandings(players, allGroupMatches, tournament.type, id);
                     const qualifiers = tournament.playoffQualifiers || 4;
                     const topStandings = standings.slice(0, Math.min(qualifiers, standings.length));
 
