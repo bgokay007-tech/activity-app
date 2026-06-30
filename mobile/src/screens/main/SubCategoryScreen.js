@@ -986,8 +986,26 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             setLocalJoinStatus('ACCEPTED');
             onRefresh();
         });
-        return () => { offRejected(); offAccepted(); };
+        const offLate = onSocket('joinLateAccepted', ({ rivalId }) => {
+            if (rivalId !== item.id) return;
+            setLocalJoinStatus('AWAITING_JOINER_CONFIRM');
+            onRefresh();
+        });
+        return () => { offRejected(); offAccepted(); offLate(); };
     }, [item.id]);
+
+    const handleConfirmLateJoin = async (action) => {
+        try {
+            const myReqId = item._myJoinRequestId;
+            if (!myReqId) { onRefresh(); return; }
+            await api.patch(`/rivals/join/${myReqId}/confirm`, { action });
+            if (action === 'confirm') { setLocalJoinStatus('ACCEPTED'); setTimeout(onRefresh, 1200); }
+            else { setLocalJoinStatus(null); onRefresh(); }
+        } catch (e) {
+            if (e?.response) Alert.alert(t.error, e.response.data?.message || t.actionFailed);
+            else onRefresh();
+        }
+    };
 
     const handleJoin = async () => {
         if (item.minRating != null && myRating < item.minRating) {
@@ -1166,6 +1184,18 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     >
                         <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>{t.invitedBadge}</Text>
                     </TouchableOpacity>
+                ) : mySentReq === 'AWAITING_JOINER_CONFIRM' ? (
+                    <View style={{ gap:3 }}>
+                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), textAlign:'center', marginBottom:2 }}>{t.awaitingYourConfirm}</Text>
+                        <View style={{ flexDirection:'row', gap:3 }}>
+                            <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }} onPress={() => handleConfirmLateJoin('confirm')}>
+                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.confirmJoinBtn}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={{ flex:1, backgroundColor:'#ef444420', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center', borderWidth:1, borderColor:'#ef444440' }} onPress={() => handleConfirmLateJoin('cancel')}>
+                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>{t.cancelJoinBtn}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 ) : mySentReq === 'PENDING' ? (
                     <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>{t.waitingReq}</Text>
                 ) : mySentReq === 'ACCEPTED' ? (

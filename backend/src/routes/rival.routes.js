@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
     createRivalRequest, getRivalRequests,
-    sendJoinRequest, respondToJoin, inviteToRival, setRivalJoinPartner,
+    sendJoinRequest, respondToJoin, confirmLateJoin, inviteToRival, setRivalJoinPartner,
     getUpcomingMatches, getMyRequests,
     cancelRequest, enterScore, confirmScore, disputeScore, reportDispute,
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
@@ -29,6 +29,7 @@ router.post('/:id/respond',          authenticate, sendJoinRequest);
 router.patch('/:id/join-partner',    authenticate, setRivalJoinPartner);
 router.post('/:id/invite',           authenticate, inviteToRival);
 router.patch('/join/:requestId',     authenticate, respondToJoin);
+router.patch('/join/:requestId/confirm', authenticate, confirmLateJoin);
 router.patch('/:id/cancel',          authenticate, cancelRequest);
 router.patch('/:id/score',           authenticate, enterScore);
 router.patch('/:id/confirm-score',   authenticate, confirmScore);

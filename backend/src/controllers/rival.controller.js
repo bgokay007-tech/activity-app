@@ -481,7 +481,7 @@ export const getRivalRequests = async (req, res, next) => {
         const [myJoinReqs, commentCounts] = await Promise.all([
             prisma.rivalJoinRequest.findMany({
                 where: { userId: req.userId, rivalId: { in: rivalIds } },
-                select: { rivalId: true, status: true },
+                select: { id: true, rivalId: true, status: true },
             }),
             prisma.matchComment.groupBy({
                 by: ['rivalId'],
@@ -489,12 +489,13 @@ export const getRivalRequests = async (req, res, next) => {
                 _count: { id: true },
             }),
         ]);
-        const myJoinMap = Object.fromEntries(myJoinReqs.map(j => [j.rivalId, j.status]));
+        const myJoinMap = Object.fromEntries(myJoinReqs.map(j => [j.rivalId, { status: j.status, id: j.id }]));
         const commentCountMap = Object.fromEntries(commentCounts.map(c => [c.rivalId, c._count.id]));
 
         res.json(requests.map(r => ({
             ...r,
-            _myJoinStatus: myJoinMap[r.id] || null,
+            _myJoinStatus: myJoinMap[r.id]?.status || null,
+            _myJoinRequestId: myJoinMap[r.id]?.id || null,
             commentCount: commentCountMap[r.id] ?? 0,
         })));
     } catch (error) {
@@ -732,6 +733,22 @@ export const respondToJoin = async (req, res, next) => {
             return res.json({ message: 'Request rejected.' });
         }
 
+        // 1 saatten geç kabul: joiner'a tekrar onay iste
+        const ONE_HOUR_MS = 60 * 60 * 1000;
+        const lateAccept = Date.now() - new Date(joinReq.createdAt).getTime() > ONE_HOUR_MS;
+        if (lateAccept) {
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'AWAITING_JOINER_CONFIRM' } });
+            emitToUser(joinReq.userId, 'joinLateAccepted', { rivalId: joinReq.rivalId, requestId });
+            createNotification(
+                joinReq.userId,
+                'JOIN_LATE_ACCEPT',
+                '⏰ Geç Kabul — Onayınız Bekleniyor',
+                `"${joinReq.rival.sender?.username || 'Maç sahibi'}" katılım isteğinizi 1 saat sonra kabul etti. Maça katılmak istiyor musunuz? Onaylayın veya iptal edin.`,
+                { rivalId: joinReq.rivalId, requestId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+            ).catch(() => {});
+            return res.json({ lateAccept: true, message: 'Joiner re-confirmation required.' });
+        }
+
         // Build participants: when the joiner submitted a full team (football competitive team
         // matches, or tennis/padel doubles partner pairing), use the full joining team;
         // otherwise fall back to single-player addition. Independent of matchMode — a doubles
@@ -850,6 +867,125 @@ export const respondToJoin = async (req, res, next) => {
                 { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
             ).catch(() => {});
         }
+    } catch (error) { next(error); }
+};
+
+// Joiner confirms or cancels after a late-accept (AWAITING_JOINER_CONFIRM)
+export const confirmLateJoin = async (req, res, next) => {
+    try {
+        const { requestId } = req.params;
+        const { action } = req.body; // 'confirm' | 'cancel'
+
+        const joinReq = await prisma.rivalJoinRequest.findUnique({
+            where: { id: requestId },
+            include: {
+                user: { select: SENDER_SELECT },
+                rival: true,
+            },
+        });
+        if (!joinReq) return res.status(404).json({ message: 'Not found' });
+        if (joinReq.userId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        if (joinReq.status !== 'AWAITING_JOINER_CONFIRM') return res.status(400).json({ message: 'Bu istek için onay beklenmiyors.' });
+
+        if (action !== 'confirm') {
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
+            emitToUser(joinReq.rival.senderId, 'joinRejected', { rivalId: joinReq.rivalId });
+            createNotification(
+                joinReq.rival.senderId,
+                'RIVAL_JOIN_REQUEST',
+                '❌ Katılım İptal Edildi',
+                `${joinReq.user?.fullName || joinReq.user?.username || 'Oyuncu'} geç kabul sonrası katılımı iptal etti.`,
+                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+            ).catch(() => {});
+            return res.json({ message: 'Cancelled.' });
+        }
+
+        // confirm: proceed with normal join logic
+        const rival = joinReq.rival;
+        let joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
+        let partnerJoinReqToAccept = null;
+
+        if (rival.matchType === 'DOUBLE' && joiningTeam.length === 0 && joinReq.partnerId) {
+            const partnerReq = await prisma.rivalJoinRequest.findUnique({
+                where: { rivalId_userId: { rivalId: rival.id, userId: joinReq.partnerId } },
+                include: { user: { select: SENDER_SELECT } },
+            });
+            if (partnerReq && partnerReq.status === 'AWAITING_JOINER_CONFIRM' && partnerReq.partnerId === joinReq.userId) {
+                const partnerInterest = await prisma.userInterest.findFirst({
+                    where: { userId: partnerReq.userId, subCategory: rival.subCategory },
+                    select: { skillRating: true, alias: true },
+                });
+                joiningTeam = [
+                    { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar },
+                    { id: partnerReq.userId, username: partnerReq.user.username, fullName: partnerReq.user.fullName, avatar: partnerReq.user.avatar, skillRating: partnerInterest?.skillRating ?? 0 },
+                ];
+                partnerJoinReqToAccept = partnerReq;
+            }
+        }
+        const isTeamJoin = joiningTeam.length > 0;
+
+        const u = joinReq.user;
+        const joinerInterest = await prisma.userInterest.findFirst({
+            where: { userId: u.id, subCategory: rival.subCategory },
+            select: { alias: true },
+        });
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        if (isTeamJoin && participants.length > 0) {
+            return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var.' });
+        }
+        const updatedParticipants = isTeamJoin
+            ? joiningTeam
+            : [...participants, { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null }];
+        const required = getRequired(rival);
+        const isFull = updatedParticipants.length >= required;
+
+        await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
+        if (partnerJoinReqToAccept) {
+            await prisma.rivalJoinRequest.update({ where: { id: partnerJoinReqToAccept.id }, data: { status: 'ACCEPTED' } });
+        }
+
+        const updated = await prisma.activityRequest.update({
+            where: { id: rival.id },
+            data: {
+                participants: updatedParticipants,
+                status: isFull ? 'MATCHED' : 'OPEN',
+                receiverId: isFull ? u.id : rival.receiverId,
+                ...(isFull && rival.flexibleSchedule && {
+                    schedulingDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                }),
+            },
+            include: {
+                sender: { select: SENDER_SELECT },
+                joinRequests: {
+                    where: { status: 'PENDING' },
+                    include: {
+                        user: {
+                            select: {
+                                ...SENDER_SELECT,
+                                interests: {
+                                    select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        emitToUser(rival.senderId, 'rivalUpdate', updated);
+        emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
+        if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
+        if (isFull) updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
+
+        res.json({ message: isFull ? '🎉 Match is full!' : '✓ Confirmed!', request: updated, matched: isFull });
+
+        createNotification(
+            rival.senderId,
+            'JOIN_ACCEPTED',
+            '✅ Katılım Onaylandı',
+            `${u.fullName || u.username} geç kabul sonrası katılımı onayladı${isFull ? ' — maç doldu!' : '.'}`,
+            { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
+        ).catch(() => {});
     } catch (error) { next(error); }
 };
 

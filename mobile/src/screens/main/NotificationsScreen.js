@@ -9,6 +9,7 @@ const TYPE_ICON = {
     RIVAL_ACCEPTED: '✅',
     RIVAL_DECLINED: '❌',
     RIVAL_JOIN_REQUEST: '🙋',
+    JOIN_LATE_ACCEPT: '⏰',
     MATCH_INVITE: '✉️',
     JOIN_ACCEPTED: '🎉',
     JOIN_DECLINED: '🚫',
@@ -105,6 +106,8 @@ export default function NotificationsScreen({ navigation }) {
                 goToSub('rivals');
             }
         } else if (type === 'MATCH_CONFIRMED') {
+            goToSub('rivals');
+        } else if (type === 'JOIN_LATE_ACCEPT') {
             goToSub('rivals');
         } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') {
             goToSub('archive');
