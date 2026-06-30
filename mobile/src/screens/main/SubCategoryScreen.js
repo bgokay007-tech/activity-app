@@ -4163,6 +4163,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         }
         return Object.values(stats).sort((a,b) => {
             if (b.points!==a.points) return b.points-a.points;
+            if (item.type === '1' || item.type === '2') {
+                const averaj=x=>(x.gamesWon+x.gamesLost)===0?0:x.gamesWon/(x.gamesWon+x.gamesLost);
+                if (Math.abs(averaj(b)-averaj(a))>0.001) return averaj(b)-averaj(a);
+            }
             const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
             if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
             const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
@@ -4493,7 +4497,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>
                                         {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ${starEmoji(Number(skillRatingMap[row.id]))} ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
                                     </Text>
-                                    {[row.played, row.won, row.lost, (() => { const d = row.setsWon - row.setsLost; return (d >= 0 ? "+" : "") + d; })(), row.points].map((v,j) => (
+                                    {[row.played, row.won, row.lost, (() => { const t = row.gamesWon + row.gamesLost; return t === 0 ? '-' : `${Math.round((row.gamesWon / t) * 100)}%`; })(), row.points].map((v,j) => (
                                         <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
                                     ))}
                                 </View>
@@ -9092,6 +9096,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 }
                                 return Object.values(stats).sort((a,b) => {
                                     if (b.points!==a.points) return b.points-a.points;
+                                    if (tourn.type === '1' || tourn.type === '2') {
+                                        const averaj=x=>(x.gamesWon+x.gamesLost)===0?0:x.gamesWon/(x.gamesWon+x.gamesLost);
+                                        if (Math.abs(averaj(b)-averaj(a))>0.001) return averaj(b)-averaj(a);
+                                    }
                                     const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
                                     if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
                                     const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
@@ -9222,7 +9230,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         {archiveStandings.map((row2, i) => (
                                                             <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row2.name}</Text>
-                                                                {[row2.played, row2.won, row2.lost, (() => { const d=row2.setsWon-row2.setsLost; return (d>=0?'+':'')+d; })(), row2.points].map((v,j) => (
+                                                                {[row2.played, row2.won, row2.lost, (() => { const t = row2.gamesWon + row2.gamesLost; return t === 0 ? '-' : `${Math.round((row2.gamesWon / t) * 100)}%`; })(), row2.points].map((v,j) => (
                                                                     <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
                                                                 ))}
                                                             </View>
