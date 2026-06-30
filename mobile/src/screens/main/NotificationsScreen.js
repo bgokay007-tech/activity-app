@@ -94,7 +94,7 @@ export default function NotificationsScreen({ navigation }) {
                 navigation.navigate('ProfileTab');
             }
         } else if (type === 'SCORE_SUBMITTED') {
-            goToSub('rivals');
+            goToSub(data.tournamentId ? 'tournaments' : 'rivals');
         } else if (type === 'MATCH_CONFIRMED') {
             goToSub('rivals');
         } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') {

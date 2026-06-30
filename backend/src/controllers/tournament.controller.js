@@ -2029,6 +2029,26 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         }
 
         res.json(allMatches);
+
+        // Henüz onaylamamış taraf(lar)a bildirim gönder — skor girildi, onay bekleniyor.
+        const unconfirmedTargets = [];
+        if (!(enteredByP1 || p1AllDemo)) unconfirmedTargets.push(...p1Members);
+        if (!(enteredByP2 || p2AllDemo)) unconfirmedTargets.push(...p2Members);
+        const notifyRecipients = [...new Set(unconfirmedTargets)].filter(uid => uid !== req.userId);
+        if (notifyRecipients.length > 0) {
+            prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } })
+                .then(me => {
+                    const enteredByName = me?.fullName || me?.username || 'Rakibiniz';
+                    for (const uid of notifyRecipients) {
+                        createNotification(
+                            uid, 'SCORE_SUBMITTED',
+                            '📊 Skor girildi, onaylar mısın?',
+                            `${enteredByName} ${tournament.subCategory} maçının skorunu girdi. Lütfen onaylayın veya gerekirse düzeltin.`,
+                            { tournamentId: id, matchId: match.id, fromUserId: req.userId, category: tournament.category, subCategory: tournament.subCategory }
+                        ).catch(() => {});
+                    }
+                }).catch(() => {});
+        }
     } catch (e) { next(e); }
 };
 
