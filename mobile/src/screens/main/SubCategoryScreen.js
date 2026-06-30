@@ -1948,7 +1948,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const expanded = showScore || showScheduleForm;
     return (
-        <View style={[s.card, { width: expanded ? '100%' : '48%', paddingHorizontal:3, paddingTop:3, paddingBottom:3, borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
+        <View style={[s.card, { width: '100%', paddingHorizontal:3, paddingTop:3, paddingBottom:3, borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
             {/* Tappable info — opens comments modal */}
             <TouchableOpacity activeOpacity={0.75} onPress={() => onOpenComments?.(match)}>
                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap' }}>
@@ -1956,7 +1956,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                             {idx > 0 && <Text style={{ color: colors.textMuted, fontSize:12 }}>·</Text>}
                             <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7}>
-                                <Text style={s.cardName} numberOfLines={1}>{senderAlias(p)}</Text>
+                                <Text style={s.cardName}>{senderAlias(p)}</Text>
                             </TouchableOpacity>
                             {p.skillRating != null && (
                                 <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>
@@ -1988,14 +1988,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     )}
                 </View>
-                <Text style={[s.cardSub, { marginTop:3 }]} numberOfLines={1}>
+                <Text style={[s.cardSub, { marginTop:3 }]}>
                     {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
                     {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
                     {match.duration  ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
                 </Text>
                 {match.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
-                        <Text style={[s.cardSub, { color:'#60a5fa', textDecorationLine:'underline', marginTop:3 }]} numberOfLines={1}>🏟️ {match.courtName}</Text>
+                        <Text style={[s.cardSub, { color:'#60a5fa', textDecorationLine:'underline', marginTop:3 }]}>🏟️ {match.courtName}</Text>
                     </TouchableOpacity>
                 )}
                 <Text style={{ color: colors.textMuted, fontSize:11, marginTop:3 }}>
