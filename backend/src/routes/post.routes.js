@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
     createPost, getPosts, getUserPosts,
-    analyzeContent, toggleLike, addComment,
+    analyzeContent, suggestMusicForImage, toggleLike, addComment,
     getComments, editPost, toggleVisibility, deletePost,
     recordView, getStoryViews,
 } from '../controllers/post.controller.js';
@@ -12,6 +12,7 @@ const router = Router();
 router.get('/',                  authenticate, getPosts);
 router.post('/',                 authenticate, createPost);
 router.post('/analyze',          authenticate, analyzeContent);
+router.post('/suggest-music',    authenticate, suggestMusicForImage);
 router.get('/user/:userId',      authenticate, getUserPosts);
 router.post('/:id/like',         authenticate, toggleLike);
 router.post('/:id/comment',      authenticate, addComment);

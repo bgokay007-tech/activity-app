@@ -4,7 +4,7 @@ import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
-    InteractionManager,
+    InteractionManager, PanResponder,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7185,10 +7185,75 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [trimStart, setTrimStart] = useState('0');
     const [trimEnd, setTrimEnd] = useState('30');
     const [musicDuration, setMusicDuration] = useState(null);
+    const [detectingImage, setDetectingImage] = useState(false);
+    const [imageSuggestions, setImageSuggestions] = useState([]);
+    // Trim bar drag refs
+    const trimBarWidthRef = useRef(0);
+    const trimStartCapturedRef = useRef(0);
+    const trimEndCapturedRef = useRef(30);
+    const trimStartRef = useRef(0);
+    const trimEndRef = useRef(30);
+    const musicDurationRef = useRef(30);
     const [previewPlaying, setPreviewPlaying] = useState(false);
     const musicSoundRef = useRef(null);
     const [shareLocation, setShareLocation] = useState('');
     const [gettingLocation, setGettingLocation] = useState(false);
+
+    const detectImageMusic = async () => {
+        if (!mediaShareUri) return;
+        setDetectingImage(true);
+        setImageSuggestions([]);
+        try {
+            const resp = await fetch(mediaShareUri);
+            const blob = await resp.blob();
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+            const { data } = await api.post('/posts/suggest-music', {
+                imageBase64: base64,
+                mimeType: 'image/jpeg',
+                subCategory: sub,
+            });
+            setImageSuggestions(data.keywords || []);
+        } catch { Alert.alert('', 'Görsel analiz edilemedi'); }
+        finally { setDetectingImage(false); }
+    };
+
+    // Trim bar PanResponders — refs kullanarak closure sorununu önle
+    const startHandlePan = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => { trimStartCapturedRef.current = trimStartRef.current; },
+        onPanResponderMove: (_, { dx }) => {
+            const w = trimBarWidthRef.current;
+            if (!w) return;
+            const totalDur = musicDurationRef.current || 30;
+            const pxPerSec = w / totalDur;
+            const newS = Math.max(0, Math.min(trimEndRef.current - 1, trimStartCapturedRef.current + dx / pxPerSec));
+            const rounded = Math.round(newS);
+            trimStartRef.current = rounded;
+            setTrimStart(String(rounded));
+        },
+    })).current;
+
+    const endHandlePan = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => { trimEndCapturedRef.current = trimEndRef.current; },
+        onPanResponderMove: (_, { dx }) => {
+            const w = trimBarWidthRef.current;
+            if (!w) return;
+            const totalDur = musicDurationRef.current || 30;
+            const pxPerSec = w / totalDur;
+            const newE = Math.max(trimStartRef.current + 1, Math.min(totalDur, trimEndCapturedRef.current + dx / pxPerSec));
+            const rounded = Math.round(newE);
+            trimEndRef.current = rounded;
+            setTrimEnd(String(rounded));
+        },
+    })).current;
 
     const stopMusicPreview = async () => {
         try {
@@ -7204,9 +7269,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     const openTrimFor = async (music) => {
         await stopMusicPreview();
         setShareMusic(music);
+        const endSec = music.duration ? Math.min(30, Math.floor(music.duration)) : 30;
+        const dur = music.duration || 30;
         setTrimStart('0');
-        setTrimEnd(music.duration ? String(Math.min(30, Math.floor(music.duration))) : '30');
-        setMusicDuration(music.duration || null);
+        setTrimEnd(String(endSec));
+        setMusicDuration(dur);
+        trimStartRef.current = 0;
+        trimEndRef.current = endSec;
+        musicDurationRef.current = dur;
         setMusicTrimOpen(true);
         setMusicSheetOpen(false);
     };
@@ -8791,8 +8861,51 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
                                             </Text>
                                             {mediaShareUri && (
-                                                <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 12 }} resizeMode="cover" />
+                                                <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: shareMusic ? 0 : 12 }} resizeMode="cover" />
                                             )}
+                                            {/* Müzik trim çizgisi — fotoğrafın hemen altında */}
+                                            {shareMusic && (() => {
+                                                const totalDur = musicDurationRef.current || 30;
+                                                const s = trimStartRef.current;
+                                                const e = trimEndRef.current;
+                                                const leftPct = (s / totalDur) * 100;
+                                                const rightPct = (1 - e / totalDur) * 100;
+                                                return (
+                                                    <View style={{ backgroundColor: '#0a0a14', borderRadius: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, marginBottom: 12 }}>
+                                                        {/* Müzik başlığı + süre */}
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                            {shareMusic.coverUrl && <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 26, height: 26, borderRadius: 4 }} />}
+                                                            <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800', flex: 1 }} numberOfLines={1}>🎵 {shareMusic.title}</Text>
+                                                            <Text style={{ color: '#6b7280', fontSize: 11 }}>{s}s – {e}s ({e - s}sn)</Text>
+                                                        </View>
+                                                        {/* Trim bar */}
+                                                        <View
+                                                            onLayout={ev => { trimBarWidthRef.current = ev.nativeEvent.layout.width; }}
+                                                            style={{ height: 36, justifyContent: 'center' }}
+                                                        >
+                                                            {/* Arka plan izi */}
+                                                            <View style={{ height: 5, backgroundColor: '#1f2937', borderRadius: 3 }}>
+                                                                {/* Seçili aralık */}
+                                                                <View style={{ position: 'absolute', left: `${leftPct}%`, right: `${rightPct}%`, height: 5, backgroundColor: '#7c3aed', borderRadius: 3 }} />
+                                                            </View>
+                                                            {/* Başlangıç tutacağı */}
+                                                            <View
+                                                                {...startHandlePan.panHandlers}
+                                                                style={{ position: 'absolute', left: `${leftPct}%`, width: 22, height: 22, borderRadius: 11, backgroundColor: '#7c3aed', borderWidth: 2.5, borderColor: '#fff', marginLeft: -11, alignSelf: 'center' }}
+                                                            />
+                                                            {/* Bitiş tutacağı */}
+                                                            <View
+                                                                {...endHandlePan.panHandlers}
+                                                                style={{ position: 'absolute', left: `${(e / totalDur) * 100}%`, width: 22, height: 22, borderRadius: 11, backgroundColor: '#a78bfa', borderWidth: 2.5, borderColor: '#fff', marginLeft: -11, alignSelf: 'center' }}
+                                                            />
+                                                        </View>
+                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                                                            <Text style={{ color: '#6b7280', fontSize: 10 }}>0s</Text>
+                                                            <Text style={{ color: '#6b7280', fontSize: 10 }}>{totalDur}s</Text>
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })()}
                                             <TextInput
                                                 style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 14 }}
                                                 placeholder="Açıklama ekle (opsiyonel)..."
@@ -8938,6 +9051,35 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         />
                                                         {searchingMusic && <ActivityIndicator size="small" color={cfg.color} />}
                                                     </View>
+                                                    {/* Resmi Algıla butonu */}
+                                                    {mediaShareUri && (
+                                                        <TouchableOpacity
+                                                            onPress={detectImageMusic}
+                                                            disabled={detectingImage}
+                                                            style={{ marginHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#7c3aed20', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: '#7c3aed50', opacity: detectingImage ? 0.6 : 1 }}
+                                                        >
+                                                            <Text style={{ fontSize: 18 }}>🎨</Text>
+                                                            <View style={{ flex: 1 }}>
+                                                                <Text style={{ color: '#a78bfa', fontWeight: '800', fontSize: 13 }}>Resmi Algıla</Text>
+                                                                <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 1 }}>Görsele göre müzik önerileri al</Text>
+                                                            </View>
+                                                            {detectingImage && <ActivityIndicator size="small" color="#a78bfa" />}
+                                                        </TouchableOpacity>
+                                                    )}
+                                                    {/* Görsel önerileri */}
+                                                    {imageSuggestions.length > 0 && (
+                                                        <View style={{ marginHorizontal: 12, marginBottom: 10 }}>
+                                                            <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700', marginBottom: 6 }}>✨ Önerilen aramalar:</Text>
+                                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                                {imageSuggestions.map((kw, i) => (
+                                                                    <TouchableOpacity key={i} onPress={() => searchDeezer(kw)}
+                                                                        style={{ backgroundColor: '#7c3aed20', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#7c3aed40' }}>
+                                                                        <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700' }}>{kw}</Text>
+                                                                    </TouchableOpacity>
+                                                                ))}
+                                                            </View>
+                                                        </View>
+                                                    )}
                                                     <ScrollView contentContainerStyle={{ padding: 12 }}>
                                                         {musicResults.map(track => (
                                                             <TouchableOpacity key={track.id} onPress={() => selectTrack(track)}

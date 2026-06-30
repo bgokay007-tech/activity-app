@@ -273,6 +273,46 @@ Rules:
     }
 };
 
+export const suggestMusicForImage = async (req, res, next) => {
+    try {
+        const { imageBase64, mimeType, subCategory } = req.body;
+
+        const fallback = [
+            `${subCategory} sports motivation`,
+            'energetic workout',
+            'champion mindset',
+            'summer sports vibes',
+        ];
+
+        if (!imageBase64 || !process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === 'your_anthropic_api_key_here') {
+            return res.json({ keywords: fallback });
+        }
+
+        const response = await anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 150,
+            messages: [{
+                role: 'user',
+                content: [
+                    {
+                        type: 'image',
+                        source: { type: 'base64', media_type: mimeType || 'image/jpeg', data: imageBase64 },
+                    },
+                    {
+                        type: 'text',
+                        text: `This is a sports/activity photo (${subCategory || 'sports'}). Suggest 4 short Deezer music search keywords that match the mood, energy level, setting and emotions in this image. Consider: intensity (calm/intense), setting (outdoor/indoor/court), emotion (triumph/focus/fun), time of day. Return ONLY a JSON array of strings like ["energetic workout", "summer vibes", "champions motivation", "rock sports"]. No explanation.`,
+                    },
+                ],
+            }],
+        });
+
+        const raw = response.content[0].text.trim();
+        const match = raw.match(/\[[\s\S]*?\]/);
+        const keywords = match ? JSON.parse(match[0]) : fallback;
+        res.json({ keywords: keywords.slice(0, 5) });
+    } catch (error) { next(error); }
+};
+
 export const toggleLike = async (req, res, next) => {
     try {
         const { id } = req.params;
