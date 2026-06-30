@@ -2089,6 +2089,17 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 where: { id },
                 data: { status: 'COMPLETED', completedAt: new Date() },
             });
+
+            for (const p of tournament.participants) {
+                if (!p.userId) continue;
+                createNotification(
+                    p.userId,
+                    'TOURNAMENT_COMPLETED',
+                    '🏆 Turnuva Tamamlandı',
+                    `"${tournament.name}" turnuvası sona erdi. Katılımınız için teşekkür ederiz!`,
+                    { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory }
+                ).catch(() => {});
+            }
         }
 
         const allMatches = await prisma.tournamentMatch.findMany({

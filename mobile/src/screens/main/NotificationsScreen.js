@@ -30,6 +30,7 @@ const TYPE_ICON = {
     TOURNAMENT_JOIN_ACCEPTED: '🎉',
     TOURNAMENT_STARTED: '🚀',
     TOURNAMENT_EXTRA_ROUND: '⚖️',
+    TOURNAMENT_COMPLETED: '🏆',
     TOURNAMENT_CANCEL_REQUEST: '⚠️',
     CANCELLATION_REQUEST: '⚠️',
     TOURNAMENT_CANCEL_APPROVED: '✅',
@@ -117,6 +118,8 @@ export default function NotificationsScreen({ navigation }) {
             goToSub(data.tab || 'rivals');
         } else if (type === 'TOURNAMENT_STARTED' || type === 'TOURNAMENT_EXTRA_ROUND') {
             goToSub('tournaments', 'inprogress');
+        } else if (type === 'TOURNAMENT_COMPLETED') {
+            goToSub('tournaments', 'completed');
         } else if (type === 'TOURNAMENT_CHAT_MESSAGE') {
             goToSub('tournaments', null, data.tournamentId || null);
         } else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') {
