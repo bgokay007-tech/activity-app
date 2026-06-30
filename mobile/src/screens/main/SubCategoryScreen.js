@@ -4,7 +4,7 @@ import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
-    InteractionManager, PanResponder,
+    InteractionManager, PanResponder, Animated,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -6611,6 +6611,132 @@ const spot = StyleSheet.create({
     actionBtnText:{ color:'#fff', fontSize:14, fontWeight:'700' },
 });
 
+// ─── Story Viewer ──────────────────────────────────────────────────────────────
+
+function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, cfg }) {
+    const story = group?.stories[storyViewer.storyIdx];
+    const storyDuration = story?.musicName
+        ? Math.max(1000, ((story.musicEndTime || 15) - (story.musicStartTime || 0)) * 1000)
+        : 15000;
+
+    const [progress, setProgress] = useState(0);
+    const soundRef = useRef(null);
+    const goNextRef = useRef(null);
+
+    const goNext = useCallback(() => {
+        if (storyViewer.storyIdx < group.stories.length - 1) {
+            setStoryViewer(v => ({ ...v, storyIdx: v.storyIdx + 1 }));
+        } else if (storyViewer.userIdx < mediaStories.length - 1) {
+            setStoryViewer(v => ({ ...v, userIdx: v.userIdx + 1, storyIdx: 0 }));
+        } else {
+            setStoryViewer(v => ({ ...v, visible: false }));
+        }
+    }, [storyViewer.storyIdx, storyViewer.userIdx, group, mediaStories]);
+
+    const goPrev = useCallback(() => {
+        if (storyViewer.storyIdx > 0) {
+            setStoryViewer(v => ({ ...v, storyIdx: v.storyIdx - 1 }));
+        } else if (storyViewer.userIdx > 0) {
+            const prevIdx = storyViewer.userIdx - 1;
+            setStoryViewer(v => ({ ...v, userIdx: prevIdx, storyIdx: mediaStories[prevIdx].stories.length - 1 }));
+        }
+    }, [storyViewer.storyIdx, storyViewer.userIdx, mediaStories]);
+
+    useEffect(() => { goNextRef.current = goNext; }, [goNext]);
+
+    useEffect(() => {
+        setProgress(0);
+        const TICK = 100;
+        const interval = setInterval(() => {
+            setProgress(p => {
+                const next = p + TICK / storyDuration;
+                if (next >= 1) { clearInterval(interval); goNextRef.current?.(); return 1; }
+                return next;
+            });
+        }, TICK);
+
+        // Music playback
+        let stopTimeout;
+        const startMs = (story?.musicStartTime || 0) * 1000;
+        const endMs = (story?.musicEndTime || 30) * 1000;
+        if (story?.musicUrl) {
+            Audio.setAudioModeAsync({ playsInSilentModeIOS: true })
+                .then(() => Audio.Sound.createAsync({ uri: story.musicUrl }, { shouldPlay: true, positionMillis: startMs }))
+                .then(({ sound }) => {
+                    soundRef.current = sound;
+                    stopTimeout = setTimeout(() => sound.stopAsync().catch(() => {}), endMs - startMs + 500);
+                }).catch(() => {});
+        }
+
+        return () => {
+            clearInterval(interval);
+            if (stopTimeout) clearTimeout(stopTimeout);
+            soundRef.current?.stopAsync().catch(() => {});
+            soundRef.current?.unloadAsync().catch(() => {});
+            soundRef.current = null;
+        };
+    }, [storyViewer.userIdx, storyViewer.storyIdx]);
+
+    if (!story) return null;
+
+    return (
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+            {/* Tam ekran görsel */}
+            <View style={{ flex: 1 }}>
+                {story.imageUrl
+                    ? <Image source={{ uri: story.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    : story.videoUrl
+                        ? <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text></View>
+                        : <View style={{ flex: 1, backgroundColor: '#111' }} />
+                }
+
+                {/* Müzik — sol üst */}
+                {!!story.musicName && (
+                    <View style={{ position: 'absolute', top: 90, left: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#00000075', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, maxWidth: '65%' }}>
+                        <Text style={{ fontSize: 14 }}>🎵</Text>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{story.musicName}{story.musicArtist ? ` – ${story.musicArtist}` : ''}</Text>
+                    </View>
+                )}
+
+                {/* Konum — sağ alt */}
+                {!!story.location && (
+                    <View style={{ position: 'absolute', bottom: 72, right: 14, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}>
+                        <Text style={{ fontSize: 12 }}>📍</Text>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{story.location}</Text>
+                    </View>
+                )}
+
+                {/* Yazı overlay — ortada */}
+                {!!story.content && (
+                    <View style={{ position: 'absolute', left: 20, right: 20, bottom: story.location ? 130 : 72, alignItems: 'center' }}>
+                        <View style={{ backgroundColor: '#00000065', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', lineHeight: 23 }}>{story.content}</Text>
+                        </View>
+                    </View>
+                )}
+
+                {/* Dokunma bölgeleri */}
+                <TouchableOpacity style={{ position: 'absolute', left: 0, top: 60, bottom: 0, width: '35%' }} onPress={goPrev} activeOpacity={1} />
+                <TouchableOpacity style={{ position: 'absolute', right: 0, top: 60, bottom: 0, width: '65%' }} onPress={goNext} activeOpacity={1} />
+            </View>
+
+            {/* İlerleme çubukları — en üstte absolute */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', gap: 3, paddingHorizontal: 12, paddingTop: 52, paddingBottom: 8 }}>
+                {group.stories.map((_, i) => (
+                    <View key={i} style={{ flex: 1, height: 2.5, borderRadius: 2, backgroundColor: '#ffffff35', overflow: 'hidden' }}>
+                        {i < storyViewer.storyIdx
+                            ? <View style={{ flex: 1, backgroundColor: '#fff' }} />
+                            : i === storyViewer.storyIdx
+                                ? <View style={{ width: `${Math.min(progress * 100, 100)}%`, height: '100%', backgroundColor: '#fff' }} />
+                                : null
+                        }
+                    </View>
+                ))}
+            </View>
+        </View>
+    );
+}
+
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
@@ -7361,7 +7487,19 @@ export default function SubCategoryScreen({ route, navigation }) {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: type === 'REEL' ? ['videos'] : ['images', 'videos'], quality: 0.85 });
-        if (!result.canceled) { setMediaShareUri(result.assets[0].uri); setShowMediaShare(true); }
+        if (!result.canceled) {
+            const asset = result.assets[0];
+            if (type === 'STORY' && asset.type === 'video') {
+                const dur = asset.duration || 0;
+                const durSec = dur > 1000 ? dur / 1000 : dur; // expo returns seconds, but handle ms too
+                if (durSec > 90) {
+                    Alert.alert('⚠️ Video Çok Uzun', 'Hikaye videoları en fazla 1.5 dakika (90 saniye) olabilir.');
+                    return;
+                }
+            }
+            setMediaShareUri(asset.uri);
+            setShowMediaShare(true);
+        }
     };
 
     const submitMediaShare = async () => {
@@ -8770,62 +8908,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {storyViewer.visible && (() => {
                                         const group = mediaStories[storyViewer.userIdx];
                                         if (!group) return null;
-                                        const story = group.stories[storyViewer.storyIdx];
-                                        if (!story) return null;
-
-                                        const goNext = () => {
-                                            if (storyViewer.storyIdx < group.stories.length - 1) {
-                                                setStoryViewer(v => ({ ...v, storyIdx: v.storyIdx + 1 }));
-                                            } else if (storyViewer.userIdx < mediaStories.length - 1) {
-                                                setStoryViewer(v => ({ ...v, userIdx: v.userIdx + 1, storyIdx: 0 }));
-                                            } else {
-                                                setStoryViewer(v => ({ ...v, visible: false }));
-                                            }
-                                        };
-                                        const goPrev = () => {
-                                            if (storyViewer.storyIdx > 0) {
-                                                setStoryViewer(v => ({ ...v, storyIdx: v.storyIdx - 1 }));
-                                            } else if (storyViewer.userIdx > 0) {
-                                                const prevUserIdx = storyViewer.userIdx - 1;
-                                                setStoryViewer(v => ({ ...v, userIdx: prevUserIdx, storyIdx: mediaStories[prevUserIdx].stories.length - 1 }));
-                                            }
-                                        };
-
                                         return (
-                                            <View style={{ flex: 1, backgroundColor: '#000' }}>
-                                                {/* Progress bars */}
-                                                <View style={{ flexDirection: 'row', gap: 3, paddingHorizontal: 12, paddingTop: 52, paddingBottom: 8 }}>
-                                                    {group.stories.map((_, i) => (
-                                                        <View key={i} style={{ flex: 1, height: 2.5, borderRadius: 2, backgroundColor: i < storyViewer.storyIdx ? '#fff' : i === storyViewer.storyIdx ? cfg.color : '#ffffff30' }} />
-                                                    ))}
-                                                </View>
-                                                {/* Header */}
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 8 }}>
-                                                    <View style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden', borderWidth: 2, borderColor: cfg.color }}>
-                                                        <Avatar name={group.user?.username} size={32} color={cfg.color} />
-                                                    </View>
-                                                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13, marginLeft: 8, flex: 1 }}>@{group.user?.username}</Text>
-                                                    <TouchableOpacity onPress={() => setStoryViewer(v => ({ ...v, visible: false }))} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }}>✕</Text>
-                                                    </TouchableOpacity>
-                                                </View>
-                                                {/* Görüntü */}
-                                                <View style={{ flex: 1, position: 'relative' }}>
-                                                    {story.imageUrl
-                                                        ? <Image source={{ uri: story.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                                        : <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text></View>
-                                                    }
-                                                    {/* Dokunma bölgeleri */}
-                                                    <TouchableOpacity style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '35%' }} onPress={goPrev} activeOpacity={1} />
-                                                    <TouchableOpacity style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '65%' }} onPress={goNext} activeOpacity={1} />
-                                                </View>
-                                                {/* Altyazı */}
-                                                {!!story.content && (
-                                                    <View style={{ padding: 16, paddingBottom: 40, backgroundColor: '#00000060' }}>
-                                                        <Text style={{ color: '#fff', fontSize: 14, lineHeight: 20 }}>{story.content}</Text>
-                                                    </View>
-                                                )}
-                                            </View>
+                                            <StoryViewerContent
+                                                group={group}
+                                                storyViewer={storyViewer}
+                                                setStoryViewer={setStoryViewer}
+                                                mediaStories={mediaStories}
+                                                cfg={cfg}
+                                            />
                                         );
                                     })()}
                                 </Modal>
@@ -8861,7 +8951,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
                                             </Text>
                                             {mediaShareUri && (
-                                                <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: shareMusic ? 0 : 12 }} resizeMode="cover" />
+                                                <View style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: shareMusic ? 0 : 12, overflow: 'hidden' }}>
+                                                    <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                                    {mediaShareType === 'STORY' && !!mediaShareCaption && (
+                                                        <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12, alignItems: 'center' }}>
+                                                            <View style={{ backgroundColor: '#00000065', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                                                                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center' }}>{mediaShareCaption}</Text>
+                                                            </View>
+                                                        </View>
+                                                    )}
+                                                </View>
                                             )}
                                             {/* Müzik trim çizgisi — fotoğrafın hemen altında */}
                                             {shareMusic && (() => {
@@ -8908,7 +9007,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             })()}
                                             <TextInput
                                                 style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 14 }}
-                                                placeholder="Açıklama ekle (opsiyonel)..."
+                                                placeholder={mediaShareType === 'STORY' ? '✏️ Üzerine yazı ekle...' : 'Açıklama ekle (opsiyonel)...'}
                                                 placeholderTextColor={colors.textMuted}
                                                 value={mediaShareCaption}
                                                 onChangeText={setMediaShareCaption}
