@@ -246,7 +246,8 @@ export const updateRivalRequest = async (req, res, next) => {
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Bu ilanı düzenleme yetkiniz yok' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık ilanlar düzenlenebilir' });
 
-        const { message, matchDate, matchTime, location, courtName, courtAddress, minRating, maxRating, matchMode } = req.body;
+        const { message, matchDate, matchTime, location, courtName, courtAddress, minRating, maxRating, matchMode,
+                genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq } = req.body;
 
         const updated = await prisma.activityRequest.update({
             where: { id },
@@ -260,6 +261,10 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(minRating !== undefined && { minRating: minRating !== '' && minRating !== null ? parseFloat(minRating) : null }),
                 ...(maxRating !== undefined && { maxRating: maxRating !== '' && maxRating !== null ? parseFloat(maxRating) : null }),
                 ...(matchMode !== undefined && { matchMode: matchMode.toUpperCase() }),
+                ...(genderReq !== undefined && { genderReq }),
+                ...(partnerGenderReq !== undefined && { partnerGenderReq }),
+                ...(opp1GenderReq !== undefined && { opp1GenderReq }),
+                ...(opp2GenderReq !== undefined && { opp2GenderReq }),
             },
             include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: 'PENDING' }, include: { user: { select: SENDER_SELECT } } } },
         });
@@ -286,6 +291,7 @@ export const createRivalRequest = async (req, res, next) => {
             partnerGenderReq = 'MIX',
             opp1GenderReq = 'MIX',
             opp2GenderReq = 'MIX',
+            partnerInviteId, // DOUBLE: partner daveti gönderilecek kullanıcının id'si
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
@@ -330,7 +336,10 @@ export const createRivalRequest = async (req, res, next) => {
                 teamSize: Number(teamSize) || 1,
                 ...(req.body.duration && { duration: Number(req.body.duration) }),
                 participants: [],
-                senderTeam: Array.isArray(senderTeam) ? senderTeam : [],
+                // DOUBLE + partnerInviteId: partner henüz kabul etmedi, senderTeam boş
+                senderTeam: (partnerInviteId && matchType.toUpperCase() === 'DOUBLE')
+                    ? []
+                    : (Array.isArray(senderTeam) ? senderTeam : []),
                 positions: Array.isArray(positions) ? positions : [],
                 ...(refereePayment && { refereePayment }),
                 ...(minRating !== undefined && minRating !== null && minRating !== '' && { minRating: parseFloat(minRating) }),
@@ -349,6 +358,31 @@ export const createRivalRequest = async (req, res, next) => {
 
         // Real-time: show new listing instantly on all screens
         broadcast('rivalUpdate', request);
+
+        // DOUBLE partner daveti: ilan oluştuktan sonra join request yarat ve bildirim gönder
+        if (partnerInviteId && matchType.toUpperCase() === 'DOUBLE') {
+            prisma.rivalJoinRequest.create({
+                data: {
+                    rivalId: request.id,
+                    userId: partnerInviteId,
+                    initiatedBy: 'OWNER',
+                    isPartnerInvite: true,
+                },
+            }).then(() => {
+                const me = request.sender;
+                createNotification(
+                    partnerInviteId, 'MATCH_INVITE',
+                    '🤝 Partner Daveti',
+                    `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.`,
+                    { category: request.category, subCategory: request.subCategory, rivalId: request.id }
+                ).catch(() => {});
+                emitToUser(partnerInviteId, 'notification', {
+                    type: 'MATCH_INVITE', title: '🤝 Partner Daveti',
+                    body: `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.`,
+                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
+                });
+            }).catch(() => {});
+        }
 
         // Notify city-alert subscribers about new listing (async, non-blocking)
         prisma.user.findUnique({ where: { id: creatorId }, select: { city: true } })
@@ -765,6 +799,28 @@ export const respondToJoin = async (req, res, next) => {
             const notifyTargetId = joinReq.initiatedBy === 'OWNER' ? joinReq.rival.senderId : joinReq.userId;
             emitToUser(notifyTargetId, 'joinRejected', { rivalId: joinReq.rivalId });
             return res.json({ message: 'Request rejected.' });
+        }
+
+        // Partner daveti kabul: senderTeam'e ekle, participants'a değil
+        if (joinReq.isPartnerInvite) {
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
+            const updatedRival = await prisma.activityRequest.update({
+                where: { id: joinReq.rivalId },
+                data: { senderTeam: [joinerData] },
+                include: {
+                    sender: { select: SENDER_SELECT },
+                    joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                },
+            });
+            emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
+            emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
+            createNotification(
+                joinReq.rival.senderId, 'MATCH_CONFIRMED',
+                '🤝 Partner Kabul Etti',
+                `${joinReq.user.username} çiftler takımınıza katılmayı kabul etti.`,
+                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+            ).catch(() => {});
+            return res.json({ message: 'Partner daveti kabul edildi.', request: updatedRival });
         }
 
         // 1 saatten geç kabul: joiner'a tekrar onay iste

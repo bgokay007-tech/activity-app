@@ -681,6 +681,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
                         {item.matchType === 'DOUBLE' ? (() => {
                             const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+                            const allJoinReqs = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
+                            const pendingPartnerInvite = allJoinReqs.find(jr => jr.isPartnerInvite && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
                             const TeamHalf = ({ p, fallback, sub: subLabel, onRemove }) => p ? (
                                 <View>
                                     <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })}>
@@ -696,13 +698,23 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             ) : (
                                 <Text style={{ color: colors.textMuted, fontSize:9 }}>{fallback}</Text>
                             );
+                            const PartnerSlot = () => {
+                                if (senderTeamArr[0]) return <TeamHalf p={senderTeamArr[0]} />;
+                                if (pendingPartnerInvite) return (
+                                    <View>
+                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
+                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
+                                    </View>
+                                );
+                                return <Text style={{ color: colors.textMuted, fontSize:9 }}>Partner yok</Text>;
+                            };
                             return (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
                                     <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
                                         <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', marginBottom:4 }}>👑 Kurucu Takımı</Text>
                                         <TeamHalf p={item.sender} />
                                         <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
-                                        <TeamHalf p={senderTeamArr[0]} fallback="Partner yok" />
+                                        <PartnerSlot />
                                     </View>
                                     <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
                                         <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
@@ -796,11 +808,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             ))}
                         </View>
                     )}
-                    {/* Ilan sahibinin gönderdiği (OWNER) davetler — onay bekleyenler */}
-                    {isOwner && joinRequests.filter(jr => jr.initiatedBy === 'OWNER').length > 0 && (
+                    {/* Ilan sahibinin gönderdiği (OWNER) rakip davetler — partner davetleri kurucu takımı panelinde gösterilir */}
+                    {isOwner && joinRequests.filter(jr => jr.initiatedBy === 'OWNER' && !jr.isPartnerInvite).length > 0 && (
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📨 Gönderilen Davetler</Text>
-                            {joinRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => (
+                            {joinRequests.filter(jr => jr.initiatedBy === 'OWNER' && !jr.isPartnerInvite).map(jr => (
                                 <View key={jr.id} style={det.playerRow}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                     <View style={{ flex:1 }}>
@@ -856,13 +868,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </TouchableOpacity>
                             </View>
                         ) : myInvite ? (
-                            <View style={{ flexDirection:'row', gap:10 }}>
-                                <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(10), paddingVertical: moderateScale(9) }]} onPress={() => handleRespondJoin(myInvite.id, 'accept')}>
-                                    <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.inviteAcceptBtn}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]} onPress={() => handleRespondJoin(myInvite.id, 'reject')}>
-                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.inviteRejectBtn}</Text>
-                                </TouchableOpacity>
+                            <View style={{ gap:6 }}>
+                                {myInvite.isPartnerInvite && (
+                                    <Text style={{ color:'#a78bfa', fontSize: moderateScale(11), fontWeight:'700', textAlign:'center' }}>🤝 Partner Daveti</Text>
+                                )}
+                                <View style={{ flexDirection:'row', gap:10 }}>
+                                    <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(10), paddingVertical: moderateScale(9) }]} onPress={() => handleRespondJoin(myInvite.id, 'accept')}>
+                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{myInvite.isPartnerInvite ? 'Partner Ol' : t.inviteAcceptBtn}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]} onPress={() => handleRespondJoin(myInvite.id, 'reject')}>
+                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.inviteRejectBtn}</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         ) : mySentReq === 'PENDING' ? (
                             <View style={[s.waitingBox, { borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}><Text style={[s.waitingText, { fontSize: moderateScale(13) }]}>{t.waitingReq}</Text></View>
@@ -1383,6 +1400,8 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     const [form, setForm] = useState({});
     const [saving, setSaving] = useState(false);
     const [calVisible, setCalVisible] = useState(false);
+    const isTennisPadel = item?.subCategory === 'tennis' || item?.subCategory === 'padel';
+    const isDouble = item?.matchType === 'DOUBLE';
 
     useEffect(() => {
         if (visible && item) {
@@ -1395,6 +1414,10 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                 minRating: item.minRating != null ? String(item.minRating) : '',
                 maxRating: item.maxRating != null ? String(item.maxRating) : '',
                 matchMode: item.matchMode || 'FREE',
+                genderReq: item.genderReq || 'MIX',
+                partnerGenderReq: item.partnerGenderReq || 'MIX',
+                opp1GenderReq: item.opp1GenderReq || 'MIX',
+                opp2GenderReq: item.opp2GenderReq || 'MIX',
             });
         }
     }, [visible, item?.id]);
@@ -1411,6 +1434,8 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                 minRating: form.minRating !== '' ? form.minRating : null,
                 maxRating: form.maxRating !== '' ? form.maxRating : null,
                 matchMode: form.matchMode || 'FREE',
+                ...(isTennisPadel && { genderReq: form.genderReq }),
+                ...(isTennisPadel && isDouble && { partnerGenderReq: form.partnerGenderReq, opp1GenderReq: form.opp1GenderReq, opp2GenderReq: form.opp2GenderReq }),
             });
             onSave();
             onClose();
@@ -1515,7 +1540,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     </View>
 
                     <Text style={s.fieldLabel}>💰 Maç Modu</Text>
-                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
                         {['FREE', 'PAID'].map(mode => (
                             <TouchableOpacity
                                 key={mode}
@@ -1528,6 +1553,39 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                             </TouchableOpacity>
                         ))}
                     </View>
+
+                    {isTennisPadel && (() => {
+                        const GENDERS = [{ id:'MIX', label:'⚥ Mix' }, { id:'MALE', label:'♂ Erkek' }, { id:'FEMALE', label:'♀ Kadın' }];
+                        const GenderRow = ({ label, field }) => (
+                            <View style={{ marginBottom: 12 }}>
+                                <Text style={s.fieldLabel}>{label}</Text>
+                                <View style={{ flexDirection:'row', gap:8 }}>
+                                    {GENDERS.map(g => (
+                                        <TouchableOpacity
+                                            key={g.id}
+                                            style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: form[field] === g.id ? colors.purple : colors.surface2, borderWidth:1, borderColor: form[field] === g.id ? colors.purple : colors.border }}
+                                            onPress={() => setForm(f => ({ ...f, [field]: g.id }))}
+                                        >
+                                            <Text style={{ color: form[field] === g.id ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'700' }}>{g.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        );
+                        return (
+                            <View style={{ marginBottom: 24 }}>
+                                {isDouble ? (
+                                    <>
+                                        <GenderRow label="Takım Arkadaşı Cinsiyeti" field="partnerGenderReq" />
+                                        <GenderRow label="Rakip 1 Cinsiyeti" field="opp1GenderReq" />
+                                        <GenderRow label="Rakip 2 Cinsiyeti" field="opp2GenderReq" />
+                                    </>
+                                ) : (
+                                    <GenderRow label="Rakip Cinsiyeti" field="genderReq" />
+                                )}
+                            </View>
+                        );
+                    })()}
                 </ScrollView>
 
                 <CustomCalendarPicker
@@ -2926,8 +2984,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
                 opp2GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp2GenderReq : undefined,
-                senderTeam: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
-                    ? [{ id: f.partner.id, username: f.partner.username, fullName: f.partner.fullName, skillRating: f.partner.interests?.[0]?.skillRating || 0 }]
+                partnerInviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
+                    ? f.partner.id
                     : undefined,
             });
             onCreated();
