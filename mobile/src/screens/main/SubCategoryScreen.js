@@ -376,6 +376,19 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setComments([]);
         setCommentText('');
         if (item?.id && visible) {
+            // Fresh fetch: güncel cinsiyet, katılımcılar ve istekler
+            api.get(`/rivals/${item.id}`)
+                .then(({ data }) => {
+                    setLocalGender({
+                        genderReq: data.genderReq ?? item.genderReq,
+                        partnerGenderReq: data.partnerGenderReq ?? item.partnerGenderReq,
+                        opp1GenderReq: data.opp1GenderReq ?? item.opp1GenderReq,
+                        opp2GenderReq: data.opp2GenderReq ?? item.opp2GenderReq,
+                    });
+                    if (Array.isArray(data.joinRequests)) setLocalJoinRequests(data.joinRequests);
+                    if (Array.isArray(data.participants)) setLocalParticipants(data.participants);
+                })
+                .catch(() => {});
             setLoadingComments(true);
             api.get(`/rivals/${item.id}/comments`)
                 .then(res => setComments(res.data || []))

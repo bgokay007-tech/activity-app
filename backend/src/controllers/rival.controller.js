@@ -206,6 +206,21 @@ function getRequired(request) {
     return REQUIRED_PARTICIPANTS[request.matchType] || 1;
 }
 
+export const getRivalById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const rival = await prisma.activityRequest.findUnique({
+            where: { id },
+            include: {
+                sender: { select: { ...SENDER_SELECT, interests: { select: { alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
+                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+            },
+        });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        res.json(rival);
+    } catch (error) { next(error); }
+};
+
 export const getCountsBySubCategory = async (req, res, next) => {
     try {
         const { category } = req.query;
@@ -368,7 +383,19 @@ export const createRivalRequest = async (req, res, next) => {
                     initiatedBy: 'OWNER',
                     isPartnerInvite: true,
                 },
-            }).then(() => {
+            }).then(async () => {
+                // Güncel ilanı (joinRequests dahil) çek ve her iki tarafa ilet
+                const updatedRival = await prisma.activityRequest.findUnique({
+                    where: { id: request.id },
+                    include: {
+                        sender: { select: SENDER_SELECT },
+                        joinRequests: { where: { status: 'PENDING' }, include: { user: { select: SENDER_SELECT } } },
+                    },
+                });
+                if (updatedRival) {
+                    emitToUser(creatorId, 'rivalUpdate', updatedRival);
+                    emitToUser(partnerInviteId, 'rivalUpdate', updatedRival);
+                }
                 const me = request.sender;
                 createNotification(
                     partnerInviteId, 'MATCH_INVITE',

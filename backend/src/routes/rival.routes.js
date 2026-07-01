@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-    createRivalRequest, getRivalRequests,
+    createRivalRequest, getRivalRequests, getRivalById,
     sendJoinRequest, respondToJoin, confirmLateJoin, inviteToRival, setRivalJoinPartner,
     getUpcomingMatches, getMyRequests,
     cancelRequest, enterScore, confirmScore, disputeScore, reportDispute,
@@ -40,6 +40,7 @@ router.patch('/:id/extend-score',    authenticate, extendScoreDeadline);
 router.patch('/:id/abandon',         authenticate, abandonMatch);
 router.patch('/:id/cancel-match',    authenticate, cancelMatch);
 router.delete('/:id/participants/:userId', authenticate, removeRivalParticipant);
+router.get('/:id',                   authenticate, getRivalById);
 router.get('/:id/comments',          authenticate, getMatchComments);
 router.post('/:id/comments',         authenticate, addMatchComment);
 router.delete('/comments/:commentId', authenticate, deleteMatchComment);
