@@ -352,6 +352,7 @@ const det = StyleSheet.create({
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, onEdit }) {
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
+    const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -371,6 +372,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     useEffect(() => {
         setLocalParticipants(null);
         setLocalJoinRequests(null);
+        setLocalGender(null);
         setComments([]);
         setCommentText('');
         if (item?.id && visible) {
@@ -397,6 +399,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             if (updated.id !== item.id) return;
             if (Array.isArray(updated.joinRequests)) setLocalJoinRequests(updated.joinRequests);
             if (Array.isArray(updated.participants)) setLocalParticipants(updated.participants);
+            if (updated.genderReq !== undefined || updated.opp1GenderReq !== undefined) {
+                setLocalGender({
+                    genderReq: updated.genderReq ?? item.genderReq,
+                    partnerGenderReq: updated.partnerGenderReq ?? item.partnerGenderReq,
+                    opp1GenderReq: updated.opp1GenderReq ?? item.opp1GenderReq,
+                    opp2GenderReq: updated.opp2GenderReq ?? item.opp2GenderReq,
+                });
+            }
         });
         return off;
     }, [visible, item?.id]);
@@ -404,6 +414,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const isOwner = item.senderId === myId;
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
+    const genderReq = localGender?.genderReq ?? item.genderReq ?? 'MIX';
+    const partnerGenderReq = localGender?.partnerGenderReq ?? item.partnerGenderReq ?? 'MIX';
+    const opp1GenderReq = localGender?.opp1GenderReq ?? item.opp1GenderReq ?? 'MIX';
+    const opp2GenderReq = localGender?.opp2GenderReq ?? item.opp2GenderReq ?? 'MIX';
+    const genderLabel = (g) => g === 'MALE' ? '♂ Erkek' : g === 'FEMALE' ? '♀ Kadın' : null;
     const required = item.matchType === 'DOUBLE'
         ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
         : (item.teamSize || 1);
@@ -668,11 +683,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </Text>
                             </View>
                         )}
-                        {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (
-                            <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(3) }}>
-                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>⚥ Kısıtlı</Text>
-                            </View>
-                        )}
+                        {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
+                            const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                            const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
+                            const label = allSame && item.opp1GenderReq !== 'MIX'
+                                ? `${gL(item.opp1GenderReq)} ${item.opp1GenderReq === 'MALE' ? 'Erkek' : 'Kadın'}`
+                                : `${gL(item.partnerGenderReq)}+${gL(item.opp1GenderReq)}+${gL(item.opp2GenderReq)}`;
+                            return (
+                                <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(3) }}>
+                                    <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
+                                </View>
+                            );
+                        })()}
                     </View>
                     {item.message && <Text style={[s.cardMsg, { marginBottom:12, fontSize: moderateScale(13) }]}>{item.message}</Text>}
 
@@ -711,15 +733,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             return (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
                                     <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
-                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', marginBottom:4 }}>👑 Kurucu Takımı</Text>
+                                        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                                            <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800' }}>👑 Kurucu Takımı</Text>
+                                        </View>
                                         <TeamHalf p={item.sender} />
-                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
+                                        <View style={{ flexDirection:'row', alignItems:'center', marginVertical:2 }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
+                                            {genderLabel(partnerGenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(partnerGenderReq)}</Text>}
+                                        </View>
                                         <PartnerSlot />
                                     </View>
                                     <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
                                         <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
+                                        {genderLabel(opp1GenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:2 }}>{genderLabel(opp1GenderReq)}</Text>}
                                         <TeamHalf p={participants[0]} fallback="Henüz katılan yok" onRemove={isOwner && participants[0] ? () => removeRivalParticipant(participants[0].id, participants[0].username) : null} />
-                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
+                                        <View style={{ flexDirection:'row', alignItems:'center', marginVertical:2 }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
+                                            {genderLabel(opp2GenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(opp2GenderReq)}</Text>}
+                                        </View>
                                         <TeamHalf p={participants[1]} fallback="Henüz katılan yok" onRemove={isOwner && participants[1] ? () => removeRivalParticipant(participants[1].id, participants[1].username) : null} />
                                     </View>
                                 </View>
