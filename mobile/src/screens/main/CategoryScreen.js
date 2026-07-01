@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
@@ -50,12 +51,15 @@ export default function CategoryScreen({ route, navigation }) {
     const [counts, setCounts] = useState({});
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        api.get(`/rivals/counts?category=${category}`)
-            .then(r => setCounts(r.data))
-            .catch(e => console.warn(e?.message))
-            .finally(() => setLoading(false));
-    }, [category]);
+    useFocusEffect(
+        useCallback(() => {
+            setLoading(true);
+            api.get(`/rivals/counts?category=${category}`)
+                .then(r => setCounts(r.data))
+                .catch(e => console.warn(e?.message))
+                .finally(() => setLoading(false));
+        }, [category])
+    );
 
     return (
         <View style={s.container}>
