@@ -23,12 +23,11 @@ export const reportNoShow = async (req, res, next) => {
             return res.status(400).json({ message: 'Kendinizi bildiramazsınız' });
         }
 
-        // Match must have started
+        // Match must have started (matchTime is Turkey local UTC+3 → convert to UTC)
         if (match.matchDate && match.matchTime) {
             const [h, m] = match.matchTime.split(':').map(Number);
-            const start = new Date(match.matchDate);
-            start.setHours(h, m, 0, 0);
-            if (new Date() < start) {
+            const startUTC = new Date(new Date(match.matchDate).getTime() + (h * 60 + m) * 60000 - 3 * 3600000);
+            if (new Date() < startUTC) {
                 return res.status(400).json({ message: 'Maç henüz başlamadı' });
             }
         }
