@@ -270,31 +270,33 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi demo başvuru gönderebilir' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
 
-        const existingReqs = await prisma.rivalJoinRequest.findMany({
-            where: { rivalId, status: { in: ['PENDING', 'ACCEPTED'] } },
+        const demoUsernameSet = new Set(DEMO_RIVAL_PLAYERS.map(d => d.username));
+
+        // Tüm mevcut join request'leri çek (her statüde)
+        const allExisting = await prisma.rivalJoinRequest.findMany({
+            where: { rivalId },
             select: { id: true, userId: true, status: true },
         });
 
-        // Demo olmayan (gerçek) oyuncuların kullanıcı adlarını takip et
-        const demoUsernameSet = new Set(DEMO_RIVAL_PLAYERS.map(d => d.username));
+        // ACCEPTED olmayan demo isteklerini sil (unique constraint sorununu kökten çöz)
+        // ACCEPTED demo istekleri ve gerçek oyuncu istekleri korunur
         const usedUsernames = new Set();
-        const pendingDemoReqIds = [];
+        const demoReqIdsToDelete = [];
 
-        for (const r of existingReqs) {
+        for (const r of allExisting) {
             const u = await prisma.user.findUnique({ where: { id: r.userId }, select: { username: true } });
             if (!u) continue;
-            if (demoUsernameSet.has(u.username) && r.status === 'PENDING') {
-                // Önceki PENDING demo başvurusunu reddet — cinsiyet kısıtlaması değişmiş olabilir
-                pendingDemoReqIds.push(r.id);
+            if (demoUsernameSet.has(u.username)) {
+                if (r.status !== 'ACCEPTED') demoReqIdsToDelete.push(r.id);
+                // ACCEPTED demo oyuncular pool'dan çıkarılır
+                if (r.status === 'ACCEPTED') usedUsernames.add(u.username);
             } else {
-                usedUsernames.add(u.username);
+                // Gerçek oyuncu — PENDING veya ACCEPTED ise kullanılmış say
+                if (r.status === 'PENDING' || r.status === 'ACCEPTED') usedUsernames.add(u.username);
             }
         }
-        if (pendingDemoReqIds.length > 0) {
-            await prisma.rivalJoinRequest.updateMany({
-                where: { id: { in: pendingDemoReqIds } },
-                data: { status: 'REJECTED' },
-            });
+        if (demoReqIdsToDelete.length > 0) {
+            await prisma.rivalJoinRequest.deleteMany({ where: { id: { in: demoReqIdsToDelete } } });
         }
 
         const pool = DEMO_RIVAL_PLAYERS.filter(d => !usedUsernames.has(d.username));
@@ -322,21 +324,17 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         if (rival.matchType === 'DOUBLE') {
             const [d1, d2] = picked;
             const [u1, u2] = users;
-            const joiningTeam = [
-                { id: u1.id, username: u1.username, fullName: u1.fullName, skillRating: d1.skillRating },
-                { id: u2.id, username: u2.username, fullName: u2.fullName, skillRating: d2.skillRating },
-            ];
-            await prisma.rivalJoinRequest.upsert({
-                where: { rivalId_userId: { rivalId, userId: u1.id } },
-                update: { status: 'PENDING', joiningTeam },
-                create: { rivalId, userId: u1.id, joiningTeam },
+            await prisma.rivalJoinRequest.create({
+                data: {
+                    rivalId, userId: u1.id,
+                    joiningTeam: [
+                        { id: u1.id, username: u1.username, fullName: u1.fullName, skillRating: d1.skillRating },
+                        { id: u2.id, username: u2.username, fullName: u2.fullName, skillRating: d2.skillRating },
+                    ],
+                },
             });
         } else {
-            await prisma.rivalJoinRequest.upsert({
-                where: { rivalId_userId: { rivalId, userId: users[0].id } },
-                update: { status: 'PENDING' },
-                create: { rivalId, userId: users[0].id },
-            });
+            await prisma.rivalJoinRequest.create({ data: { rivalId, userId: users[0].id } });
         }
 
         const updatedRival = await prisma.activityRequest.findUnique({
