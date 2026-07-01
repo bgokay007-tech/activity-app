@@ -2971,9 +2971,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
     const reset = () => setF(INIT);
 
     const submit = async () => {
-        if (!isTeamSport && f.matchType === 'DOUBLE' && !f.partner) {
-            Alert.alert('', t.missingPartner); return;
-        }
         if (!f.flexibleSchedule) {
             if (!f.matchDate)  { Alert.alert('', t.missingDate); return; }
             if (!f.matchTime)  { Alert.alert('', t.missingTime); return; }
