@@ -647,6 +647,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                         <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
                             <Text style={[s.cardName, { fontSize: moderateScale(14) }]}>{senderAlias(item.sender)}</Text>
+                            {item.sender?.gender && item.sender.gender !== 'OTHER' && (
+                                <Text style={{ fontSize: moderateScale(11), fontWeight:'700', color: item.sender.gender === 'MALE' ? '#3b82f6' : '#ec4899' }}>
+                                    {item.sender.gender === 'MALE' ? '♂' : '♀'}
+                                </Text>
+                            )}
                             {item.sender?.interests?.[0]?.assessmentCompleted && (
                                 <Text style={{ color:'#facc15', fontSize:moderateScale(12), fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
                             )}

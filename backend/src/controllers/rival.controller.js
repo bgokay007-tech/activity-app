@@ -187,7 +187,7 @@ async function applyCompetitivePoints(request, winnerUserId) {
 }
 
 const SENDER_SELECT = {
-    id: true, username: true, fullName: true, avatar: true, city: true,
+    id: true, username: true, fullName: true, avatar: true, city: true, gender: true,
 };
 
 // DOUBLE: 2 — taraflar artık eşleşmiş çift olarak katılıyor (senderTeam/joiningTeam),
