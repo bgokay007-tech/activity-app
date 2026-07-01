@@ -349,7 +349,7 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:moderateScale(13) },
 });
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, onEdit }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, onEdit, onRefresh }) {
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
@@ -477,13 +477,21 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         } finally { setInvitingUserId(null); }
     };
 
-    const acceptLocal = (jrId) => {
-        const jr = joinRequests.find(r => r.id === jrId);
-        if (jr?.user) {
-            setLocalParticipants([...participants, { id: jr.user.id, username: jr.user.username, fullName: jr.user.fullName, avatar: jr.user.avatar }]);
-            setLocalJoinRequests(joinRequests.filter(r => r.id !== jrId));
+    const acceptLocal = async (jrId) => {
+        const prevLocalJoinRequests = joinRequests;
+        setLocalJoinRequests(joinRequests.filter(r => r.id !== jrId));
+        try {
+            const res = await api.patch(`/rivals/join/${jrId}`, { action: 'accept' });
+            if (res.data?.matched) {
+                setTimeout(onRefresh, 1200);
+            } else {
+                onRefresh();
+            }
+        } catch(e) {
+            if (e?.response) Alert.alert(t.error, e.response.data?.message || t.actionFailed);
+            setLocalJoinRequests(prevLocalJoinRequests);
+            setLocalParticipants(null);
         }
-        handleRespondJoin(jrId, 'accept');
     };
 
     const rejectLocal = (jrId) => {
@@ -744,7 +752,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 const bg = isSelected ? '#f59e0b18' : isTarget ? '#a855f710' : undefined;
                                 return (
                                     <TouchableOpacity
-                                        onPress={() => { if (!locked && p && isOwner) handleSlotTap(slot); }}
+                                        onPress={() => { if (!locked && p && isOwner && swapSlot) handleSlotTap(slot); }}
+                                        onLongPress={() => { if (!locked && p && isOwner && !swapSlot) handleSlotTap(slot); }}
+                                        delayLongPress={400}
                                         activeOpacity={locked || !p || !isOwner ? 1 : 0.7}
                                         style={{ borderWidth: isSelected || isTarget ? 1.5 : 0, borderColor, borderRadius:6, padding:4, backgroundColor: bg }}
                                     >
@@ -752,7 +762,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {p ? (
                                             <View>
                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                                                    <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flex:1 }}>
+                                                    <TouchableOpacity onPress={() => !swapSlot && p.id && navigation.push('Profile', { userId: p.id })} style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p.username}</Text>
                                                     </TouchableOpacity>
@@ -764,10 +774,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
                                                     </TouchableOpacity>
                                                 )}
-                                                {!locked && isOwner && !swapSlot && p && (
-                                                    <TouchableOpacity onPress={() => handleSlotTap(slot)} style={{ marginTop:2 }}>
-                                                        <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>⇄ Taşı</Text>
-                                                    </TouchableOpacity>
+                                                {!locked && isOwner && !swapSlot && (
+                                                    <Text style={{ color:'#f59e0b44', fontSize:8, marginTop:2 }}>↕ taşımak için basılı tut</Text>
                                                 )}
                                             </View>
                                         ) : (
@@ -1250,7 +1258,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             }
         } catch(e) {
             if (e?.response) Alert.alert(t.error, e.response.data?.message || t.actionFailed);
-            else onRefresh(); // network drop — sunucu işlemi yaptı, listeyi yenile
+            onRefresh(); // her durumda yenile — iyimser güncellemeyi geri al
         }
     };
 
@@ -1412,6 +1420,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             handleJoin={() => { setDetailVisible(false); setTimeout(handleJoinPress, 300); }}
             handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
             handleRespondJoin={handleRespondJoin}
+            onRefresh={onRefresh}
             onEdit={() => { setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
         />
         <EditRivalModal
