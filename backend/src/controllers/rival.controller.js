@@ -527,14 +527,28 @@ export const sendJoinRequest = async (req, res, next) => {
             return res.status(400).json({ message: 'You already sent a request', status: existing.status });
         }
 
-        // Gender restriction check (SINGLE only)
+        // Gender restriction check — SINGLE
         if (request.matchType === 'SINGLE' && request.genderReq && request.genderReq !== 'MIX') {
             const joiner = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
             if (joiner?.gender && joiner.gender !== 'OTHER') {
-                const genderOk = request.genderReq === joiner.gender; // 'MALE' === 'MALE' or 'FEMALE' === 'FEMALE'
-                if (!genderOk) {
+                if (request.genderReq !== joiner.gender) {
                     const label = request.genderReq === 'MALE' ? 'erkek' : 'kadın';
                     return res.status(400).json({ message: `Bu ilan yalnızca ${label} oyuncular için açık.` });
+                }
+            }
+        }
+        // Gender restriction check — DOUBLE (erken reddet: hiçbir slota uyamıyorsa)
+        if (request.matchType === 'DOUBLE') {
+            const opp1Req = request.opp1GenderReq || 'MIX';
+            const opp2Req = request.opp2GenderReq || 'MIX';
+            if (opp1Req !== 'MIX' || opp2Req !== 'MIX') {
+                const joiner = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
+                if (joiner?.gender && joiner.gender !== 'OTHER') {
+                    const canFillOpp1 = opp1Req === 'MIX' || joiner.gender === opp1Req;
+                    const canFillOpp2 = opp2Req === 'MIX' || joiner.gender === opp2Req;
+                    if (!canFillOpp1 && !canFillOpp2) {
+                        return res.status(400).json({ message: 'Cinsiyet kısıtlamaları nedeniyle bu ilana başvuramazsınız.' });
+                    }
                 }
             }
         }
@@ -804,6 +818,26 @@ export const respondToJoin = async (req, res, next) => {
             select: { alias: true },
         });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
+
+        // DOUBLE cinsiyet kısıtlaması: onay anında doğrula
+        if (rival.matchType === 'DOUBLE') {
+            const playersToCheck = isTeamJoin
+                ? joiningTeam
+                : partnerJoinReqToAccept
+                    ? [{ id: joinReq.userId }, { id: partnerJoinReqToAccept.userId }]
+                    : [{ id: joinReq.userId }];
+            const genderSlots = [rival.opp1GenderReq, rival.opp2GenderReq];
+            for (let i = 0; i < playersToCheck.length; i++) {
+                const gReq = genderSlots[i];
+                if (!gReq || gReq === 'MIX') continue;
+                const gUser = await prisma.user.findUnique({ where: { id: playersToCheck[i].id }, select: { gender: true } });
+                if (gUser?.gender && gUser.gender !== 'OTHER' && gUser.gender !== gReq) {
+                    const label = gReq === 'MALE' ? 'erkek' : 'kadın';
+                    return res.status(400).json({ message: `${i === 0 ? 'Rakip 1' : 'Rakip 2'} slotu için bu ilan yalnızca ${label} oyuncular kabul ediyor.` });
+                }
+            }
+        }
+
         // Bir takım (eşleşmiş çift) kabul edilirken, halihazırda kabul edilmiş bireysel
         // katılımcılar varsa (eski model — senderTeam'siz ilanlar) bunları sessizce silme,
         // hata döndür — kurucu önce o eski katılımcıları çıkarmalı/reddetmeli.

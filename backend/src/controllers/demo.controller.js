@@ -280,12 +280,25 @@ export const seedRivalDemoJoin = async (req, res, next) => {
             if (u) usedUsernames.add(u.username);
         }
         const pool = DEMO_RIVAL_PLAYERS.filter(d => !usedUsernames.has(d.username));
-        const needed = rival.matchType === 'DOUBLE' ? 2 : 1;
-        if (pool.length < needed) {
-            return res.status(400).json({ message: 'Kullanılabilecek demo oyuncu kalmadı (hepsi bu ilana başvurmuş)' });
-        }
 
-        const picked = pool.slice(0, needed);
+        let picked;
+        if (rival.matchType === 'DOUBLE') {
+            const opp1Req = rival.opp1GenderReq || 'MIX';
+            const opp2Req = rival.opp2GenderReq || 'MIX';
+            const p1 = pool.find(d => opp1Req === 'MIX' || d.gender === opp1Req);
+            const p2 = pool.find(d => d !== p1 && (opp2Req === 'MIX' || d.gender === opp2Req));
+            if (!p1 || !p2) {
+                return res.status(400).json({ message: pool.length < 2 ? 'Kullanılabilecek demo oyuncu kalmadı (hepsi bu ilana başvurmuş)' : 'Cinsiyet kısıtlamalarına uygun yeterli demo oyuncu bulunamadı.' });
+            }
+            picked = [p1, p2];
+        } else {
+            const gReq = rival.genderReq || 'MIX';
+            const genderPool = gReq === 'MIX' ? pool : pool.filter(d => d.gender === gReq);
+            if (genderPool.length === 0) {
+                return res.status(400).json({ message: pool.length === 0 ? 'Kullanılabilecek demo oyuncu kalmadı (hepsi bu ilana başvurmuş)' : 'Cinsiyet kısıtlamalarına uygun yeterli demo oyuncu bulunamadı.' });
+            }
+            picked = [genderPool[0]];
+        }
         const users = await Promise.all(picked.map(d => ensureDemoRivalPlayer(d, rival.subCategory)));
 
         if (rival.matchType === 'DOUBLE') {
