@@ -260,8 +260,8 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
     return user;
 }
 
-// Bir Rakip Bul (rival) ilanına demo oyuncu(lar) ile başvuru gönderir — SINGLE için 1,
-// DOUBLE için henüz bu ilana başvurmamış 2 demo oyuncuyu takım olarak gönderir.
+// DOUBLE için basışta 2 demo oyuncu (opp1+opp2 slotuna birer tane), SINGLE için 1 gönderir.
+// Henüz herhangi bir statüde başvurusu olmayan, cinsiyet + rating şartını sağlayan oyuncular seçilir.
 export const seedRivalDemoJoin = async (req, res, next) => {
     try {
         const { rivalId } = req.body;
@@ -270,60 +270,62 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi demo başvuru gönderebilir' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
 
-        const demoUsernameSet = new Set(DEMO_RIVAL_PLAYERS.map(d => d.username));
-
-        // Tüm mevcut join request'leri çek (her statüde)
-        const allExisting = await prisma.rivalJoinRequest.findMany({
-            where: { rivalId },
-            select: { id: true, userId: true, status: true },
+        // Demo kullanıcıların DB'deki kayıtlarını çek
+        const existingDemoUsers = await prisma.user.findMany({
+            where: { username: { in: DEMO_RIVAL_PLAYERS.map(d => d.username) } },
+            select: { id: true, username: true },
         });
+        const demoUserIdToUsername = Object.fromEntries(existingDemoUsers.map(u => [u.id, u.username]));
 
-        // ACCEPTED olmayan demo isteklerini sil (unique constraint sorununu kökten çöz)
-        // ACCEPTED demo istekleri ve gerçek oyuncu istekleri korunur
-        const usedUsernames = new Set();
-        const demoReqIdsToDelete = [];
-
-        for (const r of allExisting) {
-            const u = await prisma.user.findUnique({ where: { id: r.userId }, select: { username: true } });
-            if (!u) continue;
-            if (demoUsernameSet.has(u.username)) {
-                if (r.status !== 'ACCEPTED') demoReqIdsToDelete.push(r.id);
-                // ACCEPTED demo oyuncular pool'dan çıkarılır
-                if (r.status === 'ACCEPTED') usedUsernames.add(u.username);
-            } else {
-                // Gerçek oyuncu — PENDING veya ACCEPTED ise kullanılmış say
-                if (r.status === 'PENDING' || r.status === 'ACCEPTED') usedUsernames.add(u.username);
+        // Bu ilana herhangi bir statüde başvurusu olan demo oyuncuları bul (REJECTED dahil — unique constraint)
+        const alreadyApplied = new Set();
+        if (existingDemoUsers.length > 0) {
+            const existingReqs = await prisma.rivalJoinRequest.findMany({
+                where: { rivalId, userId: { in: existingDemoUsers.map(u => u.id) } },
+                select: { userId: true },
+            });
+            for (const r of existingReqs) {
+                const uname = demoUserIdToUsername[r.userId];
+                if (uname) alreadyApplied.add(uname);
             }
         }
-        if (demoReqIdsToDelete.length > 0) {
-            await prisma.rivalJoinRequest.deleteMany({ where: { id: { in: demoReqIdsToDelete } } });
+
+        // Tüm uygun havuz (henüz başvurmamış + rating şartı)
+        let fullPool = DEMO_RIVAL_PLAYERS.filter(d => !alreadyApplied.has(d.username));
+        if (rival.minRating != null) fullPool = fullPool.filter(d => d.skillRating >= rival.minRating);
+        if (rival.maxRating != null) fullPool = fullPool.filter(d => d.skillRating <= rival.maxRating);
+
+        if (fullPool.length === 0) {
+            return res.status(400).json({ message: 'Uygun demo oyuncu kalmadı (hepsi başvurdu ya da şartları sağlamıyor)' });
         }
 
-        const pool = DEMO_RIVAL_PLAYERS.filter(d => !usedUsernames.has(d.username));
+        const fits = (player, gReq) => !gReq || gReq === 'MIX' || player.gender === gReq;
 
-        let picked;
+        let toSend = [];
         if (rival.matchType === 'DOUBLE') {
+            // Opp1 slotu için uygun ilk oyuncu
             const opp1Req = rival.opp1GenderReq || 'MIX';
             const opp2Req = rival.opp2GenderReq || 'MIX';
-            const p1 = pool.find(d => opp1Req === 'MIX' || d.gender === opp1Req);
-            const p2 = pool.find(d => d !== p1 && (opp2Req === 'MIX' || d.gender === opp2Req));
-            if (!p1 || !p2) {
-                return res.status(400).json({ message: pool.length < 2 ? 'Kullanılabilecek demo oyuncu kalmadı (hepsi bu ilana başvurmuş)' : 'Cinsiyet kısıtlamalarına uygun yeterli demo oyuncu bulunamadı.' });
+            const pick1 = fullPool.find(d => fits(d, opp1Req));
+            if (pick1) {
+                toSend.push(pick1);
+                // Opp2 slotu için pick1'den farklı, opp2Req'e uyan ilk oyuncu
+                const pick2 = fullPool.find(d => d.username !== pick1.username && fits(d, opp2Req));
+                if (pick2) toSend.push(pick2);
             }
-            picked = [p1, p2];
         } else {
             const gReq = rival.genderReq || 'MIX';
-            const genderPool = gReq === 'MIX' ? pool : pool.filter(d => d.gender === gReq);
-            if (genderPool.length === 0) {
-                return res.status(400).json({ message: pool.length === 0 ? 'Kullanılabilecek demo oyuncu kalmadı (hepsi bu ilana başvurmuş)' : 'Cinsiyet kısıtlamalarına uygun yeterli demo oyuncu bulunamadı.' });
-            }
-            picked = [genderPool[0]];
+            const pick = fullPool.find(d => fits(d, gReq));
+            if (pick) toSend = [pick];
         }
-        const users = await Promise.all(picked.map(d => ensureDemoRivalPlayer(d, rival.subCategory)));
 
-        // Her demo oyuncu bireysel istek gönderir (DOUBLE'da da joiningTeam yok)
-        for (const u of users) {
-            await prisma.rivalJoinRequest.create({ data: { rivalId, userId: u.id } });
+        if (toSend.length === 0) {
+            return res.status(400).json({ message: 'Uygun demo oyuncu kalmadı' });
+        }
+
+        for (const pick of toSend) {
+            const user = await ensureDemoRivalPlayer(pick, rival.subCategory);
+            await prisma.rivalJoinRequest.create({ data: { rivalId, userId: user.id } });
         }
 
         const updatedRival = await prisma.activityRequest.findUnique({
@@ -335,7 +337,7 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         });
         emitToUser(req.userId, 'rivalUpdate', updatedRival);
 
-        res.status(201).json({ joined: picked.map(d => d.fullName), remaining: pool.length - picked.length });
+        res.status(201).json({ joined: toSend.map(p => p.fullName), remaining: fullPool.length - toSend.length });
     } catch (error) {
         next(error);
     }

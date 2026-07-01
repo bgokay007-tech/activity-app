@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
+import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
@@ -51,15 +52,30 @@ export default function CategoryScreen({ route, navigation }) {
     const [counts, setCounts] = useState({});
     const [loading, setLoading] = useState(true);
 
+    const fetchCounts = useCallback(() => {
+        api.get(`/rivals/counts?category=${category}`)
+            .then(r => setCounts(r.data))
+            .catch(e => console.warn(e?.message))
+            .finally(() => setLoading(false));
+    }, [category]);
+
     useFocusEffect(
         useCallback(() => {
             setLoading(true);
-            api.get(`/rivals/counts?category=${category}`)
-                .then(r => setCounts(r.data))
-                .catch(e => console.warn(e?.message))
-                .finally(() => setLoading(false));
-        }, [category])
+            fetchCounts();
+        }, [fetchCounts])
     );
+
+    // Real-time: yeni ilan veya silme olunca sayacı güncelle
+    useEffect(() => {
+        const offUpdate = onSocket('rivalUpdate', (data) => {
+            if (data?.category?.toUpperCase() === category) fetchCounts();
+        });
+        const offDeleted = onSocket('rivalDeleted', (data) => {
+            if (data?.category?.toUpperCase() === category) fetchCounts();
+        });
+        return () => { offUpdate(); offDeleted(); };
+    }, [fetchCounts, category]);
 
     return (
         <View style={s.container}>

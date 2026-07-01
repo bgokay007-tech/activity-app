@@ -353,6 +353,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
+    const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -368,11 +369,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [showJoinInvitePicker, setShowJoinInvitePicker] = useState(false);
     const [joinInviteCandidates, setJoinInviteCandidates] = useState([]);
     const [seedingDemoRival, setSeedingDemoRival] = useState(false);
+    const seedingDemoRivalRef = useRef(false);
 
     useEffect(() => {
         setLocalParticipants(null);
         setLocalJoinRequests(null);
         setLocalGender(null);
+        setSwapSlot(null);
         setComments([]);
         setCommentText('');
         if (item?.id && visible) {
@@ -522,6 +525,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 }},
             ]
         );
+    };
+
+    // DOUBLE: iki slot arasında oyuncu taşı (seç + taşı)
+    const handleSlotTap = async (slot) => {
+        if (!isOwner) return;
+        if (!swapSlot) { setSwapSlot(slot); return; }
+        if (swapSlot === slot) { setSwapSlot(null); return; }
+        const s1 = swapSlot; const s2 = slot;
+        setSwapSlot(null);
+        try {
+            const { data } = await api.patch(`/rivals/${item.id}/swap-positions`, { slot1: s1, slot2: s2 });
+            if (Array.isArray(data.participants)) setLocalParticipants(data.participants);
+            // senderTeam güncellendi — item prop üzerinden gelmiyor, rivalUpdate socket bunu yayar
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
     };
 
     // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
@@ -718,53 +735,99 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
                             const allJoinReqs = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
                             const pendingPartnerInvite = allJoinReqs.find(jr => jr.isPartnerInvite && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
-                            const TeamHalf = ({ p, fallback, sub: subLabel, onRemove }) => p ? (
-                                <View>
-                                    <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })}>
-                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p.username}{subLabel ? ` · ${subLabel}` : ''}</Text>
+
+                            // Slot kutusu: seçiliyse altın border, doluysa dokunulabilir
+                            const SlotBox = ({ slot, gReqLabel, p, fallback, onRemove, locked }) => {
+                                const isSelected = swapSlot === slot;
+                                const isTarget   = !!swapSlot && !locked && !!p && swapSlot !== slot;
+                                const borderColor = isSelected ? '#f59e0b' : isTarget ? '#a855f7' : colors.border + '40';
+                                const bg = isSelected ? '#f59e0b18' : isTarget ? '#a855f710' : undefined;
+                                return (
+                                    <TouchableOpacity
+                                        onPress={() => { if (!locked && p && isOwner) handleSlotTap(slot); }}
+                                        activeOpacity={locked || !p || !isOwner ? 1 : 0.7}
+                                        style={{ borderWidth: isSelected || isTarget ? 1.5 : 0, borderColor, borderRadius:6, padding:4, backgroundColor: bg }}
+                                    >
+                                        {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
+                                        {p ? (
+                                            <View>
+                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                    <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p.username}</Text>
+                                                    </TouchableOpacity>
+                                                    {isSelected && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'900', marginLeft:4 }}>✓</Text>}
+                                                    {isTarget  && <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'900', marginLeft:4 }}>⇄</Text>}
+                                                </View>
+                                                {!locked && isOwner && !swapSlot && onRemove && (
+                                                    <TouchableOpacity onPress={onRemove} style={{ marginTop:2 }}>
+                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                {!locked && isOwner && !swapSlot && p && (
+                                                    <TouchableOpacity onPress={() => handleSlotTap(slot)} style={{ marginTop:2 }}>
+                                                        <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>⇄ Taşı</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        ) : (
+                                            <Text style={{ color: colors.textMuted, fontSize:9 }}>{fallback}</Text>
+                                        )}
                                     </TouchableOpacity>
-                                    {onRemove && (
-                                        <TouchableOpacity onPress={onRemove} style={{ marginTop:2 }}>
-                                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            ) : (
-                                <Text style={{ color: colors.textMuted, fontSize:9 }}>{fallback}</Text>
-                            );
-                            const PartnerSlot = () => {
-                                if (senderTeamArr[0]) return <TeamHalf p={senderTeamArr[0]} />;
-                                if (pendingPartnerInvite) return (
-                                    <View>
-                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
-                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
-                                    </View>
                                 );
-                                return <Text style={{ color: colors.textMuted, fontSize:9 }}>Partner yok</Text>;
                             };
+
+                            const PartnerContent = senderTeamArr[0]
+                                ? senderTeamArr[0]
+                                : pendingPartnerInvite
+                                    ? null // pending state özel gösterim
+                                    : null;
+
                             return (
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                    <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-                                            <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800' }}>👑 Kurucu Takımı</Text>
+                                <View>
+                                    {swapSlot && (
+                                        <View style={{ backgroundColor:'#f59e0b18', borderRadius:6, padding:6, marginBottom:6, alignItems:'center' }}>
+                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>Taşınacak oyuncu seçildi — hedef slota dokun</Text>
+                                            <TouchableOpacity onPress={() => setSwapSlot(null)} style={{ marginTop:3 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:10 }}>İptal</Text>
+                                            </TouchableOpacity>
                                         </View>
-                                        <TeamHalf p={item.sender} />
-                                        <View style={{ flexDirection:'row', alignItems:'center', marginVertical:2 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
-                                            {genderLabel(partnerGenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(partnerGenderReq)}</Text>}
+                                    )}
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                        <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', marginBottom:4 }}>👑 Kurucu Takımı</Text>
+                                            {/* Kurucu sabit — taşınamaz */}
+                                            <SlotBox slot="__owner" locked p={item.sender} fallback="" />
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginVertical:2 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
+                                                {genderLabel(partnerGenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(partnerGenderReq)}</Text>}
+                                            </View>
+                                            {PartnerContent ? (
+                                                <SlotBox slot="partner" p={PartnerContent} fallback="Partner yok" gReqLabel={null} />
+                                            ) : pendingPartnerInvite ? (
+                                                <View>
+                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
+                                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
+                                                </View>
+                                            ) : (
+                                                <Text style={{ color: colors.textMuted, fontSize:9 }}>Partner yok</Text>
+                                            )}
                                         </View>
-                                        <PartnerSlot />
-                                    </View>
-                                    <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
-                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
-                                        {genderLabel(opp1GenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:2 }}>{genderLabel(opp1GenderReq)}</Text>}
-                                        <TeamHalf p={participants[0]} fallback="Henüz katılan yok" onRemove={isOwner && participants[0] ? () => removeRivalParticipant(participants[0].id, participants[0].username) : null} />
-                                        <View style={{ flexDirection:'row', alignItems:'center', marginVertical:2 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
-                                            {genderLabel(opp2GenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(opp2GenderReq)}</Text>}
+                                        <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
+                                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
+                                            <SlotBox slot="opp1" p={participants[0]} fallback="Henüz katılan yok"
+                                                gReqLabel={genderLabel(opp1GenderReq)}
+                                                onRemove={isOwner && participants[0] ? () => removeRivalParticipant(participants[0].id, participants[0].username) : null}
+                                            />
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginVertical:2 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
+                                                {genderLabel(opp2GenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(opp2GenderReq)}</Text>}
+                                            </View>
+                                            <SlotBox slot="opp2" p={participants[1]} fallback="Henüz katılan yok"
+                                                gReqLabel={genderLabel(opp2GenderReq)}
+                                                onRemove={isOwner && participants[1] ? () => removeRivalParticipant(participants[1].id, participants[1].username) : null}
+                                            />
                                         </View>
-                                        <TeamHalf p={participants[1]} fallback="Henüz katılan yok" onRemove={isOwner && participants[1] ? () => removeRivalParticipant(participants[1].id, participants[1].username) : null} />
                                     </View>
                                 </View>
                             );
@@ -887,13 +950,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 disabled={seedingDemoRival}
                                 style={[s.joinBtn, { backgroundColor:'#7c3aed20', borderWidth:1, borderColor:'#7c3aed50', marginBottom:10, borderRadius: moderateScale(10), paddingVertical: moderateScale(9), opacity: seedingDemoRival ? 0.6 : 1 }]}
                                 onPress={async () => {
+                                    if (seedingDemoRivalRef.current) return;
+                                    seedingDemoRivalRef.current = true;
                                     setSeedingDemoRival(true);
                                     try {
                                         const { data } = await api.post('/demo/rival-join', { rivalId: item.id });
                                         Alert.alert('', `Demo başvuru gönderildi: ${data.joined.join(', ')}`);
                                     } catch (e) {
                                         Alert.alert('', e?.response?.data?.message || t.actionFailed);
-                                    } finally { setSeedingDemoRival(false); }
+                                    } finally {
+                                        seedingDemoRivalRef.current = false;
+                                        setSeedingDemoRival(false);
+                                    }
                                 }}
                             >
                                 <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(13) }]}>{seedingDemoRival ? '...' : '🤖 Demo Başvuru Gönder'}</Text>
