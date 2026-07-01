@@ -321,20 +321,9 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         }
         const users = await Promise.all(picked.map(d => ensureDemoRivalPlayer(d, rival.subCategory)));
 
-        if (rival.matchType === 'DOUBLE') {
-            const [d1, d2] = picked;
-            const [u1, u2] = users;
-            await prisma.rivalJoinRequest.create({
-                data: {
-                    rivalId, userId: u1.id,
-                    joiningTeam: [
-                        { id: u1.id, username: u1.username, fullName: u1.fullName, skillRating: d1.skillRating },
-                        { id: u2.id, username: u2.username, fullName: u2.fullName, skillRating: d2.skillRating },
-                    ],
-                },
-            });
-        } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId, userId: users[0].id } });
+        // Her demo oyuncu bireysel istek gönderir (DOUBLE'da da joiningTeam yok)
+        for (const u of users) {
+            await prisma.rivalJoinRequest.create({ data: { rivalId, userId: u.id } });
         }
 
         const updatedRival = await prisma.activityRequest.findUnique({
@@ -346,7 +335,7 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         });
         emitToUser(req.userId, 'rivalUpdate', updatedRival);
 
-        res.status(201).json({ joined: picked.map(d => d.fullName), remaining: pool.length - needed });
+        res.status(201).json({ joined: picked.map(d => d.fullName), remaining: pool.length - picked.length });
     } catch (error) {
         next(error);
     }
