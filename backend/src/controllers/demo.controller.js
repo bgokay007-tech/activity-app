@@ -272,13 +272,31 @@ export const seedRivalDemoJoin = async (req, res, next) => {
 
         const existingReqs = await prisma.rivalJoinRequest.findMany({
             where: { rivalId, status: { in: ['PENDING', 'ACCEPTED'] } },
-            select: { userId: true },
+            select: { id: true, userId: true, status: true },
         });
+
+        // Demo olmayan (gerçek) oyuncuların kullanıcı adlarını takip et
+        const demoUsernameSet = new Set(DEMO_RIVAL_PLAYERS.map(d => d.username));
         const usedUsernames = new Set();
+        const pendingDemoReqIds = [];
+
         for (const r of existingReqs) {
             const u = await prisma.user.findUnique({ where: { id: r.userId }, select: { username: true } });
-            if (u) usedUsernames.add(u.username);
+            if (!u) continue;
+            if (demoUsernameSet.has(u.username) && r.status === 'PENDING') {
+                // Önceki PENDING demo başvurusunu reddet — cinsiyet kısıtlaması değişmiş olabilir
+                pendingDemoReqIds.push(r.id);
+            } else {
+                usedUsernames.add(u.username);
+            }
         }
+        if (pendingDemoReqIds.length > 0) {
+            await prisma.rivalJoinRequest.updateMany({
+                where: { id: { in: pendingDemoReqIds } },
+                data: { status: 'REJECTED' },
+            });
+        }
+
         const pool = DEMO_RIVAL_PLAYERS.filter(d => !usedUsernames.has(d.username));
 
         let picked;
