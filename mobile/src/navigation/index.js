@@ -172,7 +172,7 @@ function AppTabs() {
         connectSocket(userId);
         const off = onSocket('notification', (notif) => {
             setUnreadNotifs(prev => prev + 1);
-            if (!isExpoGo && notif?.id && !shownNotifIdsRef.current.has(notif.id)) {
+            if (notif?.id && !shownNotifIdsRef.current.has(notif.id)) {
                 shownNotifIdsRef.current.add(notif.id);
                 Notifications.scheduleNotificationAsync({
                     content: { title: notif.title, body: notif.body, sound: 'default', data: { ...(notif.data || {}), type: notif.type } },
