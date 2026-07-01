@@ -322,18 +322,21 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         if (rival.matchType === 'DOUBLE') {
             const [d1, d2] = picked;
             const [u1, u2] = users;
-            await prisma.rivalJoinRequest.create({
-                data: {
-                    rivalId,
-                    userId: u1.id,
-                    joiningTeam: [
-                        { id: u1.id, username: u1.username, fullName: u1.fullName, skillRating: d1.skillRating },
-                        { id: u2.id, username: u2.username, fullName: u2.fullName, skillRating: d2.skillRating },
-                    ],
-                },
+            const joiningTeam = [
+                { id: u1.id, username: u1.username, fullName: u1.fullName, skillRating: d1.skillRating },
+                { id: u2.id, username: u2.username, fullName: u2.fullName, skillRating: d2.skillRating },
+            ];
+            await prisma.rivalJoinRequest.upsert({
+                where: { rivalId_userId: { rivalId, userId: u1.id } },
+                update: { status: 'PENDING', joiningTeam },
+                create: { rivalId, userId: u1.id, joiningTeam },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId, userId: users[0].id } });
+            await prisma.rivalJoinRequest.upsert({
+                where: { rivalId_userId: { rivalId, userId: users[0].id } },
+                update: { status: 'PENDING' },
+                create: { rivalId, userId: users[0].id },
+            });
         }
 
         const updatedRival = await prisma.activityRequest.findUnique({
