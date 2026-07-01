@@ -32,6 +32,8 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
     cors: { origin: '*', credentials: false },
+    pingInterval: 10000,
+    pingTimeout: 5000,
 });
 
 setIO(io);

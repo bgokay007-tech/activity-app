@@ -748,10 +748,33 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             {item.matchType === 'DOUBLE' ? (() => {
                                 const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER');
                                 const { pairs, solos, byUserId } = groupDoublesPairs(incoming);
+                                const solosWithPartnerLink = solos.filter(s => s.partnerId || solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
+                                const solosIndividual = solos.filter(s => !s.partnerId && !solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
                                 return (
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                        {pairs.map(([a, b]) => renderRivalDuoCard(a, b, solos, byUserId))}
-                                        {solos.map(s => renderRivalDuoCard(s, null, solos, byUserId))}
+                                    <View>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                            {pairs.map(([a, b]) => renderRivalDuoCard(a, b, solos, byUserId))}
+                                            {solosWithPartnerLink.map(s => renderRivalDuoCard(s, null, solos, byUserId))}
+                                        </View>
+                                        {solosIndividual.map(jr => (
+                                            <View key={jr.id} style={det.playerRow}>
+                                                <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                                    <Text style={det.playerSub}>@{jr.user?.username}</Text>
+                                                </View>
+                                                {isOwner && (
+                                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                                        <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
+                                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
+                                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                )}
+                                            </View>
+                                        ))}
                                     </View>
                                 );
                             })() : joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
@@ -769,6 +792,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
                                         </TouchableOpacity>
                                     </View>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+                    {/* Ilan sahibinin gönderdiği (OWNER) davetler — onay bekleyenler */}
+                    {isOwner && joinRequests.filter(jr => jr.initiatedBy === 'OWNER').length > 0 && (
+                        <View style={det.section}>
+                            <Text style={det.sectionTitle}>📨 Gönderilen Davetler</Text>
+                            {joinRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => (
+                                <View key={jr.id} style={det.playerRow}>
+                                    <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
+                                    <View style={{ flex:1 }}>
+                                        <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                        <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => rejectLocal(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                                        <Text style={{ color:'#f87171', fontSize: moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                    </TouchableOpacity>
                                 </View>
                             ))}
                         </View>
@@ -7739,7 +7780,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             setMatchedUpcoming(prev => prev.filter(r => r.id !== rivalId));
         });
         const offReconnect = onSocketReconnect(() => load());
-        return () => { offUpdate(); offDeleted(); offReconnect(); };
+        // Fallback: socket missed event → periyodik yenileme (30s)
+        const pollInterval = setInterval(() => load(), 30000);
+        return () => { offUpdate(); offDeleted(); offReconnect(); clearInterval(pollInterval); };
     }, [category, sub]);
 
     const handleNearMe = async () => {
