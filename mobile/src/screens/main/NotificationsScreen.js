@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import api from '../../services/api';
+import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
@@ -55,6 +58,21 @@ export default function NotificationsScreen({ navigation }) {
     };
 
     useEffect(() => { load(); }, []);
+
+    // Ekran odaklandığında listeyi tazele (tab'a her dönüşte güncel gelsin)
+    useFocusEffect(useCallback(() => { load(); }, []));
+
+    // Socket: yeni bildirim gelince listeye ekle
+    useEffect(() => {
+        const off = onSocket('notification', (notif) => {
+            if (!notif) return;
+            setNotifications(prev => {
+                if (prev.some(n => n.id === notif.id)) return prev;
+                return [{ ...notif, read: false, createdAt: notif.createdAt || new Date().toISOString() }, ...prev];
+            });
+        });
+        return off;
+    }, []);
 
     const onRefresh = () => { setRefreshing(true); load(); };
 
