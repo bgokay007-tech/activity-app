@@ -3,6 +3,7 @@ import {
     getProfile, updateProfile, searchUsers,
     followUser, unfollowUser, removeFollower, respondFollowRequest,
     getFollowStatus, getFollowers, getFollowing, getPendingFollowRequests,
+    submitProfileChangeRequest, getMyProfileChangeRequests,
 } from '../controllers/user.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -20,5 +21,7 @@ router.delete('/:userId/follow',       authenticate, unfollowUser);
 router.delete('/:userId/follower',     authenticate, removeFollower);
 router.get('/:userId',                 authenticate, getProfile);
 router.patch('/me',                    authenticate, updateProfile);
+router.post('/me/change-requests',     authenticate, submitProfileChangeRequest);
+router.get('/me/change-requests',      authenticate, getMyProfileChangeRequests);
 
 export default router;

@@ -93,6 +93,21 @@ model User {
   cityAlerts       CityAlert[]
   surveyGiven      SportSurvey[] @relation("SurveyRater")
   surveyReceived   SportSurvey[] @relation("SurveySubject")
+  profileChangeRequests ProfileChangeRequest[]
+}
+
+model ProfileChangeRequest {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  field        String   // 'fullName' | 'gender' | 'birthDate'
+  currentValue String?
+  newValue     String?
+  documentUrl  String?
+  status       String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model SportSurvey {

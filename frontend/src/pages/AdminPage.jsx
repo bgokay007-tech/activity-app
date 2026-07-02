@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes'];
 
 const TAB_LABEL = {
     dashboard:          '📊 Dashboard',
@@ -17,6 +17,7 @@ const TAB_LABEL = {
     cities:             '📍 İl / İlçe Onayı',
     'tournament-perms': '🏆 Turnuva İzinleri',
     'flagged-listings': '🚩 Şüpheli İlanlar',
+    'profile-changes':  '🪪 Profil Değişiklik',
 };
 
 function StatCard({ label, value, color = 'text-white' }) {
@@ -740,6 +741,120 @@ function FlaggedListingsPanel() {
     );
 }
 
+// ── PROFİL DEĞİŞİKLİK TALEPLERİ ──────────────────────────────────────────
+function ProfileChangesPanel() {
+    const [requests, setRequests] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState('PENDING');
+    const [notes, setNotes] = useState({}); // id → note text
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get(`/admin/profile-changes?status=${statusFilter}`)
+            .then(r => setRequests(r.data))
+            .finally(() => setLoading(false));
+    }, [statusFilter]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const review = async (id, action) => {
+        try {
+            await api.patch(`/admin/profile-changes/${id}`, { action, adminNote: notes[id] || '' });
+            load();
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
+    const FIELD_LABEL = { fullName: '👤 Ad Soyad', gender: 'Cinsiyet', birthDate: '🎂 Doğum Tarihi' };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex gap-2 mb-4">
+                {['PENDING', 'APPROVED', 'REJECTED'].map(s => (
+                    <button key={s} onClick={() => setStatusFilter(s)}
+                        className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${statusFilter === s ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
+                        {s === 'PENDING' ? '⏳ Bekleyen' : s === 'APPROVED' ? '✅ Onaylanan' : '❌ Reddedilen'}
+                    </button>
+                ))}
+            </div>
+
+            {loading && <p className="text-gray-500 text-center py-16">Yükleniyor...</p>}
+            {!loading && requests.length === 0 && (
+                <p className="text-gray-500 text-center py-16">
+                    {statusFilter === 'PENDING' ? '✅ Bekleyen talep yok' : 'Kayıt bulunamadı'}
+                </p>
+            )}
+
+            {requests.map(req => (
+                <div key={req.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5">
+                    <div className="flex items-start gap-4">
+                        {req.user?.avatar && (
+                            <img src={req.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-gray-700 shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-2">
+                                <span className="text-white font-bold text-sm">{req.user?.fullName || req.user?.username}</span>
+                                <span className="text-gray-500 text-xs">{req.user?.username}</span>
+                                <span className="text-xs font-black text-purple-400 bg-purple-900/40 border border-purple-700/50 rounded-lg px-2 py-0.5">
+                                    {FIELD_LABEL[req.field] || req.field}
+                                </span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${req.status === 'PENDING' ? 'text-yellow-400 bg-yellow-900/30 border-yellow-700/50' : req.status === 'APPROVED' ? 'text-green-400 bg-green-900/30 border-green-700/50' : 'text-red-400 bg-red-900/30 border-red-700/50'}`}>
+                                    {req.status}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div className="bg-gray-800 rounded-xl p-3">
+                                    <p className="text-gray-500 text-xs mb-1">Mevcut Değer</p>
+                                    <p className="text-gray-300 text-sm font-bold">{req.currentValue || '—'}</p>
+                                </div>
+                                <div className="bg-gray-800 rounded-xl p-3">
+                                    <p className="text-gray-500 text-xs mb-1">Yeni Değer</p>
+                                    <p className="text-white text-sm font-black">{req.newValue || '—'}</p>
+                                </div>
+                            </div>
+
+                            {req.documentUrl && (
+                                <a href={req.documentUrl} target="_blank" rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-blue-400 text-xs font-bold hover:text-blue-300 mb-3">
+                                    📎 Belgeyi Görüntüle ↗
+                                </a>
+                            )}
+
+                            <p className="text-gray-600 text-xs mb-3">
+                                {new Date(req.createdAt).toLocaleString('tr-TR')}
+                            </p>
+
+                            {req.status === 'PENDING' && (
+                                <div className="flex flex-col gap-2">
+                                    <input
+                                        value={notes[req.id] || ''}
+                                        onChange={e => setNotes(n => ({ ...n, [req.id]: e.target.value }))}
+                                        placeholder="Red notu (isteğe bağlı)..."
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={() => review(req.id, 'APPROVE')}
+                                            className="flex-1 py-2 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition">
+                                            ✅ Onayla
+                                        </button>
+                                        <button onClick={() => review(req.id, 'REJECT')}
+                                            className="flex-1 py-2 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition">
+                                            ❌ Reddet
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {req.adminNote && (
+                                <p className="text-gray-500 text-xs mt-2 italic">Not: {req.adminNote}</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function AdminPage() {
     const navigate = useNavigate();
@@ -782,6 +897,7 @@ export default function AdminPage() {
                     {activeTab === 'cities'            && <CitiesPanel />}
                     {activeTab === 'tournament-perms'  && <TournamentPermsPanel />}
                     {activeTab === 'flagged-listings'  && <FlaggedListingsPanel />}
+                    {activeTab === 'profile-changes'  && <ProfileChangesPanel />}
                 </div>
             </div>
         </div>

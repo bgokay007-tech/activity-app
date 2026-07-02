@@ -218,3 +218,59 @@ export const revokeTournamentPermission = async (req, res, next) => {
         res.json({ message: 'Revoked' });
     } catch (e) { next(e); }
 };
+
+// ── Profil Değişiklik Talepleri (Admin) ──────────────────────────────────────
+
+export const getProfileChangeRequests = async (req, res, next) => {
+    try {
+        const { status = 'PENDING' } = req.query;
+        const requests = await prisma.profileChangeRequest.findMany({
+            where: { status },
+            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json(requests);
+    } catch (e) { next(e); }
+};
+
+export const reviewProfileChangeRequest = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { action, adminNote } = req.body; // action: 'APPROVE' | 'REJECT'
+        if (!['APPROVE', 'REJECT'].includes(action))
+            return res.status(400).json({ message: 'Geçersiz işlem' });
+
+        const request = await prisma.profileChangeRequest.findUnique({ where: { id } });
+        if (!request) return res.status(404).json({ message: 'Talep bulunamadı' });
+        if (request.status !== 'PENDING') return res.status(400).json({ message: 'Talep zaten işlenmiş' });
+
+        if (action === 'APPROVE') {
+            const updateData = {};
+            if (request.field === 'birthDate') {
+                updateData.birthDate = new Date(request.newValue);
+            } else {
+                updateData[request.field] = request.newValue;
+            }
+            await prisma.user.update({ where: { id: request.userId }, data: updateData });
+        }
+
+        const updated = await prisma.profileChangeRequest.update({
+            where: { id },
+            data: { status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED', adminNote: adminNote || null },
+        });
+
+        const fieldLabel = request.field === 'fullName' ? 'Ad Soyad' : request.field === 'gender' ? 'Cinsiyet' : 'Doğum Tarihi';
+        const { createNotification } = await import('./notification.controller.js');
+        createNotification(
+            request.userId,
+            action === 'APPROVE' ? 'PROFILE_CHANGE_APPROVED' : 'PROFILE_CHANGE_REJECTED',
+            action === 'APPROVE' ? `✅ ${fieldLabel} Değişikliği Onaylandı` : `❌ ${fieldLabel} Değişikliği Reddedildi`,
+            action === 'APPROVE'
+                ? `${fieldLabel} alanınız "${request.newValue}" olarak güncellendi.`
+                : `${fieldLabel} değişiklik talebiniz reddedildi.${adminNote ? ` Neden: ${adminNote}` : ''}`,
+            {}
+        ).catch(() => {});
+
+        res.json(updated);
+    } catch (e) { next(e); }
+};

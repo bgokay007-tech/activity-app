@@ -74,7 +74,7 @@ export const getProfile = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
     try {
-        const { bio, avatar, isPublic, gender, city, birthDate,
+        const { bio, avatar, isPublic, city,
                 profilePrivacy, profileExclude,
                 fullNamePrivacy, fullNameExclude,
                 cityPrivacy, genderPrivacy, birthDatePrivacy,
@@ -83,6 +83,11 @@ export const updateProfile = async (req, res, next) => {
                 reelsPrivacy, reelsExclude,
                 friendsListPrivacy, friendsListExclude,
                 activitiesPrivacy, activitiesExclude } = req.body;
+
+        // fullName / gender / birthDate sadece yönetici onayıyla değiştirilebilir
+        if (req.body.fullName !== undefined || req.body.gender !== undefined || req.body.birthDate !== undefined) {
+            return res.status(403).json({ message: 'Ad soyad, cinsiyet ve doğum tarihi değiştirmek için yönetici onayı gereklidir. Lütfen değişiklik talebi gönderin.' });
+        }
 
         // Sync isPublic with profilePrivacy
         const resolvedIsPublic = profilePrivacy !== undefined
@@ -95,9 +100,7 @@ export const updateProfile = async (req, res, next) => {
                 ...(bio         !== undefined && { bio }),
                 ...(avatar      !== undefined && { avatar }),
                 ...(resolvedIsPublic !== undefined && { isPublic: resolvedIsPublic }),
-                ...(gender      !== undefined && { gender: gender || null }),
                 ...(city        !== undefined && { city: city || null }),
-                ...(birthDate   !== undefined && { birthDate: birthDate ? new Date(birthDate) : null }),
                 ...(profilePrivacy   !== undefined && { profilePrivacy }),
                 ...(profileExclude   !== undefined && { profileExclude }),
                 ...(fullNamePrivacy  !== undefined && { fullNamePrivacy }),
@@ -134,6 +137,51 @@ export const updateProfile = async (req, res, next) => {
         res.json(updated);
     } catch (error) { next(error); }
 };
+
+// ── Profil Değişiklik Talebi ─────────────────────────────────────────────────
+
+const ALLOWED_CHANGE_FIELDS = ['fullName', 'gender', 'birthDate'];
+
+export const submitProfileChangeRequest = async (req, res, next) => {
+    try {
+        const { field, newValue, documentUrl } = req.body;
+        if (!ALLOWED_CHANGE_FIELDS.includes(field))
+            return res.status(400).json({ message: 'Geçersiz alan' });
+        if (!newValue?.trim())
+            return res.status(400).json({ message: 'Yeni değer boş olamaz' });
+        if (!documentUrl)
+            return res.status(400).json({ message: 'Belge yüklemek zorunludur' });
+
+        // Aynı alan için bekleyen talep varsa bloke et
+        const existing = await prisma.profileChangeRequest.findFirst({
+            where: { userId: req.userId, field, status: 'PENDING' },
+        });
+        if (existing)
+            return res.status(409).json({ message: 'Bu alan için zaten bekleyen bir talebiniz var' });
+
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { fullName: true, gender: true, birthDate: true } });
+        const currentValue = field === 'birthDate'
+            ? user.birthDate?.toISOString().split('T')[0] ?? null
+            : (user[field] ?? null);
+
+        const request = await prisma.profileChangeRequest.create({
+            data: { userId: req.userId, field, currentValue, newValue: newValue.trim(), documentUrl, status: 'PENDING' },
+        });
+        res.status(201).json(request);
+    } catch (error) { next(error); }
+};
+
+export const getMyProfileChangeRequests = async (req, res, next) => {
+    try {
+        const requests = await prisma.profileChangeRequest.findMany({
+            where: { userId: req.userId },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(requests);
+    } catch (error) { next(error); }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const FOLLOW_SELECT = { id: true, username: true, fullName: true, avatar: true };
 

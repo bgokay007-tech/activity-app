@@ -1488,6 +1488,62 @@ export default function ProfileScreen({ route, navigation }) {
     });
     const [savingInfo, setSavingInfo] = useState(false);
 
+    // Profil değişiklik talebi modal
+    const [changeReqOpen, setChangeReqOpen] = useState(false);
+    const [changeReqField, setChangeReqField] = useState(null); // 'fullName'|'gender'|'birthDate'
+    const [changeReqNewValue, setChangeReqNewValue] = useState('');
+    const [changeReqDocUrl, setChangeReqDocUrl] = useState('');
+    const [changeReqDocName, setChangeReqDocName] = useState('');
+    const [changeReqLoading, setChangeReqLoading] = useState(false);
+    const [changeReqUploading, setChangeReqUploading] = useState(false);
+    const [myChangeRequests, setMyChangeRequests] = useState([]);
+
+    const openChangeReq = async (field) => {
+        setChangeReqField(field);
+        setChangeReqNewValue('');
+        setChangeReqDocUrl('');
+        setChangeReqDocName('');
+        setChangeReqOpen(true);
+        try {
+            const { data } = await api.get('/users/me/change-requests');
+            setMyChangeRequests(data || []);
+        } catch { /* silent */ }
+    };
+
+    const pickChangeReqDoc = async () => {
+        try {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
+            const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+            if (res.canceled || !res.assets?.[0]) return;
+            const asset = res.assets[0];
+            setChangeReqUploading(true);
+            const form = new FormData();
+            const ext = asset.uri.split('.').pop() || 'jpg';
+            form.append('file', { uri: asset.uri, name: `belge.${ext}`, type: `image/${ext}` });
+            const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setChangeReqDocUrl(data.url);
+            setChangeReqDocName(`belge.${ext}`);
+        } catch (e) { Alert.alert('', 'Belge yüklenemedi'); }
+        finally { setChangeReqUploading(false); }
+    };
+
+    const submitChangeReq = async () => {
+        if (!changeReqNewValue.trim()) return Alert.alert('', 'Yeni değer giriniz');
+        if (!changeReqDocUrl) return Alert.alert('', 'Belge yüklemek zorunludur');
+        setChangeReqLoading(true);
+        try {
+            await api.post('/users/me/change-requests', {
+                field: changeReqField,
+                newValue: changeReqNewValue.trim(),
+                documentUrl: changeReqDocUrl,
+            });
+            Alert.alert('✅ Talep Gönderildi', 'Talebiniz yöneticiye iletildi. Onaylandıktan sonra bildirim alacaksınız.');
+            setChangeReqOpen(false);
+        } catch (e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+        finally { setChangeReqLoading(false); }
+    };
+
     // Match modals
     const [showMyUpcoming, setShowMyUpcoming] = useState(false);
     const [showMyArchive, setShowMyArchive] = useState(false);
@@ -2065,19 +2121,8 @@ export default function ProfileScreen({ route, navigation }) {
     const handleSaveInfo = async () => {
         setSavingInfo(true);
         try {
-            let birthDateISO = null;
-            if (infoForm.birthDate) {
-                const parts = infoForm.birthDate.split('.');
-                if (parts.length === 3) {
-                    const [d, m, y] = parts;
-                    birthDateISO = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-                }
-            }
             const { data } = await api.patch('/users/me', {
-                fullName: infoForm.fullName || null,
                 city:     infoForm.city     || null,
-                gender:   infoForm.gender   || null,
-                birthDate: birthDateISO,
                 profilePrivacy:   infoForm.profilePrivacy,
                 profileExclude:   infoForm.profileExclude,
                 fullNamePrivacy:  infoForm.fullNamePrivacy,
@@ -3418,7 +3463,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 <Text style={s.excludeHint}>{infoForm.profileExclude.length} arkadaş profilini göremez</Text>
                             )}
 
-                            {/* ── Full Name ── */}
+                            {/* ── Full Name (read-only, değişiklik talebi ile) ── */}
                             <View style={s.infoFieldHeader}>
                                 <Text style={s.fieldLabel}>👤 Ad Soyad</Text>
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('fullName')} style={s.menuBtn}>
@@ -3426,14 +3471,18 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={s.menuBtnIcon}>≡</Text>
                                 </TouchableOpacity>
                             </View>
-                            <View style={[s.fieldInput, { justifyContent: 'center' }]}>
-                                <Text style={{ color: infoForm.fullName ? '#fff' : colors.textMuted, fontSize: 13 }}>
-                                    {infoForm.fullName || 'Ad soyad girilmemiş'}
-                                </Text>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                                <View style={[s.fieldInput, { flex:1, justifyContent:'center' }]}>
+                                    <Text style={{ color: infoForm.fullName ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                        {infoForm.fullName || 'Girilmemiş'}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity onPress={() => openChangeReq('fullName')}
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#7c3aed50' }}>
+                                    <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>Değiştir</Text>
+                                </TouchableOpacity>
                             </View>
-                            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 8, marginTop: -4 }}>
-                                {t.sportAliasHint || 'Ad soyad değiştirilemez'}
-                            </Text>
+                            <Text style={{ color:'#f59e0b', fontSize:10, marginBottom:8 }}>🔒 Değiştirmek için yönetici onayı gerekir</Text>
                             {infoForm.fullNamePrivacy === 'FRIENDS_EXCEPT' && infoForm.fullNameExclude.length > 0 && (
                                 <Text style={s.excludeHint}>{infoForm.fullNameExclude.length} arkadaş göremez</Text>
                             )}
@@ -3462,60 +3511,53 @@ export default function ProfileScreen({ route, navigation }) {
                                 <Text style={s.excludeHint}>{infoForm.cityExclude.length} arkadaş göremez</Text>
                             )}
 
-                            {/* ── Gender ── */}
+                            {/* ── Gender (read-only, değişiklik talebi ile) ── */}
                             <View style={s.infoFieldHeader}>
                                 <Text style={s.fieldLabel}>Cinsiyet</Text>
-                                <TouchableOpacity
-                                    onPress={() => setPrivacyPickerField('gender')}
-                                    style={s.menuBtn}
-                                >
+                                <TouchableOpacity onPress={() => setPrivacyPickerField('gender')} style={s.menuBtn}>
                                     <Text style={s.menuBtnPrivacy}>{privacyEmoji(infoForm.genderPrivacy)}</Text>
                                     <Text style={s.menuBtnIcon}>≡</Text>
                                 </TouchableOpacity>
                             </View>
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                                {[
-                                    { key: 'MALE',   label: t.genderMale },
-                                    { key: 'FEMALE', label: t.genderFemale },
-                                    { key: 'OTHER',  label: t.genderOther },
-                                ].map(opt => (
-                                    <TouchableOpacity
-                                        key={opt.key}
-                                        onPress={() => setInfoForm(f => ({ ...f, gender: f.gender === opt.key ? '' : opt.key }))}
-                                        style={[
-                                            s.optionBtn,
-                                            infoForm.gender === opt.key && s.optionBtnActive,
-                                        ]}
-                                    >
-                                        <Text style={[s.optionBtnText, infoForm.gender === opt.key && { color: '#fff' }]}>
-                                            {opt.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                                <View style={[s.fieldInput, { flex:1, justifyContent:'center' }]}>
+                                    <Text style={{ color: infoForm.gender ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                        {infoForm.gender === 'MALE' ? t.genderMale
+                                            : infoForm.gender === 'FEMALE' ? t.genderFemale
+                                            : infoForm.gender === 'OTHER' ? t.genderOther
+                                            : 'Girilmemiş'}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity onPress={() => openChangeReq('gender')}
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#7c3aed50' }}>
+                                    <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>Değiştir</Text>
+                                </TouchableOpacity>
                             </View>
+                            <Text style={{ color:'#f59e0b', fontSize:10, marginBottom:14 }}>🔒 Değiştirmek için yönetici onayı gerekir</Text>
                             {infoForm.genderPrivacy === 'FRIENDS_EXCEPT' && infoForm.genderExclude.length > 0 && (
                                 <Text style={s.excludeHint}>{infoForm.genderExclude.length} arkadaş göremez</Text>
                             )}
 
-                            {/* ── Birth Date ── */}
+                            {/* ── Birth Date (read-only, değişiklik talebi ile) ── */}
                             <View style={s.infoFieldHeader}>
-                                <Text style={s.fieldLabel}>🎂 Doğum Tarihi (GG.AA.YYYY)</Text>
-                                <TouchableOpacity
-                                    onPress={() => setPrivacyPickerField('birthDate')}
-                                    style={s.menuBtn}
-                                >
+                                <Text style={s.fieldLabel}>🎂 Doğum Tarihi</Text>
+                                <TouchableOpacity onPress={() => setPrivacyPickerField('birthDate')} style={s.menuBtn}>
                                     <Text style={s.menuBtnPrivacy}>{privacyEmoji(infoForm.birthDatePrivacy)}</Text>
                                     <Text style={s.menuBtnIcon}>≡</Text>
                                 </TouchableOpacity>
                             </View>
-                            <TextInput
-                                style={s.fieldInput}
-                                value={infoForm.birthDate}
-                                onChangeText={v => setInfoForm(f => ({ ...f, birthDate: v }))}
-                                placeholder="15.3.1998"
-                                placeholderTextColor={colors.textMuted}
-                                keyboardType="numeric"
-                            />
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                                <View style={[s.fieldInput, { flex:1, justifyContent:'center' }]}>
+                                    <Text style={{ color: infoForm.birthDate ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                        {infoForm.birthDate || 'Girilmemiş'}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity onPress={() => openChangeReq('birthDate')}
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#7c3aed50' }}>
+                                    <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>Değiştir</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={{ color:'#f59e0b', fontSize:10, marginBottom:8 }}>🔒 Değiştirmek için yönetici onayı gerekir</Text>
                             {infoForm.birthDatePrivacy === 'FRIENDS_EXCEPT' && infoForm.birthDateExclude.length > 0 && (
                                 <Text style={s.excludeHint}>{infoForm.birthDateExclude.length} arkadaş göremez</Text>
                             )}
@@ -3547,6 +3589,105 @@ export default function ProfileScreen({ route, navigation }) {
                 onSelect={city => setInfoForm(f => ({ ...f, city }))}
                 currentValue={infoForm.city}
             />
+
+            {/* ── Profil Değişiklik Talebi Modal ── */}
+            <Modal visible={changeReqOpen} animationType="slide" transparent onRequestClose={() => setChangeReqOpen(false)}>
+                <View style={s.modalOverlay}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width:'100%' }}>
+                        <View style={[s.modalBox, { maxHeight:'90%' }]}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>
+                                    {changeReqField === 'fullName' ? '👤 Ad Soyad Değişikliği'
+                                        : changeReqField === 'gender' ? 'Cinsiyet Değişikliği'
+                                        : '🎂 Doğum Tarihi Değişikliği'}
+                                </Text>
+                                <TouchableOpacity onPress={() => setChangeReqOpen(false)}>
+                                    <Text style={s.modalClose}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight:400 }}>
+                                {/* Mevcut bekleyen talep uyarısı */}
+                                {myChangeRequests.filter(r => r.field === changeReqField && r.status === 'PENDING').length > 0 && (
+                                    <View style={{ backgroundColor:'#f59e0b12', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>⏳ Bu alan için bekleyen bir talebiniz zaten var</Text>
+                                        <Text style={{ color:colors.textMuted, fontSize:11, marginTop:4 }}>Yönetici onayı bekleniyor. Yeni talep gönderemezsiniz.</Text>
+                                    </View>
+                                )}
+
+                                {/* Son işlenmiş talepler */}
+                                {myChangeRequests.filter(r => r.field === changeReqField && r.status !== 'PENDING').slice(0,1).map(r => (
+                                    <View key={r.id} style={{ backgroundColor: r.status === 'APPROVED' ? '#16a34a12' : '#dc262612', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor: r.status === 'APPROVED' ? '#16a34a40' : '#dc262640' }}>
+                                        <Text style={{ color: r.status === 'APPROVED' ? '#4ade80' : '#f87171', fontSize:12, fontWeight:'700' }}>
+                                            {r.status === 'APPROVED' ? '✅ Son talebiniz onaylandı' : '❌ Son talebiniz reddedildi'}
+                                        </Text>
+                                        {r.adminNote && <Text style={{ color:colors.textMuted, fontSize:11, marginTop:4 }}>Not: {r.adminNote}</Text>}
+                                    </View>
+                                ))}
+
+                                <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:16, lineHeight:18 }}>
+                                    Değişiklik talebiniz yönetici tarafından incelenecek. Onaylanırsa bildirim alacaksınız.
+                                </Text>
+
+                                {/* Yeni değer */}
+                                <Text style={[s.fieldLabel, { marginBottom:6 }]}>
+                                    {changeReqField === 'fullName' ? 'Yeni Ad Soyad'
+                                        : changeReqField === 'gender' ? 'Yeni Cinsiyet'
+                                        : 'Yeni Doğum Tarihi (GG.AA.YYYY)'}
+                                </Text>
+
+                                {changeReqField === 'gender' ? (
+                                    <View style={{ flexDirection:'row', gap:8, marginBottom:16 }}>
+                                        {[{ k:'MALE', l: t.genderMale }, { k:'FEMALE', l: t.genderFemale }, { k:'OTHER', l: t.genderOther }].map(opt => (
+                                            <TouchableOpacity key={opt.k} onPress={() => setChangeReqNewValue(opt.k)}
+                                                style={[s.optionBtn, changeReqNewValue === opt.k && s.optionBtnActive]}>
+                                                <Text style={[s.optionBtnText, changeReqNewValue === opt.k && { color:'#fff' }]}>{opt.l}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                ) : (
+                                    <TextInput
+                                        style={[s.fieldInput, { marginBottom:16 }]}
+                                        value={changeReqNewValue}
+                                        onChangeText={setChangeReqNewValue}
+                                        placeholder={changeReqField === 'fullName' ? 'Ahmet Yılmaz' : '15.3.1998'}
+                                        placeholderTextColor={colors.textMuted}
+                                        keyboardType={changeReqField === 'birthDate' ? 'numeric' : 'default'}
+                                    />
+                                )}
+
+                                {/* Belge yükleme */}
+                                <Text style={[s.fieldLabel, { marginBottom:6 }]}>📎 Kimlik Belgesi (zorunlu)</Text>
+                                <TouchableOpacity onPress={pickChangeReqDoc} disabled={changeReqUploading}
+                                    style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1.5, borderStyle:'dashed', borderColor:'#7c3aed50', padding:14, alignItems:'center', marginBottom:8 }}>
+                                    {changeReqUploading
+                                        ? <Text style={{ color:'#a78bfa', fontSize:12 }}>Yükleniyor...</Text>
+                                        : changeReqDocUrl
+                                            ? <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>✅ {changeReqDocName || 'Belge yüklendi'}</Text>
+                                            : <Text style={{ color:'#a78bfa', fontSize:12 }}>+ Fotoğraf / belge seç</Text>
+                                    }
+                                </TouchableOpacity>
+                                <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:16 }}>
+                                    Nüfus cüzdanı, ehliyet veya pasaport fotoğrafı kabul edilir.
+                                </Text>
+                            </ScrollView>
+
+                            <View style={s.modalBtns}>
+                                <TouchableOpacity style={s.cancelBtn} onPress={() => setChangeReqOpen(false)}>
+                                    <Text style={s.cancelBtnText}>İptal</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[s.saveBtn, (!changeReqNewValue.trim() || !changeReqDocUrl || changeReqLoading || myChangeRequests.some(r => r.field === changeReqField && r.status === 'PENDING')) && { opacity:0.4 }]}
+                                    onPress={submitChangeReq}
+                                    disabled={!changeReqNewValue.trim() || !changeReqDocUrl || changeReqLoading || myChangeRequests.some(r => r.field === changeReqField && r.status === 'PENDING')}
+                                >
+                                    <Text style={s.saveBtnText}>{changeReqLoading ? 'Gönderiliyor...' : 'Talep Gönder'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
+            </Modal>
 
             {/* ── Privacy Picker Modal ── */}
             <Modal visible={privacyPickerField !== null} animationType="slide" transparent onRequestClose={() => setPrivacyPickerField(null)}>
