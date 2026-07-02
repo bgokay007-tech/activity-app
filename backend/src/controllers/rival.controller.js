@@ -1330,7 +1330,8 @@ export const getUpcomingMatches = async (req, res, next) => {
         try {
             const allUserIds = [...new Set([
                 ...active.map(m => m.senderId),
-                ...active.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id)),
+                ...active.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => p.id)),
+                ...active.flatMap(m => (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => p.id)),
             ].filter(Boolean))];
 
             const interests = allUserIds.length > 0
@@ -1360,7 +1361,12 @@ export const getUpcomingMatches = async (req, res, next) => {
                 ...m,
                 senderSkillRating: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.skillRating ?? null,
                 senderAlias: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.alias || null,
-                participants: (Array.isArray(m.participants) ? m.participants : []).map(p => ({
+                participants: (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => ({
+                    ...p,
+                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                    alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
+                })),
+                senderTeam: (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => ({
                     ...p,
                     skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
@@ -1862,18 +1868,20 @@ export const removeRivalParticipant = async (req, res, next) => {
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi katılımcı çıkarabilir' });
 
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
-        const target = participants.find(p => p.id === userId);
-        if (!target) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
+        const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const inParticipants = participants.some(p => p.id === userId);
+        const inSenderTeam  = senderTeamArr.some(p => p.id === userId);
+        if (!inParticipants && !inSenderTeam) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
 
-        // Bireysel çıkarma: sadece belirtilen kişi çıkarılır, çiftlerde partneri olduğu gibi kalır
-        // (eksik kalan taraf yeni partner bekleyen bireysel olarak görünür).
         const removeIds = [userId];
-        const updatedParticipants = participants.filter(p => !removeIds.includes(p.id));
+        const updatedParticipants = inParticipants ? participants.filter(p => !removeIds.includes(p.id)) : participants;
+        const updatedSenderTeam   = inSenderTeam  ? senderTeamArr.filter(p => !removeIds.includes(p.id)) : senderTeamArr;
 
         const updated = await prisma.activityRequest.update({
             where: { id },
             data: {
                 participants: updatedParticipants,
+                senderTeam: updatedSenderTeam,
                 status: 'OPEN',
                 receiverId: null,
                 schedulingDeadline: null,

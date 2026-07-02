@@ -1897,11 +1897,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
 
-    // Build player list with skill rating: sender first, then participants in order
+    const participantsArr = (Array.isArray(match.participants) ? match.participants : []).filter(p => p?.id);
+    const senderTeamArr   = (Array.isArray(match.senderTeam)   ? match.senderTeam   : []).filter(p => p?.id);
+
+    // Build player list: sender → partner (DOUBLE) → opponents
     const allPlayers = [
         { ...match.sender, skillRating: match.senderSkillRating, alias: match.senderAlias },
-        ...(Array.isArray(match.participants) ? match.participants : []),
-    ].filter(Boolean);
+        ...(match.matchType === 'DOUBLE' ? senderTeamArr : []),
+        ...participantsArr,
+    ];
 
     const getMatchEnd = (m) => {
         if (!m.matchDate || !m.matchTime) return null;
@@ -2344,6 +2348,40 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     </View>
                 )}
             </View>
+
+            {/* Katılımcı çıkarma — sadece ilan sahibi, MATCHED maçta */}
+            {isOwner && (participantsArr.length > 0 || senderTeamArr.length > 0) && (
+                <View style={{ marginTop:6, gap:3 }}>
+                    {senderTeamArr.map(p => (
+                        <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:6, paddingHorizontal:6, paddingVertical:3 }}>
+                            <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'700' }}>🤝 {senderAlias(p)}</Text>
+                            <TouchableOpacity onPress={() => Alert.alert('Katılımcıyı Çıkar', `${senderAlias(p)} ilanınızdan çıkarılsın mı? İlan tekrar açık hale gelir.`, [
+                                { text: 'Vazgeç', style:'cancel' },
+                                { text: 'Çıkar', style:'destructive', onPress: async () => {
+                                    try { await api.delete(`/rivals/${match.id}/participants/${p.id}`); onRefresh(); }
+                                    catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+                                }},
+                            ])}>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+                    {participantsArr.map(p => (
+                        <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:6, paddingHorizontal:6, paddingVertical:3 }}>
+                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>⚔️ {senderAlias(p)}</Text>
+                            <TouchableOpacity onPress={() => Alert.alert('Katılımcıyı Çıkar', `${senderAlias(p)} ilanınızdan çıkarılsın mı? İlan tekrar açık hale gelir.`, [
+                                { text: 'Vazgeç', style:'cancel' },
+                                { text: 'Çıkar', style:'destructive', onPress: async () => {
+                                    try { await api.delete(`/rivals/${match.id}/participants/${p.id}`); onRefresh(); }
+                                    catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+                                }},
+                            ])}>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+                </View>
+            )}
 
             {/* Flexible schedule proposal panel */}
             {match.flexibleSchedule && !match.matchDate && (
@@ -3128,7 +3166,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         <>
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={s.modalOverlay}>
-                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'} style={{ flex:1, justifyContent:'flex-end' }}>
+                <KeyboardAvoidingView behavior='padding' style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{t.createTitle}</Text>
