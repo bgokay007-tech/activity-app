@@ -59,10 +59,10 @@ export async function autoCompleteExpiredMatches() {
     }
 }
 
-// Find opponent matches with no score entered 24h after completion → auto 0-0 draw, no ELO change
+// Find opponent matches with no score entered 4h after completion → auto 0-0 draw, no ELO change
 export async function autoDrawUnscored() {
     try {
-        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const cutoff = new Date(Date.now() - 4 * 60 * 60 * 1000);
 
         const unscored = await prisma.activityRequest.findMany({
             where: {
@@ -107,7 +107,7 @@ export async function autoDrawUnscored() {
                     uid,
                     'SCORE_CONFIRMED',
                     '🤝 Maç berabere kaydedildi',
-                    '24 saat içinde skor girilmedi. Maç otomatik olarak 0-0 berabere kaydedildi. ELO puanı değişmedi.',
+                    '4 saat içinde skor girilmedi. Maç otomatik olarak 0-0 berabere kaydedildi. ELO puanı değişmedi.',
                     { rivalId: r.id, category: r.category.toLowerCase(), subCategory: r.subCategory }
                 );
             }

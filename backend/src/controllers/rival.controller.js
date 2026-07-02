@@ -1673,9 +1673,9 @@ export const extendScoreDeadline = async (req, res, next) => {
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         // Push completedAt forward so auto-draw job won't fire for `hours` from now
-        // Job fires when completedAt <= now - 24h
-        // So set completedAt = now + (hours - 24)h → triggers after `hours` total
-        const newCompletedAt = new Date(Date.now() + (Number(hours) - 24) * 60 * 60 * 1000);
+        // Job fires when completedAt <= now - 4h
+        // So set completedAt = now + (hours - 4)h → triggers after `hours` total
+        const newCompletedAt = new Date(Date.now() + (Number(hours) - 4) * 60 * 60 * 1000);
 
         const updated = await prisma.activityRequest.update({
             where: { id },
