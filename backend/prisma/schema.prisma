@@ -18,7 +18,7 @@ enum CategoryType {
 // KULLANICI
 model User {
   id          String    @id @default(uuid())
-  email       String?
+  email       String?   @unique
   phone       String?   @unique
   username    String    @unique
   password    String
@@ -98,8 +98,6 @@ model User {
   surveyGiven      SportSurvey[] @relation("SurveyRater")
   surveyReceived   SportSurvey[] @relation("SurveySubject")
   profileChangeRequests ProfileChangeRequest[]
-
-  @@unique([email, isBusiness])
 }
 
 model ProfileChangeRequest {
