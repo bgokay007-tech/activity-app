@@ -1945,9 +1945,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const otherRequestedMutual = mutualReqs.includes(opponent?.id);
     const iAlreadyRequestedMutual = mutualReqs.includes(myId);
 
-    // DOUBLE slot swap
+    // DOUBLE slot swap — herhangi bir katılımcı yapabilir
     const handleSwapTap = async (slot) => {
-        if (!isOwner) return;
         if (!swapSlot) { setSwapSlot(slot); return; }
         if (swapSlot === slot) { setSwapSlot(null); return; }
         const s1 = swapSlot, s2 = slot;
@@ -2395,20 +2394,33 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         const opp1 = participantsArr[0] || null;
                         const opp2 = participantsArr[1] || null;
                         const mkSlot = (slot, p, color) => {
-                            if (!p) return (
-                                <View key={slot} style={{ borderRadius:8, paddingHorizontal:8, paddingVertical:6, marginBottom:4, backgroundColor:'#1e293b', borderWidth:1, borderColor:'#ffffff10' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                        {slot === 'partner' ? '— Partner bekleniyor —' : slot === 'opp1' ? '— Rakip 1 bekleniyor —' : '— Rakip 2 bekleniyor —'}
-                                    </Text>
-                                </View>
-                            );
                             const isSel = swapSlot === slot;
                             const isTgt = !!swapSlot && swapSlot !== slot;
+                            if (!p) {
+                                // Boş slot: swap modu aktifse tıklanabilir hedef göster
+                                if (isTgt) return (
+                                    <TouchableOpacity
+                                        key={slot}
+                                        onPress={() => handleSwapTap(slot)}
+                                        activeOpacity={0.7}
+                                        style={{ borderRadius:8, paddingHorizontal:8, paddingVertical:8, marginBottom:4, backgroundColor:'#4ade8012', borderWidth:1.5, borderColor:'#4ade80', alignItems:'center' }}>
+                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>
+                                            {slot === 'partner' ? '↔ Partner olarak taşı' : '↔ Rakip olarak taşı'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                                return (
+                                    <View key={slot} style={{ borderRadius:8, paddingHorizontal:8, paddingVertical:6, marginBottom:4, backgroundColor:'#1e293b', borderWidth:1, borderColor:'#ffffff10' }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                            {slot === 'partner' ? '— Partner bekleniyor —' : slot === 'opp1' ? '— Rakip 1 bekleniyor —' : '— Rakip 2 bekleniyor —'}
+                                        </Text>
+                                    </View>
+                                );
+                            }
                             return (
                                 <View key={slot} style={{ marginBottom:4 }}>
                                     <TouchableOpacity
                                         onPress={() => {
-                                            if (!isOwner) return;
                                             if (!swapSlot) { setSwapSlot(slot); return; }
                                             if (swapSlot === slot) { setSwapSlot(null); return; }
                                             handleSwapTap(slot);
@@ -2424,7 +2436,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             {senderAlias(p)}
                                         </Text>
                                         <Text style={{ color: isSel ? '#f59e0b' : isTgt ? '#4ade80' : colors.textMuted, fontSize:10 }}>
-                                            {isSel ? '✓ seçildi' : isTgt ? '↔ taşı' : isOwner ? '↕' : ''}
+                                            {isSel ? '✓ seçildi' : isTgt ? '↔ taşı' : '↕'}
                                         </Text>
                                     </TouchableOpacity>
                                     {!swapSlot && isOwner && (
@@ -2459,7 +2471,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         {mkSlot('opp2', opp2, '#fca5a5')}
                                     </View>
                                 </View>
-                                {isOwner && (senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && (
+                                {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && (
                                     <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
                                 )}
                             </View>

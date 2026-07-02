@@ -220,20 +220,26 @@ export const swapMatchPositions = async (req, res, next) => {
             include: { sender: { select: SENDER_SELECT } },
         });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
-        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi pozisyon değiştirebilir' });
 
         const senderTeam   = Array.isArray(rival.senderTeam)  ? [...rival.senderTeam]  : [];
         const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
 
+        // İlan sahibi veya maç katılımcısı olmalı
+        const isParticipant = participants.some(p => p.id === req.userId) ||
+                              senderTeam.some(p => p.id === req.userId);
+        if (rival.senderId !== req.userId && !isParticipant) {
+            return res.status(403).json({ message: 'Bu maçın katılımcısı değilsiniz' });
+        }
+
         const getP = (slot) => {
-            if (slot === 'partner') return senderTeam[0];
-            if (slot === 'opp1')   return participants[0];
-            if (slot === 'opp2')   return participants[1];
+            if (slot === 'partner') return senderTeam[0] || null;
+            if (slot === 'opp1')   return participants[0] || null;
+            if (slot === 'opp2')   return participants[1] || null;
         };
 
         const p1 = getP(slot1);
         const p2 = getP(slot2);
-        if (!p1 || !p2) return res.status(400).json({ message: 'Boş slot taşınamaz' });
+        if (!p1 && !p2) return res.status(400).json({ message: 'İki slot da boş' });
 
         // Swap içinde yeni pozisyonları hesapla
         const newPartner = slot1 === 'partner' ? p2 : slot2 === 'partner' ? p1 : getP('partner');
