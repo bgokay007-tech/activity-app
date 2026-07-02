@@ -988,6 +988,8 @@ export const respondToJoin = async (req, res, next) => {
         const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null };
 
         let updatedParticipants;
+        let assignedToPartner = false;
+        let updatedSenderTeam = null;
 
         if (rival.matchType === 'DOUBLE') {
             const opp1Req = rival.opp1GenderReq || 'MIX';
@@ -1018,34 +1020,41 @@ export const respondToJoin = async (req, res, next) => {
                 }
                 updatedParticipants = isTeamJoin ? joiningTeam : [joinerEntry, { id: partnerJoinReqToAccept.userId, username: partnerJoinReqToAccept.user.username, fullName: partnerJoinReqToAccept.user.fullName, avatar: partnerJoinReqToAccept.user.avatar }];
             } else {
-                // Bireysel kabul: oyuncuyu cinsiyetine göre UYGUN slota ata (sıraya değil)
+                // Bireysel kabul: önce partner slotu (kendi takımı), sonra rakip slotları
                 const gUser = await prisma.user.findUnique({ where: { id: u.id }, select: { gender: true } });
                 const pg = gUser?.gender;
                 const fits = (req) => !pg || pg === 'OTHER' || !req || req === 'MIX' || pg === req;
 
+                const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+                const partnerFilled = !!(senderTeamArr[0] && senderTeamArr[0].id);
+                const partnerGReq = rival.partnerGenderReq || 'MIX';
+
                 const opp1Filled = !!(participants[0] && participants[0].id);
                 const opp2Filled = !!(participants[1] && participants[1].id);
 
-                const newP = [participants[0] || null, participants[1] || null];
-
-                if (!opp1Filled && fits(opp1Req)) {
-                    newP[0] = joinerEntry; // opp1 boş ve uygun → opp1'e ata
-                } else if (!opp2Filled && fits(opp2Req)) {
-                    newP[1] = joinerEntry; // opp2 boş ve uygun → opp2'e ata
+                if (!partnerFilled && fits(partnerGReq)) {
+                    // Partner slotu boş ve cinsiyet uygun → kendi takımına partner yap
+                    assignedToPartner = true;
+                    updatedSenderTeam = [joinerEntry];
+                    updatedParticipants = participants;
                 } else {
-                    // Hiçbir boş slota uymuyor
-                    if (!opp1Filled && !opp2Filled) {
-                        const req1label = opp1Req !== 'MIX' ? (opp1Req === 'MALE' ? 'erkek' : 'kadın') : null;
-                        const req2label = opp2Req !== 'MIX' ? (opp2Req === 'MALE' ? 'erkek' : 'kadın') : null;
-                        const details = [req1label && `Rakip 1: ${req1label}`, req2label && `Rakip 2: ${req2label}`].filter(Boolean).join(', ');
-                        return res.status(400).json({ message: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` });
-                    } else if (opp1Filled && !opp2Filled) {
-                        return res.status(400).json({ message: `Rakip 2 slotu için bu ilan yalnızca ${opp2Req === 'MALE' ? 'erkek' : 'kadın'} oyuncular kabul ediyor.` });
+                    const newP = [participants[0] || null, participants[1] || null];
+                    if (!opp1Filled && fits(opp1Req)) {
+                        newP[0] = joinerEntry;
+                    } else if (!opp2Filled && fits(opp2Req)) {
+                        newP[1] = joinerEntry;
                     } else {
-                        return res.status(400).json({ message: 'Tüm rakip slotları dolu.' });
+                        if (!partnerFilled || !opp1Filled || !opp2Filled) {
+                            const req1label = opp1Req !== 'MIX' ? (opp1Req === 'MALE' ? 'erkek' : 'kadın') : null;
+                            const req2label = opp2Req !== 'MIX' ? (opp2Req === 'MALE' ? 'erkek' : 'kadın') : null;
+                            const details = [req1label && `Rakip 1: ${req1label}`, req2label && `Rakip 2: ${req2label}`].filter(Boolean).join(', ');
+                            return res.status(400).json({ message: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` });
+                        } else {
+                            return res.status(400).json({ message: 'Tüm slotlar dolu.' });
+                        }
                     }
+                    updatedParticipants = newP;
                 }
-                updatedParticipants = newP;
             }
         } else {
             if (isTeamJoin && countFilled(participants) > 0) {
@@ -1054,23 +1063,28 @@ export const respondToJoin = async (req, res, next) => {
             updatedParticipants = isTeamJoin ? joiningTeam : [...participants, joinerEntry];
         }
 
-        const required = getRequired(rival);
-        const isFull = countFilled(updatedParticipants) >= required;
+        // Partner atandıysa required=2 (2 rakip gerekir), yoksa normal hesap
+        const isFull = assignedToPartner
+            ? countFilled(participants) >= 2
+            : countFilled(updatedParticipants) >= getRequired(rival);
 
         // Tüm doğrulama geçtikten SONRA join request'i ACCEPTED yap
         await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
 
+        const updateData = {
+            status: isFull ? 'MATCHED' : 'OPEN',
+            receiverId: isFull ? u.id : rival.receiverId,
+            ...(isFull && rival.flexibleSchedule && { schedulingDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000) }),
+        };
+        if (assignedToPartner) {
+            updateData.senderTeam = updatedSenderTeam;
+        } else {
+            updateData.participants = updatedParticipants;
+        }
+
         const updated = await prisma.activityRequest.update({
             where: { id: rival.id },
-            data: {
-                participants: updatedParticipants,
-                status: isFull ? 'MATCHED' : 'OPEN',
-                receiverId: isFull ? u.id : rival.receiverId,
-                // Flexible matches get a 24h scheduling window after being matched
-                ...(isFull && rival.flexibleSchedule && {
-                    schedulingDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                }),
-            },
+            data: updateData,
             include: {
                 sender: { select: SENDER_SELECT },
                 joinRequests: {
@@ -1099,9 +1113,12 @@ export const respondToJoin = async (req, res, next) => {
         // Notify the joiner that they were accepted
         emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
-        // Also notify all participants of the match status
+        // Also notify all participants and senderTeam of the match status
         if (isFull) {
             updatedParticipants.filter(p => p?.id).forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
+            const currentSenderTeam = Array.isArray(updated.senderTeam) ? updated.senderTeam : [];
+            currentSenderTeam.filter(p => p?.id && p.id !== u.id && p.id !== rival.senderId)
+                .forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
         }
 
         res.json({

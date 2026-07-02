@@ -77,14 +77,14 @@ function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
     };
 
     return (
-        <div className="absolute left-1/2 -translate-x-1/2 top-10 w-80 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-10 w-80 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
                 <h3 className="text-white font-bold text-sm">Notifications</h3>
                 <button onClick={onMarkAll} className="text-purple-400 hover:text-purple-300 text-xs transition">
                     Mark all read
                 </button>
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-[min(24rem,70vh)] overflow-y-auto">
                 {notifications.length === 0 ? (
                     <p className="text-gray-500 text-sm text-center py-8">No notifications yet.</p>
                 ) : (

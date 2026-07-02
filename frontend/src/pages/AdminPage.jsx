@@ -126,9 +126,13 @@ function CourtsPanel() {
     const [courts, setCourts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [error, setError] = useState(null);
 
     useEffect(() => {
-        api.get('/admin/courts').then(r => setCourts(r.data)).finally(() => setLoading(false));
+        api.get('/admin/courts')
+            .then(r => setCourts(r.data))
+            .catch(e => setError(e?.response?.data?.message || e?.message || 'API hatası'))
+            .finally(() => setLoading(false));
     }, []);
 
     const del = async (id) => {
@@ -145,6 +149,7 @@ function CourtsPanel() {
     );
 
     if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
+    if (error) return <p className="text-red-400 text-center py-16 font-bold">Hata: {error}</p>;
 
     return (
         <div className="space-y-4">
@@ -311,9 +316,13 @@ function VenuesPanel() {
     const [editing, setEditing] = useState({});
     const [rejectReason, setRejectReason] = useState({});
     const [showReject, setShowReject] = useState({});
+    const [error, setError] = useState(null);
 
     useEffect(() => {
-        api.get('/courts/admin/pending').then(r => setCourts(r.data)).finally(() => setLoading(false));
+        api.get('/courts/admin/pending')
+            .then(r => setCourts(r.data))
+            .catch(e => setError(e?.response?.data?.message || e?.message || 'API hatası'))
+            .finally(() => setLoading(false));
     }, []);
 
     const field = (courtId, key, placeholder, current) => (
@@ -340,6 +349,7 @@ function VenuesPanel() {
     };
 
     if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
+    if (error) return <p className="text-red-400 text-center py-16 font-bold">Hata: {error}</p>;
     if (courts.length === 0) return (
         <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
             <p className="text-4xl mb-3">✅</p>
@@ -416,10 +426,15 @@ function VenuesPanel() {
 function NoShowPanel() {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const load = () => {
         setLoading(true);
-        api.get('/admin/no-show-reports').then(r => setReports(r.data)).finally(() => setLoading(false));
+        setError(null);
+        api.get('/admin/no-show-reports')
+            .then(r => setReports(r.data))
+            .catch(e => setError(e?.response?.data?.message || e?.message || 'API hatası'))
+            .finally(() => setLoading(false));
     };
     useEffect(() => { load(); }, []);
 
@@ -440,6 +455,7 @@ function NoShowPanel() {
     };
 
     if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
+    if (error) return <p className="text-red-400 text-center py-16 font-bold">Hata: {error}</p>;
     if (!reports.length) return <p className="text-gray-500 text-center py-16">Bekleyen bildirim yok.</p>;
 
     return (

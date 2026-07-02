@@ -545,7 +545,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         try {
             const { data } = await api.patch(`/rivals/${item.id}/swap-positions`, { slot1: s1, slot2: s2 });
             if (Array.isArray(data.participants)) setLocalParticipants(data.participants);
-            // senderTeam güncellendi — item prop üzerinden gelmiyor, rivalUpdate socket bunu yayar
+            onRefresh(); // senderTeam (partner) dahil tüm veriyi yenile
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
     };
 
