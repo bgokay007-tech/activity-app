@@ -60,6 +60,7 @@ Notifications.setNotificationHandler({
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import BusinessRegisterScreen from '../screens/auth/BusinessRegisterScreen';
+import BusinessHomeScreen from '../screens/business/BusinessHomeScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import HomeScreen from '../screens/main/HomeScreen';
 import CategoryScreen from '../screens/main/CategoryScreen';
@@ -252,6 +253,7 @@ function AppTabs() {
 export default function Navigation() {
     const dispatch = useDispatch();
     const token = useSelector(s => s.auth.token);
+    const isBusiness = useSelector(s => s.auth.user?.isBusiness);
     const [bootstrapping, setBootstrapping] = useState(true);
     const pendingNavRef = useRef(null);
 
@@ -328,6 +330,8 @@ export default function Navigation() {
                         <Stack.Screen name="BusinessRegister" component={BusinessRegisterScreen} />
                         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
                     </>
+                ) : isBusiness ? (
+                    <Stack.Screen name="BusinessApp" component={BusinessHomeScreen} />
                 ) : (
                     <Stack.Screen name="App" component={AppTabs} />
                 )}
