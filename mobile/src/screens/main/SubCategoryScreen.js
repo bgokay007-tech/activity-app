@@ -8268,7 +8268,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         const [h, min] = m.matchTime.split(':').map(Number);
         const d = new Date(m.matchDate);
         d.setHours(h, min, 0, 0);
-        return new Date() >= new Date(d.getTime() + (m.duration || 90) * 60 * 1000);
+        return new Date() >= new Date(d.getTime() + 60 * 1000); // maç başladıktan 1 dk sonra
     };
     const allFiltered = matchedUpcoming.filter(applyFilter);
     const filteredMatchedUpcoming = allFiltered.filter(m => !matchHasEnded(m));
