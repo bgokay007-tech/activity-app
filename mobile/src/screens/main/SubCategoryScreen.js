@@ -1894,6 +1894,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [propShowManual, setPropShowManual] = useState(false);
     const [propManualName, setPropManualName] = useState('');
     const [propManualCity, setPropManualCity] = useState('');
+    const [showDetail, setShowDetail] = useState(false);
+    const [localComments, setLocalComments] = useState([]);
+    const [loadingLocalComments, setLoadingLocalComments] = useState(false);
+    const [localCommentsLoaded, setLocalCommentsLoaded] = useState(false);
+    const [localCommentText, setLocalCommentText] = useState('');
+    const [sendingLocalComment, setSendingLocalComment] = useState(false);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const opponent = isOwner ? match.participants?.[0] : match.sender;
@@ -2254,483 +2260,585 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const dispIWin = existingWinner === (isOwner ? 'sender' : 'opponent');
     const dispDraw = existingWinner === 'draw';
 
-    const expanded = showScore || showScheduleForm;
-    return (
-        <View style={[s.card, { width: '100%', paddingHorizontal:3, paddingTop:3, paddingBottom:3, borderColor: isMatched ? '#16a34a60' : '#a855f740', backgroundColor: isMatched ? '#16a34a08' : undefined }]}>
-            {/* Tappable info — opens comments modal */}
-            <TouchableOpacity activeOpacity={0.75} onPress={() => onOpenComments?.(match)}>
-                <View>
-                    {allPlayers.map((p, idx) => (
-                        <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
-                            {p._emptySlot ? (
-                                <Text style={{ color: colors.textMuted, fontSize:13, fontStyle:'italic' }}>— ortak slot boş —</Text>
-                            ) : (
-                                <>
-                                    <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7} style={{ flexShrink:1 }}>
-                                        <Text style={s.cardName}>{senderAlias(p)}</Text>
-                                    </TouchableOpacity>
-                                    {p.skillRating != null && (
-                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>
-                                            {Number(p.skillRating).toFixed(2)} ★
-                                        </Text>
-                                    )}
-                                </>
-                            )}
-                        </View>
-                    ))}
-                </View>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
-                    <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
-                        <Text style={[s.modeBadgeText, { color: cfg.color }]}>
-                            {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
-                        </Text>
-                    </View>
-                    {match.matchMode?.toUpperCase() === 'COMPETITIVE' && (
-                        <View style={[s.modeBadge, { backgroundColor:'#ef444420', borderColor:'#ef444440' }]}>
-                            <Text style={[s.modeBadgeText, { color:'#ef4444' }]}>{t.modeCompetitive}</Text>
-                        </View>
-                    )}
-                    {match.matchMode?.toUpperCase() === 'PRACTICE' && (
-                        <View style={[s.modeBadge, { backgroundColor:'#22c55e20', borderColor:'#22c55e40' }]}>
-                            <Text style={[s.modeBadgeText, { color:'#22c55e' }]}>{t.modePractice}</Text>
-                        </View>
-                    )}
-                    {match.flexibleSchedule && (
-                        <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
-                            <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>📅 Esnek</Text>
-                        </View>
-                    )}
-                </View>
-                <Text style={[s.cardSub, { marginTop:3 }]}>
-                    {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
-                    {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
-                    {match.duration  ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
-                </Text>
-                {match.courtName && (
-                    <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
-                        <Text style={[s.cardSub, { color:'#60a5fa', textDecorationLine:'underline', marginTop:3 }]}>🏟️ {match.courtName}</Text>
-                    </TouchableOpacity>
-                )}
-                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:3 }}>
-                    💬 {t.matchCommentsBtn} {match.commentCount ?? 0}
-                </Text>
-                {match.level && (
-                    <View style={{ flexDirection:'row', marginTop:3 }}>
-                        <View style={[s.modeBadge, { backgroundColor:'#ffffff10', borderColor:'#ffffff20' }]}>
-                            <Text style={[s.modeBadgeText, { color: colors.textSecondary }]}>
-                                {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
-                            </Text>
-                        </View>
-                    </View>
-                )}
-            </TouchableOpacity>
+    const openDetail = useCallback(async () => {
+        setShowDetail(true);
+        if (localCommentsLoaded) return;
+        setLoadingLocalComments(true);
+        try {
+            const res = await api.get(`/rivals/${match.id}/comments`);
+            setLocalComments(res.data || []);
+            setLocalCommentsLoaded(true);
+        } catch(e) { console.warn(e?.message); }
+        finally { setLoadingLocalComments(false); }
+    }, [match.id, localCommentsLoaded]);
 
-            {/* Aksiyon butonları — kart genişliğine sığacak şekilde alta, sarmalı */}
-            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:3 }}>
-                {!hasScore && scoreUnlocked && (
-                    <>
-                        <TouchableOpacity style={[s.scoreBtn, { paddingHorizontal:3, paddingVertical:3 }]} onPress={() => setShowScore(v => !v)}>
-                            <Text style={s.scoreBtnText}>{showScore ? '▲' : t.enterScore}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:7, borderWidth:1, borderColor:'#dc262630', backgroundColor:'#dc262612' }}
-                            onPress={() => setShowCantScore(true)}
-                        >
-                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
-                        </TouchableOpacity>
-                    </>
+    const sendLocalComment = async () => {
+        if (!localCommentText.trim()) return;
+        setSendingLocalComment(true);
+        try {
+            const res = await api.post(`/rivals/${match.id}/comments`, { content: localCommentText.trim() });
+            setLocalComments(prev => [...prev, res.data]);
+            setLocalCommentText('');
+            onRefresh?.();
+        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Yorum gönderilemedi'); }
+        finally { setSendingLocalComment(false); }
+    };
+
+    return (
+        <>
+        {/* Compact card — tap opens detail */}
+        <TouchableOpacity
+            style={[s.card, { width:'100%', paddingHorizontal:6, paddingTop:6, paddingBottom:6,
+                borderColor: isMatched ? '#16a34a60' : '#a855f740',
+                backgroundColor: isMatched ? '#16a34a08' : undefined }]}
+            activeOpacity={0.75}
+            onPress={openDetail}
+        >
+            {/* Players + ratings */}
+            {allPlayers.map((p, idx) => (
+                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
+                    {p._emptySlot ? (
+                        <Text style={{ color: colors.textMuted, fontSize:13, fontStyle:'italic' }}>— ortak slot boş —</Text>
+                    ) : (
+                        <>
+                            <Text style={s.cardName}>{senderAlias(p)}</Text>
+                            {p.skillRating != null && (
+                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                            )}
+                        </>
+                    )}
+                </View>
+            ))}
+            {/* Format / mode badges */}
+            <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
+                <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
+                    <Text style={[s.modeBadgeText, { color: cfg.color }]}>
+                        {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
+                    </Text>
+                </View>
+                {match.matchMode?.toUpperCase() === 'COMPETITIVE' && (
+                    <View style={[s.modeBadge, { backgroundColor:'#ef444420', borderColor:'#ef444440' }]}>
+                        <Text style={[s.modeBadgeText, { color:'#ef4444' }]}>{t.modeCompetitive}</Text>
+                    </View>
                 )}
-                {match.scoreStatus !== 'CONFIRMED' && (
-                    <>
-                        {withinPenaltyWindow && (
-                            !iAlreadyRequestedMutual ? (
-                                <TouchableOpacity
-                                    style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#2563eb40', backgroundColor:'#2563eb18' }}
-                                    onPress={() => handleMutualCancelPress(false)}
-                                    disabled={cancelling}
-                                >
-                                    <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>🤝 Karşılıklı</Text>
-                                </TouchableOpacity>
-                            ) : (
-                                <View style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#2563eb30', backgroundColor:'#2563eb10' }}>
-                                    <Text style={{ color:'#60a5fa', fontSize:10 }}>⏳ İstendi</Text>
-                                </View>
-                            )
-                        )}
-                        <TouchableOpacity
-                            style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262618' }}
-                            onPress={handleCancelPress}
-                            disabled={cancelling}
-                        >
-                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>
-                                ✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}
-                            </Text>
-                        </TouchableOpacity>
-                    </>
+                {match.matchMode?.toUpperCase() === 'PRACTICE' && (
+                    <View style={[s.modeBadge, { backgroundColor:'#22c55e20', borderColor:'#22c55e40' }]}>
+                        <Text style={[s.modeBadgeText, { color:'#22c55e' }]}>{t.modePractice}</Text>
+                    </View>
                 )}
-                {canReportNoShow && (
-                    <TouchableOpacity
-                        style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#f9731640', backgroundColor:'#f9731618' }}
-                        onPress={() => { setNoShowAbsent([]); setNoShowPhoto(null); setShowNoShow(true); }}
-                    >
-                        <Text style={{ color:'#fb923c', fontSize:10, fontWeight:'700' }}>🚫 Gelmedi</Text>
-                    </TouchableOpacity>
-                )}
-                {match._myNoShowPending && (
-                    <View style={{ paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610' }}>
-                        <Text style={{ color:'#fb923c', fontSize:10 }}>⏳ Bildirildi</Text>
+                {match.flexibleSchedule && (
+                    <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
+                        <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>📅 Esnek</Text>
                     </View>
                 )}
             </View>
-
-            {/* Takım yönetimi — ilan sahibine DOUBLE: swap + çıkar; diğer türler: çıkar */}
-            {isOwner && match.matchType === 'DOUBLE' && (senderTeamArr.length > 0 || participantsArr.length > 0) && (() => {
-                const partner = senderTeamArr[0] || null;
-                const opp1 = participantsArr[0] || null;
-                const opp2 = participantsArr[1] || null;
-                const mkSlot = (slot, p, color) => {
-                    if (!p) return null;
-                    const isSel = swapSlot === slot;
-                    const isTgt = !!swapSlot && swapSlot !== slot;
-                    return (
-                        <TouchableOpacity
-                            key={slot}
-                            onPress={() => isTgt && handleSwapTap(slot)}
-                            onLongPress={() => !swapSlot && setSwapSlot(slot)}
-                            delayLongPress={400}
-                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                                borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2,
-                                borderWidth: isSel || isTgt ? 1 : 0,
-                                borderColor: isSel ? '#f59e0b' : '#a855f7',
-                                backgroundColor: isSel ? '#f59e0b18' : isTgt ? '#a855f710' : '#1e293b' }}
-                        >
-                            <Text style={{ color, fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                {senderAlias(p)}{isSel ? ' ✓' : isTgt ? ' ⇄' : ''}
-                            </Text>
-                            {!swapSlot && (
-                                <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))} style={{ marginLeft:4 }}>
-                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
-                                </TouchableOpacity>
-                            )}
-                        </TouchableOpacity>
-                    );
-                };
-                return (
-                    <View style={{ marginTop:6 }}>
-                        {swapSlot && (
-                            <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:4, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-                                <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>Hedef slota dokun</Text>
-                                <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
-                            </View>
-                        )}
-                        <View style={{ flexDirection:'row', gap:4 }}>
-                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:5, borderWidth:1, borderColor:'#a855f720' }}>
-                                <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>👑 Kurucu</Text>
-                                <View style={{ borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2, backgroundColor:'#1e293b' }}>
-                                    <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1}>{senderAlias(match.sender)} 🔒</Text>
-                                </View>
-                                {mkSlot('partner', partner, '#c084fc')}
-                                {!partner && <Text style={{ color: colors.textMuted, fontSize:9, marginTop:2 }}>Partner bekleniyor</Text>}
-                            </View>
-                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:5, borderWidth:1, borderColor:'#f8717120' }}>
-                                <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>⚔️ Rakip</Text>
-                                {mkSlot('opp1', opp1, '#fca5a5')}
-                                {!opp1 && <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:2 }}>Rakip 1 bekleniyor</Text>}
-                                {mkSlot('opp2', opp2, '#fca5a5')}
-                                {!opp2 && <Text style={{ color: colors.textMuted, fontSize:9 }}>Rakip 2 bekleniyor</Text>}
-                            </View>
-                        </View>
-                        {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && (
-                            <Text style={{ color:'#f59e0b40', fontSize:8, marginTop:3, textAlign:'center' }}>↕ oyuncu adına basılı tut → yer değiştir</Text>
-                        )}
-                    </View>
-                );
-            })()}
-            {isOwner && match.matchType !== 'DOUBLE' && participantsArr.length > 0 && (
-                <View style={{ marginTop:6, gap:3 }}>
-                    {participantsArr.map(p => (
-                        <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:6, paddingHorizontal:6, paddingVertical:3 }}>
-                            <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1}>{senderAlias(p)}</Text>
-                            <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))}>
-                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
-                            </TouchableOpacity>
-                        </View>
-                    ))}
-                </View>
+            {/* Date / time */}
+            <Text style={[s.cardSub, { marginTop:3 }]}>
+                {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
+                {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
+                {match.duration ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
+            </Text>
+            {/* Court */}
+            {match.courtName && (
+                <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>🏟️ {match.courtName}</Text>
             )}
+            {/* Comment count */}
+            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:3 }}>
+                💬 {t.matchCommentsBtn} {match.commentCount ?? 0}
+            </Text>
+        </TouchableOpacity>
 
-            {/* Flexible schedule proposal panel */}
-            {match.flexibleSchedule && !match.matchDate && (
-                <View style={{ backgroundColor:'#f59e0b10', borderRadius:10, padding:10, marginTop:8, borderWidth:1, borderColor:'#f59e0b40' }}>
-                    <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800' }}>📅 Tarih/Saat/Yer Belirle</Text>
-                        {match.schedulingDeadline && (
-                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{getScheduleCountdown()}</Text>
-                        )}
-                    </View>
-
-                    {match.scheduleProposal ? (
-                        match.scheduleProposal.userId === myId ? (
-                            <View>
-                                <Text style={{ color: colors.textMuted, fontSize:11 }}>Öneriniz bekleniyor:</Text>
-                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
-                                    {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
-                                </Text>
-                                <TouchableOpacity onPress={() => setShowScheduleForm(v => !v)} style={{ marginTop:6 }}>
-                                    <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>✏️ Değiştir</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <View>
-                                <Text style={{ color: colors.textMuted, fontSize:11 }}>Rakibinizin önerisi:</Text>
-                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
-                                    {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
-                                </Text>
-                                <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
-                                    <TouchableOpacity
-                                        style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50', alignItems:'center' }}
-                                        onPress={acceptProposal} disabled={propAccepting}>
-                                        <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{propAccepting ? '...' : '✅ Kabul Et'}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={{ flex:1, backgroundColor:'#f59e0b15', borderRadius:8, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b40', alignItems:'center' }}
-                                        onPress={() => setShowScheduleForm(v => !v)}>
-                                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Farklı Öner</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        )
-                    ) : (
-                        <TouchableOpacity
-                            style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:8, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}
-                            onPress={() => setShowScheduleForm(v => !v)}>
-                            <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Tarih/Saat/Yer Öner</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {showScheduleForm && (
-                        <View style={{ marginTop:10, gap:8 }}>
-                            <TouchableOpacity
-                                style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propDate ? '#f59e0b60' : colors.border }}
-                                onPress={() => setShowPropDatePicker(true)}>
-                                <Text style={{ color: propDate ? '#fff' : colors.textMuted, fontSize:13 }}>
-                                    {propDate ? `📅 ${String(propDate.getDate()).padStart(2,'0')}/${String(propDate.getMonth()+1).padStart(2,'0')}/${propDate.getFullYear()}` : '📅 Tarih Seç'}
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propTime ? '#f59e0b60' : colors.border }}
-                                onPress={() => setShowPropTimePicker(true)}>
-                                <Text style={{ color: propTime ? '#fff' : colors.textMuted, fontSize:13 }}>
-                                    {propTime ? `🕐 ${propTime}` : '🕐 Saat Seç'}
-                                </Text>
-                            </TouchableOpacity>
-                            {/* Court search */}
-                            {propSelectedCourt ? (
-                                <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#16a34a15', borderRadius:8, padding:10, borderWidth:1, borderColor:'#16a34a50', gap:8 }}>
-                                    <Text style={{ color:'#4ade80', fontSize:13, flex:1 }} numberOfLines={1}>🏟️ {propSelectedCourt.name}{propSelectedCourt.city ? `  · ${propSelectedCourt.city}` : ''}</Text>
-                                    <TouchableOpacity onPress={clearPropCourt}><Text style={{ color: colors.textMuted, fontSize:14 }}>✕</Text></TouchableOpacity>
-                                </View>
-                            ) : (
-                                <TextInput
-                                    style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propCourtText ? '#f59e0b60' : colors.border, color:'#fff', fontSize:13 }}
-                                    placeholder="🔍 Kort Ara (isteğe bağlı)"
-                                    placeholderTextColor={colors.textMuted}
-                                    value={propCourtText}
-                                    onChangeText={searchPropCourts}
-                                />
-                            )}
-                            {propCourtSearching && <ActivityIndicator size="small" color={cfg.color} style={{ marginTop:4 }} />}
-                            {propCourtResults.length > 0 && (
-                                <View style={{ backgroundColor: colors.surface2, borderRadius:8, marginTop:4, borderWidth:1, borderColor: colors.border }}>
-                                    {propCourtResults.map((court, i) => (
-                                        <TouchableOpacity key={court.id}
-                                            style={{ padding:10, borderBottomWidth: i < propCourtResults.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}
-                                            onPress={() => selectPropCourt(court)}>
-                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{court.name}</Text>
-                                            {court.city && <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>{court.city}</Text>}
-                                        </TouchableOpacity>
-                                    ))}
-                                    <TouchableOpacity
-                                        style={{ padding:10, borderTopWidth:1, borderTopColor: colors.border + '40' }}
-                                        onPress={() => { setPropCourtResults([]); setPropShowManual(true); }}>
-                                        <Text style={{ color:'#f59e0b', fontSize:12 }}>+ "{propCourtText}" olarak ekle → admin onayına gider</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                            {!propSelectedCourt && !propCourtSearching && propCourtText.length >= 2 && propCourtResults.length === 0 && !propShowManual && (
-                                <TouchableOpacity style={{ marginTop:4, paddingVertical:6, paddingHorizontal:2 }} onPress={() => setPropShowManual(true)}>
-                                    <Text style={{ color:'#f59e0b', fontSize:12 }}>+ Kort bulunamadı — manuel ekle (onay bekler)</Text>
-                                </TouchableOpacity>
-                            )}
-                            {propShowManual && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:4, borderWidth:1, borderColor:'#f59e0b40', gap:6 }}>
-                                    <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⚠️ Admin onayına gönderilecek</Text>
-                                    <TextInput
-                                        style={{ backgroundColor: colors.surface2, borderRadius:6, padding:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
-                                        placeholder="Kort / Tesis Adı"
-                                        placeholderTextColor={colors.textMuted}
-                                        value={propManualName}
-                                        onChangeText={setPropManualName}
-                                    />
-                                    <TextInput
-                                        style={{ backgroundColor: colors.surface2, borderRadius:6, padding:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
-                                        placeholder="İl / Adres"
-                                        placeholderTextColor={colors.textMuted}
-                                        value={propManualCity}
-                                        onChangeText={setPropManualCity}
-                                    />
-                                    <TouchableOpacity onPress={() => setPropShowManual(false)} style={{ alignSelf:'flex-start' }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>✕ İptal</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                            <TouchableOpacity
-                                style={{ backgroundColor:'#f59e0b30', borderRadius:8, paddingVertical:9, borderWidth:1, borderColor:'#f59e0b60', alignItems:'center' }}
-                                onPress={submitProposal} disabled={propSubmitting}>
-                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{propSubmitting ? '...' : '📤 Öneriyi Gönder'}</Text>
-                            </TouchableOpacity>
-                            <CustomCalendarPicker
-                                visible={showPropDatePicker}
-                                value={propDate}
-                                onSelect={(d) => { setPropDate(d); setShowPropDatePicker(false); }}
-                                onClose={() => setShowPropDatePicker(false)}
-                            />
-                            <OptionPickerModal
-                                visible={showPropTimePicker}
-                                title="Saat Seç"
-                                options={TIME_OPTS.filter(o => o.value)}
-                                value={propTime}
-                                onSelect={(v) => { setPropTime(v); setShowPropTimePicker(false); }}
-                                onClose={() => setShowPropTimePicker(false)}
-                            />
-                        </View>
-                    )}
-                </View>
-            )}
-
-            {/* Existing score display */}
-            {hasScore && (
-                <View style={sc.box}>
-                    <View style={sc.headerRow}>
-                        <Text style={sc.colMe}>Sen</Text>
-                        <Text style={sc.colLabel}></Text>
-                        <Text style={sc.colOpp}>Rakip</Text>
-                    </View>
-                    {existingSets.map((row, i) => {
-                        const mySc  = isOwner ? row.sender : row.opponent;
-                        const oppSc = isOwner ? row.opponent : row.sender;
-                        return (
-                            <View key={i} style={sc.setRow}>
-                                <Text style={[sc.setScore, { color: mySc > oppSc ? '#4ade80' : mySc < oppSc ? '#f87171' : '#fff' }]}>{mySc}</Text>
-                                <Text style={sc.colLabel}>Set {i + 1}</Text>
-                                <Text style={[sc.setScore, { color: oppSc > mySc ? '#4ade80' : oppSc < mySc ? '#f87171' : '#fff' }]}>{oppSc}</Text>
-                            </View>
-                        );
-                    })}
-                    <View style={sc.divider} />
-                    <View style={sc.totalRow}>
-                        <Text style={sc.totalScore}>{dispMyTotal}</Text>
-                        <Text style={sc.totalLabel}>{t.totalScore}</Text>
-                        <Text style={sc.totalScore}>{dispOppTotal}</Text>
-                    </View>
-                    <View style={sc.winnerRow}>
-                        <Text style={[sc.winnerText, { color: dispDraw ? '#facc15' : dispIWin ? '#4ade80' : '#f87171' }]}>
-                            {dispDraw ? t.drawResult : dispIWin ? t.winnerMe : t.winnerOpp}
+        {/* Full-screen Detail Modal */}
+        <Modal visible={showDetail} animationType="slide" onRequestClose={() => setShowDetail(false)}>
+            <View style={{ flex:1, backgroundColor: colors.bg }}>
+                {/* Header */}
+                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:12,
+                    paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:14,
+                    borderBottomWidth:1, borderBottomColor: colors.border }}>
+                    <TouchableOpacity onPress={() => setShowDetail(false)} style={{ marginRight:14, padding:4 }}>
+                        <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
+                    </TouchableOpacity>
+                    <View style={{ flex:1 }}>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{match.subCategory}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                            {allPlayers.filter(p => !p._emptySlot).map(p => senderAlias(p)).join(' · ')}
                         </Text>
                     </View>
-                    {match.scoreStatus === 'CONFIRMED' ? (
-                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', textAlign:'center', marginTop:8 }}>{t.confirmedScore}</Text>
-                    ) : match.scoreEnteredBy !== myId ? (
-                        <TouchableOpacity style={[s.joinBtn, { marginTop:8 }]} onPress={confirmScore}>
-                            <Text style={s.joinBtnText}>{t.confirmScoreBtn}</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <Text style={{ color: colors.textMuted, fontSize:11, textAlign:'center', marginTop:8 }}>{t.waitingConfirm}</Text>
-                    )}
                 </View>
-            )}
 
-            {/* Score entry form */}
-            {showScore && !hasScore && (
-                <View style={sc.box}>
-                    <View style={sc.headerRow}>
-                        <Text style={sc.colMe}>Sen</Text>
-                        <Text style={sc.colLabel}></Text>
-                        <Text style={sc.colOpp}>Rakip</Text>
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:12, paddingBottom:24 }}
+                    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+                    {/* Match info box */}
+                    <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:12, borderWidth:1, borderColor: colors.border }}>
+                        <Text style={{ color: colors.textMuted, fontSize:13 }}>
+                            {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : t.unknownDate}
+                            {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
+                            {match.duration ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
+                        </Text>
+                        {match.location && <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>📍 {match.location}</Text>}
+                        {match.courtName && (
+                            <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
+                                <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4, textDecorationLine:'underline' }}>🏟️ {match.courtName}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {match.level && (
+                            <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
+                                {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
+                            </Text>
+                        )}
                     </View>
-                    {sets.map((row, i) => (
-                        <View key={i} style={sc.setInputRow}>
-                            <TextInput
-                                style={sc.setInput}
-                                value={row.my}
-                                onChangeText={v => updateSet(i, 'my', v)}
-                                keyboardType="numeric"
-                                placeholder="0"
-                                placeholderTextColor={colors.textMuted}
-                                maxLength={2}
-                            />
-                            <Text style={sc.colLabel}>Set {i + 1}</Text>
-                            <TextInput
-                                style={sc.setInput}
-                                value={row.opp}
-                                onChangeText={v => updateSet(i, 'opp', v)}
-                                keyboardType="numeric"
-                                placeholder="0"
-                                placeholderTextColor={colors.textMuted}
-                                maxLength={2}
-                            />
-                            {sets.length > 1 && (
-                                <TouchableOpacity style={sc.removeBtn} onPress={() => removeSet(i)}>
-                                    <Text style={sc.removeTxt}>✕</Text>
+
+                    {/* DOUBLE team management */}
+                    {match.matchType === 'DOUBLE' && (() => {
+                        const partner = senderTeamArr[0] || null;
+                        const opp1 = participantsArr[0] || null;
+                        const opp2 = participantsArr[1] || null;
+                        const mkSlot = (slot, p, color) => {
+                            if (!p) return (
+                                <View key={slot} style={{ borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2, backgroundColor:'#1e293b' }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:10 }}>
+                                        {slot === 'partner' ? 'Partner bekleniyor' : slot === 'opp1' ? 'Rakip 1 bekleniyor' : 'Rakip 2 bekleniyor'}
+                                    </Text>
+                                </View>
+                            );
+                            const isSel = swapSlot === slot;
+                            const isTgt = !!swapSlot && swapSlot !== slot;
+                            return (
+                                <TouchableOpacity
+                                    key={slot}
+                                    onPress={() => isTgt && handleSwapTap(slot)}
+                                    onLongPress={() => !swapSlot && setSwapSlot(slot)}
+                                    delayLongPress={400}
+                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                                        borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2,
+                                        borderWidth: isSel || isTgt ? 1 : 0,
+                                        borderColor: isSel ? '#f59e0b' : '#a855f7',
+                                        backgroundColor: isSel ? '#f59e0b18' : isTgt ? '#a855f710' : '#1e293b' }}
+                                >
+                                    <Text style={{ color, fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                                        {senderAlias(p)}{isSel ? ' ✓' : isTgt ? ' ⇄' : ''}
+                                    </Text>
+                                    {!swapSlot && isOwner && (
+                                        <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))} style={{ marginLeft:4 }}>
+                                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        };
+                        return (
+                            <View style={{ marginBottom:12 }}>
+                                {swapSlot && (
+                                    <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:4, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                                        <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>Hedef slota dokun</Text>
+                                        <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
+                                    </View>
+                                )}
+                                <View style={{ flexDirection:'row', gap:4 }}>
+                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:5, borderWidth:1, borderColor:'#a855f720' }}>
+                                        <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>👑 Kurucu</Text>
+                                        <View style={{ borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2, backgroundColor:'#1e293b' }}>
+                                            <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1}>{senderAlias(match.sender)} 🔒</Text>
+                                        </View>
+                                        {mkSlot('partner', partner, '#c084fc')}
+                                    </View>
+                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:5, borderWidth:1, borderColor:'#f8717120' }}>
+                                        <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>⚔️ Rakip</Text>
+                                        {mkSlot('opp1', opp1, '#fca5a5')}
+                                        {mkSlot('opp2', opp2, '#fca5a5')}
+                                    </View>
+                                </View>
+                                {isOwner && (senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && (
+                                    <Text style={{ color:'#f59e0b40', fontSize:8, marginTop:3, textAlign:'center' }}>↕ oyuncu adına basılı tut → yer değiştir</Text>
+                                )}
+                            </View>
+                        );
+                    })()}
+
+                    {/* Non-DOUBLE: owner remove */}
+                    {isOwner && match.matchType !== 'DOUBLE' && participantsArr.length > 0 && (
+                        <View style={{ marginBottom:12, gap:4 }}>
+                            {participantsArr.map(p => (
+                                <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:6 }}>
+                                    <Text style={{ color:'#94a3b8', fontSize:13 }} numberOfLines={1}>{senderAlias(p)}</Text>
+                                    <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))}>
+                                        <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>Çıkar</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
+                    {/* Flexible schedule panel */}
+                    {match.flexibleSchedule && !match.matchDate && (
+                        <View style={{ backgroundColor:'#f59e0b10', borderRadius:10, padding:10, marginBottom:12, borderWidth:1, borderColor:'#f59e0b40' }}>
+                            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800' }}>📅 Tarih/Saat/Yer Belirle</Text>
+                                {match.schedulingDeadline && (
+                                    <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{getScheduleCountdown()}</Text>
+                                )}
+                            </View>
+                            {match.scheduleProposal ? (
+                                match.scheduleProposal.userId === myId ? (
+                                    <View>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Öneriniz bekleniyor:</Text>
+                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
+                                            {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
+                                        </Text>
+                                        <TouchableOpacity onPress={() => setShowScheduleForm(v => !v)} style={{ marginTop:6 }}>
+                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>✏️ Değiştir</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : (
+                                    <View>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Rakibinizin önerisi:</Text>
+                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
+                                            {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
+                                        </Text>
+                                        <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
+                                            <TouchableOpacity
+                                                style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50', alignItems:'center' }}
+                                                onPress={acceptProposal} disabled={propAccepting}>
+                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{propAccepting ? '...' : '✅ Kabul Et'}</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={{ flex:1, backgroundColor:'#f59e0b15', borderRadius:8, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b40', alignItems:'center' }}
+                                                onPress={() => setShowScheduleForm(v => !v)}>
+                                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Farklı Öner</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )
+                            ) : (
+                                <TouchableOpacity
+                                    style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:8, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}
+                                    onPress={() => setShowScheduleForm(v => !v)}>
+                                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Tarih/Saat/Yer Öner</Text>
                                 </TouchableOpacity>
                             )}
+                            {showScheduleForm && (
+                                <View style={{ marginTop:10, gap:8 }}>
+                                    <TouchableOpacity
+                                        style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propDate ? '#f59e0b60' : colors.border }}
+                                        onPress={() => setShowPropDatePicker(true)}>
+                                        <Text style={{ color: propDate ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                            {propDate ? `📅 ${String(propDate.getDate()).padStart(2,'0')}/${String(propDate.getMonth()+1).padStart(2,'0')}/${propDate.getFullYear()}` : '📅 Tarih Seç'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propTime ? '#f59e0b60' : colors.border }}
+                                        onPress={() => setShowPropTimePicker(true)}>
+                                        <Text style={{ color: propTime ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                            {propTime ? `🕐 ${propTime}` : '🕐 Saat Seç'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {/* Court search */}
+                                    {propSelectedCourt ? (
+                                        <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#16a34a15', borderRadius:8, padding:10, borderWidth:1, borderColor:'#16a34a50', gap:8 }}>
+                                            <Text style={{ color:'#4ade80', fontSize:13, flex:1 }} numberOfLines={1}>🏟️ {propSelectedCourt.name}{propSelectedCourt.city ? `  · ${propSelectedCourt.city}` : ''}</Text>
+                                            <TouchableOpacity onPress={clearPropCourt}><Text style={{ color: colors.textMuted, fontSize:14 }}>✕</Text></TouchableOpacity>
+                                        </View>
+                                    ) : (
+                                        <TextInput
+                                            style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propCourtText ? '#f59e0b60' : colors.border, color:'#fff', fontSize:13 }}
+                                            placeholder="🔍 Kort Ara (isteğe bağlı)"
+                                            placeholderTextColor={colors.textMuted}
+                                            value={propCourtText}
+                                            onChangeText={searchPropCourts}
+                                        />
+                                    )}
+                                    {propCourtSearching && <ActivityIndicator size="small" color={cfg.color} style={{ marginTop:4 }} />}
+                                    {propCourtResults.length > 0 && (
+                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, marginTop:4, borderWidth:1, borderColor: colors.border }}>
+                                            {propCourtResults.map((court, i) => (
+                                                <TouchableOpacity key={court.id}
+                                                    style={{ padding:10, borderBottomWidth: i < propCourtResults.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}
+                                                    onPress={() => selectPropCourt(court)}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{court.name}</Text>
+                                                    {court.city && <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>{court.city}</Text>}
+                                                </TouchableOpacity>
+                                            ))}
+                                            <TouchableOpacity
+                                                style={{ padding:10, borderTopWidth:1, borderTopColor: colors.border + '40' }}
+                                                onPress={() => { setPropCourtResults([]); setPropShowManual(true); }}>
+                                                <Text style={{ color:'#f59e0b', fontSize:12 }}>+ "{propCourtText}" olarak ekle → admin onayına gider</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                    {!propSelectedCourt && !propCourtSearching && propCourtText.length >= 2 && propCourtResults.length === 0 && !propShowManual && (
+                                        <TouchableOpacity style={{ marginTop:4, paddingVertical:6, paddingHorizontal:2 }} onPress={() => setPropShowManual(true)}>
+                                            <Text style={{ color:'#f59e0b', fontSize:12 }}>+ Kort bulunamadı — manuel ekle (onay bekler)</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {propShowManual && (
+                                        <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:4, borderWidth:1, borderColor:'#f59e0b40', gap:6 }}>
+                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⚠️ Admin onayına gönderilecek</Text>
+                                            <TextInput
+                                                style={{ backgroundColor: colors.surface2, borderRadius:6, padding:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
+                                                placeholder="Kort / Tesis Adı"
+                                                placeholderTextColor={colors.textMuted}
+                                                value={propManualName}
+                                                onChangeText={setPropManualName}
+                                            />
+                                            <TextInput
+                                                style={{ backgroundColor: colors.surface2, borderRadius:6, padding:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
+                                                placeholder="İl / Adres"
+                                                placeholderTextColor={colors.textMuted}
+                                                value={propManualCity}
+                                                onChangeText={setPropManualCity}
+                                            />
+                                            <TouchableOpacity onPress={() => setPropShowManual(false)} style={{ alignSelf:'flex-start' }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>✕ İptal</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                    <TouchableOpacity
+                                        style={{ backgroundColor:'#f59e0b30', borderRadius:8, paddingVertical:9, borderWidth:1, borderColor:'#f59e0b60', alignItems:'center' }}
+                                        onPress={submitProposal} disabled={propSubmitting}>
+                                        <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{propSubmitting ? '...' : '📤 Öneriyi Gönder'}</Text>
+                                    </TouchableOpacity>
+                                    <CustomCalendarPicker
+                                        visible={showPropDatePicker}
+                                        value={propDate}
+                                        onSelect={(d) => { setPropDate(d); setShowPropDatePicker(false); }}
+                                        onClose={() => setShowPropDatePicker(false)}
+                                    />
+                                    <OptionPickerModal
+                                        visible={showPropTimePicker}
+                                        title="Saat Seç"
+                                        options={TIME_OPTS.filter(o => o.value)}
+                                        value={propTime}
+                                        onSelect={(v) => { setPropTime(v); setShowPropTimePicker(false); }}
+                                        onClose={() => setShowPropTimePicker(false)}
+                                    />
+                                </View>
+                            )}
                         </View>
-                    ))}
-                    <TouchableOpacity style={sc.addBtn} onPress={addSet}>
-                        <Text style={sc.addBtnTxt}>+ {t.addSet}</Text>
-                    </TouchableOpacity>
-                    {hasAnyInput && (
-                        <>
+                    )}
+
+                    {/* Existing score display */}
+                    {hasScore && (
+                        <View style={sc.box}>
+                            <View style={sc.headerRow}>
+                                <Text style={sc.colMe}>Sen</Text>
+                                <Text style={sc.colLabel}></Text>
+                                <Text style={sc.colOpp}>Rakip</Text>
+                            </View>
+                            {existingSets.map((row, i) => {
+                                const mySc  = isOwner ? row.sender : row.opponent;
+                                const oppSc = isOwner ? row.opponent : row.sender;
+                                return (
+                                    <View key={i} style={sc.setRow}>
+                                        <Text style={[sc.setScore, { color: mySc > oppSc ? '#4ade80' : mySc < oppSc ? '#f87171' : '#fff' }]}>{mySc}</Text>
+                                        <Text style={sc.colLabel}>Set {i + 1}</Text>
+                                        <Text style={[sc.setScore, { color: oppSc > mySc ? '#4ade80' : oppSc < mySc ? '#f87171' : '#fff' }]}>{oppSc}</Text>
+                                    </View>
+                                );
+                            })}
                             <View style={sc.divider} />
                             <View style={sc.totalRow}>
-                                <Text style={sc.totalScore}>{mySetWins}</Text>
+                                <Text style={sc.totalScore}>{dispMyTotal}</Text>
                                 <Text style={sc.totalLabel}>{t.totalScore}</Text>
-                                <Text style={sc.totalScore}>{oppSetWins}</Text>
+                                <Text style={sc.totalScore}>{dispOppTotal}</Text>
                             </View>
                             <View style={sc.winnerRow}>
-                                <Text style={[sc.winnerText, { color: autoWinner === 'draw' ? '#facc15' : iWin ? '#4ade80' : '#f87171' }]}>
-                                    {autoWinner === 'draw' ? t.drawResult : iWin ? t.winnerMe : t.winnerOpp}
+                                <Text style={[sc.winnerText, { color: dispDraw ? '#facc15' : dispIWin ? '#4ade80' : '#f87171' }]}>
+                                    {dispDraw ? t.drawResult : dispIWin ? t.winnerMe : t.winnerOpp}
                                 </Text>
                             </View>
-                        </>
+                            {match.scoreStatus === 'CONFIRMED' ? (
+                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', textAlign:'center', marginTop:8 }}>{t.confirmedScore}</Text>
+                            ) : match.scoreEnteredBy !== myId ? (
+                                <TouchableOpacity style={[s.joinBtn, { marginTop:8 }]} onPress={confirmScore}>
+                                    <Text style={s.joinBtnText}>{t.confirmScoreBtn}</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <Text style={{ color: colors.textMuted, fontSize:11, textAlign:'center', marginTop:8 }}>{t.waitingConfirm}</Text>
+                            )}
+                        </View>
                     )}
-                    <TouchableOpacity
-                        style={[s.joinBtn, { marginTop:10 }, submitting && { opacity:0.6 }]}
-                        onPress={submitScore}
-                        disabled={submitting}
-                    >
-                        <Text style={s.joinBtnText}>{submitting ? t.sending : t.sendScore}</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
 
+                    {/* Score entry form */}
+                    {showScore && !hasScore && (
+                        <View style={sc.box}>
+                            <View style={sc.headerRow}>
+                                <Text style={sc.colMe}>Sen</Text>
+                                <Text style={sc.colLabel}></Text>
+                                <Text style={sc.colOpp}>Rakip</Text>
+                            </View>
+                            {sets.map((row, i) => (
+                                <View key={i} style={sc.setInputRow}>
+                                    <TextInput
+                                        style={sc.setInput}
+                                        value={row.my}
+                                        onChangeText={v => updateSet(i, 'my', v)}
+                                        keyboardType="numeric"
+                                        placeholder="0"
+                                        placeholderTextColor={colors.textMuted}
+                                        maxLength={2}
+                                    />
+                                    <Text style={sc.colLabel}>Set {i + 1}</Text>
+                                    <TextInput
+                                        style={sc.setInput}
+                                        value={row.opp}
+                                        onChangeText={v => updateSet(i, 'opp', v)}
+                                        keyboardType="numeric"
+                                        placeholder="0"
+                                        placeholderTextColor={colors.textMuted}
+                                        maxLength={2}
+                                    />
+                                    {sets.length > 1 && (
+                                        <TouchableOpacity style={sc.removeBtn} onPress={() => removeSet(i)}>
+                                            <Text style={sc.removeTxt}>✕</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            ))}
+                            <TouchableOpacity style={sc.addBtn} onPress={addSet}>
+                                <Text style={sc.addBtnTxt}>+ {t.addSet}</Text>
+                            </TouchableOpacity>
+                            {hasAnyInput && (
+                                <>
+                                    <View style={sc.divider} />
+                                    <View style={sc.totalRow}>
+                                        <Text style={sc.totalScore}>{mySetWins}</Text>
+                                        <Text style={sc.totalLabel}>{t.totalScore}</Text>
+                                        <Text style={sc.totalScore}>{oppSetWins}</Text>
+                                    </View>
+                                    <View style={sc.winnerRow}>
+                                        <Text style={[sc.winnerText, { color: autoWinner === 'draw' ? '#facc15' : iWin ? '#4ade80' : '#f87171' }]}>
+                                            {autoWinner === 'draw' ? t.drawResult : iWin ? t.winnerMe : t.winnerOpp}
+                                        </Text>
+                                    </View>
+                                </>
+                            )}
+                            <TouchableOpacity
+                                style={[s.joinBtn, { marginTop:10 }, submitting && { opacity:0.6 }]}
+                                onPress={submitScore}
+                                disabled={submitting}
+                            >
+                                <Text style={s.joinBtnText}>{submitting ? t.sending : t.sendScore}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
 
-            {/* Opponent requested mutual cancel — banner (only relevant within penalty window) */}
-            {withinPenaltyWindow && otherRequestedMutual && !iAlreadyRequestedMutual && (
-                <TouchableOpacity
-                    style={{ backgroundColor:'#eab30820', borderRadius:10, padding:10, marginTop:6, borderWidth:1, borderColor:'#eab30840' }}
-                    onPress={() => handleMutualCancelPress(true)}
-                >
-                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.mutualCancelOtherRequested}</Text>
-                </TouchableOpacity>
-            )}
+                    {/* Lock message */}
+                    {!hasScore && !scoreUnlocked && matchEnd && (
+                        <Text style={sc.lockedTxt}>{t.matchNotStarted}</Text>
+                    )}
 
-            {/* Lock message */}
-            {!hasScore && !scoreUnlocked && matchEnd && (
-                <Text style={sc.lockedTxt}>{t.matchNotStarted}</Text>
-            )}
+                    {/* Mutual cancel banner */}
+                    {withinPenaltyWindow && otherRequestedMutual && !iAlreadyRequestedMutual && (
+                        <TouchableOpacity
+                            style={{ backgroundColor:'#eab30820', borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor:'#eab30840' }}
+                            onPress={() => handleMutualCancelPress(true)}
+                        >
+                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.mutualCancelOtherRequested}</Text>
+                        </TouchableOpacity>
+                    )}
 
-            {/* Skor Giremiyoruz Modal */}
+                    {/* Action buttons */}
+                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:8, marginBottom:20 }}>
+                        {!hasScore && scoreUnlocked && (
+                            <>
+                                <TouchableOpacity
+                                    style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', flex:1, alignItems:'center' }}
+                                    onPress={() => setShowScore(v => !v)}>
+                                    <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262615', flex:1, alignItems:'center' }}
+                                    onPress={() => setShowCantScore(true)}>
+                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                        {match.scoreStatus !== 'CONFIRMED' && (
+                            <>
+                                {withinPenaltyWindow && !iAlreadyRequestedMutual && (
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#2563eb50', backgroundColor:'#2563eb18', alignItems:'center' }}
+                                        onPress={() => handleMutualCancelPress(false)} disabled={cancelling}>
+                                        <Text style={{ color:'#60a5fa', fontSize:13, fontWeight:'700' }}>🤝 Karşılıklı</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {withinPenaltyWindow && iAlreadyRequestedMutual && (
+                                    <View style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#2563eb30', backgroundColor:'#2563eb10', alignItems:'center' }}>
+                                        <Text style={{ color:'#60a5fa', fontSize:13 }}>⏳ İstendi</Text>
+                                    </View>
+                                )}
+                                <TouchableOpacity
+                                    style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
+                                    onPress={handleCancelPress} disabled={cancelling}>
+                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                        {canReportNoShow && (
+                            <TouchableOpacity
+                                style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#f9731650', backgroundColor:'#f9731618', alignItems:'center' }}
+                                onPress={() => { setNoShowAbsent([]); setNoShowPhoto(null); setShowNoShow(true); }}>
+                                <Text style={{ color:'#fb923c', fontSize:13, fontWeight:'700' }}>🚫 Gelmedi</Text>
+                            </TouchableOpacity>
+                        )}
+                        {match._myNoShowPending && (
+                            <View style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610', alignItems:'center' }}>
+                                <Text style={{ color:'#fb923c', fontSize:13 }}>⏳ Bildirildi</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Comments section */}
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>
+                        💬 Yorumlar{localComments.length > 0 ? ` (${localComments.length})` : ''}
+                    </Text>
+                    {loadingLocalComments ? (
+                        <ActivityIndicator color={cfg.color} style={{ marginVertical:16 }} />
+                    ) : localComments.length === 0 ? (
+                        <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz yorum yok.</Text>
+                    ) : (
+                        localComments.map(c => (
+                            <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>@{c.user?.username || '?'}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:10 }}>
+                                        {c.createdAt ? new Date(c.createdAt).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' }) : ''}
+                                    </Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
+                            </View>
+                        ))
+                    )}
+                </ScrollView>
+
+                {/* Comment input */}
+                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding' : undefined}>
+                    <View style={{ flexDirection:'row', gap:10, paddingHorizontal:12, paddingVertical:10,
+                        paddingBottom: Platform.OS==='ios' ? 28 : 10,
+                        borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
+                        <TextInput
+                            style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:12,
+                                paddingVertical:8, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
+                            placeholder="Yorum yaz..."
+                            placeholderTextColor={colors.textMuted}
+                            value={localCommentText}
+                            onChangeText={setLocalCommentText}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
+                                borderRadius:10, paddingHorizontal:14, justifyContent:'center', alignItems:'center' }}
+                            onPress={sendLocalComment}
+                            disabled={sendingLocalComment || !localCommentText.trim()}>
+                            <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
+
+        {/* Skor Giremiyoruz Modal */}
             <Modal visible={showCantScore} animationType="slide" transparent onRequestClose={() => { setShowCantScore(false); setAbandonReason(null); }}>
                 <View style={s.modalOverlay}>
                     <View style={[s.modalBox, { paddingBottom:40 }]}>
@@ -2928,7 +3036,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 </View>
             </Modal>
 
-        </View>
+        </>
     );
 }
 
