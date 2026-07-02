@@ -46,26 +46,29 @@ const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
 export const sendOtp = async (req, res, next) => {
     try {
-        const { method, value, username, email, phone } = req.body;
+        const { method, value, username, email, phone, isBusiness } = req.body;
         if (!method || !value) return res.status(400).json({ message: 'method ve value gerekli' });
 
-        // Early duplicate check for username + both contacts
-        const orConditions = [];
-        if (username) orConditions.push({ username });
-        if (email) orConditions.push({ email });
-        if (phone) orConditions.push({ phone });
-        // also check the OTP target itself
-        if (method === 'email' && !email) orConditions.push({ email: value });
-        if (method === 'phone' && !phone) orConditions.push({ phone: value });
+        const isBusinessBool = isBusiness === true || isBusiness === 'true';
 
-        if (orConditions.length > 0) {
-            const existing = await prisma.user.findFirst({ where: { OR: orConditions } });
-            if (existing) {
-                if (existing.username === username) return res.status(409).json({ message: 'Bu kullanıcı adı zaten kullanılıyor' });
-                if (existing.email && existing.email === email) return res.status(409).json({ message: 'Bu e-posta zaten kayıtlı' });
-                if (existing.phone && existing.phone === phone) return res.status(409).json({ message: 'Bu telefon numarası zaten kayıtlı' });
-                return res.status(409).json({ message: 'Bu bilgiler zaten kayıtlı' });
-            }
+        // Kullanıcı adı kontrolü (tüm hesaplar genelinde)
+        if (username) {
+            const existingByUsername = await prisma.user.findFirst({ where: { username } });
+            if (existingByUsername) return res.status(409).json({ message: 'Bu kullanıcı adı zaten kullanılıyor' });
+        }
+
+        // E-posta kontrolü: aynı tür (işletme/normal) içinde unique olmalı
+        const emailToCheck = email || (method === 'email' ? value : null);
+        if (emailToCheck) {
+            const existingByEmail = await prisma.user.findFirst({ where: { email: emailToCheck, isBusiness: isBusinessBool } });
+            if (existingByEmail) return res.status(409).json({ message: 'Bu e-posta zaten kayıtlı' });
+        }
+
+        // Telefon kontrolü (tüm hesaplar genelinde)
+        const phoneToCheck = phone || (method === 'phone' ? value : null);
+        if (phoneToCheck) {
+            const existingByPhone = await prisma.user.findFirst({ where: { phone: phoneToCheck } });
+            if (existingByPhone) return res.status(409).json({ message: 'Bu telefon numarası zaten kayıtlı' });
         }
 
         const code = generateOtp();
@@ -142,9 +145,10 @@ export const register = async (req, res, next) => {
             return res.status(400).json({ message: 'Doğrulama tamamlanmadı' });
         }
 
-        // Check duplicates
+        // Check duplicates — e-posta kontrolü aynı hesap türü içinde yapılır
+        const isBusinessBool = isBusiness === true || isBusiness === 'true';
         const orConditions = [{ username }];
-        if (email) orConditions.push({ email });
+        if (email) orConditions.push({ email, isBusiness: isBusinessBool });
         if (phone) orConditions.push({ phone });
 
         const existing = await prisma.user.findFirst({ where: { OR: orConditions } });
@@ -188,8 +192,9 @@ export const register = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
     try {
-        const { email, password } = req.body;
-        const user = await prisma.user.findUnique({ where: { email } });
+        const { email, password, isBusiness } = req.body;
+        const isBusinessBool = isBusiness === true || isBusiness === 'true';
+        const user = await prisma.user.findFirst({ where: { email, isBusiness: isBusinessBool } });
 
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ message: 'Geçersiz kimlik bilgileri' });
@@ -208,7 +213,7 @@ export const forgotPassword = async (req, res, next) => {
         const { email } = req.body;
         if (!email) return res.status(400).json({ message: 'E-posta gerekli' });
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findFirst({ where: { email, isBusiness: false } });
         if (!user) return res.status(404).json({ message: 'Bu e-posta ile kayıtlı hesap bulunamadı' });
 
         const code = generateOtp();
@@ -246,8 +251,10 @@ export const resetPassword = async (req, res, next) => {
         if (!entry || Date.now() > entry.expiresAt) return res.status(400).json({ message: 'OTP süresi dolmuş, yeniden gönder' });
         if (entry.code !== String(code)) return res.status(400).json({ message: 'Yanlış doğrulama kodu' });
 
+        const targetUser = await prisma.user.findFirst({ where: { email, isBusiness: false } });
+        if (!targetUser) return res.status(404).json({ message: 'Hesap bulunamadı' });
         const hashedPassword = await bcrypt.hash(newPassword, 12);
-        await prisma.user.update({ where: { email }, data: { password: hashedPassword } });
+        await prisma.user.update({ where: { id: targetUser.id }, data: { password: hashedPassword } });
         otpStore.delete(key);
 
         res.json({ message: 'Şifre başarıyla güncellendi' });
