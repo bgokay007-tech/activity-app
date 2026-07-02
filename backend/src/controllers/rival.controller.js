@@ -206,6 +206,80 @@ function getRequired(request) {
     return REQUIRED_PARTICIPANTS[request.matchType] || 1;
 }
 
+export const swapMatchPositions = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { slot1, slot2 } = req.body; // 'partner' | 'opp1' | 'opp2'
+
+        const VALID = ['partner', 'opp1', 'opp2'];
+        if (!VALID.includes(slot1) || !VALID.includes(slot2) || slot1 === slot2)
+            return res.status(400).json({ message: 'Geçersiz slot' });
+
+        const rival = await prisma.activityRequest.findUnique({
+            where: { id },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi pozisyon değiştirebilir' });
+
+        const senderTeam   = Array.isArray(rival.senderTeam)  ? [...rival.senderTeam]  : [];
+        const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
+
+        const getP = (slot) => {
+            if (slot === 'partner') return senderTeam[0];
+            if (slot === 'opp1')   return participants[0];
+            if (slot === 'opp2')   return participants[1];
+        };
+
+        const p1 = getP(slot1);
+        const p2 = getP(slot2);
+        if (!p1 || !p2) return res.status(400).json({ message: 'Boş slot taşınamaz' });
+
+        // Swap içinde yeni pozisyonları hesapla
+        const newPartner = slot1 === 'partner' ? p2 : slot2 === 'partner' ? p1 : getP('partner');
+        const newOpp1    = slot1 === 'opp1'    ? p2 : slot2 === 'opp1'    ? p1 : getP('opp1');
+        const newOpp2    = slot1 === 'opp2'    ? p2 : slot2 === 'opp2'    ? p1 : getP('opp2');
+
+        // Cinsiyet kısıtı doğrula
+        const checkGender = async (userId, gReq, slotLabel) => {
+            if (!userId || !gReq || gReq === 'MIX') return;
+            const u = await prisma.user.findUnique({ where: { id: userId }, select: { gender: true } });
+            if (u?.gender && u.gender !== 'OTHER' && u.gender !== gReq) {
+                const label = gReq === 'MALE' ? 'erkek' : 'kadın';
+                throw Object.assign(new Error(`${slotLabel} slotu yalnızca ${label} oyuncuları kabul ediyor`), { status: 400 });
+            }
+        };
+        await checkGender(newPartner?.id, rival.partnerGenderReq, 'Takım Arkadaşı');
+        await checkGender(newOpp1?.id,    rival.opp1GenderReq,    'Rakip 1');
+        await checkGender(newOpp2?.id,    rival.opp2GenderReq,    'Rakip 2');
+
+        const newSenderTeam   = newPartner ? [newPartner] : [];
+        const newParticipants = [newOpp1, newOpp2].filter(Boolean);
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: { senderTeam: newSenderTeam, participants: newParticipants },
+            include: {
+                sender: { select: SENDER_SELECT },
+                joinRequests: {
+                    where: { status: 'PENDING' },
+                    include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } },
+                },
+            },
+        });
+
+        emitToUser(req.userId, 'rivalUpdate', updated);
+        [...newParticipants, ...newSenderTeam].forEach(p => {
+            if (p?.id && p.id !== req.userId) emitToUser(p.id, 'rivalUpdate', updated);
+        });
+
+        res.json(updated);
+    } catch (error) {
+        if (error.status === 400) return res.status(400).json({ message: error.message });
+        next(error);
+    }
+};
+
 export const getRivalById = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -819,9 +893,8 @@ export const respondToJoin = async (req, res, next) => {
         const responder = joinReq.initiatedBy === 'OWNER' ? joinReq.userId : joinReq.rival.senderId;
         if (responder !== req.userId) return res.status(403).json({ message: 'Forbidden' });
 
-        await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: action === 'accept' ? 'ACCEPTED' : 'REJECTED' } });
-
         if (action !== 'accept') {
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
             // Reddedildiğini diğer tarafa bildir — katıl/davet butonu geri açılsın
             const notifyTargetId = joinReq.initiatedBy === 'OWNER' ? joinReq.rival.senderId : joinReq.userId;
             emitToUser(notifyTargetId, 'joinRejected', { rivalId: joinReq.rivalId });
@@ -830,6 +903,16 @@ export const respondToJoin = async (req, res, next) => {
 
         // Partner daveti kabul: senderTeam'e ekle, participants'a değil
         if (joinReq.isPartnerInvite) {
+            // Partner cinsiyet kontrolü
+            const pGenderReq = joinReq.rival.partnerGenderReq;
+            if (pGenderReq && pGenderReq !== 'MIX') {
+                const pUser = await prisma.user.findUnique({ where: { id: joinReq.userId }, select: { gender: true } });
+                if (pUser?.gender && pUser.gender !== 'OTHER' && pUser.gender !== pGenderReq) {
+                    const label = pGenderReq === 'MALE' ? 'erkek' : 'kadın';
+                    return res.status(400).json({ message: `Takım Arkadaşı slotu için bu ilan yalnızca ${label} oyuncular kabul ediyor.` });
+                }
+            }
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
             const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
@@ -901,37 +984,81 @@ export const respondToJoin = async (req, res, next) => {
             select: { alias: true },
         });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const countFilled = (arr) => arr.filter(p => p && p.id).length;
+        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null };
 
-        // DOUBLE cinsiyet kısıtlaması: onay anında doğrula
+        let updatedParticipants;
+
         if (rival.matchType === 'DOUBLE') {
-            const playersToCheck = isTeamJoin
-                ? joiningTeam
-                : partnerJoinReqToAccept
-                    ? [{ id: joinReq.userId }, { id: partnerJoinReqToAccept.userId }]
-                    : [{ id: joinReq.userId }];
-            const genderSlots = [rival.opp1GenderReq, rival.opp2GenderReq];
-            for (let i = 0; i < playersToCheck.length; i++) {
-                const gReq = genderSlots[i];
-                if (!gReq || gReq === 'MIX') continue;
-                const gUser = await prisma.user.findUnique({ where: { id: playersToCheck[i].id }, select: { gender: true } });
-                if (gUser?.gender && gUser.gender !== 'OTHER' && gUser.gender !== gReq) {
-                    const label = gReq === 'MALE' ? 'erkek' : 'kadın';
-                    return res.status(400).json({ message: `${i === 0 ? 'Rakip 1' : 'Rakip 2'} slotu için bu ilan yalnızca ${label} oyuncular kabul ediyor.` });
+            const opp1Req = rival.opp1GenderReq || 'MIX';
+            const opp2Req = rival.opp2GenderReq || 'MIX';
+            const genderFits = (userId, gReq) => {
+                if (!gReq || gReq === 'MIX') return true;
+                // sync gender lookup done below per player
+                return null; // placeholder — resolved async per player
+            };
+
+            if (isTeamJoin || partnerJoinReqToAccept) {
+                // Takım kabul: sıralı slot kontrolü (opp1 için ilk oyuncu, opp2 için ikinci)
+                const playersToCheck = isTeamJoin
+                    ? joiningTeam
+                    : [{ id: joinReq.userId }, { id: partnerJoinReqToAccept.userId }];
+                const genderSlots = [opp1Req, opp2Req];
+                for (let i = 0; i < playersToCheck.length; i++) {
+                    const gReq = genderSlots[i];
+                    if (!gReq || gReq === 'MIX') continue;
+                    const gUser = await prisma.user.findUnique({ where: { id: playersToCheck[i].id }, select: { gender: true } });
+                    if (gUser?.gender && gUser.gender !== 'OTHER' && gUser.gender !== gReq) {
+                        const label = gReq === 'MALE' ? 'erkek' : 'kadın';
+                        return res.status(400).json({ message: `${i === 0 ? 'Rakip 1' : 'Rakip 2'} slotu için bu ilan yalnızca ${label} oyuncular kabul ediyor.` });
+                    }
                 }
+                if (countFilled(participants) > 0) {
+                    return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var. Takım eşleşmesini kabul etmeden önce onları çıkarın.' });
+                }
+                updatedParticipants = isTeamJoin ? joiningTeam : [joinerEntry, { id: partnerJoinReqToAccept.userId, username: partnerJoinReqToAccept.user.username, fullName: partnerJoinReqToAccept.user.fullName, avatar: partnerJoinReqToAccept.user.avatar }];
+            } else {
+                // Bireysel kabul: oyuncuyu cinsiyetine göre UYGUN slota ata (sıraya değil)
+                const gUser = await prisma.user.findUnique({ where: { id: u.id }, select: { gender: true } });
+                const pg = gUser?.gender;
+                const fits = (req) => !pg || pg === 'OTHER' || !req || req === 'MIX' || pg === req;
+
+                const opp1Filled = !!(participants[0] && participants[0].id);
+                const opp2Filled = !!(participants[1] && participants[1].id);
+
+                const newP = [participants[0] || null, participants[1] || null];
+
+                if (!opp1Filled && fits(opp1Req)) {
+                    newP[0] = joinerEntry; // opp1 boş ve uygun → opp1'e ata
+                } else if (!opp2Filled && fits(opp2Req)) {
+                    newP[1] = joinerEntry; // opp2 boş ve uygun → opp2'e ata
+                } else {
+                    // Hiçbir boş slota uymuyor
+                    if (!opp1Filled && !opp2Filled) {
+                        const req1label = opp1Req !== 'MIX' ? (opp1Req === 'MALE' ? 'erkek' : 'kadın') : null;
+                        const req2label = opp2Req !== 'MIX' ? (opp2Req === 'MALE' ? 'erkek' : 'kadın') : null;
+                        const details = [req1label && `Rakip 1: ${req1label}`, req2label && `Rakip 2: ${req2label}`].filter(Boolean).join(', ');
+                        return res.status(400).json({ message: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` });
+                    } else if (opp1Filled && !opp2Filled) {
+                        return res.status(400).json({ message: `Rakip 2 slotu için bu ilan yalnızca ${opp2Req === 'MALE' ? 'erkek' : 'kadın'} oyuncular kabul ediyor.` });
+                    } else {
+                        return res.status(400).json({ message: 'Tüm rakip slotları dolu.' });
+                    }
+                }
+                updatedParticipants = newP;
             }
+        } else {
+            if (isTeamJoin && countFilled(participants) > 0) {
+                return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var. Takım eşleşmesini kabul etmeden önce onları çıkarın.' });
+            }
+            updatedParticipants = isTeamJoin ? joiningTeam : [...participants, joinerEntry];
         }
 
-        // Bir takım (eşleşmiş çift) kabul edilirken, halihazırda kabul edilmiş bireysel
-        // katılımcılar varsa (eski model — senderTeam'siz ilanlar) bunları sessizce silme,
-        // hata döndür — kurucu önce o eski katılımcıları çıkarmalı/reddetmeli.
-        if (isTeamJoin && participants.length > 0) {
-            return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var. Takım eşleşmesini kabul etmeden önce onları çıkarın.' });
-        }
-        const updatedParticipants = isTeamJoin
-            ? joiningTeam  // full opponent team replaces participants
-            : [...participants, { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null }];
         const required = getRequired(rival);
-        const isFull = updatedParticipants.length >= required;
+        const isFull = countFilled(updatedParticipants) >= required;
+
+        // Tüm doğrulama geçtikten SONRA join request'i ACCEPTED yap
+        await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
 
         const updated = await prisma.activityRequest.update({
             where: { id: rival.id },
@@ -974,7 +1101,7 @@ export const respondToJoin = async (req, res, next) => {
         if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         // Also notify all participants of the match status
         if (isFull) {
-            updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
+            updatedParticipants.filter(p => p?.id).forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
         }
 
         res.json({

@@ -439,10 +439,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
         : (item.teamSize || 1);
     const senderSideCount = 1 + (Array.isArray(item.senderTeam) ? item.senderTeam.length : 0);
-    const filled = participants.length;
+    const filled = participants.filter(p => p && p.id).length;
     const mySentReq = item._myJoinStatus;
     const isFull = filled >= required;
-    const isParticipant = participants.some(p => p.id === myId);
+    const isParticipant = participants.some(p => p?.id === myId);
     const myInvite = joinRequests.find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
     const isInvolved = isOwner || isParticipant || (mySentReq !== null && mySentReq !== undefined);
     const participantIds = new Set([item.senderId, ...participants.map(p => p.id)]);
