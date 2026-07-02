@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
-    ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable,
+    ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable, KeyboardAvoidingView,
     Dimensions, Animated, Linking,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
