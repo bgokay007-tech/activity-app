@@ -7302,6 +7302,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
     const [matchedUpcoming, setMatchedUpcoming] = useState([]);
+    // Dakikada bir tick → zaman bazlı filtreler (matchHasEnded) yeniden hesaplanır
+    const [, setTimeTick] = useState(0);
     const [textPosts, setTextPosts] = useState([]);
     const [mediaPosts, setMediaPosts] = useState([]);
     const [mediaStories, setMediaStories] = useState([]);
@@ -8217,7 +8219,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         const offReconnect = onSocketReconnect(() => load());
         // Fallback: socket missed event → periyodik yenileme (30s)
         const pollInterval = setInterval(() => load(), 30000);
-        return () => { offUpdate(); offDeleted(); offReconnect(); clearInterval(pollInterval); };
+        // Dakikada bir tick → maç saati geçince yaklaşan→skor bekleniyor geçişini anlık yansıt
+        const tickInterval = setInterval(() => setTimeTick(n => n + 1), 60000);
+        return () => { offUpdate(); offDeleted(); offReconnect(); clearInterval(pollInterval); clearInterval(tickInterval); };
     }, [category, sub]);
 
     const handleNearMe = async () => {
