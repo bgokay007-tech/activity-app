@@ -8257,7 +8257,21 @@ export default function SubCategoryScreen({ route, navigation }) {
         return true;
     };
     const filteredRivals = rivals.filter(applyFilter);
-    const filteredMatchedUpcoming = matchedUpcoming.filter(applyFilter);
+
+    // Maç saati geçmiş MATCHED maçları yaklaşan listesinden çıkar, skor bekleniyor olarak göster
+    const matchHasEnded = (m) => {
+        if (!m.matchDate || !m.matchTime) return false;
+        const [h, min] = m.matchTime.split(':').map(Number);
+        const d = new Date(m.matchDate);
+        d.setHours(h, min, 0, 0);
+        return new Date() >= new Date(d.getTime() + (m.duration || 90) * 60 * 1000);
+    };
+    const allFiltered = matchedUpcoming.filter(applyFilter);
+    const filteredMatchedUpcoming = allFiltered.filter(m => !matchHasEnded(m));
+    const clientEndedMatches = allFiltered.filter(m => matchHasEnded(m));
+    // Birleştir: sunucudan gelen + client-side biten (id çakışmasını önle)
+    const pendingScoreIds = new Set(pendingScore.map(m => m.id));
+    const pendingScoreAll = [...pendingScore, ...clientEndedMatches.filter(m => !pendingScoreIds.has(m.id))];
 
     const filteredTournaments = tournaments.filter(tourn => {
         if (filterCity) {
@@ -8503,11 +8517,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                             )}
 
                             {/* Skor Bekleyen Maçlar */}
-                            {pendingScore.length > 0 && (
+                            {pendingScoreAll.length > 0 && (
                                 <>
                                     <Text style={[s.sectionTitle, { color: '#f97316' }]}>⏳ {t.pendingScoreTitle}</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
-                                        {pendingScore.map(m => (
+                                        {pendingScoreAll.map(m => (
                                             <View key={m.id} style={{ width:'48.5%' }}>
                                                 <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                             </View>
