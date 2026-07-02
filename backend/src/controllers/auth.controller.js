@@ -127,7 +127,7 @@ export const verifyOtp = async (req, res, next) => {
 
 export const register = async (req, res, next) => {
     try {
-        const { email, phone, username, password, fullName, gender, birthDate } = req.body;
+        const { email, phone, username, password, fullName, gender, birthDate, isBusiness } = req.body;
 
         if (!email && !phone) return res.status(400).json({ message: 'E-posta veya telefon gerekli' });
         if (!username || !password) return res.status(400).json({ message: 'Kullanıcı adı ve şifre gerekli' });
@@ -167,6 +167,7 @@ export const register = async (req, res, next) => {
                 birthDate: birthDate ? new Date(birthDate) : null,
                 country: country || null,
                 city: city || null,
+                isBusiness: isBusiness === true || isBusiness === 'true',
             },
             select: {
                 id: true, email: true, phone: true, username: true,

@@ -3565,48 +3565,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                             {/* 4 - Geri kalanlar sadece esnek program KAPALI ise */}
                             {!f.flexibleSchedule && (
                                 <>
-                                    {/* Tarih / Saat / Süre — yan yana */}
-                                    <Text style={s.fieldLabel}>{t.dateTimeLabel}</Text>
-                                    <View style={s.triRow}>
-                                        <TouchableOpacity style={[s.triBtn, f.matchDate && s.triBtnFilled]} onPress={() => set('showDatePicker', true)}>
-                                            <Text style={s.triLabel}>{t.dateLabel}</Text>
-                                            <Text style={[s.triValue, !f.matchDate && s.triPlaceholder]} numberOfLines={1}>
-                                                {f.matchDate ? `${String(f.matchDate.getDate()).padStart(2,'0')}/${String(f.matchDate.getMonth()+1).padStart(2,'0')}/${f.matchDate.getFullYear()}` : '—'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={[s.triBtn, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
-                                            <Text style={s.triLabel}>{t.timeLabel}</Text>
-                                            <Text style={[s.triValue, !f.matchTime && s.triPlaceholder]}>{f.matchTime || '—'}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={[s.triBtn, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
-                                            <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
-                                            <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    {/* Picker modalleri */}
-                                    <CustomCalendarPicker
-                                        visible={f.showDatePicker}
-                                        value={f.matchDate}
-                                        onSelect={(date) => setF(p => ({ ...p, matchDate: date, showDatePicker: false }))}
-                                        onClose={() => set('showDatePicker', false)}
-                                    />
-                                    <TimeGridModal
-                                        visible={f.showTimePicker}
-                                        title={t.selectTime}
-                                        value={f.matchTime}
-                                        onSelect={(v) => set('matchTime', v)}
-                                        onClose={() => set('showTimePicker', false)}
-                                    />
-                                    <OptionPickerModal
-                                        visible={f.showDurationPicker}
-                                        title={t.selectDuration}
-                                        options={DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` }))}
-                                        value={f.duration}
-                                        onSelect={(v) => set('duration', v)}
-                                        onClose={() => set('showDurationPicker', false)}
-                                    />
-
                                     {/* Kort Ara */}
                                     <Text style={s.fieldLabel}>{t.courtLabel}{!f.flexibleSchedule && !f.courtMutual ? ' *' : ''}</Text>
                                     {!f.courtMutual && <View style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
@@ -3709,6 +3667,48 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             />
                                         </View>
                                     )}
+
+                                    {/* Tarih / Saat / Süre — yan yana */}
+                                    <Text style={s.fieldLabel}>{t.dateTimeLabel}</Text>
+                                    <View style={s.triRow}>
+                                        <TouchableOpacity style={[s.triBtn, f.matchDate && s.triBtnFilled]} onPress={() => set('showDatePicker', true)}>
+                                            <Text style={s.triLabel}>{t.dateLabel}</Text>
+                                            <Text style={[s.triValue, !f.matchDate && s.triPlaceholder]} numberOfLines={1}>
+                                                {f.matchDate ? `${String(f.matchDate.getDate()).padStart(2,'0')}/${String(f.matchDate.getMonth()+1).padStart(2,'0')}/${f.matchDate.getFullYear()}` : '—'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[s.triBtn, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
+                                            <Text style={s.triLabel}>{t.timeLabel}</Text>
+                                            <Text style={[s.triValue, !f.matchTime && s.triPlaceholder]}>{f.matchTime || '—'}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[s.triBtn, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
+                                            <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
+                                            <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {/* Picker modalleri */}
+                                    <CustomCalendarPicker
+                                        visible={f.showDatePicker}
+                                        value={f.matchDate}
+                                        onSelect={(date) => setF(p => ({ ...p, matchDate: date, showDatePicker: false }))}
+                                        onClose={() => set('showDatePicker', false)}
+                                    />
+                                    <TimeGridModal
+                                        visible={f.showTimePicker}
+                                        title={t.selectTime}
+                                        value={f.matchTime}
+                                        onSelect={(v) => set('matchTime', v)}
+                                        onClose={() => set('showTimePicker', false)}
+                                    />
+                                    <OptionPickerModal
+                                        visible={f.showDurationPicker}
+                                        title={t.selectDuration}
+                                        options={DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` }))}
+                                        value={f.duration}
+                                        onSelect={(v) => set('duration', v)}
+                                        onClose={() => set('showDurationPicker', false)}
+                                    />
 
                                     {/* Kort Zemini */}
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>

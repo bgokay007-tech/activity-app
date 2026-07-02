@@ -208,6 +208,7 @@ export default function RegisterScreen({ navigation }) {
         fullName: '', username: '', email: '', phone: '',
         gender: '', bDay: '', bMonth: '', bYear: '',
         country: '', city: '', password: '',
+        isBusiness: false,
     });
     const [showPass, setShowPass] = useState(false);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -304,6 +305,7 @@ export default function RegisterScreen({ navigation }) {
                 birthDate,
                 country: form.country || undefined,
                 city: form.city.trim() || undefined,
+                isBusiness: form.isBusiness || undefined,
             });
             dispatch(setCredentials({ user: data.user, token: data.token }));
         } catch (e) {
@@ -483,6 +485,22 @@ export default function RegisterScreen({ navigation }) {
                         </Text>
                         <Text style={{ color: colors.textMuted, fontSize: 16 }}>▾</Text>
                     </TouchableOpacity>
+
+                    {/* Hesap Türü */}
+                    <Text style={s.label}>Hesap Türü</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                        <TouchableOpacity
+                            style={[s.accountTypeBtn, !form.isBusiness && s.accountTypeBtnActive]}
+                            onPress={() => set('isBusiness', false)}>
+                            <Text style={[s.accountTypeText, !form.isBusiness && s.accountTypeTextActive]}>👤 Bireysel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[s.accountTypeBtn, form.isBusiness && s.accountTypeBtnActiveBiz]}
+                            onPress={() => set('isBusiness', true)}>
+                            <Text style={[s.accountTypeText, form.isBusiness && s.accountTypeTextActiveBiz]}>🏢 İşletme</Text>
+                            <Text style={s.accountTypeHint}>(kort/saha sahipleri için)</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     {/* Password */}
                     <Text style={s.label}>{t.password} *</Text>
@@ -712,6 +730,15 @@ const s = StyleSheet.create({
     otpInput: { textAlign: 'center', fontSize: 28, fontWeight: '900', letterSpacing: 12, marginBottom: 4, marginTop: 4 },
     resendRow: { marginTop: 12, alignItems: 'center' },
     resendText: { color: colors.purpleLight, fontWeight: '700', fontSize: 13 },
+
+    // Account type
+    accountTypeBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center', gap: 2 },
+    accountTypeBtnActive: { borderColor: colors.purple, backgroundColor: colors.purple + '22' },
+    accountTypeBtnActiveBiz: { borderColor: '#f59e0b', backgroundColor: '#f59e0b22' },
+    accountTypeText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+    accountTypeTextActive: { color: colors.purpleLight, fontWeight: '800' },
+    accountTypeTextActiveBiz: { color: '#fbbf24', fontWeight: '800' },
+    accountTypeHint: { color: colors.textMuted, fontSize: 9, fontWeight: '600', textAlign: 'center' },
 
     // (legacy, kept for compat)
     backBtn: { marginBottom: 14 },

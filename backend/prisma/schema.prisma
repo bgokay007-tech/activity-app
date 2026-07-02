@@ -68,6 +68,7 @@ model User {
   activitiesPrivacy   String @default("PUBLIC")
   activitiesExclude   Json   @default("[]")
   isAdmin                Boolean  @default(false)
+  isBusiness             Boolean  @default(false)
   lateCancelCount        Int      @default(0)
   tournamentBanRemaining Int      @default(0)
   pushToken              String?
