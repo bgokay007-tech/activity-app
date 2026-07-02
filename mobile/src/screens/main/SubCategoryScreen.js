@@ -3232,7 +3232,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         <>
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={s.modalOverlay}>
-                <KeyboardAvoidingView behavior='padding' style={{ flex:1, justifyContent:'flex-end' }}>
+                <View style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{t.createTitle}</Text>
@@ -3618,7 +3618,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
-                </KeyboardAvoidingView>
+                </View>
             </View>
         </Modal>
 
@@ -7287,9 +7287,24 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
+    const [commentSwapSlot, setCommentSwapSlot] = useState(null);
+
+    const handleCommentSwap = useCallback(async (slot) => {
+        if (!commentMatch || commentMatch.senderId !== myId) return;
+        if (!commentSwapSlot) { setCommentSwapSlot(slot); return; }
+        if (commentSwapSlot === slot) { setCommentSwapSlot(null); return; }
+        const s1 = commentSwapSlot, s2 = slot;
+        setCommentSwapSlot(null);
+        try {
+            const res = await api.patch(`/rivals/${commentMatch.id}/swap-positions`, { slot1: s1, slot2: s2 });
+            setCommentMatch(prev => prev ? { ...prev, participants: res.data.participants, senderTeam: res.data.senderTeam } : prev);
+            setMatchedUpcoming(prev => prev.map(m => m.id === res.data.id ? { ...m, participants: res.data.participants, senderTeam: res.data.senderTeam } : m));
+        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Yer değiştirme başarısız'); }
+    }, [commentMatch, commentSwapSlot, myId]);
 
     const openComments = useCallback(async (match) => {
         setCommentMatch(match);
+        setCommentSwapSlot(null);
         setComments([]);
         setLoadingComments(true);
         try {
@@ -9666,10 +9681,14 @@ export default function SubCategoryScreen({ route, navigation }) {
             {(() => {
                 if (!commentMatch) return null;
                 const cfg2 = getConfig(commentMatch.subCategory);
+                const cmSenderTeamArr = (Array.isArray(commentMatch.senderTeam) ? commentMatch.senderTeam : []).filter(p => p?.id);
+                const cmParticipantsArr = (Array.isArray(commentMatch.participants) ? commentMatch.participants : []).filter(p => p?.id);
                 const allP2 = [
                     { ...commentMatch.sender, skillRating: commentMatch.senderSkillRating },
-                    ...(Array.isArray(commentMatch.participants) ? commentMatch.participants : []),
+                    ...(commentMatch.matchType === 'DOUBLE' ? cmSenderTeamArr : []),
+                    ...cmParticipantsArr,
                 ].filter(Boolean);
+                const isCommentOwner = commentMatch.senderId === myId;
                 const matchParticipantIds = new Set(allP2.map(p => p.id));
                 const canDelete = (c) => {
                     const isAuthor = c.user?.id === myId;
@@ -9678,11 +9697,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                     return isAuthor || (iAmParticipant && !commenterIsParticipant);
                 };
                 return (
-                    <Modal visible animationType="slide" onRequestClose={() => setCommentMatch(null)}>
+                    <Modal visible animationType="slide" onRequestClose={() => { setCommentMatch(null); setCommentSwapSlot(null); }}>
                         <View style={{ flex:1, backgroundColor: colors.bg }}>
                             {/* Header */}
                             <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:8, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                <TouchableOpacity onPress={() => setCommentMatch(null)} style={{ marginRight:14, padding:4 }}>
+                                <TouchableOpacity onPress={() => { setCommentMatch(null); setCommentSwapSlot(null); }} style={{ marginRight:14, padding:4 }}>
                                     <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
                                 </TouchableOpacity>
                                 <View style={{ flex:1 }}>
@@ -9702,17 +9721,75 @@ export default function SubCategoryScreen({ route, navigation }) {
                             >
                                 {/* Maç detayları */}
                                 <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:20, borderWidth:1, borderColor: colors.border }}>
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
-                                        {allP2.map((p, idx) => (
-                                            <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                {idx > 0 && <Text style={{ color: colors.textMuted }}>·</Text>}
-                                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>{senderAlias(p)}</Text>
-                                                {p.skillRating != null && (
-                                                    <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                                    {commentMatch.matchType === 'DOUBLE' ? (() => {
+                                        const cmPartner = cmSenderTeamArr[0] || null;
+                                        const cmOpp1 = cmParticipantsArr[0] || null;
+                                        const cmOpp2 = cmParticipantsArr[1] || null;
+                                        const mkCmSlot = (slot, player, accentCol) => {
+                                            const isSource = commentSwapSlot === slot;
+                                            const isTarget = !!commentSwapSlot && commentSwapSlot !== slot;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={slot}
+                                                    onLongPress={() => isCommentOwner && player && setCommentSwapSlot(slot)}
+                                                    onPress={() => isCommentOwner && commentSwapSlot && handleCommentSwap(slot)}
+                                                    delayLongPress={400}
+                                                    activeOpacity={0.75}
+                                                    style={{ borderRadius:8, padding:8, marginBottom:4, borderWidth:1, borderColor: isSource ? '#facc15' : isTarget ? '#4ade80' : accentCol + '50', backgroundColor: isSource ? '#facc1520' : isTarget ? '#4ade8015' : accentCol + '10' }}
+                                                >
+                                                    {player ? (
+                                                        <>
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{senderAlias(player)}</Text>
+                                                            {player.skillRating != null && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(player.skillRating).toFixed(2)} ★</Text>}
+                                                            {isCommentOwner && <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>{isSource ? '• seçildi' : isTarget ? '• buraya taşı' : '• uzun bas → seç'}</Text>}
+                                                        </>
+                                                    ) : (
+                                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>— boş —</Text>
+                                                    )}
+                                                </TouchableOpacity>
+                                            );
+                                        };
+                                        return (
+                                            <View style={{ marginBottom:8 }}>
+                                                {isCommentOwner && commentSwapSlot && (
+                                                    <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#1e293b', borderRadius:8, padding:8, marginBottom:8 }}>
+                                                        <Text style={{ color:'#facc15', fontSize:12, fontWeight:'700' }}>Hedef slota dokun</Text>
+                                                        <TouchableOpacity onPress={() => setCommentSwapSlot(null)}>
+                                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>İptal</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
                                                 )}
+                                                <View style={{ flexDirection:'row', gap:6 }}>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>KURUCU TAKIMI</Text>
+                                                        <View style={{ borderRadius:8, padding:8, marginBottom:4, borderWidth:1, borderColor:'#6d28d930', backgroundColor:'#6d28d910' }}>
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{senderAlias(commentMatch.sender)}</Text>
+                                                            {commentMatch.senderSkillRating != null && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(commentMatch.senderSkillRating).toFixed(2)} ★</Text>}
+                                                            <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>• kurucu</Text>
+                                                        </View>
+                                                        {mkCmSlot('partner', cmPartner, '#6d28d9')}
+                                                    </View>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>RAKİP TAKIM</Text>
+                                                        {mkCmSlot('opp1', cmOpp1, '#dc2626')}
+                                                        {mkCmSlot('opp2', cmOpp2, '#dc2626')}
+                                                    </View>
+                                                </View>
                                             </View>
-                                        ))}
-                                    </View>
+                                        );
+                                    })() : (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                            {allP2.map((p, idx) => (
+                                                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                    {idx > 0 && <Text style={{ color: colors.textMuted }}>·</Text>}
+                                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>{senderAlias(p)}</Text>
+                                                    {p.skillRating != null && (
+                                                        <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                                                    )}
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
                                     <Text style={{ color: colors.textMuted, fontSize:13 }}>
                                         {commentMatch.matchDate ? new Date(commentMatch.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : ''}
                                         {commentMatch.matchTime ? ` · ${commentMatch.matchTime}` : ''}
