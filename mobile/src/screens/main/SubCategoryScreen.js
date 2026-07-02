@@ -7348,10 +7348,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
-    const [tournSubTab, setTournSubTab] = useState(['open','inprogress','completed'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
+    const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
 
     useEffect(() => {
-        if (['open','inprogress','completed'].includes(route.params?.initialTournSubTab)) {
+        if (['open','inprogress'].includes(route.params?.initialTournSubTab)) {
             setTournSubTab(route.params.initialTournSubTab);
         }
     }, [route.params?.initialTournSubTab]);
@@ -7410,7 +7410,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!openChatTournamentId || tournaments.length === 0) return;
         const target = tournaments.find(tn => tn.id === openChatTournamentId);
         if (target) {
-            setTournSubTab(target.status === 'OPEN' ? 'open' : target.status === 'COMPLETED' ? 'completed' : 'inprogress');
+            setTournSubTab(target.status === 'OPEN' ? 'open' : 'inprogress');
         }
     }, [openChatTournamentId, tournaments]);
 
@@ -7419,7 +7419,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!openMatchTournamentId || tournaments.length === 0) return;
         const target = tournaments.find(tn => tn.id === openMatchTournamentId);
         if (target) {
-            setTournSubTab(target.status === 'OPEN' ? 'open' : target.status === 'COMPLETED' ? 'completed' : 'inprogress');
+            setTournSubTab(target.status === 'OPEN' ? 'open' : 'inprogress');
         }
     }, [openMatchTournamentId, tournaments]);
 
@@ -8560,8 +8560,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'tournaments' && (() => {
                         const inProgress = filteredTournaments.filter(t => t.status === 'IN_PROGRESS');
                         const open = filteredTournaments.filter(t => t.status === 'OPEN');
-                        const completed = filteredTournaments.filter(t => t.status === 'COMPLETED');
-                        const shown = tournSubTab === 'open' ? open : tournSubTab === 'inprogress' ? inProgress : completed;
+                        const shown = tournSubTab === 'open' ? open : inProgress;
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -8600,7 +8599,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {[
                                         { key:'open',       label: t.tournOpenTab,       count: open.length },
                                         { key:'inprogress', label: t.tournInProgressTab, count: inProgress.length },
-                                        ...(completed.length > 0 ? [{ key:'completed', label:`✅ Tamamlanan`, count: completed.length }] : []),
                                     ].map(st => (
                                         <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
                                             style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: tournSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: tournSubTab===st.key ? cfg.color : colors.border }}>
@@ -8618,7 +8616,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (<>
                                         {shown.map(renderCard)}
                                         {shown.length === 0 && (
-                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : tournSubTab === 'inprogress' ? t.emptyTournInProgress : t.emptyTournCompleted} />
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : t.emptyTournInProgress} />
                                         )}
                                     </>)
                                 }
