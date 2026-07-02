@@ -7032,6 +7032,93 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     );
 }
 
+// ─── Puan Bilgilendirme Modali ────────────────────────────────────────────────
+
+const RATING_DOM = [
+    { range:'0.03 ve altı',  lowWin:'0.03',  lowLose:'0.02',   highWin:'0.02',   highLose:'0.03'  },
+    { range:'0.03 – 0.05',   lowWin:'0.04',  lowLose:'0.0175', highWin:'0.0175', highLose:'0.04'  },
+    { range:'0.05 – 0.10',   lowWin:'0.05',  lowLose:'0.03',   highWin:'0.03',   highLose:'0.05'  },
+    { range:'0.10 – 0.25',   lowWin:'0.10',  lowLose:'0.05',   highWin:'0.05',   highLose:'0.10'  },
+    { range:'0.25 – 0.50',   lowWin:'0.25',  lowLose:'0.04',   highWin:'0.04',   highLose:'0.25'  },
+    { range:'0.50 – 1',      lowWin:'0.50',  lowLose:'0.03',   highWin:'0.03',   highLose:'0.50'  },
+    { range:'1 – 1.5',       lowWin:'1.00',  lowLose:'0.02',   highWin:'0.02',   highLose:'1.00'  },
+    { range:'1.5 – 2',       lowWin:'1.50',  lowLose:'0.01',   highWin:'0.01',   highLose:'1.50'  },
+    { range:'2.00+',         lowWin:'2.00',  lowLose:'0.005',  highWin:'0.005',  highLose:'2.00'  },
+];
+const RATING_REC = [
+    { range:'0.03 ve altı',  lowWin:'0.03',  lowLose:'0.0175', highWin:'0.0175', highLose:'0.03'  },
+    { range:'0.03 – 0.05',   lowWin:'0.02',  lowLose:'0.0125', highWin:'0.0125', highLose:'0.02'  },
+    { range:'0.05 – 0.10',   lowWin:'0.035', lowLose:'0.015',  highWin:'0.015',  highLose:'0.035' },
+    { range:'0.10 – 0.25',   lowWin:'0.06',  lowLose:'0.03',   highWin:'0.03',   highLose:'0.06'  },
+    { range:'0.25 – 0.50',   lowWin:'0.15',  lowLose:'0.025',  highWin:'0.025',  highLose:'0.15'  },
+    { range:'0.50 – 1',      lowWin:'0.40',  lowLose:'0.02',   highWin:'0.02',   highLose:'0.40'  },
+    { range:'1 – 1.5',       lowWin:'0.90',  lowLose:'0.015',  highWin:'0.015',  highLose:'0.90'  },
+    { range:'1.5 – 2',       lowWin:'1.30',  lowLose:'0.01',   highWin:'0.01',   highLose:'1.30'  },
+    { range:'2.00+',         lowWin:'1.80',  lowLose:'0.008',  highWin:'0.008',  highLose:'1.80'  },
+];
+
+function RatingInfoModal({ visible, onClose, cfg }) {
+    const [section, setSection] = useState('dominant');
+    const rows = section === 'dominant' ? RATING_DOM : RATING_REC;
+    const label = section === 'dominant' ? '🏆 DOMİNANT  (6-0, 6-1, 6-2)' : '⚔️ REKABETÇİ  (6-3, 6-4, 7-5)';
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'92%', paddingBottom:24 }}>
+                    {/* Başlık */}
+                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderColor: colors.border }}>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>📊 Rekabetçi Maç Puan Sistemi</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:18, fontWeight:'700' }}>✕</Text></TouchableOpacity>
+                    </View>
+
+                    {/* Açıklama */}
+                    <View style={{ paddingHorizontal:14, paddingTop:10, paddingBottom:8 }}>
+                        <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:18 }}>
+                            Puanlar oyuncular arasındaki <Text style={{ color:'#fbbf24', fontWeight:'800' }}>FARK</Text>'a ve maç tipine göre değişir.{'\n'}
+                            <Text style={{ color:'#4ade80', fontWeight:'700' }}>Yeşil</Text> = kazanılan puan  ·  <Text style={{ color:'#f87171', fontWeight:'700' }}>Kırmızı</Text> = kaybedilen puan
+                        </Text>
+                    </View>
+
+                    {/* Segment: Dominant / Rekabetçi */}
+                    <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginBottom:10 }}>
+                        {[['dominant','🏆 Dominant'],['rekabetci','⚔️ Rekabetçi']].map(([key, lbl]) => (
+                            <TouchableOpacity key={key} onPress={() => setSection(key)}
+                                style={{ flex:1, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor: section===key ? cfg.color : colors.surface2, borderWidth:1, borderColor: section===key ? cfg.color : colors.border }}>
+                                <Text style={{ color: section===key ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>{lbl}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    <Text style={{ color: colors.textMuted, fontSize:10, textAlign:'center', marginBottom:8 }}>{label}</Text>
+
+                    <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:14 }}>
+                        {/* Tablo başlığı */}
+                        <View style={{ flexDirection:'row', backgroundColor: colors.surface2, borderRadius:8, padding:6, marginBottom:4 }}>
+                            <Text style={{ flex:1.4, color: colors.textMuted, fontSize:9, fontWeight:'800' }}>FARK</Text>
+                            <Text style={{ flex:1, color:'#4ade80', fontSize:9, fontWeight:'800', textAlign:'center' }}>⬆ Düşük{'\n'}Kazanır</Text>
+                            <Text style={{ flex:1, color:'#f87171', fontSize:9, fontWeight:'800', textAlign:'center' }}>⬇ Düşük{'\n'}Kaybeder</Text>
+                            <Text style={{ flex:1, color:'#4ade80', fontSize:9, fontWeight:'800', textAlign:'center' }}>⬆ Yüksek{'\n'}Kazanır</Text>
+                            <Text style={{ flex:1, color:'#f87171', fontSize:9, fontWeight:'800', textAlign:'center' }}>⬇ Yüksek{'\n'}Kaybeder</Text>
+                        </View>
+
+                        {rows.map((r, i) => (
+                            <View key={i} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, paddingHorizontal:6, borderRadius:8, marginBottom:2, backgroundColor: i%2===0 ? '#ffffff06' : 'transparent', borderWidth:1, borderColor: colors.border+'44' }}>
+                                <Text style={{ flex:1.4, color: colors.textSecondary, fontSize:10, fontWeight:'700' }}>{r.range}</Text>
+                                <Text style={{ flex:1, color:'#4ade80', fontSize:11, fontWeight:'800', textAlign:'center' }}>+{r.lowWin}</Text>
+                                <Text style={{ flex:1, color:'#f87171', fontSize:11, fontWeight:'800', textAlign:'center' }}>-{r.lowLose}</Text>
+                                <Text style={{ flex:1, color:'#4ade80', fontSize:11, fontWeight:'800', textAlign:'center' }}>+{r.highWin}</Text>
+                                <Text style={{ flex:1, color:'#f87171', fontSize:11, fontWeight:'800', textAlign:'center' }}>-{r.highLose}</Text>
+                            </View>
+                        ))}
+
+                        <View style={{ height:16 }} />
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 // ─── Günün Tenisçisi (Digimon kart) ────────────────────────────────────────────
 
 function SpotlightTierRow({ label, entry }) {
@@ -7283,6 +7370,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     // Tenis sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi" kartını otomatik göster
     const [showSpotlight, setShowSpotlight] = useState(false);
+    const [showRatingInfo, setShowRatingInfo] = useState(false);
     useEffect(() => {
         if (sub !== 'tennis') return;
         const today = new Date().toISOString().slice(0, 10);
@@ -8449,9 +8537,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </TouchableOpacity>
                 <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
                 {sub === 'tennis' && (
-                    <TouchableOpacity onPress={() => setShowSpotlight(true)}>
-                        <Text style={{ fontSize:22 }}>🃏</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                        <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
+                            <Text style={{ fontSize:20 }}>ℹ️</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShowSpotlight(true)}>
+                            <Text style={{ fontSize:22 }}>🃏</Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
             </View>
 
@@ -10341,6 +10434,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             </Modal>
         </View>
         <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} />
+        <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} />
         </>
     );
 }
