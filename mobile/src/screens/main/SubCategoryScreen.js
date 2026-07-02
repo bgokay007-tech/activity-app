@@ -1904,7 +1904,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // Build player list: sender → partner (DOUBLE) → opponents
     const allPlayers = [
         { ...match.sender, skillRating: match.senderSkillRating, alias: match.senderAlias },
-        ...(match.matchType === 'DOUBLE' ? senderTeamArr : []),
+        ...(match.matchType === 'DOUBLE'
+            ? senderTeamArr.length > 0
+                ? senderTeamArr
+                : [{ id: '__empty_partner__', _emptySlot: true }]
+            : []),
         ...participantsArr,
     ];
 
@@ -2258,13 +2262,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 <View>
                     {allPlayers.map((p, idx) => (
                         <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
-                            <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7} style={{ flexShrink:1 }}>
-                                <Text style={s.cardName}>{senderAlias(p)}</Text>
-                            </TouchableOpacity>
-                            {p.skillRating != null && (
-                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>
-                                    {Number(p.skillRating).toFixed(2)} ★
-                                </Text>
+                            {p._emptySlot ? (
+                                <Text style={{ color: colors.textMuted, fontSize:13, fontStyle:'italic' }}>— ortak slot boş —</Text>
+                            ) : (
+                                <>
+                                    <TouchableOpacity onPress={() => p.id && onUserPress?.(p.id)} activeOpacity={0.7} style={{ flexShrink:1 }}>
+                                        <Text style={s.cardName}>{senderAlias(p)}</Text>
+                                    </TouchableOpacity>
+                                    {p.skillRating != null && (
+                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>
+                                            {Number(p.skillRating).toFixed(2)} ★
+                                        </Text>
+                                    )}
+                                </>
                             )}
                         </View>
                     ))}
@@ -3230,9 +3240,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
 
     return (
         <>
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={s.modalOverlay}>
-                <View style={{ flex:1, justifyContent:'flex-end' }}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{t.createTitle}</Text>
@@ -3618,7 +3628,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
 
@@ -9725,28 +9735,52 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const cmPartner = cmSenderTeamArr[0] || null;
                                         const cmOpp1 = cmParticipantsArr[0] || null;
                                         const cmOpp2 = cmParticipantsArr[1] || null;
+                                        const removeCmPlayer = (userId, name) => {
+                                            Alert.alert('Katılımcıyı Çıkar', `${name} maçtan çıkarılsın mı? İlan tekrar açık hale gelir.`, [
+                                                { text: 'Vazgeç', style:'cancel' },
+                                                { text: 'Çıkar', style:'destructive', onPress: async () => {
+                                                    try {
+                                                        await api.delete(`/rivals/${commentMatch.id}/participants/${userId}`);
+                                                        const res = await api.get(`/rivals/${commentMatch.id}`);
+                                                        setCommentMatch(prev => prev ? { ...prev, participants: res.data.participants, senderTeam: res.data.senderTeam, status: res.data.status } : prev);
+                                                        setMatchedUpcoming(prev => prev.map(m => m.id === res.data.id ? { ...m, participants: res.data.participants, senderTeam: res.data.senderTeam, status: res.data.status } : m));
+                                                    } catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+                                                }},
+                                            ]);
+                                        };
                                         const mkCmSlot = (slot, player, accentCol) => {
                                             const isSource = commentSwapSlot === slot;
                                             const isTarget = !!commentSwapSlot && commentSwapSlot !== slot;
                                             return (
-                                                <TouchableOpacity
-                                                    key={slot}
-                                                    onLongPress={() => isCommentOwner && player && setCommentSwapSlot(slot)}
-                                                    onPress={() => isCommentOwner && commentSwapSlot && handleCommentSwap(slot)}
-                                                    delayLongPress={400}
-                                                    activeOpacity={0.75}
-                                                    style={{ borderRadius:8, padding:8, marginBottom:4, borderWidth:1, borderColor: isSource ? '#facc15' : isTarget ? '#4ade80' : accentCol + '50', backgroundColor: isSource ? '#facc1520' : isTarget ? '#4ade8015' : accentCol + '10' }}
-                                                >
-                                                    {player ? (
-                                                        <>
-                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{senderAlias(player)}</Text>
-                                                            {player.skillRating != null && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(player.skillRating).toFixed(2)} ★</Text>}
-                                                            {isCommentOwner && <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>{isSource ? '• seçildi' : isTarget ? '• buraya taşı' : '• uzun bas → seç'}</Text>}
-                                                        </>
-                                                    ) : (
-                                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>— boş —</Text>
+                                                <View key={slot} style={{ marginBottom:4 }}>
+                                                    <TouchableOpacity
+                                                        onLongPress={() => isCommentOwner && player && !commentSwapSlot && setCommentSwapSlot(slot)}
+                                                        onPress={() => isCommentOwner && commentSwapSlot && handleCommentSwap(slot)}
+                                                        delayLongPress={400}
+                                                        activeOpacity={0.75}
+                                                        style={{ borderRadius:8, padding:8, borderWidth:1, borderColor: isSource ? '#facc15' : isTarget ? '#4ade80' : accentCol + '50', backgroundColor: isSource ? '#facc1520' : isTarget ? '#4ade8015' : accentCol + '10' }}
+                                                    >
+                                                        {player ? (
+                                                            <>
+                                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{senderAlias(player)}</Text>
+                                                                {player.skillRating != null && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(player.skillRating).toFixed(2)} ★</Text>}
+                                                                {isCommentOwner && !commentSwapSlot && <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>• uzun bas → taşı</Text>}
+                                                                {isCommentOwner && commentSwapSlot && <Text style={{ color:'#4ade80', fontSize:10, marginTop:2 }}>• buraya taşı</Text>}
+                                                                {isSource && <Text style={{ color:'#facc15', fontSize:10, marginTop:2 }}>• seçildi</Text>}
+                                                            </>
+                                                        ) : (
+                                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>— boş slot —</Text>
+                                                        )}
+                                                    </TouchableOpacity>
+                                                    {isCommentOwner && player && !commentSwapSlot && (
+                                                        <TouchableOpacity
+                                                            onPress={() => removeCmPlayer(player.id, senderAlias(player))}
+                                                            style={{ marginTop:3, paddingVertical:4, alignItems:'center', backgroundColor:'#dc262615', borderRadius:6, borderWidth:1, borderColor:'#dc262640' }}
+                                                        >
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Çıkar</Text>
+                                                        </TouchableOpacity>
                                                     )}
-                                                </TouchableOpacity>
+                                                </View>
                                             );
                                         };
                                         return (
