@@ -59,6 +59,7 @@ Notifications.setNotificationHandler({
 
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import BusinessRegisterScreen from '../screens/auth/BusinessRegisterScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import HomeScreen from '../screens/main/HomeScreen';
 import CategoryScreen from '../screens/main/CategoryScreen';
@@ -324,6 +325,7 @@ export default function Navigation() {
                     <>
                         <Stack.Screen name="Login" component={LoginScreen} />
                         <Stack.Screen name="Register" component={RegisterScreen} />
+                        <Stack.Screen name="BusinessRegister" component={BusinessRegisterScreen} />
                         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
                     </>
                 ) : (

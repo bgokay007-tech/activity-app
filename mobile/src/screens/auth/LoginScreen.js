@@ -109,6 +109,18 @@ export default function LoginScreen({ navigation }) {
                     <TouchableOpacity onPress={() => navigation.navigate('Register')} style={s.linkRow}>
                         <Text style={s.linkText}>{t.noAccount} <Text style={s.link}>{t.signUp}</Text></Text>
                     </TouchableOpacity>
+
+                    <View style={s.bizDivider}>
+                        <View style={s.bizDividerLine} />
+                        <Text style={s.bizDividerText}>veya</Text>
+                        <View style={s.bizDividerLine} />
+                    </View>
+
+                    <TouchableOpacity onPress={() => navigation.navigate('BusinessRegister')} style={s.bizLinkRow}>
+                        <Text style={s.bizLinkText}>🏢 İşletmen için hesabın yok mu?{' '}
+                            <Text style={s.bizLink}>İşletme Hesabı Oluştur</Text>
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             </View>
         </KeyboardAvoidingView>
@@ -136,4 +148,11 @@ const s = StyleSheet.create({
     linkRow: { marginTop: 16, alignItems: 'center' },
     linkText: { color: colors.textSecondary, fontSize: 13 },
     link: { color: colors.purpleLight, fontWeight: '700', fontSize: 13 },
+
+    bizDivider: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 8 },
+    bizDividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+    bizDividerText: { color: colors.textMuted, fontSize: 11 },
+    bizLinkRow: { marginTop: 8, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#f59e0b40', backgroundColor: '#f59e0b08' },
+    bizLinkText: { color: colors.textSecondary, fontSize: 12, textAlign: 'center', lineHeight: 18 },
+    bizLink: { color: '#fbbf24', fontWeight: '800', fontSize: 12 },
 });
