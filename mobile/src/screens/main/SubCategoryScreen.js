@@ -445,7 +445,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const isParticipant = participants.some(p => p?.id === myId);
     const myInvite = joinRequests.find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
     const isInvolved = isOwner || isParticipant || (mySentReq !== null && mySentReq !== undefined);
-    const participantIds = new Set([item.senderId, ...participants.map(p => p.id)]);
+    const participantIds = new Set([item.senderId, ...participants.filter(p => p?.id).map(p => p.id)]);
     const canDeleteComment = (c) => {
         const isAuthor = c.user?.id === myId;
         const iAmParticipant = participantIds.has(myId);
@@ -848,7 +848,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <Text style={det.playerSub}>@{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                     </View>
                                 </View>
-                                {participants.map((p, i) => (
+                                {participants.filter(p => p?.id).map((p, i) => (
                                     <View key={p.id || i} style={det.playerRow}>
                                         <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
                                         <View style={{ flex:1 }}>
@@ -1155,7 +1155,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const required = item.matchType === 'DOUBLE'
         ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
         : (item.teamSize || 1);
-    const filled = participants.length;
+    const filled = participants.filter(p => p?.id).length;
     const isFull = filled >= required;
     const [localJoinStatus, setLocalJoinStatus] = useState(null);
     const mySentReq = localJoinStatus ?? item._myJoinStatus;
@@ -1341,9 +1341,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 )}
                 {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
                 {/* Kabul edilen oyuncular */}
-                {participants.length > 0 && (
+                {participants.filter(p => p?.id).length > 0 && (
                     <View style={[s.participantsRow, { gap:3, marginBottom:3 }]}>
-                        {participants.map((p, i) => (
+                        {participants.filter(p => p?.id).map((p, i) => (
                             <View key={p.id || i} style={[s.participantChip, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3 }]}>
                                 <Text style={[s.participantChipText, { fontSize: moderateScale(10) }]} numberOfLines={1}>✓ {senderAlias(p)}</Text>
                             </View>
