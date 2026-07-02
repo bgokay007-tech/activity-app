@@ -1852,6 +1852,7 @@ const sc = StyleSheet.create({
 function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
     const t = useT();
     const [showScore, setShowScore] = useState(false);
+    const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
     const [submitting, setSubmitting] = useState(false);
     const [showCantScore, setShowCantScore] = useState(false);
@@ -1933,6 +1934,29 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const mutualReqs = Array.isArray(match.mutualCancelRequests) ? match.mutualCancelRequests : [];
     const otherRequestedMutual = mutualReqs.includes(opponent?.id);
     const iAlreadyRequestedMutual = mutualReqs.includes(myId);
+
+    // DOUBLE slot swap
+    const handleSwapTap = async (slot) => {
+        if (!isOwner) return;
+        if (!swapSlot) { setSwapSlot(slot); return; }
+        if (swapSlot === slot) { setSwapSlot(null); return; }
+        const s1 = swapSlot, s2 = slot;
+        setSwapSlot(null);
+        try {
+            await api.patch(`/rivals/${match.id}/swap-positions`, { slot1: s1, slot2: s2 });
+            onRefresh();
+        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Yer değiştirme başarısız'); }
+    };
+
+    const removePlayer = (userId, name) => {
+        Alert.alert('Katılımcıyı Çıkar', `${name} ilanınızdan çıkarılsın mı? İlan tekrar açık hale gelir.`, [
+            { text: 'Vazgeç', style:'cancel' },
+            { text: 'Çıkar', style:'destructive', onPress: async () => {
+                try { await api.delete(`/rivals/${match.id}/participants/${userId}`); onRefresh(); }
+                catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+            }},
+        ]);
+    };
 
     const addSet    = () => setSets(p => [...p, { my: '', opp: '' }]);
     const removeSet = (i) => { if (sets.length > 1) setSets(p => p.filter((_, idx) => idx !== i)); };
@@ -2349,33 +2373,75 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 )}
             </View>
 
-            {/* Katılımcı çıkarma — sadece ilan sahibi, MATCHED maçta */}
-            {isOwner && (participantsArr.length > 0 || senderTeamArr.length > 0) && (
-                <View style={{ marginTop:6, gap:3 }}>
-                    {senderTeamArr.map(p => (
-                        <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:6, paddingHorizontal:6, paddingVertical:3 }}>
-                            <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'700' }}>🤝 {senderAlias(p)}</Text>
-                            <TouchableOpacity onPress={() => Alert.alert('Katılımcıyı Çıkar', `${senderAlias(p)} ilanınızdan çıkarılsın mı? İlan tekrar açık hale gelir.`, [
-                                { text: 'Vazgeç', style:'cancel' },
-                                { text: 'Çıkar', style:'destructive', onPress: async () => {
-                                    try { await api.delete(`/rivals/${match.id}/participants/${p.id}`); onRefresh(); }
-                                    catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
-                                }},
-                            ])}>
-                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
-                            </TouchableOpacity>
+            {/* Takım yönetimi — ilan sahibine DOUBLE: swap + çıkar; diğer türler: çıkar */}
+            {isOwner && match.matchType === 'DOUBLE' && (senderTeamArr.length > 0 || participantsArr.length > 0) && (() => {
+                const partner = senderTeamArr[0] || null;
+                const opp1 = participantsArr[0] || null;
+                const opp2 = participantsArr[1] || null;
+                const mkSlot = (slot, p, color) => {
+                    if (!p) return null;
+                    const isSel = swapSlot === slot;
+                    const isTgt = !!swapSlot && swapSlot !== slot;
+                    return (
+                        <TouchableOpacity
+                            key={slot}
+                            onPress={() => isTgt && handleSwapTap(slot)}
+                            onLongPress={() => !swapSlot && setSwapSlot(slot)}
+                            delayLongPress={400}
+                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                                borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2,
+                                borderWidth: isSel || isTgt ? 1 : 0,
+                                borderColor: isSel ? '#f59e0b' : '#a855f7',
+                                backgroundColor: isSel ? '#f59e0b18' : isTgt ? '#a855f710' : '#1e293b' }}
+                        >
+                            <Text style={{ color, fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                                {senderAlias(p)}{isSel ? ' ✓' : isTgt ? ' ⇄' : ''}
+                            </Text>
+                            {!swapSlot && (
+                                <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))} style={{ marginLeft:4 }}>
+                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                </TouchableOpacity>
+                            )}
+                        </TouchableOpacity>
+                    );
+                };
+                return (
+                    <View style={{ marginTop:6 }}>
+                        {swapSlot && (
+                            <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:4, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                                <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>Hedef slota dokun</Text>
+                                <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
+                            </View>
+                        )}
+                        <View style={{ flexDirection:'row', gap:4 }}>
+                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:5, borderWidth:1, borderColor:'#a855f720' }}>
+                                <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>👑 Kurucu</Text>
+                                <View style={{ borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2, backgroundColor:'#1e293b' }}>
+                                    <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1}>{senderAlias(match.sender)} 🔒</Text>
+                                </View>
+                                {mkSlot('partner', partner, '#c084fc')}
+                                {!partner && <Text style={{ color: colors.textMuted, fontSize:9, marginTop:2 }}>Partner bekleniyor</Text>}
+                            </View>
+                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:5, borderWidth:1, borderColor:'#f8717120' }}>
+                                <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>⚔️ Rakip</Text>
+                                {mkSlot('opp1', opp1, '#fca5a5')}
+                                {!opp1 && <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:2 }}>Rakip 1 bekleniyor</Text>}
+                                {mkSlot('opp2', opp2, '#fca5a5')}
+                                {!opp2 && <Text style={{ color: colors.textMuted, fontSize:9 }}>Rakip 2 bekleniyor</Text>}
+                            </View>
                         </View>
-                    ))}
+                        {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && (
+                            <Text style={{ color:'#f59e0b40', fontSize:8, marginTop:3, textAlign:'center' }}>↕ oyuncu adına basılı tut → yer değiştir</Text>
+                        )}
+                    </View>
+                );
+            })()}
+            {isOwner && match.matchType !== 'DOUBLE' && participantsArr.length > 0 && (
+                <View style={{ marginTop:6, gap:3 }}>
                     {participantsArr.map(p => (
                         <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:6, paddingHorizontal:6, paddingVertical:3 }}>
-                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>⚔️ {senderAlias(p)}</Text>
-                            <TouchableOpacity onPress={() => Alert.alert('Katılımcıyı Çıkar', `${senderAlias(p)} ilanınızdan çıkarılsın mı? İlan tekrar açık hale gelir.`, [
-                                { text: 'Vazgeç', style:'cancel' },
-                                { text: 'Çıkar', style:'destructive', onPress: async () => {
-                                    try { await api.delete(`/rivals/${match.id}/participants/${p.id}`); onRefresh(); }
-                                    catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
-                                }},
-                            ])}>
+                            <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1}>{senderAlias(p)}</Text>
+                            <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))}>
                                 <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
                             </TouchableOpacity>
                         </View>

@@ -29,7 +29,8 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#0A0A0A"
       },
-      "package": "com.activity.app"
+      "package": "com.activity.app",
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/favicon.png"
