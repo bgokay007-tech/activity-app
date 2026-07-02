@@ -2288,7 +2288,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         <>
         {/* Compact card — tap opens detail */}
         <TouchableOpacity
-            style={[s.card, { width:'100%', paddingHorizontal:6, paddingTop:6, paddingBottom:6,
+            style={[s.card, { flex:1, paddingHorizontal:6, paddingTop:6, paddingBottom:6,
                 borderColor: isMatched ? '#16a34a60' : '#a855f740',
                 backgroundColor: isMatched ? '#16a34a08' : undefined }]}
             activeOpacity={0.75}
@@ -2396,35 +2396,45 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         const opp2 = participantsArr[1] || null;
                         const mkSlot = (slot, p, color) => {
                             if (!p) return (
-                                <View key={slot} style={{ borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2, backgroundColor:'#1e293b' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:10 }}>
-                                        {slot === 'partner' ? 'Partner bekleniyor' : slot === 'opp1' ? 'Rakip 1 bekleniyor' : 'Rakip 2 bekleniyor'}
+                                <View key={slot} style={{ borderRadius:8, paddingHorizontal:8, paddingVertical:6, marginBottom:4, backgroundColor:'#1e293b', borderWidth:1, borderColor:'#ffffff10' }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                        {slot === 'partner' ? '— Partner bekleniyor —' : slot === 'opp1' ? '— Rakip 1 bekleniyor —' : '— Rakip 2 bekleniyor —'}
                                     </Text>
                                 </View>
                             );
                             const isSel = swapSlot === slot;
                             const isTgt = !!swapSlot && swapSlot !== slot;
                             return (
-                                <TouchableOpacity
-                                    key={slot}
-                                    onPress={() => isTgt && handleSwapTap(slot)}
-                                    onLongPress={() => !swapSlot && setSwapSlot(slot)}
-                                    delayLongPress={400}
-                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                                        borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2,
-                                        borderWidth: isSel || isTgt ? 1 : 0,
-                                        borderColor: isSel ? '#f59e0b' : '#a855f7',
-                                        backgroundColor: isSel ? '#f59e0b18' : isTgt ? '#a855f710' : '#1e293b' }}
-                                >
-                                    <Text style={{ color, fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                        {senderAlias(p)}{isSel ? ' ✓' : isTgt ? ' ⇄' : ''}
-                                    </Text>
+                                <View key={slot} style={{ marginBottom:4 }}>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            if (!isOwner) return;
+                                            if (!swapSlot) { setSwapSlot(slot); return; }
+                                            if (swapSlot === slot) { setSwapSlot(null); return; }
+                                            handleSwapTap(slot);
+                                        }}
+                                        activeOpacity={0.7}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                                            borderRadius:8, paddingHorizontal:8, paddingVertical:6,
+                                            borderWidth:1,
+                                            borderColor: isSel ? '#f59e0b' : isTgt ? '#4ade80' : '#ffffff15',
+                                            backgroundColor: isSel ? '#f59e0b18' : isTgt ? '#4ade8015' : '#1e293b' }}
+                                    >
+                                        <Text style={{ color, fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                                            {senderAlias(p)}
+                                        </Text>
+                                        <Text style={{ color: isSel ? '#f59e0b' : isTgt ? '#4ade80' : colors.textMuted, fontSize:10 }}>
+                                            {isSel ? '✓ seçildi' : isTgt ? '↔ taşı' : isOwner ? '↕' : ''}
+                                        </Text>
+                                    </TouchableOpacity>
                                     {!swapSlot && isOwner && (
-                                        <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))} style={{ marginLeft:4 }}>
-                                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                        <TouchableOpacity
+                                            onPress={() => removePlayer(p.id, senderAlias(p))}
+                                            style={{ marginTop:2, paddingVertical:3, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
+                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
                                         </TouchableOpacity>
                                     )}
-                                </TouchableOpacity>
+                                </View>
                             );
                         };
                         return (
@@ -2450,7 +2460,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     </View>
                                 </View>
                                 {isOwner && (senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && (
-                                    <Text style={{ color:'#f59e0b40', fontSize:8, marginTop:3, textAlign:'center' }}>↕ oyuncu adına basılı tut → yer değiştir</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
                                 )}
                             </View>
                         );
@@ -8469,9 +8479,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {upcomingExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
                                             {filteredMatchedUpcoming.map(m => (
-                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                <View key={m.id} style={{ width:'48.5%' }}>
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                </View>
                                             ))}
                                         </View>
                                     )}
@@ -8482,9 +8494,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {pendingScore.length > 0 && (
                                 <>
                                     <Text style={[s.sectionTitle, { color: '#f97316' }]}>⏳ {t.pendingScoreTitle}</Text>
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
                                         {pendingScore.map(m => (
-                                            <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                            <View key={m.id} style={{ width:'48.5%' }}>
+                                                <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                            </View>
                                         ))}
                                     </View>
                                 </>
