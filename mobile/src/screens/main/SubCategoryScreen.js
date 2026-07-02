@@ -103,7 +103,7 @@ const starEmoji = (rating) => rating > 5 ? '⭐⭐⭐' : '⭐';
 
 // Returns sport alias if set, otherwise falls back to @username
 // Handles both the sender shape ({interests:[{alias}]}) and the participant snapshot shape ({alias})
-const senderAlias = (p) => p?.alias || p?.interests?.[0]?.alias || `@${p?.username}`;
+const senderAlias = (p) => p?.alias || p?.interests?.[0]?.alias || `${p?.username}`;
 const playerDisplayName = (p) => p?.alias || p?.interests?.[0]?.alias || p?.fullName || p?.username || '';
 
 // Çiftler Rekabetçi: katılımcı/başvuru satırlarını karşılıklı partnerId'ye göre
@@ -211,7 +211,7 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                         <View style={{ alignItems: 'center', paddingVertical: 40, gap: 12 }}>
                             <Avatar name={profile.username} size={64} />
                             <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>{profile.fullName || profile.username}</Text>
-                            <Text style={{ color: colors.textMuted, fontSize: 13 }}>@{profile.username}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize: 13 }}>{profile.username}</Text>
                             <View style={s.privateBox}>
                                 <Text style={s.privateText}>{t.privateAccount}</Text>
                             </View>
@@ -232,7 +232,7 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                             <View style={s.profileHeader}>
                                 <Avatar name={profile.username} size={72} color={colors.purple} />
                                 <Text style={s.profileName}>{profile.fullName || profile.username}</Text>
-                                <Text style={s.profileUsername}>@{profile.username}</Text>
+                                <Text style={s.profileUsername}>{profile.username}</Text>
                                 {profile.friendCount > 0 && (
                                     <Text style={s.profileMeta}>{t.friendsMeta(profile.friendCount, profile._count?.posts || 0)}</Text>
                                 )}
@@ -520,7 +520,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const removeRivalParticipant = (participantUserId, participantName) => {
         Alert.alert(
             'Katılımcıyı Çıkar',
-            `${participantName ? '@' + participantName : 'Bu kullanıcı'} maçtan çıkarılacak, ilan tekrar açık hâle gelecek. Emin misiniz?`,
+            `${participantName ? participantName : 'Bu kullanıcı'} maçtan çıkarılacak, ilan tekrar açık hâle gelecek. Emin misiniz?`,
             [
                 { text: 'Vazgeç', style: 'cancel' },
                 { text: 'Çıkar', style: 'destructive', onPress: async () => {
@@ -556,7 +556,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const Half = ({ jr }) => (
             <View>
                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(jr)}</Text>
-                <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{jr?.user?.username}{ratingOf(jr) != null ? `  ${starEmoji(Number(ratingOf(jr)))} ${Number(ratingOf(jr)).toFixed(2)}` : ''}</Text>
+                <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{jr?.user?.username}{ratingOf(jr) != null ? `  ${starEmoji(Number(ratingOf(jr)))} ${Number(ratingOf(jr)).toFixed(2)}` : ''}</Text>
             </View>
         );
 
@@ -764,7 +764,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                     <TouchableOpacity onPress={() => !swapSlot && p.id && navigation.push('Profile', { userId: p.id })} style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p.username}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{p.username}</Text>
                                                     </TouchableOpacity>
                                                     {isSelected && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'900', marginLeft:4 }}>✓</Text>}
                                                     {isTarget  && <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'900', marginLeft:4 }}>⇄</Text>}
@@ -845,7 +845,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                                     <View style={{ flex:1 }}>
                                         <Text style={det.playerName}>{playerDisplayName(item.sender)}</Text>
-                                        <Text style={det.playerSub}>@{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                        <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                     </View>
                                 </View>
                                 {participants.filter(p => p?.id).map((p, i) => (
@@ -853,7 +853,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
                                         <View style={{ flex:1 }}>
                                             <Text style={det.playerName}>{playerDisplayName(p)}</Text>
-                                            <Text style={det.playerSub}>@{p.username}</Text>
+                                            <Text style={det.playerSub}>{p.username}</Text>
                                         </View>
                                         {isOwner && (
                                             <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:6 }}>
@@ -888,7 +888,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                                 <View style={{ flex:1 }}>
                                                     <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                                    <Text style={det.playerSub}>@{jr.user?.username}</Text>
+                                                    <Text style={det.playerSub}>{jr.user?.username}</Text>
                                                 </View>
                                                 {isOwner && (
                                                     <View style={{ flexDirection:'row', gap:6 }}>
@@ -909,7 +909,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                     <View style={{ flex:1 }}>
                                         <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                        <Text style={det.playerSub}>@{jr.user?.username}</Text>
+                                        <Text style={det.playerSub}>{jr.user?.username}</Text>
                                     </View>
                                     <View style={{ flexDirection:'row', gap:6 }}>
                                         <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
@@ -1029,7 +1029,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <View key={c.id} style={{ marginBottom:14, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
                                 <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>@{c.user?.username}</Text>
+                                        <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
                                         <Text style={{ color:'#fff', fontSize:moderateScale(14), lineHeight:moderateScale(21) }}>{c.content}</Text>
                                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:4 }}>
                                             {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
@@ -1097,7 +1097,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'700', fontSize:moderateScale(13) }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
                                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
-                                        @{u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
                                     </Text>
                                 </View>
                                 <TouchableOpacity
@@ -1130,7 +1130,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <Avatar name={c.user?.username} avatar={c.user?.avatar} size={moderateScale(34)} color={cfg.color} />
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.fullName || c.user?.username}</Text>
-                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{c.user?.username}{c.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${starEmoji(Number(c.user.interests.find(i => i.subCategory === sub).skillRating))} ${Number(c.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)}` : ''}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>{c.user?.username}{c.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${starEmoji(Number(c.user.interests.find(i => i.subCategory === sub).skillRating))} ${Number(c.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)}` : ''}</Text>
                                 </View>
                             </TouchableOpacity>
                         ))}
@@ -1777,7 +1777,7 @@ function TextPostCard({ post, cfg }) {
                 <Avatar name={post.user?.username} size={38} color={cfg.color} />
                 <View style={{ flex: 1 }}>
                     <Text style={s.cardName}>{post.user?.fullName || post.user?.username}</Text>
-                    <Text style={s.cardSub}>@{post.user?.username} · {timeAgo(post.createdAt)}</Text>
+                    <Text style={s.cardSub}>{post.user?.username} · {timeAgo(post.createdAt)}</Text>
                 </View>
             </View>
             <Text style={[s.cardMsg, { marginBottom: 12, lineHeight: 20 }]}>{post.content}</Text>
@@ -1795,7 +1795,7 @@ function TextPostCard({ post, cfg }) {
                 <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
                     {comments.map((c, i) => (
                         <View key={c.id || i} style={{ flexDirection: 'row', gap: 6, marginBottom: 5 }}>
-                            <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{c.user?.username}</Text>
+                            <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
                             <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>{c.content}</Text>
                         </View>
                     ))}
@@ -2823,7 +2823,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         localComments.map(c => (
                             <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>@{c.user?.username || '?'}</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.username || '?'}</Text>
                                     <Text style={{ color: colors.textMuted, fontSize:10 }}>
                                         {c.createdAt ? new Date(c.createdAt).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' }) : ''}
                                     </Text>
@@ -3017,7 +3017,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <View style={{ width:22, height:22, borderRadius:6, borderWidth:2, borderColor: selected ? '#fb923c' : colors.border, backgroundColor: selected ? '#fb923c30' : 'transparent', justifyContent:'center', alignItems:'center' }}>
                                             {selected && <Text style={{ color:'#fb923c', fontSize:12, fontWeight:'900' }}>✓</Text>}
                                         </View>
-                                        <Text style={{ color:'#fff', fontWeight:'700' }}>@{p.username}</Text>
+                                        <Text style={{ color:'#fff', fontWeight:'700' }}>{p.username}</Text>
                                         {p.skillRating != null && (
                                             <Text style={{ color:'#facc15', fontSize:11 }}>{Number(p.skillRating).toFixed(2)} ★</Text>
                                         )}
@@ -3788,7 +3788,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
                                     <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                        @{u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
                                     </Text>
                                 </View>
                             </TouchableOpacity>
@@ -4296,7 +4296,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(p)}</Text>
                 {p?.manualName
                     ? <Text style={{ color:'#3b82f6', fontSize:9, fontWeight:'700' }}>✏️ Manuel</Text>
-                    : <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>@{p?.user?.username}{ratingOf(p) != null ? `  ${starEmoji(Number(ratingOf(p)))} ${Number(ratingOf(p)).toFixed(2)}` : ''}</Text>
+                    : <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{p?.user?.username}{ratingOf(p) != null ? `  ${starEmoji(Number(ratingOf(p)))} ${Number(ratingOf(p)).toFixed(2)}` : ''}</Text>
                 }
                 {isCreatorView && (
                     <TouchableOpacity onPress={() => p?.manualName ? removeManualParticipant(p.id) : removeParticipant(p.userId)} style={{ marginTop:2 }}>
@@ -5680,7 +5680,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 </View>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                     {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
                                                 </View>
                                                 {r.cancelRequested && (
@@ -5706,7 +5706,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     </View>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                         {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
                                                     </View>
                                                     {r.cancelRequested && (
@@ -5780,7 +5780,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || r.user?.fullName || r.user?.username}</Text>
                                                 {r.manualName
                                                     ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
-                                                    : <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    : <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                 }
                                                 {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti (24s kuralı)</Text>}
                                             </View>
@@ -5883,7 +5883,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 </View>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                 </View>
                                             </View>
                                         ))}
@@ -5898,7 +5898,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     </View>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                     </View>
                                                 </View>
                                             ))}
@@ -5933,7 +5933,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         <View key={r.id || r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, borderBottomWidth: i < pending.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
                                                             <View style={{ flex:1 }}>
                                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{r.user?.fullName || r.user?.username}</Text>
-                                                                <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                             </View>
                                                             <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>⏳ Bekliyor</Text>
                                                         </View>
@@ -5969,7 +5969,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </View>
                                             <View style={{ flex:1 }}>
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>@{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                             </View>
                                         </View>
                                     );
@@ -6023,7 +6023,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <Avatar name={c.user?.username} avatar={c.user?.avatar} size={moderateScale(34)} color={cfg.color} />
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.fullName || c.user?.username}</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>@{c.user?.username}{c.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(c.user.interests[0].skillRating))} ${Number(c.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>{c.user?.username}{c.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(c.user.interests[0].skillRating))} ${Number(c.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                 </View>
                                             </TouchableOpacity>
                                         ))}
@@ -6146,7 +6146,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
                                     <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                        @{u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
                                     </Text>
                                 </View>
                             </TouchableOpacity>
@@ -8735,7 +8735,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ padding:8 }}>
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{eq.title}</Text>
                                                 <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : 'Fiyat sor'}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>@{eq.user?.username}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>{eq.user?.username}</Text>
                                             </View>
                                         </TouchableOpacity>
                                     ))}
@@ -8930,7 +8930,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {c.certName && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.certName}</Text>}
                                                 </View>
                                                 <TouchableOpacity onPress={() => setProfileUserId(c.userId)}>
-                                                    <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>@{c.user?.username}</Text>
+                                                    <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{c.user?.username}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:4 }}>
@@ -9341,7 +9341,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Avatar name={group.user?.username} size={54} color={cfg.color} />
                                                 </View>
                                                 <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4, maxWidth: 62, textAlign: 'center' }} numberOfLines={1}>
-                                                    @{group.user?.username}
+                                                    {group.user?.username}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))}
@@ -9406,7 +9406,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 <Avatar name={post.user?.username} avatar={post.user?.avatar} size={36} color={cfg.color} />
                                                                 <View style={{ flex: 1 }}>
                                                                     <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{post.user?.fullName || post.user?.username}</Text>
-                                                                    <Text style={{ color: colors.textMuted, fontSize: 11 }}>@{post.user?.username} · {fmtAgo(post.createdAt)}</Text>
+                                                                    <Text style={{ color: colors.textMuted, fontSize: 11 }}>{post.user?.username} · {fmtAgo(post.createdAt)}</Text>
                                                                 </View>
                                                                 {post.type === 'REEL' && <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '800' }}>🎬</Text>}
                                                             </View>
@@ -9985,7 +9985,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <View key={c.id} style={{ marginBottom:14, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
                                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={{ color: cfg2.color, fontSize:13, fontWeight:'700', marginBottom:3 }}>@{c.user?.username}</Text>
+                                                    <Text style={{ color: cfg2.color, fontSize:13, fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
                                                     <Text style={{ color:'#fff', fontSize:14, lineHeight:21 }}>{c.content}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
                                                         {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
@@ -10263,7 +10263,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text><Text style={{ color: '#fff', marginTop: 8 }}>Video</Text></View>
                                 }
                                 <Text style={{ color: '#ffffff90', fontSize: 12, fontWeight: '700', marginTop: 8 }}>
-                                    @{mp.user?.username} · {mp.subCategory}
+                                    {mp.user?.username} · {mp.subCategory}
                                 </Text>
 
                                 {/* Like + Comment bar */}
@@ -10284,7 +10284,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <ScrollView style={{ maxHeight: 100 }} showsVerticalScrollIndicator={false}>
                                             {mediaComments.map((c, i) => (
                                                 <View key={c.id || i} style={{ flexDirection: 'row', gap: 6, marginBottom: 5 }}>
-                                                    <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{c.user?.username}</Text>
+                                                    <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
                                                     <Text style={{ color: '#ffffffcc', fontSize: 12, flex: 1 }}>{c.content}</Text>
                                                 </View>
                                             ))}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable,
@@ -173,7 +173,7 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
                                     {/* Satır 1: Rakip + ELO */}
                                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>
-                                            {opponent ? `@${opponent.username}` : (tr ? 'Rakip bilinmiyor' : 'Unknown opponent')}
+                                            {opponent ? `${opponent.username}` : (tr ? 'Rakip bilinmiyor' : 'Unknown opponent')}
                                         </Text>
                                         {delta !== 0 && (
                                             <Text style={{ color: delta > 0 ? '#4ade80' : '#f87171', fontSize: 13, fontWeight: '900' }}>
@@ -459,7 +459,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>
                                 <View style={{ flexShrink: 1 }}>
                                     <Text style={fc.smallSportName} numberOfLines={1}>{item.subCategory?.toUpperCase()}</Text>
-                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1}>@{item.alias}</Text> : null}
+                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1}>{item.alias}</Text> : null}
                                 </View>
                                 {item.assessmentCompleted && (
                                     <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 7, borderWidth: 1, borderColor: '#facc1540' }}>
@@ -493,7 +493,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                         isEditingAlias ? (
                                             <View style={{ gap: 4 }}>
                                                 <TextInput value={aliasValue} onChangeText={setAliasValue}
-                                                    placeholder={`@${profile?.username}`} placeholderTextColor="#6b7280" maxLength={30} autoFocus
+                                                    placeholder={`${profile?.username}`} placeholderTextColor="#6b7280" maxLength={30} autoFocus
                                                     style={{ color: '#fff', fontSize: 11, backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: '#ffffff20' }} />
                                                 <View style={{ flexDirection: 'row', gap: 4 }}>
                                                     <TouchableOpacity onPress={onSaveAlias} disabled={savingAlias}
@@ -508,7 +508,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                             </View>
                                         ) : (
                                             <TouchableOpacity onPress={onEditAlias} style={fc.actionBtn}>
-                                                <Text style={[fc.actionTxt, { color: '#9ca3af' }]}>✏️ {item.alias ? `@${item.alias}` : (t?.sportAliasLabel || 'Takma Ad')}</Text>
+                                                <Text style={[fc.actionTxt, { color: '#9ca3af' }]}>✏️ {item.alias ? `${item.alias}` : (t?.sportAliasLabel || 'Takma Ad')}</Text>
                                             </TouchableOpacity>
                                         )
                                     )}
@@ -2211,7 +2211,7 @@ export default function ProfileScreen({ route, navigation }) {
 
                         {/* Left: username above avatar */}
                         <View style={{ alignItems: 'center' }}>
-                            <Text style={s.username}>@{profile?.username}</Text>
+                            <Text style={s.username}>{profile?.username}</Text>
                             <GradientAvatar
                                 name={profile?.username}
                                 avatar={profile?.avatar}
@@ -2384,7 +2384,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     >
                                         <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
                                         <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }}>{i.subCategory}</Text>
-                                        {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>@{i.alias}</Text> : null}
+                                        {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>{i.alias}</Text> : null}
                                         {i.assessmentCompleted && (
                                             <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
                                         )}
@@ -2472,7 +2472,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
                                                 {allP.map(p => (
                                                     <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username}</Text>
                                                         {p.skillRating != null && (
                                                             <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
                                                         )}
@@ -2579,7 +2579,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                     return (
                                                         <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:2 }}>
                                                             <TouchableOpacity onPress={() => p.id && p.id !== myUser?.id && navigation.push('Profile', { userId: p.id })} activeOpacity={p.id && p.id !== myUser?.id ? 0.7 : 1} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>@{p.username}</Text>
+                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username}</Text>
                                                                 {ratingBefore != null && ratingBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(ratingBefore).toFixed(2)} ★</Text>}
                                                                 {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                             </TouchableOpacity>
@@ -2850,7 +2850,7 @@ export default function ProfileScreen({ route, navigation }) {
                                         }
                                         <View style={{ flex:1 }}>
                                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>@{u.username}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{u.username}</Text>
                                         </View>
                                     </TouchableOpacity>
                                     <View style={{ flexDirection:'row', gap:6 }}>
@@ -3053,7 +3053,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             }
                                             <View style={{ flex:1 }}>
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>{f.username}</Text>
                                             </View>
                                         </TouchableOpacity>
                                         {isOwnProfile && (
@@ -3081,7 +3081,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             }
                                             <View style={{ flex:1 }}>
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>{f.username}</Text>
                                             </View>
                                         </TouchableOpacity>
                                         {isOwnProfile && (
@@ -3105,7 +3105,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                     <View key={req.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.purple + '40' }}>
                                                         <View style={{ flex:1 }}>
                                                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{req.fullName || req.username}</Text>
-                                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>@{req.username}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{req.username}</Text>
                                                         </View>
                                                         <TouchableOpacity style={[s.actionBtn, s.actionBtnActive, { marginRight:6 }]} onPress={() => handleRespondFollowReqInList(req, 'accept')}>
                                                             <Text style={s.actionBtnText}>✓</Text>
@@ -3130,7 +3130,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                     }
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.fullName || f.username}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>@{f.username}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{f.username}</Text>
                                                     </View>
                                                 </TouchableOpacity>
                                                 {isOwnProfile && (
@@ -3197,7 +3197,7 @@ export default function ProfileScreen({ route, navigation }) {
                             permRequests.map(req => (
                                 <View key={req.id} style={ap.card}>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={ap.username}>@{req.user?.username}</Text>
+                                        <Text style={ap.username}>{req.user?.username}</Text>
                                         {req.user?.fullName ? <Text style={ap.fullname}>{req.user.fullName}</Text> : null}
                                     </View>
                                     <TouchableOpacity style={ap.approveBtn} onPress={() => handlePermApprove(req.userId)}>
@@ -3630,7 +3630,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             </View>
                                             <View style={{ flex: 1 }}>
                                                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{f.fullName || f.username}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize: 11 }}>@{f.username}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize: 11 }}>{f.username}</Text>
                                             </View>
                                             <View style={[s.checkbox, isExcluded && s.checkboxChecked]}>
                                                 {isExcluded && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '900' }}>✓</Text>}

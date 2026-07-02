@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+﻿import { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
@@ -118,7 +118,7 @@ export default function ChatScreen({ route, navigation }) {
                 <Avatar user={other} size={36} />
                 <View style={styles.headerInfo}>
                     <Text style={styles.headerName}>{other?.fullName || other?.username}</Text>
-                    <Text style={styles.headerSub}>@{other?.username}</Text>
+                    <Text style={styles.headerSub}>{other?.username}</Text>
                 </View>
             </View>
 
