@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import {
     Modal, View, Text, TouchableOpacity, StyleSheet,
     ScrollView, ActivityIndicator,
@@ -221,18 +221,18 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
 const s = StyleSheet.create({
     overlay:         { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end', paddingTop: '15%' },
     box:             { flex: 1, backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-    header:          { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+    header:          { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingTop: 17, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.border },
     title:           { color: '#fff', fontSize: 17, fontWeight: '900' },
     subtitle:        { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-    close:           { color: colors.textMuted, fontSize: 22, paddingLeft: 10 },
+    close:           { color: colors.textMuted, fontSize: 22, paddingLeft: 7 },
     progressBg:      { height: 3, backgroundColor: colors.surface2 },
     progressFill:    { height: 3, backgroundColor: colors.purple },
-    body:            { padding: 20, paddingBottom: 40, gap: 12 },
+    body:            { padding: 17, paddingBottom: 37, gap: 3 },
 
     questionText:    { color: '#fff', fontSize: 15, fontWeight: '700', lineHeight: 22, marginBottom: 4 },
     questionHint:    { color: colors.textMuted, fontSize: 12, marginBottom: 8 },
-    optionsGap:      { gap: 10 },
-    optionBtn:       { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface2, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border },
+    optionsGap:      { gap: 3 },
+    optionBtn:       { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surface2, borderRadius: 14, padding: 11, borderWidth: 1, borderColor: colors.border },
     optionBtnActive: { borderColor: colors.purple, backgroundColor: colors.purple + '15' },
     optionDot:       { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.border, flexShrink: 0 },
     optionDotActive: { borderColor: colors.purple, backgroundColor: colors.purple },
@@ -240,21 +240,21 @@ const s = StyleSheet.create({
     optionText:      { color: colors.textSecondary, fontSize: 13, fontWeight: '600', flex: 1, lineHeight: 18 },
     optionTextActive:{ color: '#fff' },
 
-    nextBtn:         { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+    nextBtn:         { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 11, alignItems: 'center', marginTop: 8 },
     nextBtnDisabled: { opacity: 0.4 },
     nextBtnText:     { color: '#fff', fontWeight: '800', fontSize: 15 },
 
-    resultBox:       { alignItems: 'center', gap: 16, paddingTop: 8 },
+    resultBox:       { alignItems: 'center', gap: 3, paddingTop: 5 },
     resultEmoji:     { fontSize: 48 },
     resultTitle:     { color: '#fff', fontSize: 18, fontWeight: '900' },
-    resultLevelBox:  { borderRadius: 14, paddingHorizontal: 24, paddingVertical: 10, borderWidth: 1 },
+    resultLevelBox:  { borderRadius: 14, paddingHorizontal: 21, paddingVertical: 7, borderWidth: 1 },
     resultLevel:     { fontSize: 18, fontWeight: '900' },
-    ratingSection:   { alignItems: 'center', width: '100%', gap: 6 },
+    ratingSection:   { alignItems: 'center', width: '100%', gap: 3 },
     ratingLabel:     { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
     ratingValue:     { fontSize: 28, fontWeight: '900' },
     ratingBarBg:     { width: '100%', height: 6, backgroundColor: colors.surface2, borderRadius: 3, overflow: 'hidden' },
     ratingBarFill:   { height: 6, backgroundColor: colors.purple, borderRadius: 3 },
     ratingPct:       { color: colors.textMuted, fontSize: 12 },
-    doneBtn:         { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40, alignItems: 'center', marginTop: 8 },
+    doneBtn:         { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 37, alignItems: 'center', marginTop: 8 },
     doneBtnText:     { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

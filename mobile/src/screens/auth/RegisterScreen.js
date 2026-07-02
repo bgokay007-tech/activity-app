@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import RainbowLogo from '../../components/RainbowLogo';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -327,7 +327,7 @@ export default function RegisterScreen({ navigation }) {
                                 <Text style={s.pickerClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
-                        <ScrollView style={{ paddingHorizontal: 20 }} showsVerticalScrollIndicator>
+                        <ScrollView style={{ paddingHorizontal: 17 }} showsVerticalScrollIndicator>
                             <Text style={s.legalText}>{legalModal?.content}</Text>
                             <View style={{ height: 40 }} />
                         </ScrollView>
@@ -377,13 +377,13 @@ export default function RegisterScreen({ navigation }) {
 
             <ScrollView ref={scrollRef} contentContainerStyle={s.inner} keyboardShouldPersistTaps="handled">
                 {/* Language selector */}
-                <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'flex-end', marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', gap: 3, alignSelf: 'flex-end', marginBottom: 16 }}>
                     {['tr', 'en'].map(l => (
                         <TouchableOpacity
                             key={l}
                             onPress={() => dispatch(setLang(l))}
                             style={{
-                                borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
+                                borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3,
                                 backgroundColor: lang === l ? colors.purple + '30' : colors.surface2,
                             }}
                         >
@@ -633,34 +633,34 @@ export default function RegisterScreen({ navigation }) {
 
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
-    inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 40 },
+    inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 17, paddingVertical: 37 },
     logo: { fontSize: 34, fontWeight: '900', color: '#fff', textAlign: 'center', letterSpacing: 2, marginBottom: 4 },
     sub: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 20 },
-    card: { backgroundColor: colors.surface, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: colors.border },
+    card: { backgroundColor: colors.surface, borderRadius: 20, padding: 15, borderWidth: 1, borderColor: colors.border },
 
     label: { color: colors.textSecondary, fontSize: 10, fontWeight: '800', marginBottom: 5, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.6 },
-    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
+    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
 
     // Method toggle
-    methodRow: { flexDirection: 'row', gap: 8 },
-    methodBtn: { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center' },
+    methodRow: { flexDirection: 'row', gap: 3 },
+    methodBtn: { flex: 1, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center' },
     methodBtnActive: { borderColor: colors.purple, backgroundColor: colors.purple + '22' },
     methodText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
     methodTextActive: { color: colors.purpleLight, fontWeight: '800' },
     comingSoon: { color: colors.textMuted, fontSize: 9, fontWeight: '700', marginTop: 2 },
 
     // Gender
-    genderRow: { flexDirection: 'row', gap: 6 },
-    genderBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center' },
+    genderRow: { flexDirection: 'row', gap: 3 },
+    genderBtn: { flex: 1, paddingVertical: 7, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center' },
     genderBtnActive: { borderColor: colors.purple, backgroundColor: colors.purple + '22' },
     genderText: { color: colors.textSecondary, fontWeight: '700', fontSize: 12 },
     genderTextActive: { color: colors.purpleLight, fontWeight: '800' },
 
     // Birth date
-    birthRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+    birthRow: { flexDirection: 'row', gap: 3, alignItems: 'center' },
     birthCell: { flex: 1, textAlign: 'center' },
     birthCellYear: { flex: 1.6, textAlign: 'center' },
-    ageBadge: { backgroundColor: colors.purple + '25', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, borderWidth: 1, borderColor: colors.purple + '60' },
+    ageBadge: { backgroundColor: colors.purple + '25', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 6, borderWidth: 1, borderColor: colors.purple + '60' },
     ageText: { color: colors.purpleLight, fontWeight: '800', fontSize: 12 },
 
     // Country select
@@ -670,9 +670,9 @@ const s = StyleSheet.create({
 
     // Password
     passRow: { flexDirection: 'row' },
-    eyeBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12, paddingHorizontal: 14, justifyContent: 'center' },
+    eyeBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12, paddingHorizontal: 11, justifyContent: 'center' },
     eyeText: { fontSize: 17 },
-    rulesBox: { marginTop: 6, gap: 3, paddingLeft: 2 },
+    rulesBox: { marginTop: 6, gap: 3, paddingLeft: 0 },
     ruleOk: { color: '#4ade80', fontSize: 11, fontWeight: '600' },
     ruleFail: { color: '#f87171', fontSize: 11, fontWeight: '600' },
 
@@ -680,7 +680,7 @@ const s = StyleSheet.create({
     divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
 
     // Checkboxes
-    checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+    checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 3, marginBottom: 10 },
     checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center', marginTop: 1, flexShrink: 0 },
     checkboxChecked: { backgroundColor: colors.purple, borderColor: colors.purple },
     checkmark: { color: '#fff', fontSize: 12, fontWeight: '900' },
@@ -688,18 +688,18 @@ const s = StyleSheet.create({
     checkLink: { color: colors.purpleLight, fontWeight: '700' },
 
     // Captcha
-    captchaBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border, marginTop: 4, marginBottom: 4 },
-    captchaLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-    captchaRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    captchaBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 14, padding: 11, borderWidth: 1, borderColor: colors.border, marginTop: 4, marginBottom: 4 },
+    captchaLeft: { flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1 },
+    captchaRight: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     captchaIcon: { fontSize: 26 },
     captchaTitle: { color: '#fff', fontWeight: '800', fontSize: 12 },
     captchaQ: { color: colors.purple, fontWeight: '900', fontSize: 18, marginTop: 2 },
     captchaInput: { width: 48, textAlign: 'center', fontSize: 18, fontWeight: '900' },
-    captchaVerifyBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+    captchaVerifyBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 5 },
     captchaVerifyText: { color: '#fff', fontWeight: '800', fontSize: 11 },
 
     // Button
-    btn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
+    btn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 11, alignItems: 'center', marginTop: 18 },
     sendBtn: { marginTop: 18 },
     btnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     linkRow: { marginTop: 14, alignItems: 'center' },
@@ -707,7 +707,7 @@ const s = StyleSheet.create({
     link: { color: colors.purpleLight, fontWeight: '700' },
 
     // Inline OTP
-    otpInlineBox: { marginTop: 16, backgroundColor: colors.surface2, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.purple + '50' },
+    otpInlineBox: { marginTop: 16, backgroundColor: colors.surface2, borderRadius: 16, padding: 13, borderWidth: 1, borderColor: colors.purple + '50' },
     otpInfo: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: 4, textAlign: 'center' },
     otpInput: { textAlign: 'center', fontSize: 28, fontWeight: '900', letterSpacing: 12, marginBottom: 4, marginTop: 4 },
     resendRow: { marginTop: 12, alignItems: 'center' },
@@ -717,15 +717,15 @@ const s = StyleSheet.create({
     backBtn: { marginBottom: 14 },
     backText: { color: colors.purpleLight, fontWeight: '700', fontSize: 14 },
 
-    legalText: { color: colors.textSecondary, fontSize: 13, lineHeight: 22, paddingTop: 16 },
+    legalText: { color: colors.textSecondary, fontSize: 13, lineHeight: 22, paddingTop: 13 },
 
     // Country picker
     pickerOverlay: { flex: 1, backgroundColor: '#00000088', justifyContent: 'flex-end' },
-    pickerBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingBottom: 30 },
-    pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderColor: colors.border },
+    pickerBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingBottom: 27 },
+    pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderColor: colors.border },
     pickerTitle: { color: '#fff', fontWeight: '800', fontSize: 16 },
     pickerClose: { color: colors.textMuted, fontSize: 18, fontWeight: '700' },
-    pickerItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderColor: colors.border + '44' },
+    pickerItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderColor: colors.border + '44' },
     pickerItemActive: { backgroundColor: colors.purple + '18' },
     pickerItemText: { color: colors.text, fontSize: 15 },
     pickerItemTextActive: { color: colors.purpleLight, fontWeight: '700' },

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+﻿import { useEffect, useState, useRef, useCallback } from 'react';
 import { NavigationContainer, StackActions, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -193,7 +193,7 @@ function AppTabs() {
                     borderTopColor: colors.border,
                     borderTopWidth: 1,
                     paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
-                    paddingTop: 8,
+                    paddingTop: 5,
                     height: tabBarHeight,
                 },
                 tabBarActiveTintColor: colors.purple,

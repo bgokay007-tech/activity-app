@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
@@ -105,7 +105,7 @@ export default function MessagesScreen({ navigation }) {
                     data={conversations}
                     keyExtractor={item => item.id}
                     renderItem={renderItem}
-                    contentContainerStyle={{ paddingBottom: 20 }}
+                    contentContainerStyle={{ paddingBottom: 17 }}
                 />
             )}
         </View>
@@ -113,10 +113,10 @@ export default function MessagesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bg, paddingTop: 56 },
-    header: { paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+    container: { flex: 1, backgroundColor: colors.bg, paddingTop: 53 },
+    header: { paddingHorizontal: 17, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
     title: { color: '#fff', fontSize: 22, fontWeight: '900' },
-    row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border + '50', gap: 12 },
+    row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '50', gap: 3 },
     avatar: { backgroundColor: colors.purple, justifyContent: 'center', alignItems: 'center' },
     avatarText: { color: '#fff', fontWeight: '800' },
     rowContent: { flex: 1 },
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     name: { color: '#cbd5e1', fontWeight: '700', fontSize: 14, flex: 1 },
     time: { color: colors.textMuted, fontSize: 11, marginLeft: 8 },
     lastMsg: { color: colors.textMuted, fontSize: 12 },
-    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 60 },
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 57 },
     emptyEmoji: { fontSize: 52, marginBottom: 12 },
     emptyText: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 6 },
     emptySubText: { color: colors.textMuted, fontSize: 13 },

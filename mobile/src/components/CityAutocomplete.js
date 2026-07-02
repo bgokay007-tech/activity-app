@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+﻿import { useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import api from '../services/api';
 import colors from '../theme/colors';
@@ -60,8 +60,8 @@ export default function CityAutocomplete({ value, onChangeText, onSelect, placeh
 const s = StyleSheet.create({
     wrapper: { position: 'relative', zIndex: 100 },
     inputRow: { position: 'relative' },
-    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, fontSize: 13 },
+    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, borderWidth: 1, borderColor: colors.border, fontSize: 13 },
     dropdown: { position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, zIndex: 200, elevation: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, marginTop: 2 },
-    row: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+    row: { paddingHorizontal: 9, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: colors.border },
     rowText: { fontSize: 13 },
 });

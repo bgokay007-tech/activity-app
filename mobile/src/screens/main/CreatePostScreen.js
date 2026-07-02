@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+﻿import { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, TextInput,
     ScrollView, Image, Platform, Alert, ActivityIndicator, Modal,
@@ -303,7 +303,7 @@ export default function CreatePostScreen({ navigation }) {
                                 <Text style={s.trackTitle} numberOfLines={1}>{selectedTrack.title}</Text>
                                 <Text style={s.trackArtist} numberOfLines={1}>{selectedTrack.artist}</Text>
                             </View>
-                            <TouchableOpacity onPress={() => setSelectedTrack(null)} style={{ paddingLeft: 8 }}>
+                            <TouchableOpacity onPress={() => setSelectedTrack(null)} style={{ paddingLeft: 5 }}>
                                 <Text style={{ color: colors.textMuted, fontSize: 16 }}>✕</Text>
                             </TouchableOpacity>
                         </View>
@@ -318,7 +318,7 @@ export default function CreatePostScreen({ navigation }) {
 
                     {/* ── Branch / Dal ── */}
                     <Text style={s.sectionLabel}>Dal</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, paddingHorizontal: 20 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, paddingHorizontal: 17 }}>
                         {ALL_BRANCHES.map(b => (
                             <TouchableOpacity
                                 key={b.key}
@@ -361,7 +361,7 @@ export default function CreatePostScreen({ navigation }) {
                         />
                         {musicQuery.length > 0 && (
                             <TouchableOpacity onPress={() => { setMusicQuery(''); setMusicResults([]); }}>
-                                <Text style={{ color: colors.textMuted, fontSize: 16, paddingLeft: 8 }}>✕</Text>
+                                <Text style={{ color: colors.textMuted, fontSize: 16, paddingLeft: 5 }}>✕</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -401,7 +401,7 @@ export default function CreatePostScreen({ navigation }) {
                     )}
 
                     {musicQuery.length === 0 && musicResults.length === 0 && (
-                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                             <Text style={{ fontSize: 40 }}>🎵</Text>
                             <Text style={{ color: colors.textMuted, fontSize: 14 }}>Şarkı adı veya sanatçı gir</Text>
                         </View>
@@ -415,59 +415,59 @@ export default function CreatePostScreen({ navigation }) {
 const s = StyleSheet.create({
     container:       { flex: 1, backgroundColor: colors.bg },
 
-    header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.surface2 },
+    header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 13, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.surface2 },
     headerSide:      { minWidth: 60 },
     headerTitle:     { color: '#fff', fontSize: 16, fontWeight: '900', textAlign: 'center' },
     cancelText:      { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
     shareText:       { color: colors.purple, fontSize: 15, fontWeight: '900', textAlign: 'right' },
 
     mediaPicker:     { width: '100%', backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-    mediaEmpty:      { alignItems: 'center', gap: 10 },
+    mediaEmpty:      { alignItems: 'center', gap: 3 },
     mediaEmptyIcon:  { fontSize: 48, color: colors.textMuted },
     mediaEmptyText:  { color: '#fff', fontSize: 16, fontWeight: '700' },
     mediaEmptyHint:  { color: colors.textMuted, fontSize: 12 },
-    rePickOverlay:   { position: 'absolute', bottom: 10, right: 10, backgroundColor: '#000000bb', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
+    rePickOverlay:   { position: 'absolute', bottom: 10, right: 10, backgroundColor: '#000000bb', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
     rePickText:      { color: '#fff', fontSize: 12, fontWeight: '700' },
 
-    aspectRow:       { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface },
+    aspectRow:       { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 13, paddingVertical: 9, backgroundColor: colors.surface },
     aspectLabel:     { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginRight: 4 },
-    aspectBtn:       { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: colors.surface2, alignItems: 'center' },
+    aspectBtn:       { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 10, backgroundColor: colors.surface2, alignItems: 'center' },
     aspectBtnActive: { backgroundColor: colors.purple },
     aspectBtnText:   { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
     aspectBtnDesc:   { color: colors.textMuted, fontSize: 9, fontWeight: '600', marginTop: 1 },
 
-    fields:          { padding: 20, gap: 0 },
+    fields:          { padding: 17, gap: 3 },
     captionInput:    { color: '#fff', fontSize: 15, lineHeight: 22, minHeight: 80, textAlignVertical: 'top', paddingTop: 0 },
     charCount:       { color: colors.textMuted, fontSize: 10, textAlign: 'right', marginBottom: 12 },
 
     divider:         { height: 1, backgroundColor: colors.surface2, marginVertical: 12 },
 
     sectionLabel:    { color: colors.textMuted, fontSize: 11, fontWeight: '800', marginBottom: 10, letterSpacing: 0.5 },
-    branchChip:      { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: colors.surface2, marginRight: 8 },
+    branchChip:      { borderRadius: 20, paddingHorizontal: 11, paddingVertical: 4, backgroundColor: colors.surface2, marginRight: 8 },
     branchChipActive:{ backgroundColor: colors.purple },
     branchChipText:  { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
 
     // Music button (no track selected)
-    musicBtn:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+    musicBtn:        { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 7 },
     musicBtnIcon:    { fontSize: 20 },
     musicBtnText:    { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
 
     // Selected track card
-    trackCard:       { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surface2, borderRadius: 12, padding: 10 },
+    trackCard:       { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surface2, borderRadius: 12, padding: 7 },
     trackCover:      { width: 44, height: 44, borderRadius: 8 },
     trackTitle:      { color: '#fff', fontSize: 13, fontWeight: '700' },
     trackArtist:     { color: colors.textMuted, fontSize: 11, marginTop: 2 },
 
     // Music search modal
     musicModal:      { flex: 1, backgroundColor: colors.bg },
-    musicModalHeader:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.surface2 },
+    musicModalHeader:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 13, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.surface2 },
     musicModalTitle: { color: '#fff', fontSize: 16, fontWeight: '900' },
     musicModalClose: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
 
-    musicSearchRow:  { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, margin: 16, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+    musicSearchRow:  { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, margin: 16, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 7 },
     musicSearchInput:{ flex: 1, color: '#fff', fontSize: 14 },
 
-    trackRow:        { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.surface2 },
+    trackRow:        { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 13, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: colors.surface2 },
     trackRowCover:   { width: 48, height: 48, borderRadius: 8, backgroundColor: colors.surface2 },
     trackRowTitle:   { color: '#fff', fontSize: 13, fontWeight: '700' },
     trackRowArtist:  { color: colors.textMuted, fontSize: 11, marginTop: 2 },

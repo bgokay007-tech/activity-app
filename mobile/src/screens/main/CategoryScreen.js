@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+﻿import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../../services/api';
@@ -125,20 +125,20 @@ export default function CategoryScreen({ route, navigation }) {
 }
 
 const s = StyleSheet.create({
-    container:  { flex: 1, backgroundColor: colors.bg, paddingTop: 56 },
-    header:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 24, gap: 12 },
+    container:  { flex: 1, backgroundColor: colors.bg, paddingTop: 53 },
+    header:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, marginBottom: 24, gap: 3 },
     back:       {},
     backText:   { color: colors.purple, fontSize: 15, fontWeight: '700' },
     title:      { color: '#fff', fontSize: 20, fontWeight: '900' },
-    list:       { paddingHorizontal: 1, paddingBottom: 32 },
-    grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+    list:       { paddingHorizontal: 0, paddingBottom: 29 },
+    grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
     card:       {
-        backgroundColor: colors.surface, borderRadius: 12, padding: 10,
-        flexDirection: 'column', alignItems: 'flex-start', borderWidth: 1, gap: 5,
+        backgroundColor: colors.surface, borderRadius: 12, padding: 7,
+        flexDirection: 'column', alignItems: 'flex-start', borderWidth: 1, gap: 3,
         alignSelf: 'flex-start', flexShrink: 0,
     },
     emoji:      { fontSize: 22 },
     cardLabel:  { color: '#fff', fontSize: 13, fontWeight: '700', flexShrink: 0 },
-    countBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1 },
+    countBadge: { borderRadius: 6, paddingHorizontal: 3, paddingVertical: 0, borderWidth: 1 },
     countText:  { fontSize: 10, fontWeight: '700' },
 });

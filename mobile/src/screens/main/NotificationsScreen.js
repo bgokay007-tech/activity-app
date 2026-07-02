@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
@@ -192,7 +192,7 @@ export default function NotificationsScreen({ navigation }) {
                     keyExtractor={item => item.id}
                     renderItem={renderItem}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.purple} />}
-                    contentContainerStyle={{ paddingBottom: 20 }}
+                    contentContainerStyle={{ paddingBottom: 17 }}
                     ListEmptyComponent={
                         <View style={styles.empty}>
                             <Text style={styles.emptyEmoji}>🔕</Text>
@@ -206,12 +206,12 @@ export default function NotificationsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bg, paddingTop: 56 },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+    container: { flex: 1, backgroundColor: colors.bg, paddingTop: 53 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 17, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
     title: { color: '#fff', fontSize: 22, fontWeight: '900' },
-    markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.border },
+    markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
     markAllText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
-    item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 12 },
+    item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 3 },
     itemUnread: { backgroundColor: colors.purple + '10' },
     iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface2, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
     icon: { fontSize: 18 },
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     itemBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 17, marginBottom: 4 },
     itemTime: { color: colors.textMuted, fontSize: 10 },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.purple, marginTop: 6 },
-    empty: { alignItems: 'center', paddingTop: 80 },
+    empty: { alignItems: 'center', paddingTop: 77 },
     emptyEmoji: { fontSize: 52, marginBottom: 12 },
     emptyText: { color: colors.textMuted, fontSize: 15, fontWeight: '600' },
 });

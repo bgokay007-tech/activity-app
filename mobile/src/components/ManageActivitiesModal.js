@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import {
     Modal, View, Text, TouchableOpacity, StyleSheet,
     ScrollView, ActivityIndicator,
@@ -196,34 +196,34 @@ const s = StyleSheet.create({
     overlay:        { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end', paddingTop: '15%' },
     box:            { flex: 1, backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
 
-    header:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: colors.border },
+    header:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 17, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border },
     title:          { color: '#fff', fontSize: 17, fontWeight: '900' },
     close:          { color: colors.textMuted, fontSize: 22 },
 
-    tabRow:         { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-    tab:            { flex: 1, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.surface2, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    tabRow:         { flexDirection: 'row', gap: 3, paddingHorizontal: 13, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.border },
+    tab:            { flex: 1, paddingVertical: 5, borderRadius: 12, backgroundColor: colors.surface2, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
     tabText:        { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
 
-    list:           { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20, gap: 8 },
+    list:           { paddingHorizontal: 13, paddingTop: 5, paddingBottom: 17, gap: 3 },
     emptyText:      { color: colors.textMuted, textAlign: 'center', marginTop: 40 },
 
-    subRow:         { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: 14, padding: 14, gap: 12, borderWidth: 1, borderColor: colors.border },
+    subRow:         { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: 14, padding: 11, gap: 3, borderWidth: 1, borderColor: colors.border },
     subEmoji:       { fontSize: 24 },
     subName:        { color: '#fff', fontSize: 14, fontWeight: '700' },
     subRating:      { fontSize: 12, fontWeight: '700', marginTop: 2 },
 
-    addBtn:         { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
+    addBtn:         { borderRadius: 10, paddingHorizontal: 11, paddingVertical: 4 },
     addBtnText:     { color: '#fff', fontSize: 12, fontWeight: '800' },
 
-    addedBtns:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    assessBtn:      { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1 },
+    addedBtns:      { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    assessBtn:      { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1 },
     assessBtnText:  { fontSize: 11, fontWeight: '700' },
     removeBtn:      { width: 30, height: 30, borderRadius: 8, backgroundColor: '#dc262625', borderWidth: 1, borderColor: '#dc262650', justifyContent: 'center', alignItems: 'center' },
     removeBtnText:  { color: '#f87171', fontSize: 18, fontWeight: '700', lineHeight: 22 },
-    maintBadge:     { backgroundColor: '#37415150', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: '#4b556350' },
+    maintBadge:     { backgroundColor: '#37415150', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: '#4b556350' },
     maintText:      { color: '#9ca3af', fontSize: 10, fontWeight: '700' },
 
-    footer:         { paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: colors.border },
-    doneBtn:        { backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    footer:         { paddingHorizontal: 13, paddingVertical: 11, borderTopWidth: 1, borderTopColor: colors.border },
+    doneBtn:        { backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
     doneBtnText:    { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

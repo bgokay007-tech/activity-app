@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, FlatList, TouchableOpacity, TouchableWithoutFeedback,
     StyleSheet, ActivityIndicator, Image, Platform, Dimensions,
@@ -395,26 +395,26 @@ const s = StyleSheet.create({
     container:      { flex: 1, backgroundColor: colors.bg },
     center:         { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-    header:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.surface2 },
-    backBtn:        { padding: 8 },
+    header:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 1, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 7, borderBottomWidth: 1, borderBottomColor: colors.surface2 },
+    backBtn:        { padding: 5 },
     backText:       { color: '#fff', fontSize: 30, fontWeight: '300', lineHeight: 34 },
     headerTitle:    { color: '#fff', fontSize: 15, fontWeight: '900' },
     separator:      { height: 8, backgroundColor: colors.surface2 },
 
     post:           { backgroundColor: colors.bg },
-    postHeader:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
+    postHeader:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, paddingVertical: 7 },
     avatar:         { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.purple + '50', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
     avatarImg:      { width: 38, height: 38, borderRadius: 19 },
     avatarLetter:   { color: '#fff', fontWeight: '900', fontSize: 15 },
     postInfo:       { flex: 1, marginLeft: 10 },
     postUsername:   { color: '#fff', fontSize: 13, fontWeight: '800' },
     postMeta:       { color: colors.textMuted, fontSize: 11, marginTop: 1 },
-    moreBtn:        { color: colors.textMuted, fontSize: 20, paddingLeft: 10 },
+    moreBtn:        { color: colors.textMuted, fontSize: 20, paddingLeft: 7 },
 
     mediaWrap:      { width: SCREEN_W, aspectRatio: 1, backgroundColor: colors.surface, overflow: 'hidden' },
     media:          { width: '100%', height: '100%' },
 
-    dataSaverCover: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000000cc', justifyContent: 'center', alignItems: 'center', gap: 10 },
+    dataSaverCover: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000000cc', justifyContent: 'center', alignItems: 'center', gap: 3 },
     dataSaverPlayIcon: { color: '#fff', fontSize: 48 },
     dataSaverText:  { color: '#ffffffbb', fontSize: 11, fontWeight: '600', textAlign: 'center' },
 
@@ -423,19 +423,19 @@ const s = StyleSheet.create({
 
     heartFlash:     { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
 
-    actions:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4 },
-    actionsLeft:    { flexDirection: 'row', gap: 4, flex: 1 },
-    actionBtn:      { padding: 6 },
+    actions:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 5, paddingTop: 5, paddingBottom: 1 },
+    actionsLeft:    { flexDirection: 'row', gap: 3, flex: 1 },
+    actionBtn:      { padding: 3 },
     actionIcon:     { fontSize: 24 },
     iconLiked:      { color: '#f87171' },
 
-    likesCount:     { color: '#fff', fontSize: 13, fontWeight: '800', paddingHorizontal: 14, marginBottom: 4 },
-    captionWrap:    { paddingHorizontal: 14, marginBottom: 4 },
+    likesCount:     { color: '#fff', fontSize: 13, fontWeight: '800', paddingHorizontal: 11, marginBottom: 4 },
+    captionWrap:    { paddingHorizontal: 11, marginBottom: 4 },
     captionUser:    { color: '#fff', fontSize: 13, fontWeight: '800' },
     captionText:    { color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
-    commentsHint:   { color: colors.textMuted, fontSize: 13, paddingHorizontal: 14, marginBottom: 6 },
+    commentsHint:   { color: colors.textMuted, fontSize: 13, paddingHorizontal: 11, marginBottom: 6 },
 
-    musicBar:           { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 12, marginBottom: 12, marginTop: 4, backgroundColor: colors.surface2, borderRadius: 12, padding: 10 },
+    musicBar:           { flexDirection: 'row', alignItems: 'center', gap: 3, marginHorizontal: 12, marginBottom: 12, marginTop: 4, backgroundColor: colors.surface2, borderRadius: 12, padding: 7 },
     musicBarActive:     { borderWidth: 1, borderColor: colors.purple + '80' },
     musicCover:         { width: 40, height: 40, borderRadius: 8 },
     musicCoverFallback: { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },

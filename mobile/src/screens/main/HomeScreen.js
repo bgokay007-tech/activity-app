@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { setUser } from '../../store/slices/authSlice';
@@ -58,7 +58,7 @@ export default function HomeScreen({ navigation }) {
     return (
         <View style={s.container}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-                <View style={{ paddingTop: 16, paddingBottom: 8, alignItems: 'center' }}>
+                <View style={{ paddingTop: 13, paddingBottom: 5, alignItems: 'center' }}>
                     <RainbowLogo />
                 </View>
 
@@ -99,25 +99,25 @@ export default function HomeScreen({ navigation }) {
 
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
-    scroll: { paddingTop: 56, paddingBottom: 40 },
+    scroll: { paddingTop: 53, paddingBottom: 37 },
 
-    hero: { paddingHorizontal: 24, marginBottom: 32, alignItems: 'center' },
+    hero: { paddingHorizontal: 21, marginBottom: 32, alignItems: 'center' },
     heroTitle: { color: '#fff', fontSize: 28, fontWeight: '900', textAlign: 'center', lineHeight: 36, marginBottom: 10 },
     heroSub: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
-    cards: { paddingHorizontal: 20, gap: 16 },
+    cards: { paddingHorizontal: 17, gap: 3 },
     card: {
-        borderRadius: 24, borderWidth: 1.5, padding: 24,
+        borderRadius: 24, borderWidth: 1.5, padding: 21,
         alignItems: 'flex-start', position: 'relative',
     },
     cardEmoji: { fontSize: 48, marginBottom: 12 },
     cardLabel: { fontSize: 24, fontWeight: '900', marginBottom: 8 },
     cardDesc: { color: colors.textSecondary, fontSize: 14, lineHeight: 20, marginBottom: 20 },
     cardBtn: {
-        borderRadius: 24, paddingHorizontal: 20, paddingVertical: 12,
+        borderRadius: 24, paddingHorizontal: 17, paddingVertical: 9,
         alignSelf: 'stretch', alignItems: 'center',
     },
     cardBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-    maintenanceBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: '#374151', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+    maintenanceBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: '#374151', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
     maintenanceText: { color: '#9ca3af', fontSize: 11, fontWeight: '700' },
 });

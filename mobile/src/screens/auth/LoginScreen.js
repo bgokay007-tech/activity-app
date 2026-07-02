@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -129,30 +129,30 @@ export default function LoginScreen({ navigation }) {
 
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
-    inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+    inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 21 },
     sub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
-    card: { backgroundColor: colors.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border },
+    card: { backgroundColor: colors.surface, borderRadius: 20, padding: 21, borderWidth: 1, borderColor: colors.border },
     label: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
-    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
-    passRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    eyeBtn: { padding: 10 },
+    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
+    passRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    eyeBtn: { padding: 7 },
     eyeIcon: { fontSize: 18 },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-    checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    checkRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
     checkboxChecked: { backgroundColor: colors.purple, borderColor: colors.purple },
     checkmark: { color: '#fff', fontSize: 12, fontWeight: '800' },
     checkLabel: { color: colors.textSecondary, fontSize: 13 },
-    btn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
+    btn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 11, alignItems: 'center', marginTop: 20 },
     btnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
     linkRow: { marginTop: 16, alignItems: 'center' },
     linkText: { color: colors.textSecondary, fontSize: 13 },
     link: { color: colors.purpleLight, fontWeight: '700', fontSize: 13 },
 
-    bizDivider: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 8 },
+    bizDivider: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 3 },
     bizDividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
     bizDividerText: { color: colors.textMuted, fontSize: 11 },
-    bizLinkRow: { marginTop: 8, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#f59e0b40', backgroundColor: '#f59e0b08' },
+    bizLinkRow: { marginTop: 8, alignItems: 'center', paddingVertical: 7, borderRadius: 12, borderWidth: 1, borderColor: '#f59e0b40', backgroundColor: '#f59e0b08' },
     bizLinkText: { color: colors.textSecondary, fontSize: 12, textAlign: 'center', lineHeight: 18 },
     bizLink: { color: '#fbbf24', fontWeight: '800', fontSize: 12 },
 });

@@ -208,7 +208,7 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                     ) : !profile ? (
                         <Text style={{ color: colors.textMuted, textAlign: 'center', marginVertical: 40 }}>{t.profileNotFound}</Text>
                     ) : profile.isPrivate ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 40, gap: 12 }}>
+                        <View style={{ alignItems: 'center', paddingVertical: 37, gap: 3 }}>
                             <Avatar name={profile.username} size={64} />
                             <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>{profile.fullName || profile.username}</Text>
                             <Text style={{ color: colors.textMuted, fontSize: 13 }}>{profile.username}</Text>
@@ -216,9 +216,9 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                 <Text style={s.privateText}>{t.privateAccount}</Text>
                             </View>
                             {profile.interests?.some(i => i.lateCancelCount > 0) && (
-                                <View style={{ gap: 6, width: '100%' }}>
+                                <View style={{ gap: 3, width: '100%' }}>
                                     {profile.interests.filter(i => i.lateCancelCount > 0).map(i => (
-                                        <View key={i.id} style={{ backgroundColor:'#dc262615', borderRadius:10, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor:'#dc262640', flexDirection:'row', justifyContent:'space-between' }}>
+                                        <View key={i.id} style={{ backgroundColor:'#dc262615', borderRadius:10, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor:'#dc262640', flexDirection:'row', justifyContent:'space-between' }}>
                                             <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>{i.subCategory}</Text>
                                             <Text style={{ color:'#f87171', fontSize:12, fontWeight:'800' }}>{t.lateCancelLabel(i.lateCancelCount)}</Text>
                                         </View>
@@ -257,7 +257,7 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                                     <Text style={s.profileWL}>{i.wins}G · {i.losses}M</Text>
                                                 )}
                                             </View>
-                                            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                                            <View style={{ alignItems: 'flex-end', gap: 3 }}>
                                                 {i.assessmentCompleted && (
                                                     <Text style={[s.profileRating, { color: colors.purple }]}>
                                                         {Number(i.skillRating).toFixed(2)} ★
@@ -271,7 +271,7 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                                     </View>
                                                 )}
                                                 {i.lateCancelCount > 0 && (
-                                                    <View style={{ backgroundColor:'#dc262615', borderRadius:8, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#dc262640' }}>
+                                                    <View style={{ backgroundColor:'#dc262615', borderRadius:8, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }}>
                                                         <Text style={{ color:'#f87171', fontSize:10, fontWeight:'800' }}>{t.lateCancelLabel(i.lateCancelCount)}</Text>
                                                     </View>
                                                 )}
@@ -583,7 +583,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     <View>
                         <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} davet etti</Text>
                         {isMine && (
-                            <TouchableOpacity onPress={() => setMyRivalJoinPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
+                            <TouchableOpacity onPress={() => setMyRivalJoinPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
                                 <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>✓ Kabul Et</Text>
                             </TouchableOpacity>
                         )}
@@ -597,7 +597,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <TouchableOpacity
                                 onPress={() => { setJoinInviteCandidates(solos.filter(s => s.userId !== myId)); setShowJoinInvitePicker(true); }}
                                 disabled={partnerActionLoading}
-                                style={{ marginTop:2, backgroundColor: cfg.color+'20', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
+                                style={{ marginTop:2, backgroundColor: cfg.color+'20', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
                                 <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }}>+ Davet Et</Text>
                             </TouchableOpacity>
                         )}
@@ -607,16 +607,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         }
 
         return (
-            <View key={p1.id} style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:6, paddingHorizontal:8, marginBottom:6 }}>
+            <View key={p1.id} style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:3, paddingHorizontal:5, marginBottom:6 }}>
                 <Half jr={p1} />
                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
                 {slot2}
                 {isOwner && (
-                    <View style={{ flexDirection:'row', gap:4, marginTop:4 }}>
-                        <TouchableOpacity onPress={() => acceptLocal(p1.id)} style={{ flex:1, backgroundColor:'#16a34a30', borderRadius:5, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
+                    <View style={{ flexDirection:'row', gap:3, marginTop:4 }}>
+                        <TouchableOpacity onPress={() => acceptLocal(p1.id)} style={{ flex:1, backgroundColor:'#16a34a30', borderRadius:5, paddingVertical:0, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
                             <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>Kabul</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => rejectLocal(p1.id)} style={{ flex:1, backgroundColor:'#dc262630', borderRadius:5, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                        <TouchableOpacity onPress={() => rejectLocal(p1.id)} style={{ flex:1, backgroundColor:'#dc262630', borderRadius:5, paddingVertical:0, alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
                             <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Red</Text>
                         </TouchableOpacity>
                     </View>
@@ -648,8 +648,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
-                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:8, paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
-                    <TouchableOpacity onPress={onClose} style={{ marginRight:14, padding:4 }}>
+                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
+                    <TouchableOpacity onPress={onClose} style={{ marginRight:14, padding:1 }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
@@ -660,7 +660,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 </View>
 
                 {/* Scrollable content */}
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:8, paddingTop:16, paddingBottom:8 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
                     {/* Tarih / Saat / Süre — dikey, ortalı */}
                     <View style={{ alignItems:'center', marginBottom:moderateScale(12) }}>
@@ -696,9 +696,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     </View>
 
                     {/* Gönderen */}
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:moderateScale(10), marginBottom:item.message ? 8 : 12, paddingBottom:12, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:moderateScale(10), marginBottom:item.message ? 8 : 12, paddingBottom:9, borderBottomWidth:1, borderBottomColor: colors.border }}>
                         <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
-                        <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
+                        <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:3 }}>
                             <Text style={[s.cardName, { fontSize: moderateScale(14) }]}>{senderAlias(item.sender)}</Text>
                             {item.sender?.gender && item.sender.gender !== 'OTHER' && (
                                 <Text style={{ fontSize: moderateScale(11), fontWeight:'700', color: item.sender.gender === 'MALE' ? '#3b82f6' : '#ec4899' }}>
@@ -756,7 +756,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         onLongPress={() => { if (!locked && p && isOwner && !swapSlot) handleSlotTap(slot); }}
                                         delayLongPress={400}
                                         activeOpacity={locked || !p || !isOwner ? 1 : 0.7}
-                                        style={{ borderWidth: isSelected || isTarget ? 1.5 : 0, borderColor, borderRadius:6, padding:4, backgroundColor: bg }}
+                                        style={{ borderWidth: isSelected || isTarget ? 1.5 : 0, borderColor, borderRadius:6, padding:1, backgroundColor: bg }}
                                     >
                                         {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
                                         {p ? (
@@ -794,7 +794,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             return (
                                 <View>
                                     {swapSlot && (
-                                        <View style={{ backgroundColor:'#f59e0b18', borderRadius:6, padding:6, marginBottom:6, alignItems:'center' }}>
+                                        <View style={{ backgroundColor:'#f59e0b18', borderRadius:6, padding:3, marginBottom:6, alignItems:'center' }}>
                                             <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>Taşınacak oyuncu seçildi — hedef slota dokun</Text>
                                             <TouchableOpacity onPress={() => setSwapSlot(null)} style={{ marginTop:3 }}>
                                                 <Text style={{ color: colors.textMuted, fontSize:10 }}>İptal</Text>
@@ -802,7 +802,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </View>
                                     )}
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                        <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
+                                        <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', marginBottom:4 }}>👑 Kurucu Takımı</Text>
                                             {/* Kurucu sabit — taşınamaz */}
                                             <SlotBox slot="__owner" locked p={item.sender} fallback="" />
@@ -821,7 +821,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color: colors.textMuted, fontSize:9 }}>Partner yok</Text>
                                             )}
                                         </View>
-                                        <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:8, paddingHorizontal:8, marginBottom:6 }}>
+                                        <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
                                             <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
                                             <SlotBox slot="opp1" p={participants[0]} fallback="Henüz katılan yok"
                                                 gReqLabel={genderLabel(opp1GenderReq)}
@@ -856,7 +856,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Text style={det.playerSub}>{p.username}</Text>
                                         </View>
                                         {isOwner && (
-                                            <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:6 }}>
+                                            <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:3 }}>
                                                 <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>Çıkar</Text>
                                             </TouchableOpacity>
                                         )}
@@ -891,7 +891,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Text style={det.playerSub}>{jr.user?.username}</Text>
                                                 </View>
                                                 {isOwner && (
-                                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                                    <View style={{ flexDirection:'row', gap:3 }}>
                                                         <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
                                                             <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
                                                         </TouchableOpacity>
@@ -911,7 +911,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
                                         <Text style={det.playerSub}>{jr.user?.username}</Text>
                                     </View>
-                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
                                         <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
                                             <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
                                         </TouchableOpacity>
@@ -976,7 +976,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </TouchableOpacity>
                         )}
                         {isOwner ? (
-                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <View style={{ flexDirection: 'row', gap: 3 }}>
                                 <TouchableOpacity
                                     style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}
                                     onPress={() => { onClose(); setTimeout(onEdit, 300); }}
@@ -988,11 +988,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </TouchableOpacity>
                             </View>
                         ) : myInvite ? (
-                            <View style={{ gap:6 }}>
+                            <View style={{ gap:3 }}>
                                 {myInvite.isPartnerInvite && (
                                     <Text style={{ color:'#a78bfa', fontSize: moderateScale(11), fontWeight:'700', textAlign:'center' }}>🤝 Partner Daveti</Text>
                                 )}
-                                <View style={{ flexDirection:'row', gap:10 }}>
+                                <View style={{ flexDirection:'row', gap:3 }}>
                                     <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(10), paddingVertical: moderateScale(9) }]} onPress={() => handleRespondJoin(myInvite.id, 'accept')}>
                                         <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{myInvite.isPartnerInvite ? 'Partner Ol' : t.inviteAcceptBtn}</Text>
                                     </TouchableOpacity>
@@ -1026,7 +1026,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:moderateScale(13) }}>{t.matchCommentEmpty}</Text>
                     ) : (
                         comments.map(c => (
-                            <View key={c.id} style={{ marginBottom:14, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                            <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
                                 <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                                     <View style={{ flex:1 }}>
                                         <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
@@ -1036,7 +1036,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </Text>
                                     </View>
                                     {canDeleteComment(c) && (
-                                        <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:8, marginLeft:8 }}>
+                                        <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:5, marginLeft:8 }}>
                                             <Text style={{ color:'#f87171', fontSize:moderateScale(14) }}>✕</Text>
                                         </TouchableOpacity>
                                     )}
@@ -1048,7 +1048,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                 {/* Yorum yaz — bottom */}
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
-                    <View style={{ flexDirection:'row', gap:10, paddingHorizontal:12, paddingVertical:10, paddingBottom: Platform.OS==='ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
+                    <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: Platform.OS==='ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                         <TextInput
                             style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
                             placeholder={t.matchCommentPlaceholder}
@@ -1060,7 +1060,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             onSubmitEditing={sendComment}
                         />
                         <TouchableOpacity
-                            style={[s.joinBtn, { paddingHorizontal:18, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
+                            style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
                             onPress={sendComment}
                             disabled={sendingComment}
                         >
@@ -1074,7 +1074,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         {/* Oyuncu Davet Et — arama modali */}
         <Modal visible={inviteModalVisible} animationType="slide" transparent onRequestClose={() => setInviteModalVisible(false)}>
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:40, maxHeight:'80%' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{t.inviteBtn}</Text>
                         <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); }}>
@@ -1092,7 +1092,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {inviteSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
                     <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
                         {inviteResults.map(u => (
-                            <View key={u.id} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                            <View key={u.id} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                 <Avatar name={u.username} avatar={u.avatar} size={moderateScale(36)} color={cfg.color} />
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'700', fontSize:moderateScale(13) }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
@@ -1119,14 +1119,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
         {/* Çiftler: partner davet picker — bireysel başvuranlar arasından seç */}
         <Modal visible={showJoinInvitePicker} animationType="fade" transparent onRequestClose={() => setShowJoinInvitePicker(false)}>
-            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:24 }}>
-                <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:20, borderWidth:1, borderColor: cfg.color+'40', width:'100%', maxHeight:'70%' }}>
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:21 }}>
+                <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:17, borderWidth:1, borderColor: cfg.color+'40', width:'100%', maxHeight:'70%' }}>
                     <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>👥 Partner Davet Et</Text>
                     <ScrollView>
                         {joinInviteCandidates.length === 0 ? (
-                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Davet edilebilecek bireysel başvuran yok</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:13 }}>Davet edilebilecek bireysel başvuran yok</Text>
                         ) : joinInviteCandidates.map(c => (
-                            <TouchableOpacity key={c.userId} onPress={() => setMyRivalJoinPartner(c.userId)} disabled={partnerActionLoading} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                            <TouchableOpacity key={c.userId} onPress={() => setMyRivalJoinPartner(c.userId)} disabled={partnerActionLoading} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                 <Avatar name={c.user?.username} avatar={c.user?.avatar} size={moderateScale(34)} color={cfg.color} />
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.fullName || c.user?.username}</Text>
@@ -1135,7 +1135,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
-                    <TouchableOpacity onPress={() => setShowJoinInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:11, alignItems:'center' }}>
+                    <TouchableOpacity onPress={() => setShowJoinInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
                         <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
                     </TouchableOpacity>
                 </View>
@@ -1266,7 +1266,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
 
     return (
         <>
-        <View style={[s.card, { width:'48%', borderRadius: moderateScale(14), paddingHorizontal:3, paddingTop:3, paddingBottom:3 }, item.flexibleSchedule && { borderColor:'#eab30840' }]}>
+        <View style={[s.card, { width:'48%', borderRadius: moderateScale(14), paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, item.flexibleSchedule && { borderColor:'#eab30840' }]}>
 
             {/* ── Tappable info area → opens detail modal ── */}
             <TouchableOpacity activeOpacity={0.85} onPress={() => { setDetailVisible(true); onRefresh(); }}>
@@ -1287,7 +1287,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Mod + 1v1/2v2 + katılım sayısı */}
                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
                     <ModeBadge mode={item.matchMode} />
-                    <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3 }]}>
+                    <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
                         <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(10) }]}>
                             {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                         </Text>
@@ -1328,15 +1328,15 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 )}
 
                 {item.flexibleSchedule && (
-                    <View style={[s.flexBanner, { borderRadius: moderateScale(10), padding:3, marginBottom:3 }]}>
+                    <View style={[s.flexBanner, { borderRadius: moderateScale(10), padding:0, marginBottom:3 }]}>
                         <Text style={[s.flexTitle, { fontSize: moderateScale(11), marginBottom:3 }]}>{t.flexibleBanner}</Text>
                         <Text style={[s.flexDesc, { fontSize: moderateScale(10) }]}>{t.flexibleBannerDesc}</Text>
                     </View>
                 )}
                 {(item.level || item.levelDetail) && (
                     <View style={[s.levelRow, { gap:3, marginBottom:3 }]}>
-                        {item.level && <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>}
-                        {item.levelDetail && <Text style={[s.levelDetail, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1}>{item.levelDetail}</Text>}
+                        {item.level && <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0, fontSize: moderateScale(10) }]} numberOfLines={1}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>}
+                        {item.levelDetail && <Text style={[s.levelDetail, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0, fontSize: moderateScale(10) }]} numberOfLines={1}>{item.levelDetail}</Text>}
                     </View>
                 )}
                 {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
@@ -1344,7 +1344,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {participants.filter(p => p?.id).length > 0 && (
                     <View style={[s.participantsRow, { gap:3, marginBottom:3 }]}>
                         {participants.filter(p => p?.id).map((p, i) => (
-                            <View key={p.id || i} style={[s.participantChip, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3 }]}>
+                            <View key={p.id || i} style={[s.participantChip, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
                                 <Text style={[s.participantChipText, { fontSize: moderateScale(10) }]} numberOfLines={1}>✓ {senderAlias(p)}</Text>
                             </View>
                         ))}
@@ -1352,7 +1352,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 )}
                 {/* Bekleyen istek badge */}
                 {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
-                    <View style={[s.pendingBadge, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, marginBottom:3 }]}>
+                    <View style={[s.pendingBadge, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0, marginBottom:3 }]}>
                         <Text style={[s.pendingBadgeText, { fontSize: moderateScale(11) }]} numberOfLines={1}>📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests || 'istek'}</Text>
                     </View>
                 )}
@@ -1363,12 +1363,12 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {isOwner ? (
                     <View style={{ flexDirection: 'row', gap: 3 }}>
                         <TouchableOpacity
-                            style={[s.cancelBtn, { flex: 1, paddingHorizontal:3, paddingVertical: moderateScale(5), borderRadius: moderateScale(10), backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
+                            style={[s.cancelBtn, { flex: 1, paddingHorizontal:0, paddingVertical: moderateScale(5), borderRadius: moderateScale(10), backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
                             onPress={() => setEditVisible(true)}
                         >
                             <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[s.cancelBtn, { flex: 1, paddingHorizontal:3, paddingVertical: moderateScale(5), borderRadius: moderateScale(10) }]} onPress={handleCancel}>
+                        <TouchableOpacity style={[s.cancelBtn, { flex: 1, paddingHorizontal:0, paddingVertical: moderateScale(5), borderRadius: moderateScale(10) }]} onPress={handleCancel}>
                             <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1}>{t.cancelAdBtn}</Text>
                         </TouchableOpacity>
                     </View>
@@ -1496,21 +1496,21 @@ function CustomCalendarPicker({ visible, value, onSelect, onClose }) {
 }
 
 const cal = StyleSheet.create({
-    overlay:    { flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:20 },
-    box:        { backgroundColor: colors.surface, borderRadius:20, padding:16, width:'100%' },
+    overlay:    { flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:17 },
+    box:        { backgroundColor: colors.surface, borderRadius:20, padding:13, width:'100%' },
     header:     { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
-    nav:        { padding:10 },
+    nav:        { padding:7 },
     navTxt:     { color:'#fff', fontSize:24, fontWeight:'700', lineHeight:26 },
     title:      { color:'#fff', fontSize:16, fontWeight:'900' },
     row:        { flexDirection:'row', marginBottom:2 },
-    dayLbl:     { flex:1, textAlign:'center', color: colors.textMuted, fontSize:11, fontWeight:'700', paddingVertical:8 },
+    dayLbl:     { flex:1, textAlign:'center', color: colors.textMuted, fontSize:11, fontWeight:'700', paddingVertical:5 },
     cell:       { flex:1, aspectRatio:1, justifyContent:'center', alignItems:'center', borderRadius:8 },
     cellSel:    { backgroundColor: colors.purple },
     cellDis:    { opacity:0.2 },
     cellTxt:    { color:'#fff', fontSize:13, fontWeight:'600' },
     cellTxtSel: { fontWeight:'900' },
     cellTxtDis: { color: colors.textMuted },
-    closeBtn:   { marginTop:12, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor: colors.border },
+    closeBtn:   { marginTop:12, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: colors.border },
     closeTxt:   { color: colors.textSecondary, fontWeight:'700' },
 });
 
@@ -1570,13 +1570,13 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: colors.bg }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                    <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                    <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 1 }}>
                         <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
                     </TouchableOpacity>
                     <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>✏️ İlanı Düzenle</Text>
                     <TouchableOpacity
-                        style={[s.joinBtn, { paddingHorizontal: 16, paddingVertical: 8, opacity: saving ? 0.6 : 1 }]}
+                        style={[s.joinBtn, { paddingHorizontal: 13, paddingVertical: 5, opacity: saving ? 0.6 : 1 }]}
                         onPress={handleSave}
                         disabled={saving}
                     >
@@ -1584,7 +1584,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 13 }} keyboardShouldPersistTaps="handled">
                     <Text style={s.fieldLabel}>📅 Tarih</Text>
                     <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center' }]} onPress={() => setCalVisible(true)}>
                         <Text style={{ color: form.matchDate ? '#fff' : colors.textMuted, fontSize: 14 }}>
@@ -1599,7 +1599,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         {TIME_OPTS.slice(0, 50).map(o => (
                             <TouchableOpacity
                                 key={o.value || 'none'}
-                                style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, marginRight: 6, backgroundColor: form.matchTime === o.value ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchTime === o.value ? colors.purple : colors.border }}
+                                style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, marginRight: 6, backgroundColor: form.matchTime === o.value ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchTime === o.value ? colors.purple : colors.border }}
                                 onPress={() => setForm(f => ({ ...f, matchTime: o.value }))}
                             >
                                 <Text style={{ color: form.matchTime === o.value ? '#fff' : colors.textMuted, fontSize: 12, fontWeight: '700' }}>{o.label}</Text>
@@ -1613,7 +1613,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         onChangeText={v => setForm(f => ({ ...f, location: v }))}
                         placeholder="Konum girin..."
                         style={{ marginBottom: 14 }}
-                        inputStyle={{ borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 }}
+                        inputStyle={{ borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9, fontSize: 14 }}
                     />
 
                     <Text style={s.fieldLabel}>🏟️ Saha Adı</Text>
@@ -1627,7 +1627,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
 
                     <Text style={s.fieldLabel}>💬 Mesaj</Text>
                     <TextInput
-                        style={[s.fieldInput, { height: 80, textAlignVertical: 'top', paddingTop: 10 }]}
+                        style={[s.fieldInput, { height: 80, textAlignVertical: 'top', paddingTop: 7 }]}
                         value={form.message}
                         onChangeText={v => setForm(f => ({ ...f, message: v }))}
                         placeholder="Mesajınızı girin..."
@@ -1635,7 +1635,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         multiline
                     />
 
-                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 0 }}>
+                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 0 }}>
                         <View style={{ flex: 1 }}>
                             <Text style={s.fieldLabel}>⭐ Min Puan</Text>
                             <TextInput
@@ -1661,11 +1661,11 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     </View>
 
                     <Text style={s.fieldLabel}>💰 Maç Modu</Text>
-                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 16 }}>
                         {['FREE', 'PAID'].map(mode => (
                             <TouchableOpacity
                                 key={mode}
-                                style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: form.matchMode === mode ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchMode === mode ? colors.purple : colors.border }}
+                                style={{ flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center', backgroundColor: form.matchMode === mode ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchMode === mode ? colors.purple : colors.border }}
                                 onPress={() => setForm(f => ({ ...f, matchMode: mode }))}
                             >
                                 <Text style={{ color: form.matchMode === mode ? '#fff' : colors.textMuted, fontWeight: '700' }}>
@@ -1680,11 +1680,11 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         const GenderRow = ({ label, field }) => (
                             <View style={{ marginBottom: 12 }}>
                                 <Text style={s.fieldLabel}>{label}</Text>
-                                <View style={{ flexDirection:'row', gap:8 }}>
+                                <View style={{ flexDirection:'row', gap:3 }}>
                                     {GENDERS.map(g => (
                                         <TouchableOpacity
                                             key={g.id}
-                                            style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: form[field] === g.id ? colors.purple : colors.surface2, borderWidth:1, borderColor: form[field] === g.id ? colors.purple : colors.border }}
+                                            style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: form[field] === g.id ? colors.purple : colors.surface2, borderWidth:1, borderColor: form[field] === g.id ? colors.purple : colors.border }}
                                             onPress={() => setForm(f => ({ ...f, [field]: g.id }))}
                                         >
                                             <Text style={{ color: form[field] === g.id ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'700' }}>{g.label}</Text>
@@ -1781,34 +1781,34 @@ function TextPostCard({ post, cfg }) {
                 </View>
             </View>
             <Text style={[s.cardMsg, { marginBottom: 12, lineHeight: 20 }]}>{post.content}</Text>
-            <View style={{ flexDirection: 'row', gap: 20, marginBottom: showComments ? 10 : 0 }}>
-                <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <View style={{ flexDirection: 'row', gap: 3, marginBottom: showComments ? 10 : 0 }}>
+                <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                     <Text style={{ color: liked ? '#f43f5e' : colors.textMuted, fontSize: 16 }}>♥</Text>
                     <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{likesCount}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={openComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <TouchableOpacity onPress={openComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                     <Text style={{ color: showComments ? cfg.color : colors.textMuted, fontSize: 14 }}>💬</Text>
                     <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{comments.length || post._count?.comments || 0}</Text>
                 </TouchableOpacity>
             </View>
             {showComments && (
-                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 5 }}>
                     {comments.map((c, i) => (
-                        <View key={c.id || i} style={{ flexDirection: 'row', gap: 6, marginBottom: 5 }}>
+                        <View key={c.id || i} style={{ flexDirection: 'row', gap: 3, marginBottom: 5 }}>
                             <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
                             <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>{c.content}</Text>
                         </View>
                     ))}
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                    <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
                         <TextInput
-                            style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+                            style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
                             placeholder="Yorum yaz..."
                             placeholderTextColor={colors.textMuted}
                             value={commentText}
                             onChangeText={setCommentText}
                         />
                         <TouchableOpacity onPress={sendComment} disabled={sendingComment || !commentText.trim()}
-                            style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center', opacity: !commentText.trim() ? 0.4 : 1 }}>
+                            style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 11, justifyContent: 'center', opacity: !commentText.trim() ? 0.4 : 1 }}>
                             <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{sendingComment ? '…' : '↑'}</Text>
                         </TouchableOpacity>
                     </View>
@@ -1821,31 +1821,31 @@ function TextPostCard({ post, cfg }) {
 // ─── Upcoming Match Card ────────────────────────────────────────────────────────
 
 const sc = StyleSheet.create({
-    box:          { backgroundColor: colors.surface2, borderRadius:12, padding:12, marginTop:8, borderWidth:1, borderColor: colors.border },
+    box:          { backgroundColor: colors.surface2, borderRadius:12, padding:9, marginTop:8, borderWidth:1, borderColor: colors.border },
     headerRow:    { flexDirection:'row', alignItems:'center', marginBottom:6 },
     colMe:        { flex:1, color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
     colLabel:     { width:64, color: colors.textMuted, fontSize:11, fontWeight:'700', textAlign:'center' },
     colOpp:       { flex:1, color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
-    setRow:       { flexDirection:'row', alignItems:'center', paddingVertical:5 },
+    setRow:       { flexDirection:'row', alignItems:'center', paddingVertical:2 },
     setScore:     { flex:1, fontSize:22, fontWeight:'900', textAlign:'center' },
-    setInputRow:  { flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 },
-    setInput:     { flex:1, backgroundColor:'#ffffff0d', borderRadius:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:22, fontWeight:'900', textAlign:'center', paddingVertical:10 },
+    setInputRow:  { flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 },
+    setInput:     { flex:1, backgroundColor:'#ffffff0d', borderRadius:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:22, fontWeight:'900', textAlign:'center', paddingVertical:7 },
     divider:      { height:1, backgroundColor: colors.border, marginVertical:6 },
-    totalRow:     { flexDirection:'row', alignItems:'center', paddingVertical:4 },
+    totalRow:     { flexDirection:'row', alignItems:'center', paddingVertical:1 },
     totalScore:   { flex:1, fontSize:18, fontWeight:'900', color:'#fff', textAlign:'center' },
     totalLabel:   { width:64, color: colors.textMuted, fontSize:11, fontWeight:'800', textAlign:'center' },
-    winnerRow:    { alignItems:'center', paddingTop:6 },
+    winnerRow:    { alignItems:'center', paddingTop:3 },
     winnerText:   { fontSize:13, fontWeight:'800' },
-    addBtn:       { flexDirection:'row', justifyContent:'center', alignItems:'center', paddingVertical:8, borderRadius:8, borderWidth:1, borderColor: colors.border, borderStyle:'dashed', marginBottom:4 },
+    addBtn:       { flexDirection:'row', justifyContent:'center', alignItems:'center', paddingVertical:5, borderRadius:8, borderWidth:1, borderColor: colors.border, borderStyle:'dashed', marginBottom:4 },
     addBtnTxt:    { color: colors.purple, fontSize:13, fontWeight:'700' },
-    removeBtn:    { padding:6, marginLeft:2 },
+    removeBtn:    { padding:3, marginLeft:2 },
     removeTxt:    { color: colors.textMuted, fontSize:13 },
-    radioRow:     { flexDirection:'row', alignItems:'center', gap:10, padding:12, borderRadius:12, borderWidth:1, borderColor: colors.border, marginBottom:8 },
+    radioRow:     { flexDirection:'row', alignItems:'center', gap:3, padding:9, borderRadius:12, borderWidth:1, borderColor: colors.border, marginBottom:8 },
     radioActive:  { borderColor: colors.purple },
     radio:        { width:18, height:18, borderRadius:9, borderWidth:2, borderColor: colors.border },
     radioChecked: { borderColor: colors.purple, backgroundColor: colors.purple },
     radioLabel:   { color:'#fff', fontSize:14, fontWeight:'700', flex:1 },
-    warningText:  { color:'#facc15', fontSize:12, fontWeight:'600', backgroundColor:'#facc1510', borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor:'#facc1540' },
+    warningText:  { color:'#facc15', fontSize:12, fontWeight:'600', backgroundColor:'#facc1510', borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor:'#facc1540' },
     lockedTxt:    { color: colors.textMuted, fontSize:11, textAlign:'center', marginTop:6 },
 });
 
@@ -2287,7 +2287,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         <>
         {/* Compact card — tap opens detail */}
         <TouchableOpacity
-            style={[s.card, { flex:1, paddingHorizontal:6, paddingTop:6, paddingBottom:6,
+            style={[s.card, { flex:1, paddingHorizontal:3, paddingTop:3, paddingBottom:3,
                 borderColor: isMatched ? '#16a34a60' : '#a855f740',
                 backgroundColor: isMatched ? '#16a34a08' : undefined }]}
             activeOpacity={0.75}
@@ -2295,7 +2295,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         >
             {/* Players + ratings */}
             {allPlayers.map((p, idx) => (
-                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
+                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
                     {p._emptySlot ? (
                         <Text style={{ color: colors.textMuted, fontSize:13, fontStyle:'italic' }}>— ortak slot boş —</Text>
                     ) : (
@@ -2351,10 +2351,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         <Modal visible={showDetail} animationType="slide" onRequestClose={() => setShowDetail(false)}>
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
-                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:12,
-                    paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:14,
+                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:9,
+                    paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:11,
                     borderBottomWidth:1, borderBottomColor: colors.border }}>
-                    <TouchableOpacity onPress={() => setShowDetail(false)} style={{ marginRight:14, padding:4 }}>
+                    <TouchableOpacity onPress={() => setShowDetail(false)} style={{ marginRight:14, padding:1 }}>
                         <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
@@ -2365,11 +2365,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     </View>
                 </View>
 
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:12, paddingBottom:24 }}
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:9, paddingBottom:21 }}
                     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
                     {/* Match info box */}
-                    <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:12, borderWidth:1, borderColor: colors.border }}>
+                    <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:11, marginBottom:12, borderWidth:1, borderColor: colors.border }}>
                         <Text style={{ color: colors.textMuted, fontSize:13 }}>
                             {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : t.unknownDate}
                             {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
@@ -2403,14 +2403,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         key={slot}
                                         onPress={() => handleSwapTap(slot)}
                                         activeOpacity={0.7}
-                                        style={{ borderRadius:8, paddingHorizontal:8, paddingVertical:8, marginBottom:4, backgroundColor:'#4ade8012', borderWidth:1.5, borderColor:'#4ade80', alignItems:'center' }}>
+                                        style={{ borderRadius:8, paddingHorizontal:5, paddingVertical:5, marginBottom:4, backgroundColor:'#4ade8012', borderWidth:1.5, borderColor:'#4ade80', alignItems:'center' }}>
                                         <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>
                                             {slot === 'partner' ? '↔ Partner olarak taşı' : '↔ Rakip olarak taşı'}
                                         </Text>
                                     </TouchableOpacity>
                                 );
                                 return (
-                                    <View key={slot} style={{ borderRadius:8, paddingHorizontal:8, paddingVertical:6, marginBottom:4, backgroundColor:'#1e293b', borderWidth:1, borderColor:'#ffffff10' }}>
+                                    <View key={slot} style={{ borderRadius:8, paddingHorizontal:5, paddingVertical:3, marginBottom:4, backgroundColor:'#1e293b', borderWidth:1, borderColor:'#ffffff10' }}>
                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>
                                             {slot === 'partner' ? '— Partner bekleniyor —' : slot === 'opp1' ? '— Rakip 1 bekleniyor —' : '— Rakip 2 bekleniyor —'}
                                         </Text>
@@ -2427,7 +2427,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         }}
                                         activeOpacity={0.7}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                                            borderRadius:8, paddingHorizontal:8, paddingVertical:6,
+                                            borderRadius:8, paddingHorizontal:5, paddingVertical:3,
                                             borderWidth:1,
                                             borderColor: isSel ? '#f59e0b' : isTgt ? '#4ade80' : '#ffffff15',
                                             backgroundColor: isSel ? '#f59e0b18' : isTgt ? '#4ade8015' : '#1e293b' }}
@@ -2442,7 +2442,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     {!swapSlot && isOwner && (
                                         <TouchableOpacity
                                             onPress={() => removePlayer(p.id, senderAlias(p))}
-                                            style={{ marginTop:2, paddingVertical:3, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
+                                            style={{ marginTop:2, paddingVertical:0, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
                                             <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
                                         </TouchableOpacity>
                                     )}
@@ -2452,20 +2452,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         return (
                             <View style={{ marginBottom:12 }}>
                                 {swapSlot && (
-                                    <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:4, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                                    <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:1, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                                         <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>Hedef slota dokun</Text>
                                         <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
                                     </View>
                                 )}
-                                <View style={{ flexDirection:'row', gap:4 }}>
-                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:5, borderWidth:1, borderColor:'#a855f720' }}>
+                                <View style={{ flexDirection:'row', gap:3 }}>
+                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
                                         <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>👑 Kurucu</Text>
-                                        <View style={{ borderRadius:5, paddingHorizontal:5, paddingVertical:3, marginBottom:2, backgroundColor:'#1e293b' }}>
+                                        <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, marginBottom:2, backgroundColor:'#1e293b' }}>
                                             <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1}>{senderAlias(match.sender)} 🔒</Text>
                                         </View>
                                         {mkSlot('partner', partner, '#c084fc')}
                                     </View>
-                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:5, borderWidth:1, borderColor:'#f8717120' }}>
+                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
                                         <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>⚔️ Rakip</Text>
                                         {mkSlot('opp1', opp1, '#fca5a5')}
                                         {mkSlot('opp2', opp2, '#fca5a5')}
@@ -2480,9 +2480,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
                     {/* Non-DOUBLE: owner remove */}
                     {isOwner && match.matchType !== 'DOUBLE' && participantsArr.length > 0 && (
-                        <View style={{ marginBottom:12, gap:4 }}>
+                        <View style={{ marginBottom:12, gap:3 }}>
                             {participantsArr.map(p => (
-                                <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:6 }}>
+                                <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:7, paddingVertical:3 }}>
                                     <Text style={{ color:'#94a3b8', fontSize:13 }} numberOfLines={1}>{senderAlias(p)}</Text>
                                     <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))}>
                                         <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>Çıkar</Text>
@@ -2494,7 +2494,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
                     {/* Flexible schedule panel */}
                     {match.flexibleSchedule && !match.matchDate && (
-                        <View style={{ backgroundColor:'#f59e0b10', borderRadius:10, padding:10, marginBottom:12, borderWidth:1, borderColor:'#f59e0b40' }}>
+                        <View style={{ backgroundColor:'#f59e0b10', borderRadius:10, padding:7, marginBottom:12, borderWidth:1, borderColor:'#f59e0b40' }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
                                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800' }}>📅 Tarih/Saat/Yer Belirle</Text>
                                 {match.schedulingDeadline && (
@@ -2518,14 +2518,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
                                             {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
                                         </Text>
-                                        <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
+                                        <View style={{ flexDirection:'row', gap:3, marginTop:8 }}>
                                             <TouchableOpacity
-                                                style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50', alignItems:'center' }}
+                                                style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:4, borderWidth:1, borderColor:'#16a34a50', alignItems:'center' }}
                                                 onPress={acceptProposal} disabled={propAccepting}>
                                                 <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{propAccepting ? '...' : '✅ Kabul Et'}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
-                                                style={{ flex:1, backgroundColor:'#f59e0b15', borderRadius:8, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b40', alignItems:'center' }}
+                                                style={{ flex:1, backgroundColor:'#f59e0b15', borderRadius:8, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40', alignItems:'center' }}
                                                 onPress={() => setShowScheduleForm(v => !v)}>
                                                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Farklı Öner</Text>
                                             </TouchableOpacity>
@@ -2534,22 +2534,22 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 )
                             ) : (
                                 <TouchableOpacity
-                                    style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:8, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}
+                                    style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:5, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}
                                     onPress={() => setShowScheduleForm(v => !v)}>
                                     <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Tarih/Saat/Yer Öner</Text>
                                 </TouchableOpacity>
                             )}
                             {showScheduleForm && (
-                                <View style={{ marginTop:10, gap:8 }}>
+                                <View style={{ marginTop:10, gap:3 }}>
                                     <TouchableOpacity
-                                        style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propDate ? '#f59e0b60' : colors.border }}
+                                        style={{ backgroundColor: colors.surface2, borderRadius:8, padding:7, borderWidth:1, borderColor: propDate ? '#f59e0b60' : colors.border }}
                                         onPress={() => setShowPropDatePicker(true)}>
                                         <Text style={{ color: propDate ? '#fff' : colors.textMuted, fontSize:13 }}>
                                             {propDate ? `📅 ${String(propDate.getDate()).padStart(2,'0')}/${String(propDate.getMonth()+1).padStart(2,'0')}/${propDate.getFullYear()}` : '📅 Tarih Seç'}
                                         </Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propTime ? '#f59e0b60' : colors.border }}
+                                        style={{ backgroundColor: colors.surface2, borderRadius:8, padding:7, borderWidth:1, borderColor: propTime ? '#f59e0b60' : colors.border }}
                                         onPress={() => setShowPropTimePicker(true)}>
                                         <Text style={{ color: propTime ? '#fff' : colors.textMuted, fontSize:13 }}>
                                             {propTime ? `🕐 ${propTime}` : '🕐 Saat Seç'}
@@ -2557,13 +2557,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     </TouchableOpacity>
                                     {/* Court search */}
                                     {propSelectedCourt ? (
-                                        <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#16a34a15', borderRadius:8, padding:10, borderWidth:1, borderColor:'#16a34a50', gap:8 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#16a34a15', borderRadius:8, padding:7, borderWidth:1, borderColor:'#16a34a50', gap:3 }}>
                                             <Text style={{ color:'#4ade80', fontSize:13, flex:1 }} numberOfLines={1}>🏟️ {propSelectedCourt.name}{propSelectedCourt.city ? `  · ${propSelectedCourt.city}` : ''}</Text>
                                             <TouchableOpacity onPress={clearPropCourt}><Text style={{ color: colors.textMuted, fontSize:14 }}>✕</Text></TouchableOpacity>
                                         </View>
                                     ) : (
                                         <TextInput
-                                            style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, borderWidth:1, borderColor: propCourtText ? '#f59e0b60' : colors.border, color:'#fff', fontSize:13 }}
+                                            style={{ backgroundColor: colors.surface2, borderRadius:8, padding:7, borderWidth:1, borderColor: propCourtText ? '#f59e0b60' : colors.border, color:'#fff', fontSize:13 }}
                                             placeholder="🔍 Kort Ara (isteğe bağlı)"
                                             placeholderTextColor={colors.textMuted}
                                             value={propCourtText}
@@ -2575,36 +2575,36 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <View style={{ backgroundColor: colors.surface2, borderRadius:8, marginTop:4, borderWidth:1, borderColor: colors.border }}>
                                             {propCourtResults.map((court, i) => (
                                                 <TouchableOpacity key={court.id}
-                                                    style={{ padding:10, borderBottomWidth: i < propCourtResults.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}
+                                                    style={{ padding:7, borderBottomWidth: i < propCourtResults.length - 1 ? 1 : 0, borderBottomColor: colors.border + '40' }}
                                                     onPress={() => selectPropCourt(court)}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{court.name}</Text>
                                                     {court.city && <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>{court.city}</Text>}
                                                 </TouchableOpacity>
                                             ))}
                                             <TouchableOpacity
-                                                style={{ padding:10, borderTopWidth:1, borderTopColor: colors.border + '40' }}
+                                                style={{ padding:7, borderTopWidth:1, borderTopColor: colors.border + '40' }}
                                                 onPress={() => { setPropCourtResults([]); setPropShowManual(true); }}>
                                                 <Text style={{ color:'#f59e0b', fontSize:12 }}>+ "{propCourtText}" olarak ekle → admin onayına gider</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
                                     {!propSelectedCourt && !propCourtSearching && propCourtText.length >= 2 && propCourtResults.length === 0 && !propShowManual && (
-                                        <TouchableOpacity style={{ marginTop:4, paddingVertical:6, paddingHorizontal:2 }} onPress={() => setPropShowManual(true)}>
+                                        <TouchableOpacity style={{ marginTop:4, paddingVertical:3, paddingHorizontal:0 }} onPress={() => setPropShowManual(true)}>
                                             <Text style={{ color:'#f59e0b', fontSize:12 }}>+ Kort bulunamadı — manuel ekle (onay bekler)</Text>
                                         </TouchableOpacity>
                                     )}
                                     {propShowManual && (
-                                        <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:4, borderWidth:1, borderColor:'#f59e0b40', gap:6 }}>
+                                        <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginTop:4, borderWidth:1, borderColor:'#f59e0b40', gap:3 }}>
                                             <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⚠️ Admin onayına gönderilecek</Text>
                                             <TextInput
-                                                style={{ backgroundColor: colors.surface2, borderRadius:6, padding:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
+                                                style={{ backgroundColor: colors.surface2, borderRadius:6, padding:5, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
                                                 placeholder="Kort / Tesis Adı"
                                                 placeholderTextColor={colors.textMuted}
                                                 value={propManualName}
                                                 onChangeText={setPropManualName}
                                             />
                                             <TextInput
-                                                style={{ backgroundColor: colors.surface2, borderRadius:6, padding:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
+                                                style={{ backgroundColor: colors.surface2, borderRadius:6, padding:5, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
                                                 placeholder="İl / Adres"
                                                 placeholderTextColor={colors.textMuted}
                                                 value={propManualCity}
@@ -2616,7 +2616,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         </View>
                                     )}
                                     <TouchableOpacity
-                                        style={{ backgroundColor:'#f59e0b30', borderRadius:8, paddingVertical:9, borderWidth:1, borderColor:'#f59e0b60', alignItems:'center' }}
+                                        style={{ backgroundColor:'#f59e0b30', borderRadius:8, paddingVertical:6, borderWidth:1, borderColor:'#f59e0b60', alignItems:'center' }}
                                         onPress={submitProposal} disabled={propSubmitting}>
                                         <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{propSubmitting ? '...' : '📤 Öneriyi Gönder'}</Text>
                                     </TouchableOpacity>
@@ -2753,7 +2753,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {/* Mutual cancel banner */}
                     {withinPenaltyWindow && otherRequestedMutual && !iAlreadyRequestedMutual && (
                         <TouchableOpacity
-                            style={{ backgroundColor:'#eab30820', borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor:'#eab30840' }}
+                            style={{ backgroundColor:'#eab30820', borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor:'#eab30840' }}
                             onPress={() => handleMutualCancelPress(true)}
                         >
                             <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.mutualCancelOtherRequested}</Text>
@@ -2761,16 +2761,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     )}
 
                     {/* Action buttons */}
-                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:8, marginBottom:20 }}>
+                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8, marginBottom:20 }}>
                         {!hasScore && scoreUnlocked && (
                             <>
                                 <TouchableOpacity
-                                    style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', flex:1, alignItems:'center' }}
+                                    style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', flex:1, alignItems:'center' }}
                                     onPress={() => setShowScore(v => !v)}>
                                     <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262615', flex:1, alignItems:'center' }}
+                                    style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262615', flex:1, alignItems:'center' }}
                                     onPress={() => setShowCantScore(true)}>
                                     <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
                                 </TouchableOpacity>
@@ -2780,18 +2780,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <>
                                 {withinPenaltyWindow && !iAlreadyRequestedMutual && (
                                     <TouchableOpacity
-                                        style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#2563eb50', backgroundColor:'#2563eb18', alignItems:'center' }}
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#2563eb50', backgroundColor:'#2563eb18', alignItems:'center' }}
                                         onPress={() => handleMutualCancelPress(false)} disabled={cancelling}>
                                         <Text style={{ color:'#60a5fa', fontSize:13, fontWeight:'700' }}>🤝 Karşılıklı</Text>
                                     </TouchableOpacity>
                                 )}
                                 {withinPenaltyWindow && iAlreadyRequestedMutual && (
-                                    <View style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#2563eb30', backgroundColor:'#2563eb10', alignItems:'center' }}>
+                                    <View style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#2563eb30', backgroundColor:'#2563eb10', alignItems:'center' }}>
                                         <Text style={{ color:'#60a5fa', fontSize:13 }}>⏳ İstendi</Text>
                                     </View>
                                 )}
                                 <TouchableOpacity
-                                    style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
+                                    style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
                                     onPress={handleCancelPress} disabled={cancelling}>
                                     <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
                                 </TouchableOpacity>
@@ -2799,13 +2799,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {canReportNoShow && (
                             <TouchableOpacity
-                                style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#f9731650', backgroundColor:'#f9731618', alignItems:'center' }}
+                                style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#f9731650', backgroundColor:'#f9731618', alignItems:'center' }}
                                 onPress={() => { setNoShowAbsent([]); setNoShowPhoto(null); setShowNoShow(true); }}>
                                 <Text style={{ color:'#fb923c', fontSize:13, fontWeight:'700' }}>🚫 Gelmedi</Text>
                             </TouchableOpacity>
                         )}
                         {match._myNoShowPending && (
-                            <View style={{ paddingHorizontal:14, paddingVertical:9, borderRadius:10, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610', alignItems:'center' }}>
+                            <View style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610', alignItems:'center' }}>
                                 <Text style={{ color:'#fb923c', fontSize:13 }}>⏳ Bildirildi</Text>
                             </View>
                         )}
@@ -2821,7 +2821,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz yorum yok.</Text>
                     ) : (
                         localComments.map(c => (
-                            <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                            <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.username || '?'}</Text>
                                     <Text style={{ color: colors.textMuted, fontSize:10 }}>
@@ -2836,12 +2836,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
                 {/* Comment input */}
                 <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding' : undefined}>
-                    <View style={{ flexDirection:'row', gap:10, paddingHorizontal:12, paddingVertical:10,
+                    <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7,
                         paddingBottom: Platform.OS==='ios' ? 28 : 10,
                         borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                         <TextInput
-                            style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:12,
-                                paddingVertical:8, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
+                            style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
+                                paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
                             placeholder="Yorum yaz..."
                             placeholderTextColor={colors.textMuted}
                             value={localCommentText}
@@ -2850,7 +2850,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         />
                         <TouchableOpacity
                             style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
-                                borderRadius:10, paddingHorizontal:14, justifyContent:'center', alignItems:'center' }}
+                                borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
                             onPress={sendLocalComment}
                             disabled={sendingLocalComment || !localCommentText.trim()}>
                             <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
@@ -2863,7 +2863,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         {/* Skor Giremiyoruz Modal */}
             <Modal visible={showCantScore} animationType="slide" transparent onRequestClose={() => { setShowCantScore(false); setAbandonReason(null); }}>
                 <View style={s.modalOverlay}>
-                    <View style={[s.modalBox, { paddingBottom:40 }]}>
+                    <View style={[s.modalBox, { paddingBottom:37 }]}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{t.cantScoreTitle}</Text>
                             <TouchableOpacity onPress={() => { setShowCantScore(false); setAbandonReason(null); }}>
@@ -2901,7 +2901,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <OptionPickerModal visible={showAbanTimePicker} title={t.selectTime} options={TIME_OPTS.filter(o => o.value)} value={abanTime} onSelect={setAbanTime} onClose={() => setShowAbanTimePicker(false)} />
 
                                     <Text style={s.fieldLabel}>{t.courtLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                         <TextInput
                                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}
                                             value={abanCourtText}
@@ -2993,7 +2993,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             <Modal visible={showNoShow} animationType="slide" transparent onRequestClose={() => setShowNoShow(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
                     <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'}>
-                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingBottom:36 }}>
+                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:17, paddingBottom:33 }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
                                 <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🚫 Gelmeme Bildirimi</Text>
                                 <TouchableOpacity onPress={() => setShowNoShow(false)}>
@@ -3012,7 +3012,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <TouchableOpacity
                                         key={p.id}
                                         onPress={() => toggleAbsent(p.id)}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}
                                     >
                                         <View style={{ width:22, height:22, borderRadius:6, borderWidth:2, borderColor: selected ? '#fb923c' : colors.border, backgroundColor: selected ? '#fb923c30' : 'transparent', justifyContent:'center', alignItems:'center' }}>
                                             {selected && <Text style={{ color:'#fb923c', fontSize:12, fontWeight:'900' }}>✓</Text>}
@@ -3028,7 +3028,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {/* Photo picker */}
                             <TouchableOpacity
                                 onPress={pickNoShowPhoto}
-                                style={{ marginTop:16, flexDirection:'row', alignItems:'center', gap:8, paddingVertical:10, paddingHorizontal:14, borderRadius:10, borderWidth:1, borderColor: noShowPhoto ? '#fb923c80' : colors.border, backgroundColor: noShowPhoto ? '#fb923c15' : colors.surface2 }}
+                                style={{ marginTop:16, flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, paddingHorizontal:11, borderRadius:10, borderWidth:1, borderColor: noShowPhoto ? '#fb923c80' : colors.border, backgroundColor: noShowPhoto ? '#fb923c15' : colors.surface2 }}
                             >
                                 <Text style={{ fontSize:18 }}>📷</Text>
                                 <Text style={{ color: noShowPhoto ? '#fb923c' : colors.textMuted, fontSize:13, fontWeight:'700', flex:1 }}>
@@ -3045,7 +3045,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             )}
 
                             <TouchableOpacity
-                                style={{ marginTop:18, backgroundColor: noShowSubmitting || noShowAbsent.length===0 ? colors.surface2 : '#ea580c', borderRadius:12, paddingVertical:13, alignItems:'center' }}
+                                style={{ marginTop:18, backgroundColor: noShowSubmitting || noShowAbsent.length===0 ? colors.surface2 : '#ea580c', borderRadius:12, paddingVertical:10, alignItems:'center' }}
                                 onPress={submitNoShow}
                                 disabled={noShowSubmitting || noShowAbsent.length===0}
                             >
@@ -3093,11 +3093,11 @@ function OptionPickerModal({ visible, title, options, value, onSelect, onClose }
 
 const opt = StyleSheet.create({
     overlay:      { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    box:          { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:40 },
+    box:          { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37 },
     header:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 },
     title:        { color:'#fff', fontSize:16, fontWeight:'900' },
     close:        { color: colors.textMuted, fontSize:22 },
-    item:         { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:14, borderBottomWidth:1, borderBottomColor: colors.border },
+    item:         { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:11, borderBottomWidth:1, borderBottomColor: colors.border },
     itemActive:   { },
     itemText:     { color: colors.textSecondary, fontSize:15, fontWeight:'600' },
     itemTextActive:{ color:'#fff', fontWeight:'800' },
@@ -3125,7 +3125,7 @@ function TimeGridModal({ visible, title, value, onSelect, onClose }) {
                         needed extra scroll nudges to render the rest. */}
                     <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
                         {rows.map((row, i) => (
-                            <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                 {row.map(item => (
                                     <TouchableOpacity
                                         key={item}
@@ -3146,11 +3146,11 @@ function TimeGridModal({ visible, title, value, onSelect, onClose }) {
 
 const tg = StyleSheet.create({
     overlay:        { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    box:            { height:'75%', backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:20, paddingBottom:40 },
+    box:            { height:'75%', backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:13, paddingTop:17, paddingBottom:37 },
     header:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 },
     title:          { color:'#fff', fontSize:16, fontWeight:'900' },
     close:          { color: colors.textMuted, fontSize:22 },
-    cell:           { flex:1, paddingVertical:12, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    cell:           { flex:1, paddingVertical:9, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
     cellActive:     { backgroundColor: colors.purple, borderColor: colors.purple },
     cellText:       { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
     cellTextActive: { color:'#fff' },
@@ -3171,7 +3171,7 @@ function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
                         keyExtractor={item => item === '' ? 'none' : item}
                         numColumns={4}
                         style={{ flex: 1 }}
-                        columnWrapperStyle={{ gap:8, marginBottom:8 }}
+                        columnWrapperStyle={{ gap:3, marginBottom:8 }}
                         showsVerticalScrollIndicator={false}
                         renderItem={({ item }) => (
                             <TouchableOpacity
@@ -3383,7 +3383,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                             {/* 1+2 - Mod + Format yan yana (non-team) / Mod + Takım (team) */}
                             {!isTeamSport ? (
                                 <>
-                                    <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                         <View style={{ flex:1 }}>
                                             <Text style={s.fieldLabel}>{t.modLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:0 }]}>
@@ -3403,7 +3403,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                                     };
                                                     return (
                                                         <TouchableOpacity key={mode} onPress={handleModePress}
-                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, isActive && {
+                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isActive && {
                                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                                 borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                             }]}>
@@ -3420,7 +3420,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             <View style={[s.chipRow, { marginBottom:0 }]}>
                                                 {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
                                                     <TouchableOpacity key={fmt.id} onPress={() => setF(p => ({ ...p, matchType: fmt.id, partner: fmt.id === 'DOUBLE' ? p.partner : null }))}
-                                                        style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive]}>
+                                                        style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, f.matchType===fmt.id && s.chipBtnActive]}>
                                                         <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
                                                     </TouchableOpacity>
                                                 ))}
@@ -3429,7 +3429,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                     {!isTeamSport && f.matchType === 'DOUBLE' && (
                                         f.partner ? (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:10, paddingVertical:8, marginBottom:8 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:7, paddingVertical:5, marginBottom:8 }}>
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }}>👥 {t.partnerLabel}: {f.partner.fullName || f.partner.username}</Text>
                                                 <TouchableOpacity onPress={() => set('partner', null)}>
                                                     <Text style={{ color: colors.textMuted, fontSize:16 }}>✕</Text>
@@ -3437,7 +3437,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             </View>
                                         ) : (
                                             <TouchableOpacity onPress={() => setShowPartnerSearch(true)}
-                                                style={{ backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:10, paddingVertical:8, marginBottom:8, alignItems:'center' }}>
+                                                style={{ backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:7, paddingVertical:5, marginBottom:8, alignItems:'center' }}>
                                                 <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>👥+ {t.choosePartnerBtn}</Text>
                                             </TouchableOpacity>
                                         )
@@ -3451,10 +3451,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                         const GenderRow = ({ label, field }) => (
                                             <View style={{ flex:1 }}>
                                                 <Text style={[s.fieldLabel, { marginBottom:4, fontSize:11 }]}>{label}</Text>
-                                                <View style={{ flexDirection:'row', gap:4 }}>
+                                                <View style={{ flexDirection:'row', gap:3 }}>
                                                     {GENDERS.map(g => (
                                                         <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
-                                                            style={[s.chipBtn, { flex:1, paddingHorizontal:2, paddingVertical:4 }, f[field]===g.id && s.chipBtnActive]}>
+                                                            style={[s.chipBtn, { flex:1, paddingHorizontal:0, paddingVertical:1 }, f[field]===g.id && s.chipBtnActive]}>
                                                             <Text style={[s.chipBtnText, { fontSize:10 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
                                                         </TouchableOpacity>
                                                     ))}
@@ -3469,9 +3469,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             );
                                         }
                                         return (
-                                            <View style={{ marginBottom:8, gap:8 }}>
+                                            <View style={{ marginBottom:8, gap:3 }}>
                                                 <GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti'} field="partnerGenderReq" />
-                                                <View style={{ flexDirection:'row', gap:8 }}>
+                                                <View style={{ flexDirection:'row', gap:3 }}>
                                                     <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
                                                     <GenderRow label={t.opp2GenderLabel || 'Rakip 2 Cinsiyeti'} field="opp2GenderReq" />
                                                 </View>
@@ -3495,7 +3495,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                             const isActive = f.matchMode === mode;
                                             return (
                                                 <TouchableOpacity key={mode} onPress={() => set('matchMode', mode)}
-                                                    style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, isActive && {
+                                                    style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isActive && {
                                                         backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                         borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                     }]}>
@@ -3530,21 +3530,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                             )}
 
                             {/* Puan Limiti + Esnek Program yan yana */}
-                            <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                 <View style={{ flex:1 }}>
                                     <Text style={s.fieldLabel}>{t.ratingLimitLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:6 }}>
-                                        <TouchableOpacity style={{ flex:1, backgroundColor:colors.surface2, borderRadius:10, padding:3, borderWidth:1, borderColor: f.minRating ? colors.purple+'80' : colors.border, alignItems:'center' }} onPress={() => setRatingPickerTarget('min')}>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                        <TouchableOpacity style={{ flex:1, backgroundColor:colors.surface2, borderRadius:10, padding:0, borderWidth:1, borderColor: f.minRating ? colors.purple+'80' : colors.border, alignItems:'center' }} onPress={() => setRatingPickerTarget('min')}>
                                             <Text style={s.triLabel}>{t.minRatingLabel}</Text>
                                             <Text style={[s.triValue, !f.minRating && s.triPlaceholder]}>{f.minRating ? `${f.minRating} ★` : 'Serbest'}</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={{ flex:1, backgroundColor:colors.surface2, borderRadius:10, padding:3, borderWidth:1, borderColor: f.maxRating ? colors.purple+'80' : colors.border, alignItems:'center' }} onPress={() => setRatingPickerTarget('max')}>
+                                        <TouchableOpacity style={{ flex:1, backgroundColor:colors.surface2, borderRadius:10, padding:0, borderWidth:1, borderColor: f.maxRating ? colors.purple+'80' : colors.border, alignItems:'center' }} onPress={() => setRatingPickerTarget('max')}>
                                             <Text style={s.triLabel}>{t.maxRatingLabel}</Text>
                                             <Text style={[s.triValue, !f.maxRating && s.triPlaceholder]}>{f.maxRating ? `${f.maxRating} ★` : 'Serbest'}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
-                                <View style={[s.switchRow, { flex:1, marginBottom:0, padding:3 }]}>
+                                <View style={[s.switchRow, { flex:1, marginBottom:0, padding:0 }]}>
                                     <View style={{ flex:1 }}>
                                         <Text style={[s.fieldLabel, { marginBottom:2 }]}>{t.flexLabel}</Text>
                                         <Text style={[s.fieldHint, { marginBottom:0 }]}>{t.flexHint}</Text>
@@ -3567,7 +3567,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                 <>
                                     {/* Kort Ara */}
                                     <Text style={s.fieldLabel}>{t.courtLabel}{!f.flexibleSchedule && !f.courtMutual ? ' *' : ''}</Text>
-                                    {!f.courtMutual && <View style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
+                                    {!f.courtMutual && <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                         <TextInput
                                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}
                                             value={f.courtSearchText}
@@ -3627,7 +3627,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                     {/* Ortaklaşa kararlaştırılır seçeneği */}
                                     <TouchableOpacity
                                         onPress={() => set('courtMutual', !f.courtMutual)}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:10, paddingVertical:8, paddingHorizontal:10, borderRadius:10, backgroundColor: f.courtMutual ? cfg.color+'18' : '#ffffff08', borderWidth:1, borderColor: f.courtMutual ? cfg.color+'60' : '#ffffff15' }}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:10, paddingVertical:5, paddingHorizontal:7, borderRadius:10, backgroundColor: f.courtMutual ? cfg.color+'18' : '#ffffff08', borderWidth:1, borderColor: f.courtMutual ? cfg.color+'60' : '#ffffff15' }}
                                     >
                                         <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
                                             {f.courtMutual && <View style={{ width:8, height:8, borderRadius:4, backgroundColor: cfg.color }} />}
@@ -3722,7 +3722,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
 
                                     {/* Mekan Tipi */}
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:14 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:14 }}>
                                         <View>
                                             <Text style={[s.fieldLabel, { marginTop:-6 }]}>{t.venueLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:0 }]}>
@@ -3765,7 +3765,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         {/* Çift maç partneri — arama modali */}
         <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowPartnerSearch(false)}>
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:40, maxHeight:'80%' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.choosePartnerBtn}</Text>
                         <TouchableOpacity onPress={() => { setShowPartnerSearch(false); setPartnerQuery(''); setPartnerResults([]); }}>
@@ -3783,7 +3783,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                     {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
                     <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
                         {partnerResults.map(u => (
-                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                 <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
@@ -4329,7 +4329,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <View>
                         <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} davet etti</Text>
                         {isMine && !regEnded && (
-                            <TouchableOpacity onPress={() => setMyTournamentPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
+                            <TouchableOpacity onPress={() => setMyTournamentPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
                                 <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>✓ Kabul Et</Text>
                             </TouchableOpacity>
                         )}
@@ -4342,7 +4342,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         {isMine && !regEnded && (
                             <TouchableOpacity
                                 onPress={() => { setInviteCandidates(solos.filter(s => s.userId !== myId)); setShowInvitePicker(true); }}
-                                style={{ marginTop:2, backgroundColor: cfg.color+'20', borderRadius:5, paddingHorizontal:6, paddingVertical:2, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
+                                style={{ marginTop:2, backgroundColor: cfg.color+'20', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
                                 <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }}>+ Davet Et</Text>
                             </TouchableOpacity>
                         )}
@@ -4353,9 +4353,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
         const isMineCard = p1.userId === myId || p2?.userId === myId;
         return (
-            <View key={p1.userId} style={{ width:'48%', backgroundColor: isMineCard ? cfg.color+'10' : '#0f172a', borderRadius:8, borderWidth:1, borderColor: isMineCard ? cfg.color+'40' : colors.border+'40', paddingVertical:6, paddingHorizontal:8, marginBottom:6 }}>
+            <View key={p1.userId} style={{ width:'48%', backgroundColor: isMineCard ? cfg.color+'10' : '#0f172a', borderRadius:8, borderWidth:1, borderColor: isMineCard ? cfg.color+'40' : colors.border+'40', paddingVertical:3, paddingHorizontal:5, marginBottom:6 }}>
                 {label && (
-                    <View style={{ backgroundColor: label.bg, borderRadius:4, paddingHorizontal:5, paddingVertical:1, alignSelf:'flex-start', marginBottom:3, borderWidth:1, borderColor: label.border }}>
+                    <View style={{ backgroundColor: label.bg, borderRadius:4, paddingHorizontal:2, paddingVertical:0, alignSelf:'flex-start', marginBottom:3, borderWidth:1, borderColor: label.border }}>
                         <Text style={{ color: label.color, fontSize:8, fontWeight:'800' }}>{label.text}</Text>
                     </View>
                 )}
@@ -4741,9 +4741,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         <View style={[s.card, { marginBottom:10 }]}>
             {/* Header */}
             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
-                <View style={{ flex:1, gap:2 }}>
+                <View style={{ flex:1, gap:3 }}>
                     {item.status === 'IN_PROGRESS' ? (
-                        <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => setCollapsed(c => !c)}>
+                        <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:3 }} onPress={() => setCollapsed(c => !c)}>
                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{item.name}</Text>
                             <Text style={{ color: colors.textMuted, fontSize:13 }}>{collapsed ? '▶' : '▼'}</Text>
                         </TouchableOpacity>
@@ -4760,7 +4760,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         {item.contactPhone ? `  📞 ${item.contactPhone}` : ''}
                     </Text>
                     {item.isPaid ? (
-                        <View style={{ gap:1 }}>
+                        <View style={{ gap:3 }}>
                             <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
                                 💰 Ücretli{item.playerFee ? ` · ${item.playerFee}₺/oyuncu` : ''}
                             </Text>
@@ -4808,7 +4808,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     ) : null}
                     {/* Rules badge */}
                     {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
-                        <View style={{ backgroundColor:'#1e3a8a20', borderRadius:7, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#1e3a8a50', marginTop:2 }}>
+                        <View style={{ backgroundColor:'#1e3a8a20', borderRadius:7, paddingHorizontal:4, paddingVertical:1, borderWidth:1, borderColor:'#1e3a8a50', marginTop:2 }}>
                             <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }}>
                                 {item.matchFrequency === 'WEEKLY_1'
                                     ? '📅 Haftada 1 Maç  •  🃏 1 joker (+10 gün)'
@@ -4817,7 +4817,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </View>
                     )}
                     {(item.prize1 || item.prize2 || item.prize3) && (
-                        <View style={{ gap:1 }}>
+                        <View style={{ gap:3 }}>
                             {item.prize1 && <Text style={{ color:'#fbbf24', fontSize:11 }}>🥇 {item.prize1}</Text>}
                             {item.prize2 && <Text style={{ color:'#94a3b8', fontSize:11 }}>🥈 {item.prize2}</Text>}
                             {item.prize3 && <Text style={{ color:'#cd7f32', fontSize:11 }}>🥉 {item.prize3}</Text>}
@@ -4834,26 +4834,26 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         )}
                     </>)}
                     {(item.type === '1' || item.type === '2') && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
-                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:2 }}>
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:2 }}>
                             {item.setsPerMatch && (
-                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor: infoColor+'40' }}>
                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>
                                         {`Set Sayısı: ${item.setsPerMatch}`}
                                     </Text>
                                 </View>
                             )}
                             {item.advantageScoring !== undefined && (
-                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor: infoColor+'40' }}>
                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>
                                         {item.advantageScoring === null ? t.tournFreeScoring : item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
                                     </Text>
                                 </View>
                             )}
-                            <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                            <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor: infoColor+'40' }}>
                                 <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>🔢 Play-Off Öncesi Maç Sayısı: {item.matchesBeforePlayoff || 3}</Text>
                             </View>
                             {item.playoffQualifiers && (
-                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor+'40' }}>
+                                <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor: infoColor+'40' }}>
                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>🏆 {t.tournPlayoffQualifiers}: {item.playoffQualifiers}</Text>
                                 </View>
                             )}
@@ -4862,32 +4862,32 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     </>)}
                 </View>
                 {!collapsed && (
-                <View style={{ alignItems:'flex-end', gap:4 }}>
-                    <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : infoColor + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : infoColor + '50' }}>
+                <View style={{ alignItems:'flex-end', gap:3 }}>
+                    <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : infoColor + '20', borderRadius:8, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : infoColor + '50' }}>
                         <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : infoColor, fontSize:10, fontWeight:'800' }}>
                             {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : t.tournStatusOpen}
                         </Text>
                     </View>
                     {isCreator ? (<>
                         {myStatus === null && !isEventStarted() && (
-                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
                             </TouchableOpacity>
                         )}
                         {myStatus === 'ACCEPTED' && (
-                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
+                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                 <Text style={{ color:'#4ade80', fontSize:10 }}>✓ Katıldın</Text>
                             </View>
                         )}
-                        <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setShowEditModal(true)}>
+                        <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setShowEditModal(true)}>
                             <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournEditBtn}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650', alignItems:'center' }} onPress={() => onDelete(item.id)}>
+                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650', alignItems:'center' }} onPress={() => onDelete(item.id)}>
                             <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', textAlign:'center' }}>Turnuvayı{'\n'}🗑️ Sil</Text>
                         </TouchableOpacity>
                         {item.status === 'OPEN' && participantCount >= (item.minPlayers || 2) && (
                             <TouchableOpacity
-                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}
+                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}
                                 onPress={handleStartTournament}
                                 disabled={starting}>
                                 <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>
@@ -4897,7 +4897,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         )}
                         {item.status === 'IN_PROGRESS' && item.type !== '2' && (
                             <TouchableOpacity
-                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}
+                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}
                                 onPress={handleRematch}>
                                 <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🔀 Tekrar{'\n'}Eşleştir</Text>
                             </TouchableOpacity>
@@ -4905,20 +4905,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         {item.status === 'IN_PROGRESS' && item.type === '1' && (
                             <>
                                 <TouchableOpacity
-                                    style={{ backgroundColor:'#0e7490' + '30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#0e7490' + '60' }}
+                                    style={{ backgroundColor:'#0e7490' + '30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#0e7490' + '60' }}
                                     onPress={handleFixDeadlines}>
                                     <Text style={{ color:'#67e8f9', fontSize:10, fontWeight:'700' }}>⏱️ Süre{'\n'}Düzelt</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#7c3aed50' }}
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#7c3aed50' }}
                                     onPress={handleRegenRound}>
                                     <Text style={{ color:'#a78bfa', fontSize:10, fontWeight:'700' }}>🔁 Turu{'\n'}Düzelt</Text>
                                 </TouchableOpacity>
                             </>
                         )}
-                        <View style={{ flexDirection:'row', gap:6 }}>
+                        <View style={{ flexDirection:'row', gap:3 }}>
                             <TouchableOpacity
-                                style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
+                                style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#16a34a40' }}
                                 onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
                                 <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
                                     {'Mesajlar'.split('').join('\n')}
@@ -4926,7 +4926,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
+                                style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#1e40af40' }}
                                 onPress={() => { fetchRequests(); setShowListModal(true); }}>
                                 {requests.length > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{requests.length}</Text>}
                                 <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
@@ -4937,41 +4937,41 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </View>
                     </>) : (<>
                         {myStatus === null && ['OPEN', 'IN_PROGRESS'].includes(item.status) && !isEventStarted() && !isRegEnded() && (
-                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournJoinBtn}</Text>
                             </TouchableOpacity>
                         )}
                         {myStatus === 'PENDING' && (<>
-                            <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#a855f750', maxWidth:120 }}>
+                            <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor:'#a855f750', maxWidth:120 }}>
                                 <Text style={{ color:'#c084fc', fontSize:10, flexWrap:'wrap' }}>{t.tournJoinPending}</Text>
                             </View>
                             {!isEventStarted() && (
-                                <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onCancelJoin(item.id)}>
+                                <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onCancelJoin(item.id)}>
                                     <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournCancelJoinBtn}</Text>
                                 </TouchableOpacity>
                             )}
                         </>)}
                         {myStatus === 'ACCEPTED' && !myPart?.cancelRequested && (
-                            <View style={{ gap:4 }}>
-                                <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
+                            <View style={{ gap:3 }}>
+                                <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                     <Text style={{ color:'#4ade80', fontSize:10 }}>{t.tournJoinAccepted}</Text>
                                 </View>
                                 {!isEventStarted() && (
-                                    <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }} onPress={handleCancelAttempt}>
+                                    <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }} onPress={handleCancelAttempt}>
                                         <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>İptal</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
                         )}
                         {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (
-                            <View style={{ backgroundColor:'#f59e0b15', borderRadius:6, paddingHorizontal:6, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40' }}>
+                            <View style={{ backgroundColor:'#f59e0b15', borderRadius:6, paddingHorizontal:3, paddingVertical:1, borderWidth:1, borderColor:'#f59e0b40' }}>
                                 <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ İptal onay bekliyor</Text>
                             </View>
                         )}
-                        <View style={{ flexDirection:'row', gap:6 }}>
+                        <View style={{ flexDirection:'row', gap:3 }}>
                             {myStatus === 'ACCEPTED' && (
                                 <TouchableOpacity
-                                    style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#16a34a40' }}
+                                    style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#16a34a40' }}
                                     onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
                                     <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
                                         {'Mesajlar'.split('').join('\n')}
@@ -4980,7 +4980,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
-                                style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#1e40af40' }}
+                                style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#1e40af40' }}
                                 onPress={() => { item.type === '2' ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
                                 {participantCount > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{participantCount}</Text>}
                                 <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
@@ -4997,7 +4997,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         {/* IN_PROGRESS / COMPLETED: matches modal open button */}
         {(item.status === 'IN_PROGRESS' || item.status === 'COMPLETED') && (
             <TouchableOpacity
-                style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
                 onPress={() => { fetchMatches(); if (!isCreator && participants.length === 0) fetchParticipants(); setShowMatchesModal(true); }}>
                 <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📋 Maçlar & Puan Tablosu</Text>
                 <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
@@ -5014,7 +5014,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     </View>
                     {/* Rules summary bar */}
                     {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' && (
-                        <View style={{ backgroundColor:'#1e3a8a18', borderRadius:8, padding:8, marginBottom:10, borderWidth:1, borderColor:'#1e3a8a40' }}>
+                        <View style={{ backgroundColor:'#1e3a8a18', borderRadius:8, padding:5, marginBottom:10, borderWidth:1, borderColor:'#1e3a8a40' }}>
                             <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800' }}>
                                 {item.matchFrequency === 'WEEKLY_1'
                                     ? '📅 Haftada 1 Maç  •  🃏 1 joker hakkı (+10 gün)'
@@ -5023,10 +5023,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </View>
                     )}
                     {(item.type === '1' || item.type === '3') && (
-                        <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                             {['matches','standings'].map(tab => (
                                 <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
-                                    style={{ paddingHorizontal:14, paddingVertical:6, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
+                                    style={{ paddingHorizontal:11, paddingVertical:3, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
                                     <Text style={{ color: matchTab===tab ? '#4ade80' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
                                         {tab === 'matches' ? 'Maçlar' : 'Puan Tablosu'}
                                     </Text>
@@ -5038,24 +5038,24 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 {loadingMatches ? (
                     <ActivityIndicator size="small" color="#4ade80" style={{ marginVertical:8 }} />
                 ) : matchesError ? (
-                    <View style={{ alignItems:'center', paddingVertical:10 }}>
+                    <View style={{ alignItems:'center', paddingVertical:7 }}>
                         <Text style={{ color:'#f87171', fontSize:12, marginBottom:8 }}>Maçlar yüklenemedi (bağlantı sorunu olabilir)</Text>
-                        <TouchableOpacity onPress={fetchMatches} style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:14, paddingVertical:6, borderWidth:1, borderColor:'#16a34a60' }}>
+                        <TouchableOpacity onPress={fetchMatches} style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60' }}>
                             <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>↻ Tekrar Dene</Text>
                         </TouchableOpacity>
                     </View>
                 ) : matchTab === 'standings' ? (
                     standings.length === 0
-                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Henüz maç sonucu yok</Text>
+                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Henüz maç sonucu yok</Text>
                         : <View>
-                            <View style={{ flexDirection:'row', paddingVertical:4, borderBottomWidth:1, borderBottomColor: colors.border, marginBottom:2 }}>
+                            <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor: colors.border, marginBottom:2 }}>
                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
                                 {['O','G','M','Av','P'].map(h => (
                                     <Text key={h} style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
                                 ))}
                             </View>
                             {standings.map((row, i) => (
-                                <View key={row.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < standings.length-1 ? 1 : 0, borderBottomColor: colors.border+'30' }}>
+                                <View key={row.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:2, borderBottomWidth: i < standings.length-1 ? 1 : 0, borderBottomColor: colors.border+'30' }}>
                                     <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>
                                         {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ${starEmoji(Number(skillRatingMap[row.id]))} ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
                                     </Text>
@@ -5067,7 +5067,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                           </View>
                 ) : (
                     tournMatches.length === 0
-                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>Maç yok</Text>
+                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Maç yok</Text>
                         : (() => {
                             const playoffMs = tournMatches.filter(m => m.phase === 'PLAYOFF');
                             const playoffMaxRound = playoffMs.length ? Math.max(...playoffMs.map(m => m.round)) : 0;
@@ -5111,13 +5111,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             return (
                                 <>
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
-                                        <View style={{ flexDirection:'row', gap:6 }}>
+                                        <View style={{ flexDirection:'row', gap:3 }}>
                                             {roundKeys.map(({ phase, round }) => {
                                                 const key = `${phase}|${round}`;
                                                 const isActive = key === activeKey;
                                                 return (
                                                     <TouchableOpacity key={key} onPress={() => setSelectedRoundKey(key)}
-                                                        style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, backgroundColor: isActive ? infoColor+'30' : '#1e293b', borderWidth:1, borderColor: isActive ? infoColor+'60' : colors.border, alignItems:'center' }}>
+                                                        style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: isActive ? infoColor+'30' : '#1e293b', borderWidth:1, borderColor: isActive ? infoColor+'60' : colors.border, alignItems:'center' }}>
                                                         <Text style={{ color: isActive ? infoColor : colors.textMuted, fontSize:11, fontWeight:'800' }}>{getRoundLabel(round, phase)}</Text>
                                                         {roundRanges[key] && (
                                                             <Text style={{ color: isActive ? infoColor : colors.textMuted, fontSize:8, marginTop:1 }}>{roundRanges[key]}</Text>
@@ -5138,12 +5138,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                             const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                             return (
-                                                <View key={match.id} style={{ width: isEntering ? '100%' : (item.type === '2' ? '48.5%' : '100%'), backgroundColor:'#0f172a', borderRadius:8, padding:3, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
+                                                <View key={match.id} style={{ width: isEntering ? '100%' : (item.type === '2' ? '48.5%' : '100%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
                                                         <View style={{ flex:1 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
                                                                 const setsRow = isDone && mSets.length > 0 && (
-                                                                    <View style={{ flexDirection:'row', gap:3, paddingLeft:3 }}>
+                                                                    <View style={{ flexDirection:'row', gap:3, paddingLeft:0 }}>
                                                                         {mSets.map((s,i) => <Text key={i} style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:12, fontWeight:'900', minWidth:16, textAlign:'center' }}>{s.p1}</Text>)}
                                                                         <Text style={{ color: isW ? '#4ade80' : '#475569', fontSize:10, fontWeight:'800', minWidth:12, textAlign:'center' }}>{p1SW}</Text>
                                                                     </View>
@@ -5199,7 +5199,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p2Id;
                                                                 const setsRow = isDone && mSets.length > 0 && (
-                                                                    <View style={{ flexDirection:'row', gap:3, paddingLeft:3 }}>
+                                                                    <View style={{ flexDirection:'row', gap:3, paddingLeft:0 }}>
                                                                         {mSets.map((s,i) => <Text key={i} style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:12, fontWeight:'900', minWidth:16, textAlign:'center' }}>{s.p2}</Text>)}
                                                                         <Text style={{ color: isW ? '#4ade80' : '#475569', fontSize:10, fontWeight:'800', minWidth:12, textAlign:'center' }}>{p2SW}</Text>
                                                                     </View>
@@ -5268,7 +5268,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             })()}
                                                             {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                    style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
+                                                                    style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor: infoColor+'50' }}>
                                                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>Skor Gir</Text>
                                                                 </TouchableOpacity>
                                                             )}
@@ -5295,7 +5295,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                                 }
                                                                             }},
                                                                         ])}
-                                                                        style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60' }}>
+                                                                        style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60' }}>
                                                                         <Text style={{ color: otherJokerRequested ? '#c084fc' : '#93c5fd', fontSize:9, fontWeight:'700' }}>
                                                                             {jokerLabel}
                                                                         </Text>
@@ -5311,14 +5311,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     <>
                                                                         {!bothConfirmed && myUnconfirmedSide && !isEntering && (
                                                                             <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
-                                                                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60', alignItems:'center' }}>
+                                                                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor:'#16a34a60', alignItems:'center' }}>
                                                                                 <Text style={{ color:'#4ade80', fontSize:12 }}>✓</Text>
                                                                                 <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>Onayla</Text>
                                                                             </TouchableOpacity>
                                                                         )}
                                                                         {!bothConfirmed && (isCreator || myIsAdmin) && !isEntering && (
                                                                             <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
+                                                                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
                                                                                 <Text style={{ color:'#fbbf24', fontSize:12 }}>✏️</Text>
                                                                                 <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>Düzelt</Text>
                                                                             </TouchableOpacity>
@@ -5335,7 +5335,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             })()}
                                                         </View>
                                                     {isEntering && (
-                                                        <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:8 }}>
+                                                        <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
                                                             <View style={{ flexDirection:'row', marginBottom:4 }}>
                                                                 <Text style={{ color: colors.textMuted, fontSize:10, width:54 }}>Set</Text>
                                                                 <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p1Name}</Text>
@@ -5345,23 +5345,23 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 <View key={si} style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
                                                                     <Text style={{ color: si === 2 ? '#f59e0b' : colors.textMuted, fontSize:11, width:54 }}>{si === 2 ? '🔥 3.' : `${si+1}.`} Set</Text>
                                                                     <TextInput
-                                                                        style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
+                                                                        style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
                                                                         value={set.p1}
                                                                         onChangeText={v => updateTournSet(si, 'p1', v)}
                                                                         keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
                                                                     <TextInput
-                                                                        style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
+                                                                        style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
                                                                         value={set.p2}
                                                                         onChangeText={v => updateTournSet(si, 'p2', v)}
                                                                         keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
                                                                 </View>
                                                             ))}
-                                                            <View style={{ flexDirection:'row', gap:8, marginTop:6 }}>
+                                                            <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
                                                                 <TouchableOpacity onPress={submitScore} disabled={submittingScore}
-                                                                    style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:14, paddingVertical:5, borderWidth:1, borderColor:'#16a34a60' }}>
+                                                                    style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:2, borderWidth:1, borderColor:'#16a34a60' }}>
                                                                     <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : 'Kaydet'}</Text>
                                                                 </TouchableOpacity>
-                                                                <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:10, paddingVertical:5 }}>
+                                                                <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:7, paddingVertical:2 }}>
                                                                     <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
                                                                 </TouchableOpacity>
                                                             </View>
@@ -5424,18 +5424,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </View>
 
                                 {/* Min / Max players + Rating limits — 4 in a row */}
-                                <View style={{ flexDirection:'row', gap:6, marginBottom:14, marginTop:4 }}>
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:14, marginTop:4 }}>
                                     <View style={{ flex:1 }}>
                                         <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>Min Oyuncu</Text>
-                                        <TextInput style={[s.fieldInput, { paddingVertical:6, textAlign:'center', fontSize:12 }]} value={editMin} onChangeText={setEditMin} keyboardType="numeric" maxLength={3} />
+                                        <TextInput style={[s.fieldInput, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={editMin} onChangeText={setEditMin} keyboardType="numeric" maxLength={3} />
                                     </View>
                                     <View style={{ flex:1 }}>
                                         <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>Max Oyuncu</Text>
-                                        <TextInput style={[s.fieldInput, { paddingVertical:6, textAlign:'center', fontSize:12 }]} value={editMax} onChangeText={setEditMax} keyboardType="numeric" maxLength={3} />
+                                        <TextInput style={[s.fieldInput, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={editMax} onChangeText={setEditMax} keyboardType="numeric" maxLength={3} />
                                     </View>
                                     <TouchableOpacity onPress={() => setEditRf('min')} style={{ flex:1 }}>
                                         <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Alt Derece</Text>
-                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: editMinRating ? infoColor : colors.border }}>
+                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: editMinRating ? infoColor : colors.border }}>
                                             <Text style={{ color: editMinRating ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
                                                 {editMinRating ? `${editMinRating}★` : '—'}
                                             </Text>
@@ -5443,7 +5443,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setEditRf('max')} style={{ flex:1 }}>
                                         <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Üst Derece</Text>
-                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: editMaxRating ? infoColor : colors.border }}>
+                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: editMaxRating ? infoColor : colors.border }}>
                                             <Text style={{ color: editMaxRating ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
                                                 {editMaxRating ? `${editMaxRating}★` : '—'}
                                             </Text>
@@ -5476,16 +5476,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         ))}
                                     </View>
                                     <Text style={{ color: colors.textMuted, fontSize:13, marginBottom:6 }}>Sayı Sistemi</Text>
-                                    <View style={{ flexDirection:'row', gap:6, marginBottom:14 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                         {[{v:true,l:'⚡ Avantajlı'},{v:false,l:'🎯 Karar Puanı'},{v:null,l:'🔓 Serbest'}].map(({v,l}) => (
                                             <TouchableOpacity key={String(v)} onPress={() => setEditAdvantageScoring(v)}
-                                                style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, backgroundColor: editAdvantageScoring === v ? infoColor+'30' : colors.surface2, borderColor: editAdvantageScoring === v ? infoColor : colors.border }}>
+                                                style={{ flex:1, borderRadius:8, paddingVertical:3, alignItems:'center', borderWidth:1, backgroundColor: editAdvantageScoring === v ? infoColor+'30' : colors.surface2, borderColor: editAdvantageScoring === v ? infoColor : colors.border }}>
                                                 <Text style={{ color: editAdvantageScoring === v ? infoColor : colors.textMuted, fontSize:10, fontWeight:editAdvantageScoring===v?'800':'500' }}>{l}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
                                     <Text style={s.fieldLabel}>Play-Off Öncesi Maç Sayısı</Text>
-                                    <View style={{ flexDirection:'row', gap:10, alignItems:'center', marginBottom:14 }}>
+                                    <View style={{ flexDirection:'row', gap:3, alignItems:'center', marginBottom:14 }}>
                                         <TextInput style={[s.fieldInput, { flex:1, textAlign:'center' }]} value={editMatches} onChangeText={v => setEditMatches(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="3" placeholderTextColor={colors.textMuted} />
                                         <Text style={{ color: colors.textMuted, fontSize:12 }}>Play-Off Oyuncu:</Text>
                                         <TextInput style={[s.fieldInput, { flex:1, textAlign:'center' }]} value={editQualifiers} onChangeText={v => setEditQualifiers(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="4" placeholderTextColor={colors.textMuted} />
@@ -5494,33 +5494,33 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
                                 {/* Registration deadline */}
                                 <Text style={s.fieldLabel}>📋 Son Başvuru Tarihi</Text>
-                                <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
-                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('regEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editRegEndDate ? infoColor+'60' : colors.border, flex:1 }}>
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('regEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editRegEndDate ? infoColor+'60' : colors.border, flex:1 }}>
                                         <Text style={{ color: editRegEndDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editRegEndDate ? `${String(editRegEndDate.getDate()).padStart(2,'0')}/${String(editRegEndDate.getMonth()+1).padStart(2,'0')}/${editRegEndDate.getFullYear()}` : 'Tarih'}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('regEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editRegEndTime ? infoColor+'60' : colors.border }}>
+                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('regEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editRegEndTime ? infoColor+'60' : colors.border }}>
                                         <Text style={{ color: editRegEndTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editRegEndTime || 'Saat'}</Text>
                                     </TouchableOpacity>
                                 </View>
 
                                 {/* Event start date */}
                                 <Text style={s.fieldLabel}>🗓️ Etkinlik Başlangıcı</Text>
-                                <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
-                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('evStart'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editEventDate ? infoColor+'60' : colors.border, flex:1 }}>
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('evStart'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editEventDate ? infoColor+'60' : colors.border, flex:1 }}>
                                         <Text style={{ color: editEventDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventDate ? `${String(editEventDate.getDate()).padStart(2,'0')}/${String(editEventDate.getMonth()+1).padStart(2,'0')}/${editEventDate.getFullYear()}` : 'Tarih'}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('evStart'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editEventTime ? infoColor+'60' : colors.border }}>
+                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('evStart'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editEventTime ? infoColor+'60' : colors.border }}>
                                         <Text style={{ color: editEventTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventTime || 'Saat'}</Text>
                                     </TouchableOpacity>
                                 </View>
 
                                 {/* Event end date */}
                                 <Text style={s.fieldLabel}>🏁 Tahmini Bitiş</Text>
-                                <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
-                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('evEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editEventEndDate ? infoColor+'60' : colors.border, flex:1 }}>
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                    <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('evEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editEventEndDate ? infoColor+'60' : colors.border, flex:1 }}>
                                         <Text style={{ color: editEventEndDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventEndDate ? `${String(editEventEndDate.getDate()).padStart(2,'0')}/${String(editEventEndDate.getMonth()+1).padStart(2,'0')}/${editEventEndDate.getFullYear()}` : 'Tarih'}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('evEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, borderWidth:1, borderColor: editEventEndTime ? infoColor+'60' : colors.border }}>
+                                    <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('evEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editEventEndTime ? infoColor+'60' : colors.border }}>
                                         <Text style={{ color: editEventEndTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventEndTime || 'Saat'}</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -5541,7 +5541,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     ))}
                                 </View>
                                 {editIsPaid && (<>
-                                    <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                         <TextInput style={[s.fieldInput, { flex:1 }]} value={editPlayerFee} onChangeText={setEditPlayerFee} keyboardType="numeric" placeholder="Oyuncu başı ücret (₺)" placeholderTextColor={colors.textMuted} />
                                     </View>
                                     <View style={s.chipRow}>
@@ -5619,7 +5619,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={s.modalTitle}>⚠️ Geç İptal Talebi</Text>
                                 <TouchableOpacity onPress={() => setShowCancelModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                             </View>
-                            <View style={{ backgroundColor:'#dc262615', borderRadius:10, padding:12, marginBottom:14, borderWidth:1, borderColor:'#dc262640' }}>
+                            <View style={{ backgroundColor:'#dc262615', borderRadius:10, padding:9, marginBottom:14, borderWidth:1, borderColor:'#dc262640' }}>
                                 <Text style={{ color:'#f87171', fontSize:12, fontWeight:'800', marginBottom:6 }}>⚠️ 24 Saat Geç İptal Kuralı</Text>
                                 <Text style={{ color:'#fca5a5', fontSize:11, lineHeight:18 }}>
                                     Turnuva başlangıcına 24 saatten az kaldığı için iptal talebiniz turnuva düzenleyicisine iletilecek ve onayına sunulacaktır.
@@ -5637,7 +5637,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 maxLength={300}
                             />
                             <TouchableOpacity
-                                style={{ backgroundColor:'#dc262630', borderRadius:10, paddingVertical:13, alignItems:'center', borderWidth:1, borderColor:'#dc262660' }}
+                                style={{ backgroundColor:'#dc262630', borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#dc262660' }}
                                 onPress={submitCancelWithReason}>
                                 <Text style={{ color:'#f87171', fontSize:14, fontWeight:'800' }}>İptal Talebini Gönder</Text>
                             </TouchableOpacity>
@@ -5655,10 +5655,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <Text style={s.modalTitle}>{isCreator ? 'Başvurular' : 'Katılımcılar'}</Text>
                             <TouchableOpacity onPress={() => setShowListModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:2, flex:1 }}>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:0, flex:1 }}>
                         {isCreator ? (() => {
                             if (loadingRequests) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
-                            if (requests.length === 0) return <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Henüz başvuru yok</Text>;
+                            if (requests.length === 0) return <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:13 }}>Henüz başvuru yok</Text>;
                             const acceptedEntries = requests.filter(r => r.status === 'ACCEPTED');
                             const mainListCount = item.maxPlayers || acceptedEntries.length;
 
@@ -5668,14 +5668,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 const waitList = acceptedEntries.slice(mainListCount);
                                 return (
                                     <View>
-                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
+                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
                                             <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800' }}>✅ AS LİSTE</Text>
                                         </View>
                                         {mainList.length === 0
-                                            ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>—</Text>
+                                            ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>—</Text>
                                             : mainList.map((r, i) => (
-                                            <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < mainList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
-                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor:'#16a34a40' }}>
+                                            <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < mainList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
+                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:4, paddingHorizontal:2, paddingVertical:0, marginRight:8, borderWidth:1, borderColor:'#16a34a40' }}>
                                                     <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'800' }}>AS {i+1}</Text>
                                                 </View>
                                                 <View style={{ flex:1 }}>
@@ -5684,11 +5684,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
                                                 </View>
                                                 {r.cancelRequested && (
-                                                    <View style={{ flexDirection:'row', gap:4 }}>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
                                                         </TouchableOpacity>
                                                     </View>
@@ -5696,12 +5696,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </View>
                                         ))}
                                         {waitList.length > 0 && <>
-                                            <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                            <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                                 <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
                                             </View>
                                             {waitList.map((r, i) => (
-                                                <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < waitList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
-                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < waitList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
+                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:4, paddingHorizontal:2, paddingVertical:0, marginRight:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                                         <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800' }}>YDK {i+1}</Text>
                                                     </View>
                                                     <View style={{ flex:1 }}>
@@ -5710,11 +5710,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
                                                     </View>
                                                     {r.cancelRequested && (
-                                                        <View style={{ flexDirection:'row', gap:4 }}>
-                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                                 <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
                                                             </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                                 <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
                                                             </TouchableOpacity>
                                                         </View>
@@ -5733,9 +5733,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             return (
                                 <View>
                                 {/* Manual participant add input */}
-                                <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
                                     <TextInput
-                                        style={{ flex:1, backgroundColor:'#0f172a', borderRadius:10, borderWidth:1, borderColor:'#3b82f640', color:'#fff', fontSize:13, paddingHorizontal:12, paddingVertical:8 }}
+                                        style={{ flex:1, backgroundColor:'#0f172a', borderRadius:10, borderWidth:1, borderColor:'#3b82f640', color:'#fff', fontSize:13, paddingHorizontal:9, paddingVertical:5 }}
                                         placeholder="İsim gir (manuel ekle)"
                                         placeholderTextColor="#475569"
                                         value={manualName}
@@ -5743,7 +5743,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         returnKeyType="done"
                                         onSubmitEditing={addManualParticipant}
                                     />
-                                    <TouchableOpacity onPress={addManualParticipant} disabled={addingManual || !manualName.trim()} style={{ backgroundColor: manualName.trim() ? '#3b82f6' : '#1e293b', borderRadius:10, paddingHorizontal:14, justifyContent:'center', borderWidth:1, borderColor:'#3b82f640' }}>
+                                    <TouchableOpacity onPress={addManualParticipant} disabled={addingManual || !manualName.trim()} style={{ backgroundColor: manualName.trim() ? '#3b82f6' : '#1e293b', borderRadius:10, paddingHorizontal:11, justifyContent:'center', borderWidth:1, borderColor:'#3b82f640' }}>
                                         <Text style={{ color: manualName.trim() ? '#fff' : '#475569', fontSize:12, fontWeight:'800' }}>{addingManual ? '...' : '+ Ekle'}</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -5762,15 +5762,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     return (
                                         <View key={r.id || r.userId}>
                                         {showDivider && (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginVertical:8 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginVertical:8 }}>
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
                                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>⏳ Bekleyen Başvurular</Text>
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
                                             </View>
                                         )}
-                                        <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < listRows.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < listRows.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
                                             {posLabel ? (
-                                                <View style={{ backgroundColor: posLabel.bg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor: posLabel.border }}>
+                                                <View style={{ backgroundColor: posLabel.bg, borderRadius:4, paddingHorizontal:2, paddingVertical:0, marginRight:8, borderWidth:1, borderColor: posLabel.border }}>
                                                     <Text style={{ color: posLabel.color, fontSize:9, fontWeight:'800' }}>{posLabel.text}</Text>
                                                 </View>
                                             ) : (
@@ -5784,36 +5784,36 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 }
                                                 {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti (24s kuralı)</Text>}
                                             </View>
-                                            <View style={{ alignItems:'flex-end', gap:4 }}>
+                                            <View style={{ alignItems:'flex-end', gap:3 }}>
                                                 {!r.cancelRequested && (
-                                                    <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:8, paddingVertical:2 }}>
+                                                    <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
                                                         <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
                                                             {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : r.userId === myId ? '⏳ Yönetici onayı bekleniyor' : '⏳ Bekliyor'}
                                                         </Text>
                                                     </View>
                                                 )}
                                                 {r.cancelRequested && (
-                                                    <View style={{ flexDirection:'row', gap:4 }}>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 {r.status === 'PENDING' && !r.cancelRequested && (
-                                                    <View style={{ flexDirection:'row', gap:4 }}>
-                                                        <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                                        <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: r.user?.fullName || r.user?.username }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#dc262650' }}>
+                                                        <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: r.user?.fullName || r.user?.username }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 {r.status === 'ACCEPTED' && !r.cancelRequested && (
-                                                    <TouchableOpacity onPress={() => r.manualName ? removeManualParticipant(r.id) : removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:6, paddingVertical:3, borderWidth:1, borderColor:'#dc262640' }}>
+                                                    <TouchableOpacity onPress={() => r.manualName ? removeManualParticipant(r.id) : removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }}>
                                                         <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
                                                     </TouchableOpacity>
                                                 )}
@@ -5829,7 +5829,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     const { mainSlots, waitSlots } = splitDoublesSlots(pairs, solos, byUserId, item.maxPlayers);
                                     return (
                                         <View style={{ marginTop:14 }}>
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
                                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>✅ Kabul Edilenler — Çiftler</Text>
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
@@ -5841,7 +5841,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 {mainSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, true, { text:`AS ${i+1}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }))}
                                             </View>
                                             {waitSlots.length > 0 && <>
-                                                <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginTop:10, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:10, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                                     <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
                                                 </View>
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
@@ -5863,7 +5863,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 return (
                                     <View>
                                         {myStatus === 'PENDING' && (
-                                            <View style={{ backgroundColor:'#a855f715', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor:'#a855f740', flexDirection:'row', alignItems:'center', gap:8 }}>
+                                            <View style={{ backgroundColor:'#a855f715', borderRadius:10, padding:9, marginBottom:12, borderWidth:1, borderColor:'#a855f740', flexDirection:'row', alignItems:'center', gap:3 }}>
                                                 <Text style={{ fontSize:20 }}>⏳</Text>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>Başvurunuz alındı</Text>
@@ -5871,14 +5871,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 </View>
                                             </View>
                                         )}
-                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
+                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
                                             <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800' }}>✅ AS LİSTE</Text>
                                         </View>
                                         {mainList.length === 0
-                                            ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:6 }}>—</Text>
+                                            ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>—</Text>
                                             : mainList.map((r, i) => (
-                                            <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < mainList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
-                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor:'#16a34a40' }}>
+                                            <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < mainList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:4, paddingHorizontal:2, paddingVertical:0, marginRight:8, borderWidth:1, borderColor:'#16a34a40' }}>
                                                     <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'800' }}>AS {i+1}</Text>
                                                 </View>
                                                 <View style={{ flex:1 }}>
@@ -5888,12 +5888,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </View>
                                         ))}
                                         {waitList.length > 0 && <>
-                                            <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                            <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                                 <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
                                             </View>
                                             {waitList.map((r, i) => (
-                                                <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < waitList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
-                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < waitList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:4, paddingHorizontal:2, paddingVertical:0, marginRight:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                                         <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800' }}>YDK {i+1}</Text>
                                                     </View>
                                                     <View style={{ flex:1 }}>
@@ -5911,7 +5911,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             return (
                                 <View>
                                 {myStatus === 'PENDING' && (
-                                    <View style={{ backgroundColor:'#a855f715', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor:'#a855f740', flexDirection:'row', alignItems:'center', gap:8 }}>
+                                    <View style={{ backgroundColor:'#a855f715', borderRadius:10, padding:9, marginBottom:12, borderWidth:1, borderColor:'#a855f740', flexDirection:'row', alignItems:'center', gap:3 }}>
                                         <Text style={{ fontSize:20 }}>⏳</Text>
                                         <View style={{ flex:1 }}>
                                             <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>Başvurunuz alındı</Text>
@@ -5930,7 +5930,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <View style={{ marginBottom:14 }}>
                                                     <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:6 }}>⏳ Bekleyen Başvurular ({pending.length})</Text>
                                                     {pending.map((r, i) => (
-                                                        <View key={r.id || r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, borderBottomWidth: i < pending.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                                        <View key={r.id || r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:3, borderBottomWidth: i < pending.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
                                                             <View style={{ flex:1 }}>
                                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{r.user?.fullName || r.user?.username}</Text>
                                                                 <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
@@ -5947,7 +5947,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 {mainSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, false, { text:`AS ${i+1}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }))}
                                             </View>
                                             {waitSlots.length > 0 && <>
-                                                <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, marginTop:10, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:10, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                                     <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
                                                 </View>
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
@@ -5963,8 +5963,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     const labelBg = isMain ? '#16a34a20' : '#f59e0b20';
                                     const labelBorder = isMain ? '#16a34a40' : '#f59e0b40';
                                     return (
-                                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth: i < participants.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
-                                            <View style={{ backgroundColor: labelBg, borderRadius:4, paddingHorizontal:5, paddingVertical:2, marginRight:8, borderWidth:1, borderColor: labelBorder }}>
+                                        <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < participants.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                            <View style={{ backgroundColor: labelBg, borderRadius:4, paddingHorizontal:2, paddingVertical:0, marginRight:8, borderWidth:1, borderColor: labelBorder }}>
                                                 <Text style={{ color: labelColor, fontSize:9, fontWeight:'800' }}>{label}</Text>
                                             </View>
                                             <View style={{ flex:1 }}>
@@ -5982,14 +5982,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
                         {/* Reject reason modal (nested) */}
                         <Modal visible={!!rejectTarget} animationType="fade" transparent onRequestClose={() => setRejectTarget(null)}>
-                            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:24 }}>
+                            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:21 }}>
                                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width:'100%' }}>
-                                    <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:20, borderWidth:1, borderColor:'#dc262650' }}>
+                                    <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:17, borderWidth:1, borderColor:'#dc262650' }}>
                                         <Text style={{ color:'#f87171', fontSize:15, fontWeight:'800', marginBottom:4 }}>❌ Başvuruyu Reddet</Text>
                                         <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:14 }}>{rejectTarget?.name} adlı oyuncunun başvurusu reddedilecek.</Text>
                                         <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:6 }}>Red nedeni (opsiyonel):</Text>
                                         <TextInput
-                                            style={{ backgroundColor:'#0f172a', borderRadius:10, borderWidth:1, borderColor:'#dc262650', color:'#fff', fontSize:13, padding:12, minHeight:60, textAlignVertical:'top' }}
+                                            style={{ backgroundColor:'#0f172a', borderRadius:10, borderWidth:1, borderColor:'#dc262650', color:'#fff', fontSize:13, padding:9, minHeight:60, textAlignVertical:'top' }}
                                             placeholder="Neden reddediyorsunuz? (isteğe bağlı)"
                                             placeholderTextColor="#475569"
                                             value={rejectReason}
@@ -5997,11 +5997,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             multiline
                                             maxLength={200}
                                         />
-                                        <View style={{ flexDirection:'row', gap:10, marginTop:16 }}>
-                                            <TouchableOpacity onPress={() => setRejectTarget(null)} style={{ flex:1, backgroundColor:'#334155', borderRadius:10, paddingVertical:11, alignItems:'center' }}>
+                                        <View style={{ flexDirection:'row', gap:3, marginTop:16 }}>
+                                            <TouchableOpacity onPress={() => setRejectTarget(null)} style={{ flex:1, backgroundColor:'#334155', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
                                                 <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity onPress={async () => { const t2 = rejectTarget; setRejectTarget(null); await updateRequest(t2.userId, 'REJECTED', rejectReason.trim() || undefined); }} style={{ flex:1, backgroundColor:'#dc262640', borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1, borderColor:'#dc262660' }}>
+                                            <TouchableOpacity onPress={async () => { const t2 = rejectTarget; setRejectTarget(null); await updateRequest(t2.userId, 'REJECTED', rejectReason.trim() || undefined); }} style={{ flex:1, backgroundColor:'#dc262640', borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor:'#dc262660' }}>
                                                 <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>Reddet</Text>
                                             </TouchableOpacity>
                                         </View>
@@ -6012,14 +6012,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
                         {/* Partner davet picker (nested) — Çiftler Rekabetçi */}
                         <Modal visible={showInvitePicker} animationType="fade" transparent onRequestClose={() => setShowInvitePicker(false)}>
-                            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:24 }}>
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:20, borderWidth:1, borderColor: cfg.color+'40', width:'100%', maxHeight:'70%' }}>
+                            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:21 }}>
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:17, borderWidth:1, borderColor: cfg.color+'40', width:'100%', maxHeight:'70%' }}>
                                     <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>👥 Partner Davet Et</Text>
                                     <ScrollView>
                                         {inviteCandidates.length === 0 ? (
-                                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Davet edilebilecek bireysel başvuran yok</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:13 }}>Davet edilebilecek bireysel başvuran yok</Text>
                                         ) : inviteCandidates.map(c => (
-                                            <TouchableOpacity key={c.userId} onPress={() => setMyTournamentPartner(c.userId)} disabled={partnerActionLoading} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                            <TouchableOpacity key={c.userId} onPress={() => setMyTournamentPartner(c.userId)} disabled={partnerActionLoading} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                                 <Avatar name={c.user?.username} avatar={c.user?.avatar} size={moderateScale(34)} color={cfg.color} />
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.fullName || c.user?.username}</Text>
@@ -6028,7 +6028,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </TouchableOpacity>
                                         ))}
                                     </ScrollView>
-                                    <TouchableOpacity onPress={() => setShowInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:11, alignItems:'center' }}>
+                                    <TouchableOpacity onPress={() => setShowInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
                                         <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -6042,10 +6042,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             <Modal visible={showChatModal} animationType="slide" transparent onRequestClose={() => setShowChatModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
                     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-                        <View style={{ backgroundColor:'#0f172a', borderTopLeftRadius:20, borderTopRightRadius:20, padding:16, height:520 }}>
+                        <View style={{ backgroundColor:'#0f172a', borderTopLeftRadius:20, borderTopRightRadius:20, padding:13, height:520 }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>💬 Turnuva Sohbeti</Text>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:14 }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                     <TouchableOpacity onPress={toggleChatNotify} disabled={togglingChatNotify}>
                                         <Text style={{ fontSize:20, opacity: togglingChatNotify ? 0.5 : 1 }}>{chatNotifyEnabled ? '🔔' : '🔕'}</Text>
                                     </TouchableOpacity>
@@ -6055,7 +6055,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {loadingChat ? (
                                 <ActivityIndicator color="#4ade80" style={{ marginTop:30 }} />
                             ) : (
-                                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingBottom:10 }}>
+                                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingBottom:7 }}>
                                     {chatMessages.length === 0
                                         ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz mesaj yok</Text>
                                         : chatMessages.map(m => {
@@ -6063,7 +6063,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             return (
                                                 <View key={m.id} style={{ marginBottom:10, alignItems: mine ? 'flex-end' : 'flex-start' }}>
                                                     {!mine && <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>{m.sender?.fullName || m.sender?.username}</Text>}
-                                                    <View style={{ backgroundColor: mine ? '#16a34a30' : '#1e293b', borderRadius:10, paddingHorizontal:10, paddingVertical:7, maxWidth:'80%', borderWidth:1, borderColor: mine ? '#16a34a50' : colors.border }}>
+                                                    <View style={{ backgroundColor: mine ? '#16a34a30' : '#1e293b', borderRadius:10, paddingHorizontal:7, paddingVertical:4, maxWidth:'80%', borderWidth:1, borderColor: mine ? '#16a34a50' : colors.border }}>
                                                         <Text style={{ color:'#fff', fontSize:13 }}>{m.content}</Text>
                                                     </View>
                                                 </View>
@@ -6072,9 +6072,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     }
                                 </ScrollView>
                             )}
-                            <View style={{ flexDirection:'row', gap:8, marginTop:8, alignItems:'flex-end' }}>
+                            <View style={{ flexDirection:'row', gap:3, marginTop:8, alignItems:'flex-end' }}>
                                 <TextInput
-                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:10, paddingHorizontal:12, paddingVertical:9, borderWidth:1, borderColor: colors.border, fontSize:13, maxHeight:80 }}
+                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:10, paddingHorizontal:9, paddingVertical:6, borderWidth:1, borderColor: colors.border, fontSize:13, maxHeight:80 }}
                                     placeholder="Mesaj yaz..."
                                     placeholderTextColor="#475569"
                                     value={chatInput}
@@ -6085,7 +6085,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <TouchableOpacity
                                     onPress={sendChatMessage}
                                     disabled={sendingChat || !chatInput.trim()}
-                                    style={{ backgroundColor:'#16a34a', borderRadius:10, paddingHorizontal:14, paddingVertical:10, opacity: (sendingChat || !chatInput.trim()) ? 0.5 : 1 }}>
+                                    style={{ backgroundColor:'#16a34a', borderRadius:10, paddingHorizontal:11, paddingVertical:7, opacity: (sendingChat || !chatInput.trim()) ? 0.5 : 1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{sendingChat ? '...' : t.sendBtn}</Text>
                                 </TouchableOpacity>
                             </View>
@@ -6103,7 +6103,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </Text>
             </TouchableOpacity>
             {showRules && (
-                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginTop:6, borderWidth:1, borderColor: colors.border }}>
+                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginTop:6, borderWidth:1, borderColor: colors.border }}>
                         <Text style={{ color: colors.textSecondary, fontSize:11, lineHeight:17 }}>{t['tournRules' + item.type]}</Text>
                 </View>
             )}
@@ -6123,7 +6123,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         {/* Çiftler Rekabetçi — partner arama modali */}
         <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowPartnerSearch(false)}>
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:40, maxHeight:'80%' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.tournPartnerChoose || 'Partner Seç'}</Text>
                         <TouchableOpacity onPress={() => { setShowPartnerSearch(false); setPartnerQuery(''); setPartnerResults([]); }}>
@@ -6141,7 +6141,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
                     <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
                         {partnerResults.map(u => (
-                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                 <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
@@ -6257,15 +6257,15 @@ function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
 
 const tp = StyleSheet.create({
     overlay:     { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    box:         { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:20, paddingBottom:48 },
+    box:         { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:45 },
     header:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20 },
     title:       { color:'#fff', fontSize:17, fontWeight:'900' },
     close:       { color: colors.textMuted, fontSize:22 },
     desc:        { color:'#fff', fontSize:14, fontWeight:'700', marginBottom:8 },
     sub:         { color: colors.textSecondary, fontSize:13, lineHeight:19, marginBottom:24 },
-    btn:         { backgroundColor: colors.purple, borderRadius:14, paddingVertical:15, alignItems:'center' },
+    btn:         { backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center' },
     btnText:     { color:'#fff', fontSize:15, fontWeight:'800' },
-    statusBox:   { borderWidth:1, borderColor: colors.border, borderRadius:16, padding:20, alignItems:'center', marginBottom:24, gap:8 },
+    statusBox:   { borderWidth:1, borderColor: colors.border, borderRadius:16, padding:17, alignItems:'center', marginBottom:24, gap:3 },
     statusEmoji: { fontSize:36 },
     statusTitle: { color:'#fff', fontSize:15, fontWeight:'800' },
     statusDesc:  { color: colors.textSecondary, fontSize:13, textAlign:'center', lineHeight:18 },
@@ -6338,7 +6338,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         : undefined;
 
     // Compact input style for this modal
-    const ti = { paddingVertical:7, paddingHorizontal:10, fontSize:12, marginBottom:8 };
+    const ti = { paddingVertical:4, paddingHorizontal:7, fontSize:12, marginBottom:8 };
 
     const searchCourts = async (text) => {
         set('courtSearchText', text);
@@ -6468,7 +6468,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 {TOURN_SCOPES.map(sc => (
                                     <TouchableOpacity key={sc}
-                                        style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.scope === sc && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                        style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.scope === sc && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                         onPress={() => set('scope', sc)}>
                                         <Text style={[s.chipText, f.scope === sc && { color: cfg.color, fontWeight:'800' }]}>
                                             {t['tournScope' + sc.charAt(0) + sc.slice(1).toLowerCase()]}
@@ -6516,7 +6516,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </>
                             )}
                             {f.scope === 'ULUSLARARASI' && (
-                                <View style={{ backgroundColor: cfg.color + '15', borderRadius:8, padding:8, marginBottom:8, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                <View style={{ backgroundColor: cfg.color + '15', borderRadius:8, padding:5, marginBottom:8, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>{t.tournWorldAuto}</Text>
                                 </View>
                             )}
@@ -6525,19 +6525,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <Text style={s.fieldLabel}>{t.tournCourtLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 <TouchableOpacity
-                                    style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                     onPress={() => set('courtDecidedByPlayers', false)}>
                                     <Text style={[s.chipText, !f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>{t.tournCourtSpecific}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                     onPress={() => { set('courtDecidedByPlayers', true); if (f.paymentMethod === 'CASH') set('paymentMethod', ''); }}>
                                     <Text style={[s.chipText, f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>{t.tournCourtPlayersDecide}</Text>
                                 </TouchableOpacity>
                             </View>
                             {!f.courtDecidedByPlayers && (
                                 <>
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:6 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                         <TextInput style={[s.fieldInput, ti, { flex:1, marginBottom:0 }]} value={f.courtSearchText}
                                             onChangeText={searchCourts} placeholder={t.courtSearchPlaceholder}
                                             placeholderTextColor={colors.textMuted} />
@@ -6568,7 +6568,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </View>
                                     )}
                                     {f.showManualCourt && !f.selectedCourt && (
-                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, padding:10, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, padding:7, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                             <TextInput style={[s.fieldInput, ti]} value={f.manualCourtName}
                                                 onChangeText={v => set('manualCourtName', v)}
                                                 placeholder={t.manualCourtLabel} placeholderTextColor={colors.textMuted} />
@@ -6587,7 +6587,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                                 {(sub === 'padel' ? PADEL_SURFACES : TENNIS_SURFACES).map(sf => (
                                                     <TouchableOpacity key={sf.id}
-                                                        style={[s.chip, { paddingVertical:5, paddingHorizontal:8 }, f.surface === sf.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                        style={[s.chip, { paddingVertical:2, paddingHorizontal:5 }, f.surface === sf.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                                         onPress={() => set('surface', f.surface === sf.id ? '' : sf.id)}>
                                                         <Text style={[s.chipText, f.surface === sf.id && { color: cfg.color, fontWeight:'800' }]}>{sf.emoji} {t['surface' + sf.id]}</Text>
                                                     </TouchableOpacity>
@@ -6599,12 +6599,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <Text style={s.fieldLabel}>{t.venueLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
                                         <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.isIndoor && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.isIndoor && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                             onPress={() => set('isIndoor', false)}>
                                             <Text style={[s.chipText, !f.isIndoor && { color: cfg.color, fontWeight:'800' }]}>{t.outdoor}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.isIndoor && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.isIndoor && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                             onPress={() => set('isIndoor', true)}>
                                             <Text style={[s.chipText, f.isIndoor && { color: cfg.color, fontWeight:'800' }]}>{t.indoor}</Text>
                                         </TouchableOpacity>
@@ -6613,13 +6613,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             )}
 
                             {/* Son Başvuru | Cinsiyet | Set — tek satır */}
-                            <View style={{ flexDirection:'row', gap:5, alignItems:'flex-end', marginBottom:8 }}>
+                            <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
                                 {/* Son Başvuru */}
                                 <View style={{ width:110 }}>
                                     <Text style={s.fieldLabel}>{t.tournRegEndLabel} *</Text>
-                                    <View style={{ flexDirection:'row', gap:2 }}>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
                                         <TouchableOpacity
-                                            style={[s.triBtn, f.regEndDate && s.triBtnFilled, { flex:1, paddingVertical:6, paddingHorizontal:4 }]}
+                                            style={[s.triBtn, f.regEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
                                             onPress={() => { setTimeField(null); setDpField('end'); }}>
                                             <Text style={[s.triLabel, { fontSize:8 }]}>{t.dateLabel}</Text>
                                             <Text style={[s.triValue, !f.regEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1}>
@@ -6627,7 +6627,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             </Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            style={[s.triBtn, f.regEndTime && s.triBtnFilled, { paddingVertical:6, paddingHorizontal:5 }]}
+                                            style={[s.triBtn, f.regEndTime && s.triBtnFilled, { paddingVertical:3, paddingHorizontal:2 }]}
                                             onPress={() => { setDpField(null); setTimeField('end'); }}>
                                             <Text style={[s.triLabel, { fontSize:8 }]}>{t.timeLabel}</Text>
                                             <Text style={[s.triValue, !f.regEndTime && s.triPlaceholder, { fontSize:10 }]}>{f.regEndTime || '—'}</Text>
@@ -6637,10 +6637,10 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 {/* Cinsiyet */}
                                 <View style={{ flex:1 }}>
                                     <Text style={s.fieldLabel}>{t.tournGenderLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:2 }}>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
                                         {TOURN_GENDERS.map(g => (
                                             <TouchableOpacity key={g}
-                                                style={[s.chip, { flex:1, paddingVertical:5, paddingHorizontal:2, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                style={[s.chip, { flex:1, paddingVertical:2, paddingHorizontal:0, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                                 onPress={() => set('genderType', g)}>
                                                 <Text style={[s.chipText, { fontSize:10, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]}>
                                                     {t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()]}
@@ -6653,7 +6653,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ width:48 }}>
                                     <Text style={s.fieldLabel}>{t.tournSetsLabel}</Text>
                                     <TextInput
-                                        style={[s.fieldInput, ti, { marginBottom:0, textAlign:'center', paddingHorizontal:4 }]}
+                                        style={[s.fieldInput, ti, { marginBottom:0, textAlign:'center', paddingHorizontal:1 }]}
                                         value={f.setsPerMatch}
                                         onChangeText={v => set('setsPerMatch', v.replace(/[^0-9]/g, '').slice(0, 1))}
                                         placeholder="3"
@@ -6678,7 +6678,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             />
 
                             {/* Event start | end — side by side */}
-                            <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                 {[
                                     { field:'evStart', label: t.tournEventStartLabel, dateVal: f.eventStartDate, timeVal: f.eventStartTime },
                                     { field:'evEnd',   label: t.tournEventEndLabel,   dateVal: f.eventEndDate,   timeVal: f.eventEndTime   },
@@ -6687,7 +6687,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         <Text style={s.fieldLabel}>{label}</Text>
                                         <View style={{ flexDirection:'row', gap:3 }}>
                                             <TouchableOpacity
-                                                style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:7, paddingHorizontal:6 }]}
+                                                style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:4, paddingHorizontal:3 }]}
                                                 onPress={() => { setTimeField(null); setDpField(field); }}>
                                                 <Text style={[s.triLabel, { fontSize:9 }]}>{t.dateLabel}</Text>
                                                 <Text style={[s.triValue, !dateVal && s.triPlaceholder, { fontSize:11 }]} numberOfLines={1}>
@@ -6695,7 +6695,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                                 </Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
-                                                style={[s.triBtn, timeVal && s.triBtnFilled, { paddingVertical:7, paddingHorizontal:8 }]}
+                                                style={[s.triBtn, timeVal && s.triBtnFilled, { paddingVertical:4, paddingHorizontal:5 }]}
                                                 onPress={() => { setDpField(null); setTimeField(field); }}>
                                                 <Text style={[s.triLabel, { fontSize:9 }]}>{t.timeLabel}</Text>
                                                 <Text style={[s.triValue, !timeVal && s.triPlaceholder, { fontSize:11 }]}>{timeVal || '—'}</Text>
@@ -6722,17 +6722,17 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <Text style={s.fieldLabel}>{t.tournFeeLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:6 }]}>
                                 <TouchableOpacity
-                                    style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, !f.isPaid && { backgroundColor: '#16a34a30', borderColor: '#16a34a' }]}
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.isPaid && { backgroundColor: '#16a34a30', borderColor: '#16a34a' }]}
                                     onPress={() => { set('isPaid', false); if (f.feeType === 'INCLUDED') set('feeType', 'SHARED'); }}>
                                     <Text style={[s.chipText, !f.isPaid && { color: '#4ade80', fontWeight:'800' }]}>{t.tournFreeOption}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.isPaid && { backgroundColor: '#d9770630', borderColor: '#d97706' }]}
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.isPaid && { backgroundColor: '#d9770630', borderColor: '#d97706' }]}
                                     onPress={() => { set('isPaid', true); if (f.feeType === 'SPONSORED') set('feeType', 'SHARED'); }}>
                                     <Text style={[s.chipText, f.isPaid && { color: '#fbbf24', fontWeight:'800' }]}>{t.tournPaidOption}</Text>
                                 </TouchableOpacity>
                             </View>
-                            <View style={{ backgroundColor: f.isPaid ? '#d9770615' : '#16a34a15', borderRadius:8, padding:8, marginBottom:8, borderWidth:1, borderColor: f.isPaid ? '#d9770640' : '#16a34a40' }}>
+                            <View style={{ backgroundColor: f.isPaid ? '#d9770615' : '#16a34a15', borderRadius:8, padding:5, marginBottom:8, borderWidth:1, borderColor: f.isPaid ? '#d9770640' : '#16a34a40' }}>
                                 <Text style={{ color: f.isPaid ? '#fbbf24' : '#4ade80', fontSize:11, lineHeight:17 }}>
                                     {f.isPaid ? t.tournPaidNote : t.tournFreeNote}
                                 </Text>
@@ -6746,7 +6746,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     : [{ id:'SHARED', label: t.tournFeeShared }, { id:'SPONSORED', label: t.tournFeeSponsored }]
                                 ).map(ft => (
                                     <TouchableOpacity key={ft.id}
-                                        style={[s.chip, { flex:1, paddingVertical:5, paddingHorizontal:10 }, f.feeType === ft.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                        style={[s.chip, { flex:1, paddingVertical:2, paddingHorizontal:7 }, f.feeType === ft.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                         onPress={() => set('feeType', ft.id)}>
                                         <Text style={[s.chipText, { textAlign:'center' }, f.feeType === ft.id && { color: cfg.color, fontWeight:'800' }]}>{ft.label}</Text>
                                     </TouchableOpacity>
@@ -6767,19 +6767,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <Text style={[s.fieldLabel, { marginTop:4 }]}>Ödeme Yöntemi</Text>
                                 {/* Online payment — disabled */}
                                 <View style={{ opacity:0.4, marginBottom:6 }}>
-                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:10, borderWidth:1, borderColor: colors.border }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:7, borderWidth:1, borderColor: colors.border }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                             <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: colors.border }} />
                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>🌐 Online Ödeme</Text>
                                         </View>
-                                        <View style={{ backgroundColor:'#334155', borderRadius:6, paddingHorizontal:6, paddingVertical:2 }}>
+                                        <View style={{ backgroundColor:'#334155', borderRadius:6, paddingHorizontal:3, paddingVertical:0 }}>
                                             <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>Yakında</Text>
                                         </View>
                                     </View>
                                 </View>
                                 {/* EFT */}
                                 <TouchableOpacity
-                                    style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.paymentMethod==='EFT' ? '#2563eb15' : colors.surface2, borderRadius:10, padding:10, marginBottom:6, borderWidth:1, borderColor: f.paymentMethod==='EFT' ? '#2563eb' : colors.border }}
+                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: f.paymentMethod==='EFT' ? '#2563eb15' : colors.surface2, borderRadius:10, padding:7, marginBottom:6, borderWidth:1, borderColor: f.paymentMethod==='EFT' ? '#2563eb' : colors.border }}
                                     onPress={() => set('paymentMethod', 'EFT')}>
                                     <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='EFT' ? '#60a5fa' : colors.border, backgroundColor: f.paymentMethod==='EFT' ? '#60a5fa' : 'transparent', alignItems:'center', justifyContent:'center' }}>
                                         {f.paymentMethod==='EFT' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#1e40af' }} />}
@@ -6789,7 +6789,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 {/* Cash — only when a specific court is chosen */}
                                 {!f.courtDecidedByPlayers && (
                                 <TouchableOpacity
-                                    style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: f.paymentMethod==='CASH' ? '#16a34a15' : colors.surface2, borderRadius:10, padding:10, marginBottom:8, borderWidth:1, borderColor: f.paymentMethod==='CASH' ? '#16a34a' : colors.border }}
+                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: f.paymentMethod==='CASH' ? '#16a34a15' : colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: f.paymentMethod==='CASH' ? '#16a34a' : colors.border }}
                                     onPress={() => set('paymentMethod', 'CASH')}>
                                     <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='CASH' ? '#4ade80' : colors.border, backgroundColor: f.paymentMethod==='CASH' ? '#4ade80' : 'transparent', alignItems:'center', justifyContent:'center' }}>
                                         {f.paymentMethod==='CASH' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#14532d' }} />}
@@ -6839,7 +6839,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 {TOURN_TYPES.map(tp => (
                                     <TouchableOpacity key={tp}
-                                        style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.type === tp && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                        style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.type === tp && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                         onPress={() => set('type', tp)}>
                                         <Text style={[s.chipText, f.type === tp && { color: cfg.color, fontWeight:'800' }]}>
                                             {TOURN_TYPE_LABELS(t)[tp]}
@@ -6850,7 +6850,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Bireysel Rekabetçi kuralları */}
                             {f.type === '1' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Bireysel Rekabetçi Kuralları</Text>
                                     {[
                                         'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
@@ -6860,7 +6860,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
                                         'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
                                     ].map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
                                         </View>
@@ -6870,7 +6870,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Çiftler Rekabetçi kuralları */}
                             {f.type === '2' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Rekabetçi Kuralları</Text>
                                     {[
                                         'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken ELO puanı birbirine en yakın olanlarla eşleştirilerek takım yapılır. Tek kalan en düşük ELO puanlı oyuncu turnuvaya katılım sağlayamaz.',
@@ -6882,7 +6882,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
                                         'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
                                     ].map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:8, marginBottom:6 }}>
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
                                         </View>
@@ -6892,13 +6892,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
 
                             {/* Gender | Sets — side by side */}
-                            <View style={{ flexDirection:'row', gap:6, alignItems:'flex-end', marginBottom:8 }}>
+                            <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
                                 <View style={{ flex:1 }}>
                                     <Text style={s.fieldLabel}>{t.tournGenderLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         {TOURN_GENDERS.map(g => (
                                             <TouchableOpacity key={g}
-                                                style={[s.chip, { flex:1, paddingVertical:5, paddingHorizontal:4, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                style={[s.chip, { flex:1, paddingVertical:2, paddingHorizontal:1, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                                 onPress={() => set('genderType', g)}>
                                                 <Text style={[s.chipText, { fontSize:11, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]}>
                                                     {t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()]}
@@ -6927,22 +6927,22 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <Text style={s.fieldLabel}>{t.tournScoringLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
                                         <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.advantageScoring === true && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === true && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                             onPress={() => set('advantageScoring', true)}>
                                             <Text style={[s.chipText, f.advantageScoring === true && { color: cfg.color, fontWeight:'800' }]}>{t.tournAdvantage}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.advantageScoring === false && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === false && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                             onPress={() => set('advantageScoring', false)}>
                                             <Text style={[s.chipText, f.advantageScoring === false && { color: cfg.color, fontWeight:'800' }]}>{t.tournDeciding}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:5, paddingHorizontal:10 }, f.advantageScoring === null && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === null && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                             onPress={() => set('advantageScoring', null)}>
                                             <Text style={[s.chipText, f.advantageScoring === null && { color: cfg.color, fontWeight:'800' }]}>{t.tournFreeScoring}</Text>
                                         </TouchableOpacity>
                                     </View>
-                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
                                         <View style={{ flex:1 }}>
                                             <Text style={s.fieldLabel}>{t.tournMatchesBeforePlayoff}</Text>
                                             <TextInput style={[s.fieldInput, ti]} value={f.matchesBeforePlayoff}
@@ -6960,22 +6960,22 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             )}
 
                             {/* Min / Max players + Rating limits — 4 in a row */}
-                            <View style={{ flexDirection:'row', gap:6, marginBottom:8, marginTop:4 }}>
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:8, marginTop:4 }}>
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMinPlayers}</Text>
-                                    <TextInput style={[s.fieldInput, ti, { paddingVertical:6, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
+                                    <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
                                         onChangeText={v => set('minPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="2" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                 </View>
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMaxPlayers}</Text>
-                                    <TextInput style={[s.fieldInput, ti, { paddingVertical:6, textAlign:'center', fontSize:12 }]} value={f.maxPlayers}
+                                    <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.maxPlayers}
                                         onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                 </View>
                                 <TouchableOpacity onPress={() => setRatingField('min')} style={{ flex:1 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Alt Derece</Text>
-                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: f.minRating ? cfg.color : colors.border }}>
+                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: f.minRating ? cfg.color : colors.border }}>
                                         <Text style={{ color: f.minRating ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
                                             {f.minRating ? `${f.minRating}★` : 'Serbest'}
                                         </Text>
@@ -6983,7 +6983,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setRatingField('max')} style={{ flex:1 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Üst Derece</Text>
-                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: f.maxRating ? cfg.color : colors.border }}>
+                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: f.maxRating ? cfg.color : colors.border }}>
                                         <Text style={{ color: f.maxRating ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
                                             {f.maxRating ? `${f.maxRating}★` : 'Serbest'}
                                         </Text>
@@ -7114,21 +7114,21 @@ function TennisSpotlightModal({ visible, onClose, cfg }) {
 }
 
 const spot = StyleSheet.create({
-    overlay:      { flex:1, backgroundColor: colors.bg, paddingHorizontal:16, paddingBottom:20 },
+    overlay:      { flex:1, backgroundColor: colors.bg, paddingHorizontal:13, paddingBottom:17 },
     card:         { flex:1, backgroundColor: colors.surface, borderRadius:24, borderWidth:3, marginBottom:14, overflow:'hidden' },
-    cardScroll:   { padding:24, alignItems:'center', flexGrow:1, justifyContent:'center' },
+    cardScroll:   { padding:21, alignItems:'center', flexGrow:1, justifyContent:'center' },
     cardEmoji:    { fontSize:56, marginBottom:10 },
     cardTitle:    { fontSize:20, fontWeight:'900', marginBottom:18, textAlign:'center' },
     proName:      { color:'#fff', fontSize:24, fontWeight:'900', marginBottom:10, textAlign:'center' },
     proAchievements: { color: colors.textSecondary, fontSize:14, textAlign:'center', lineHeight:21 },
     comingSoon:   { color: colors.textMuted, fontSize:14, textAlign:'center', lineHeight:21 },
-    tierRow:      { width:'100%', backgroundColor: colors.surface2, borderRadius:14, padding:16, marginBottom:12 },
+    tierRow:      { width:'100%', backgroundColor: colors.surface2, borderRadius:14, padding:13, marginBottom:12 },
     tierLabel:    { color: colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 },
     tierName:     { color:'#fff', fontSize:17, fontWeight:'800', marginBottom:3 },
     tierDetail:   { color: colors.textSecondary, fontSize:12 },
     tierEmpty:    { color: colors.textMuted, fontSize:13, fontStyle:'italic' },
-    actions:      { flexDirection:'row', gap:10 },
-    actionBtn:    { flex:1, backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:20, paddingVertical:14, borderWidth:1, borderColor: colors.border, alignItems:'center' },
+    actions:      { flexDirection:'row', gap:3 },
+    actionBtn:    { flex:1, backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:17, paddingVertical:11, borderWidth:1, borderColor: colors.border, alignItems:'center' },
     closeBtn:     { backgroundColor:'#dc262620', borderColor:'#dc262640' },
     actionBtnText:{ color:'#fff', fontSize:14, fontWeight:'700' },
 });
@@ -7214,7 +7214,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 
                 {/* Müzik — sol üst */}
                 {!!story.musicName && (
-                    <View style={{ position: 'absolute', top: 90, left: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#00000075', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, maxWidth: '65%' }}>
+                    <View style={{ position: 'absolute', top: 90, left: 14, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00000075', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4, maxWidth: '65%' }}>
                         <Text style={{ fontSize: 14 }}>🎵</Text>
                         <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{story.musicName}{story.musicArtist ? ` – ${story.musicArtist}` : ''}</Text>
                     </View>
@@ -7222,7 +7222,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 
                 {/* Konum — sağ alt */}
                 {!!story.location && (
-                    <View style={{ position: 'absolute', bottom: 72, right: 14, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}>
+                    <View style={{ position: 'absolute', bottom: 72, right: 14, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 7, paddingVertical: 3 }}>
                         <Text style={{ fontSize: 12 }}>📍</Text>
                         <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{story.location}</Text>
                     </View>
@@ -7231,7 +7231,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
                 {/* Yazı overlay — ortada */}
                 {!!story.content && (
                     <View style={{ position: 'absolute', left: 20, right: 20, bottom: story.location ? 130 : 72, alignItems: 'center' }}>
-                        <View style={{ backgroundColor: '#00000065', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+                        <View style={{ backgroundColor: '#00000065', borderRadius: 12, paddingHorizontal: 13, paddingVertical: 7 }}>
                             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', lineHeight: 23 }}>{story.content}</Text>
                         </View>
                     </View>
@@ -7243,7 +7243,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
             </View>
 
             {/* İlerleme çubukları — en üstte absolute */}
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', gap: 3, paddingHorizontal: 12, paddingTop: 52, paddingBottom: 8 }}>
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', gap: 3, paddingHorizontal: 9, paddingTop: 49, paddingBottom: 5 }}>
                 {group.stories.map((_, i) => (
                     <View key={i} style={{ flex: 1, height: 2.5, borderRadius: 2, backgroundColor: '#ffffff35', overflow: 'hidden' }}>
                         {i < storyViewer.storyIdx
@@ -8329,7 +8329,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
-                style={{ paddingVertical:3, paddingHorizontal:5, borderRadius:6, backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }}
+                style={{ paddingVertical:0, paddingHorizontal:2, borderRadius:6, backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }}
             >
                 {isLoading
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
@@ -8347,7 +8347,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         const active = cities.length > 0;
         const desc = cityAlertDesc[tab] || '';
         return (
-            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:8 }}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
                 {children}
                 <CityAlertBtn tab={tab} />
                 <Text numberOfLines={3} style={{ color: active ? cfg.color : '#6b7280', fontSize:9, lineHeight:13, flex:1 }}>{desc}</Text>
@@ -8356,10 +8356,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const CompactFilter = ({ showDateChips = true, showNearMe = true }) => (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 2, paddingVertical: 2 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 0, paddingVertical: 0 }}>
             <TouchableOpacity
                 onPress={() => setShowCityFilter(true)}
-                style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:5, paddingHorizontal:8, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border, minWidth:70 }}
+                style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border, minWidth:70 }}
             >
                 <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1}>
                     {filterCity ? filterCity : '📍 İl'}
@@ -8374,7 +8374,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             {showNearMe && <TouchableOpacity
                 onPress={handleNearMe}
                 disabled={locationLoading}
-                style={{ backgroundColor:cfg.color+'15', borderRadius:7, paddingVertical:5, paddingHorizontal:8, borderWidth:1, borderColor:cfg.color+'30' }}
+                style={{ backgroundColor:cfg.color+'15', borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor:cfg.color+'30' }}
             >
                 {locationLoading
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:30 }} />
@@ -8385,7 +8385,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <TouchableOpacity
                     key={val}
                     onPress={() => setFilterDate(val)}
-                    style={{ backgroundColor: filterDate===val ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:5, paddingHorizontal:8, borderWidth:1, borderColor: filterDate===val ? cfg.color : colors.border }}
+                    style={{ backgroundColor: filterDate===val ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterDate===val ? cfg.color : colors.border }}
                 >
                     <Text style={{ color: filterDate===val ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{label}</Text>
                 </TouchableOpacity>
@@ -8407,7 +8407,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             <Modal visible={cityPickerTab !== null} animationType="slide" transparent onRequestClose={() => setCityPickerTab(null)}>
                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:'75%' }}>
-                        <View style={{ flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', padding:13, borderBottomWidth:1, borderBottomColor:colors.border }}>
                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }}>
                                 🔔 {sportDisplayName} — Bildirim İlleri
                             </Text>
@@ -8415,10 +8415,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <Text style={{ color:colors.textMuted, fontSize:20 }}>✕</Text>
                             </TouchableOpacity>
                         </View>
-                        <Text style={{ color:colors.textMuted, fontSize:12, paddingHorizontal:16, paddingTop:8, paddingBottom:4 }}>
+                        <Text style={{ color:colors.textMuted, fontSize:12, paddingHorizontal:13, paddingTop:5, paddingBottom:1 }}>
                             Seçtiğin illerden yeni {sportDisplayName} bildirimi alırsın
                         </Text>
-                        <ScrollView contentContainerStyle={{ paddingVertical:8 }}>
+                        <ScrollView contentContainerStyle={{ paddingVertical:5 }}>
                             {TR_PROVINCES.map(province => {
                                 const isChecked = cityPickerTab ? (tabSubCities[cityPickerTab] || []).includes(province) : false;
                                 const isLoading = cityPickerTogglingCity === province;
@@ -8427,7 +8427,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         key={province}
                                         onPress={() => cityPickerTab && toggleTabCity(cityPickerTab, province)}
                                         disabled={cityPickerTogglingCity !== null}
-                                        style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:11, borderBottomWidth:1, borderBottomColor:colors.border+'40' }}
+                                        style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:13, paddingVertical:8, borderBottomWidth:1, borderBottomColor:colors.border+'40' }}
                                     >
                                         <Text style={{ flex:1, color:'#fff', fontSize:14, fontWeight: isChecked ? '700' : '400' }}>{province}</Text>
                                         {isLoading
@@ -8509,7 +8509,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {upcomingExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {filteredMatchedUpcoming.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
                                                     <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
@@ -8524,7 +8524,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {pendingScoreAll.length > 0 && (
                                 <>
                                     <Text style={[s.sectionTitle, { color: '#f97316' }]}>⏳ {t.pendingScoreTitle}</Text>
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {pendingScoreAll.map(m => (
                                             <View key={m.id} style={{ width:'48.5%' }}>
                                                 <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
@@ -8596,14 +8596,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </CityAlertRow>
 
                                 {/* Sub-tab: Açık İlanlar / Devam Eden */}
-                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                     {[
                                         { key:'open',       label: t.tournOpenTab,       count: open.length },
                                         { key:'inprogress', label: t.tournInProgressTab, count: inProgress.length },
                                         ...(completed.length > 0 ? [{ key:'completed', label:`✅ Tamamlanan`, count: completed.length }] : []),
                                     ].map(st => (
                                         <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
-                                            style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: tournSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: tournSubTab===st.key ? cfg.color : colors.border }}>
+                                            style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: tournSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: tournSubTab===st.key ? cfg.color : colors.border }}>
                                             <Text style={{ color: tournSubTab===st.key ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>
                                                 {st.label}{st.count > 0 ? `  ${st.count}` : ''}
                                             </Text>
@@ -8652,10 +8652,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 const cities = tabSubCities['equipment'] || [];
                                 const active = cities.length > 0;
                                 return (
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
                                         <TouchableOpacity
                                             onPress={() => setShowCityFilter(true)}
-                                            style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:5, paddingHorizontal:8, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
+                                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
                                         >
                                             <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
                                                 {filterCity ? filterCity : '📍 İl'}
@@ -8673,10 +8673,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 );
                             })()}
                             {/* Durum filtresi */}
-                            <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                 {['ALL','NEW','USED'].map(c => (
                                     <TouchableOpacity key={c} onPress={() => setEquipmentCondition(c)}
-                                        style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: equipmentCondition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentCondition===c ? cfg.color : colors.border }}>
+                                        style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: equipmentCondition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentCondition===c ? cfg.color : colors.border }}>
                                         <Text style={{ color: equipmentCondition===c ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
                                             {c==='ALL' ? t.conditionAll : c==='NEW' ? t.conditionNew : t.conditionUsed}
                                         </Text>
@@ -8684,29 +8684,29 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 ))}
                             </View>
                             {/* Filtre alanları */}
-                            <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor: colors.border, gap:8 }}>
+                            <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:10, borderWidth:1, borderColor: colors.border, gap:3 }}>
                                 <TextInput
                                     placeholder={t.equipSearchPh}
                                     placeholderTextColor={colors.textMuted}
                                     value={equipmentSearch}
                                     onChangeText={setEquipmentSearch}
-                                    style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
+                                    style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:4, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
                                 />
                                 <TextInput
                                     placeholder={t.equipCityPh}
                                     placeholderTextColor={colors.textMuted}
                                     value={equipmentCity}
                                     onChangeText={setEquipmentCity}
-                                    style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
+                                    style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:4, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
                                 />
-                                <View style={{ flexDirection:'row', gap:8 }}>
+                                <View style={{ flexDirection:'row', gap:3 }}>
                                     <TextInput
                                         placeholder="Min ₺"
                                         placeholderTextColor={colors.textMuted}
                                         value={equipmentMinPrice}
                                         onChangeText={v => setEquipmentMinPrice(v.replace(/[^0-9]/g,''))}
                                         keyboardType="numeric"
-                                        style={{ flex:1, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
+                                        style={{ flex:1, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:4, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
                                     />
                                     <TextInput
                                         placeholder="Max ₺"
@@ -8714,12 +8714,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         value={equipmentMaxPrice}
                                         onChangeText={v => setEquipmentMaxPrice(v.replace(/[^0-9]/g,''))}
                                         keyboardType="numeric"
-                                        style={{ flex:1, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:10, paddingVertical:7, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
+                                        style={{ flex:1, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:4, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
                                     />
                                     {(equipmentSearch || equipmentCity || equipmentMinPrice || equipmentMaxPrice) && (
                                         <TouchableOpacity
                                             onPress={() => { setEquipmentSearch(''); setEquipmentCity(''); setEquipmentMinPrice(''); setEquipmentMaxPrice(''); }}
-                                            style={{ justifyContent:'center', paddingHorizontal:10, backgroundColor:'#ef444420', borderRadius:8, borderWidth:1, borderColor:'#ef444440' }}>
+                                            style={{ justifyContent:'center', paddingHorizontal:7, backgroundColor:'#ef444420', borderRadius:8, borderWidth:1, borderColor:'#ef444440' }}>
                                             <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>{t.clearFilter}</Text>
                                         </TouchableOpacity>
                                     )}
@@ -8727,7 +8727,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </View>
                             {/* İlan ekle butonu */}
                             <TouchableOpacity onPress={() => setShowEquipmentForm(true)}
-                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:9, marginBottom:10, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:6, marginBottom:10, borderWidth:1, borderColor: cfg.color+'50' }}>
                                 <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>{t.postListingBtn}</Text>
                             </TouchableOpacity>
                             {/* Liste */}
@@ -8736,7 +8736,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ) : filteredEquipment.length === 0 ? (
                                 <EmptyState emoji="🎾" text={equipmentListings.length === 0 ? "Henüz ekipman ilanı yok" : "Filtreyle eşleşen ilan bulunamadı"} />
                             ) : (
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {filteredEquipment.map(eq => (
                                         <TouchableOpacity key={eq.id} onPress={() => setSelectedEquipment(eq)}
                                             style={{ width:'48%', backgroundColor: colors.surface2, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
@@ -8747,10 +8747,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ fontSize:36 }}>🎾</Text>
                                                 </View>
                                             )}
-                                            <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:5, paddingVertical:2 }}>
+                                            <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:2, paddingVertical:0 }}>
                                                 <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{eq.condition==='NEW' ? 'Sıfır' : '2.El'}</Text>
                                             </View>
-                                            <View style={{ padding:8 }}>
+                                            <View style={{ padding:5 }}>
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{eq.title}</Text>
                                                 <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : 'Fiyat sor'}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>{eq.user?.username}</Text>
@@ -8762,20 +8762,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* İlan ver formu Modal */}
                             <Modal visible={showEquipmentForm} animationType="slide" onRequestClose={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }}>
                                 <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
-                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
-                                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20 }}>
+                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
+                                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
                                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎾 Ekipman İlanı Ver</Text>
-                                            <View style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
+                                            <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                                 {['NEW','USED'].map(c => (
                                                     <TouchableOpacity key={c} onPress={() => setEquipmentForm(f => ({...f, condition:c}))}
-                                                        style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: equipmentForm.condition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentForm.condition===c ? cfg.color : colors.border }}>
+                                                        style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: equipmentForm.condition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentForm.condition===c ? cfg.color : colors.border }}>
                                                         <Text style={{ color: equipmentForm.condition===c ? '#fff' : colors.textSecondary, fontSize:13, fontWeight:'700' }}>{c==='NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}</Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
-                                            <TextInput placeholder="Ürün adı *" placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                            <TextInput placeholder="Fiyat (₺)" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                            <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+                                            <TextInput placeholder="Ürün adı *" placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder="Fiyat (₺)" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
                                             <CityAutocomplete
                                                 value={equipmentForm.location || ''}
                                                 onChangeText={v => setEquipmentForm(f=>({...f,location:v}))}
@@ -8806,7 +8806,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             )}
                                             {equipmentMedia.length < 5 && (
                                                 <TouchableOpacity onPress={pickEquipmentMedia}
-                                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:10, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:7, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                                     <Text style={{ fontSize:16 }}>📷</Text>
                                                     <Text style={{ color:colors.textSecondary, fontSize:13, fontWeight:'700' }}>
                                                         Fotoğraf / Video Ekle {equipmentMedia.length > 0 ? `(${equipmentMedia.length}/5)` : ''}
@@ -8814,11 +8814,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                             )}
 
-                                            <View style={{ flexDirection:'row', gap:8 }}>
-                                                <TouchableOpacity onPress={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }} style={{ flex:1, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                            <View style={{ flexDirection:'row', gap:3 }}>
+                                                <TouchableOpacity onPress={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                                     <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
                                                 </TouchableOpacity>
-                                                <TouchableOpacity onPress={submitEquipment} disabled={submittingEquipment || uploadingEquipmentMedia} style={{ flex:2, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
+                                                <TouchableOpacity onPress={submitEquipment} disabled={submittingEquipment || uploadingEquipmentMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                                     <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
                                                         {uploadingEquipmentMedia ? 'Yükleniyor...' : submittingEquipment ? '...' : 'İlanı Yayınla'}
                                                     </Text>
@@ -8832,7 +8832,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* İlan detay Modal */}
                             <Modal visible={!!selectedEquipment} animationType="slide" transparent onRequestClose={() => setSelectedEquipment(null)}>
                                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
-                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36, maxHeight:'85%' }}>
+                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:17, paddingBottom:33, maxHeight:'85%' }}>
                                         <ScrollView showsVerticalScrollIndicator={false}>
                                             {selectedEquipment?.images?.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:12 }}>
@@ -8847,8 +8847,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     })}
                                                 </ScrollView>
                                             )}
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
-                                                <View style={{ backgroundColor: selectedEquipment?.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:8, paddingVertical:3 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
+                                                <View style={{ backgroundColor: selectedEquipment?.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
                                                     <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>{selectedEquipment?.condition==='NEW' ? 'Sıfır' : 'İkinci El'}</Text>
                                                 </View>
                                                 <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>{selectedEquipment?.title}</Text>
@@ -8861,19 +8861,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <TouchableOpacity onPress={() => Alert.alert('İlanı Sil', 'Bu ilanı silmek istiyor musunuz?', [
                                                     { text:'İptal', style:'cancel' },
                                                     { text:'Sil', style:'destructive', onPress:() => deleteEquipment(selectedEquipment.id) }
-                                                ])} style={{ backgroundColor:'#ef444420', borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
+                                                ])} style={{ backgroundColor:'#ef444420', borderRadius:10, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
                                                     <Text style={{ color:'#ef4444', fontWeight:'800' }}>🗑️ İlanı Sil</Text>
                                                 </TouchableOpacity>
                                             ) : (
                                                 <TouchableOpacity
                                                     onPress={() => reportListing('equipment', selectedEquipment.id)}
                                                     disabled={reportingListingId === selectedEquipment?.id}
-                                                    style={{ backgroundColor:'#f59e0b20', borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                    style={{ backgroundColor:'#f59e0b20', borderRadius:10, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#f59e0b50' }}>
                                                     <Text style={{ color:'#f59e0b', fontWeight:'800' }}>🚩 Bildır</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </ScrollView>
-                                        <TouchableOpacity onPress={() => setSelectedEquipment(null)} style={{ marginTop:12, paddingVertical:10, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                        <TouchableOpacity onPress={() => setSelectedEquipment(null)} style={{ marginTop:12, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                             <Text style={{ color:colors.textMuted, fontWeight:'700' }}>Kapat</Text>
                                         </TouchableOpacity>
                                     </View>
@@ -8907,13 +8907,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             </CityAlertRow>
 
-                            <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                 {[
                                     { key:'listings', label: t.coachListingsTab, count: filteredCoaches.length },
                                     { key:'cvs',      label: t.coachCvsTab,     count: coachesWithCv.length },
                                 ].map(st => (
                                     <TouchableOpacity key={st.key} onPress={() => setCoachSubTab(st.key)}
-                                        style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
+                                        style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
                                         <Text style={{ color: coachSubTab===st.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>
                                             {st.label}{st.count > 0 ? `  ${st.count}` : ''}
                                         </Text>
@@ -8928,20 +8928,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     ? <EmptyState emoji="🎓" text={coachSubTab === 'cvs' ? t.noCvYet : (coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches)} />
                                     : coachSubTab === 'cvs'
                                         ? shown.map(c => (
-                                            <View key={c.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:12, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                            <View key={c.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
                                                 <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{c.user?.fullName || c.user?.username}</Text>
                                                     <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.credentialLevel}{c.experience > 0 ? ` · ${c.experience} yıl deneyim` : ''}</Text>
                                                 </View>
-                                                <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                                <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor: cfg.color+'50' }}>
                                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         ))
                                         : shown.map(c => (
-                                        <View key={c.id} style={{ backgroundColor:colors.surface2, borderRadius:12, padding:12, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
+                                        <View key={c.id} style={{ backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                                 <Text style={{ fontSize:22 }}>🎓</Text>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{c.credentialLevel}</Text>
@@ -8951,9 +8951,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{c.user?.username}</Text>
                                                 </TouchableOpacity>
                                             </View>
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:4 }}>
-                                                {c.individual && <View style={{ backgroundColor:cfg.color+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3 }}><Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>Bireysel {c.priceIndividual > 0 ? `${c.priceIndividual}₺` : ''}</Text></View>}
-                                                {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3 }}><Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Grup {c.priceGroup > 0 ? `${c.priceGroup}₺` : ''}</Text></View>}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:4 }}>
+                                                {c.individual && <View style={{ backgroundColor:cfg.color+'20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>Bireysel {c.priceIndividual > 0 ? `${c.priceIndividual}₺` : ''}</Text></View>}
+                                                {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Grup {c.priceGroup > 0 ? `${c.priceGroup}₺` : ''}</Text></View>}
                                                 {c.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.experience} yıl deneyim</Text>}
                                             </View>
                                             {(c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
@@ -8964,24 +8964,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <TouchableOpacity
                                                     onPress={() => reportListing('coaches', c.id)}
                                                     disabled={reportingListingId === c.id}
-                                                    style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:10, paddingVertical:4, borderRadius:6, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                    style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
                                                     <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>🚩 Bildir</Text>
                                                 </TouchableOpacity>
                                             )}
                                             {(c.certificateUrl || c.cvUrl || (c.achievementUrls || []).length > 0) && (
-                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
                                                     {c.certificateUrl && (
-                                                        <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                        <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
                                                             <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                     {(c.achievementUrls || []).length > 0 && (
-                                                        <TouchableOpacity onPress={() => Linking.openURL(c.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                        <TouchableOpacity onPress={() => Linking.openURL(c.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
                                                             <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({c.achievementUrls.length})</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                     {c.cvUrl && (
-                                                        <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                        <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                             <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
                                                         </TouchableOpacity>
                                                     )}
@@ -8997,12 +8997,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── Antrenör İlanı Oluştur ── */}
                     <Modal visible={showCreateCoach} animationType="slide" onRequestClose={() => setShowCreateCoach(false)}>
                         <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
-                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:36, maxHeight:'92%' }}>
-                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:20 }}>
+                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎓 Antrenör İlanı Oluştur</Text>
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
                                         {[
                                             { key:'CERTIFIED',   label: t.credCertified },
                                             { key:'LICENSED',    label: t.credLicensed },
@@ -9011,49 +9011,49 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             { key:'AMATEUR',     label: t.credAmateur },
                                         ].map(lvl => (
                                             <TouchableOpacity key={lvl.key} onPress={() => setCoachForm(f => ({...f, credentialLevel:lvl.key}))}
-                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, backgroundColor: coachForm.credentialLevel===lvl.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.credentialLevel===lvl.key ? cfg.color : colors.border }}>
+                                                style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: coachForm.credentialLevel===lvl.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.credentialLevel===lvl.key ? cfg.color : colors.border }}>
                                                 <Text style={{ color: coachForm.credentialLevel===lvl.key ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>{lvl.label}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    <TextInput placeholder="Belge/Sertifika adı (örn. ITF Level 2)" placeholderTextColor={colors.textMuted} value={coachForm.certName} onChangeText={v => setCoachForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                    <TextInput placeholder="Belge/Sertifika adı (örn. ITF Level 2)" placeholderTextColor={colors.textMuted} value={coachForm.certName} onChangeText={v => setCoachForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCertImage)}
-                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:9, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
                                         <Text style={{ fontSize:14 }}>📜</Text>
                                         <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCertImage ? 'Belge Fotoğrafı Seçildi ✓' : 'Belge Fotoğrafı Yükle (opsiyonel)'}</Text>
                                     </TouchableOpacity>
-                                    <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={coachForm.experience} onChangeText={v => setCoachForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                    <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={coachForm.experience} onChangeText={v => setCoachForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Ders Tipleri & Ücret</Text>
-                                    <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                         <TouchableOpacity onPress={() => setCoachForm(f => ({...f, individual: !f.individual}))}
-                                            style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: coachForm.individual ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.individual ? cfg.color : colors.border }}>
+                                            style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: coachForm.individual ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.individual ? cfg.color : colors.border }}>
                                             <Text style={{ color: coachForm.individual ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>{t.individualLesson}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={() => setCoachForm(f => ({...f, group: !f.group}))}
-                                            style={{ flex:1, paddingVertical:8, borderRadius:8, alignItems:'center', backgroundColor: coachForm.group ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.group ? cfg.color : colors.border }}>
+                                            style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: coachForm.group ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.group ? cfg.color : colors.border }}>
                                             <Text style={{ color: coachForm.group ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>{t.groupLesson}</Text>
                                         </TouchableOpacity>
                                     </View>
                                     {coachForm.individual && (
-                                        <TextInput placeholder="Bireysel ders ücreti (₺/saat)" placeholderTextColor={colors.textMuted} value={coachForm.priceIndividual} onChangeText={v => setCoachForm(f=>({...f,priceIndividual:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                        <TextInput placeholder="Bireysel ders ücreti (₺/saat)" placeholderTextColor={colors.textMuted} value={coachForm.priceIndividual} onChangeText={v => setCoachForm(f=>({...f,priceIndividual:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                     )}
                                     {coachForm.group && (
-                                        <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
-                                            <TextInput placeholder="Grup ücreti (₺/kişi)" placeholderTextColor={colors.textMuted} value={coachForm.priceGroup} onChangeText={v => setCoachForm(f=>({...f,priceGroup:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
-                                            <TextInput placeholder="Maks. grup" placeholderTextColor={colors.textMuted} value={coachForm.maxGroupSize} onChangeText={v => setCoachForm(f=>({...f,maxGroupSize:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ width:100, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                        <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                            <TextInput placeholder="Grup ücreti (₺/kişi)" placeholderTextColor={colors.textMuted} value={coachForm.priceGroup} onChangeText={v => setCoachForm(f=>({...f,priceGroup:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder="Maks. grup" placeholderTextColor={colors.textMuted} value={coachForm.maxGroupSize} onChangeText={v => setCoachForm(f=>({...f,maxGroupSize:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ width:100, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
                                         </View>
                                     )}
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginTop:6, marginBottom:6 }}>Yer / Zaman</Text>
-                                    <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                         {[
                                             { val: false, label: t.courtSpecifyBtn || 'Kort / Tesis Belirt' },
                                             { val: true,  label: t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır' },
                                         ].map(({ val, label }) => (
                                             <TouchableOpacity key={String(val)}
                                                 onPress={() => setCoachForm(f => ({ ...f, locationMutual: val }))}
-                                                style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6, backgroundColor: coachForm.locationMutual===val ? cfg.color+'20' : '#ffffff08', borderRadius:8, paddingVertical:7, paddingHorizontal:8, borderWidth:1, borderColor: coachForm.locationMutual===val ? cfg.color : '#ffffff15' }}
+                                                style={{ flex:1, flexDirection:'row', alignItems:'center', gap:3, backgroundColor: coachForm.locationMutual===val ? cfg.color+'20' : '#ffffff08', borderRadius:8, paddingVertical:4, paddingHorizontal:5, borderWidth:1, borderColor: coachForm.locationMutual===val ? cfg.color : '#ffffff15' }}
                                             >
                                                 <View style={{ width:12, height:12, borderRadius:6, borderWidth:2, borderColor: coachForm.locationMutual===val ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
                                                     {coachForm.locationMutual===val && <View style={{ width:5, height:5, borderRadius:3, backgroundColor: cfg.color }} />}
@@ -9062,20 +9062,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    {!coachForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
+                                    {!coachForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
                                     <CityAutocomplete
                                         value={coachForm.city || ''}
                                         onChangeText={v => setCoachForm(f=>({...f,city:v}))}
                                         placeholder="Şehir"
                                         style={{ marginBottom: 8 }}
                                     />
-                                    <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
-                                        <TextInput placeholder="Başlangıç saati (09:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeFrom} onChangeText={v => setCoachForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
-                                        <TextInput placeholder="Bitiş saati (21:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeTo} onChangeText={v => setCoachForm(f=>({...f,timeTo:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                        <TextInput placeholder="Başlangıç saati (09:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeFrom} onChangeText={v => setCoachForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                        <TextInput placeholder="Bitiş saati (21:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeTo} onChangeText={v => setCoachForm(f=>({...f,timeTo:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
                                     </View>
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Başarılar</Text>
-                                    <TextInput placeholder="Başarılarınız (örn. 2023 Bölge Şampiyonu)" placeholderTextColor={colors.textMuted} value={coachForm.achievements} onChangeText={v => setCoachForm(f=>({...f,achievements:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
+                                    <TextInput placeholder="Başarılarınız (örn. 2023 Bölge Şampiyonu)" placeholderTextColor={colors.textMuted} value={coachForm.achievements} onChangeText={v => setCoachForm(f=>({...f,achievements:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
                                     {coachAchievementImages.length > 0 && (
                                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
                                             {coachAchievementImages.map((uri, idx) => (
@@ -9091,7 +9091,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     )}
                                     {coachAchievementImages.length < 5 && (
                                         <TouchableOpacity onPress={pickCoachAchievementImages}
-                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:9, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                             <Text style={{ fontSize:14 }}>🏆</Text>
                                             <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>Başarı Fotoğrafı Ekle {coachAchievementImages.length > 0 ? `(${coachAchievementImages.length}/5)` : ''}</Text>
                                         </TouchableOpacity>
@@ -9099,18 +9099,18 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>CV</Text>
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCvImage)}
-                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:9, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                         <Text style={{ fontSize:14 }}>📄</Text>
                                         <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCvImage ? 'CV Fotoğrafı Seçildi ✓' : 'CV Fotoğrafı Yükle (opsiyonel)'}</Text>
                                     </TouchableOpacity>
 
-                                    <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.description} onChangeText={v => setCoachForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:12, paddingVertical:8, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+                                    <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.description} onChangeText={v => setCoachForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
 
-                                    <View style={{ flexDirection:'row', gap:8 }}>
-                                        <TouchableOpacity onPress={() => { setShowCreateCoach(false); resetCoachForm(); }} style={{ flex:1, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                        <TouchableOpacity onPress={() => { setShowCreateCoach(false); resetCoachForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                             <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity onPress={submitCoach} disabled={submittingCoach || uploadingCoachMedia} style={{ flex:2, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
+                                        <TouchableOpacity onPress={submitCoach} disabled={submittingCoach || uploadingCoachMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
                                                 {uploadingCoachMedia ? 'Yükleniyor...' : submittingCoach ? '...' : 'İlanı Yayınla'}
                                             </Text>
@@ -9123,23 +9123,23 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── Antrenör CV Yükle (tekil hızlı yükleme) ── */}
                     <Modal visible={showCvUploadModal} animationType="fade" transparent onRequestClose={() => setShowCvUploadModal(false)}>
-                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', padding:24 }}>
-                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:20 }}>
+                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', padding:21 }}>
+                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:17 }}>
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:10 }}>📄 CV Yükle</Text>
                                 <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:14 }}>İlanınıza eklenecek CV fotoğrafını seçin.</Text>
                                 {standaloneCvImage ? (
                                     <Image source={{ uri: standaloneCvImage }} style={{ width:'100%', height:160, borderRadius:10, marginBottom:10 }} resizeMode="cover" />
                                 ) : null}
                                 <TouchableOpacity onPress={() => pickCoachSingleImage(setStandaloneCvImage)}
-                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:9, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                     <Text style={{ fontSize:14 }}>📷</Text>
                                     <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{standaloneCvImage ? 'Fotoğrafı Değiştir' : 'CV Fotoğrafı Seç'}</Text>
                                 </TouchableOpacity>
-                                <View style={{ flexDirection:'row', gap:8 }}>
-                                    <TouchableOpacity onPress={() => { setShowCvUploadModal(false); setStandaloneCvImage(null); }} style={{ flex:1, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                <View style={{ flexDirection:'row', gap:3 }}>
+                                    <TouchableOpacity onPress={() => { setShowCvUploadModal(false); setStandaloneCvImage(null); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                         <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={submitStandaloneCv} disabled={!standaloneCvImage || uploadingStandaloneCv} style={{ flex:2, paddingVertical:11, borderRadius:10, alignItems:'center', backgroundColor: standaloneCvImage ? '#16a34a' : colors.surface2 }}>
+                                    <TouchableOpacity onPress={submitStandaloneCv} disabled={!standaloneCvImage || uploadingStandaloneCv} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: standaloneCvImage ? '#16a34a' : colors.surface2 }}>
                                         <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{uploadingStandaloneCv ? 'Yükleniyor...' : 'CV\'yi Kaydet'}</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -9151,10 +9151,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'archive' && (
                         <>
                         {/* Sub-tabs */}
-                        <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                             {['rivals','tournaments'].map(st => (
                                 <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
-                                    style={{ flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
+                                    style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
                                     <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
                                         {st === 'rivals' ? '⚔️ Bireysel Maçlar' : '🏆 Turnuvalar'}
                                     </Text>
@@ -9162,9 +9162,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ))}
                         </View>
                         {/* Filter bar */}
-                        <View style={{ flexDirection:'row', gap:6, marginBottom:8, alignItems:'center' }}>
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:8, alignItems:'center' }}>
                             <TextInput
-                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:5, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
+                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:2, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
                                 placeholder="📍 Şehir"
                                 placeholderTextColor={colors.textMuted}
                                 value={archiveCity}
@@ -9173,7 +9173,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 returnKeyType="search"
                             />
                             <TextInput
-                                style={{ width:80, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:5, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
+                                style={{ width:80, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:2, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
                                 placeholder="📅 Başl."
                                 placeholderTextColor={colors.textMuted}
                                 value={archiveDateFrom}
@@ -9182,7 +9182,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 returnKeyType="search"
                             />
                             <TextInput
-                                style={{ width:70, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:5, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
+                                style={{ width:70, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:2, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
                                 placeholder="Bitiş"
                                 placeholderTextColor={colors.textMuted}
                                 value={archiveDateTo}
@@ -9190,11 +9190,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 onSubmitEditing={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments}
                                 returnKeyType="search"
                             />
-                            <TouchableOpacity onPress={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments} style={{ backgroundColor: cfg.color, borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
+                            <TouchableOpacity onPress={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments} style={{ backgroundColor: cfg.color, borderRadius:8, paddingHorizontal:7, paddingVertical:2 }}>
                                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>🔍</Text>
                             </TouchableOpacity>
                             {(archiveCity || archiveDateFrom || archiveDateTo) && (
-                                <TouchableOpacity onPress={() => { setArchiveCity(''); setArchiveDateFrom(''); setArchiveDateTo(''); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:colors.border }}>
+                                <TouchableOpacity onPress={() => { setArchiveCity(''); setArchiveDateFrom(''); setArchiveDateTo(''); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:2, borderWidth:1, borderColor:colors.border }}>
                                     <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>✕</Text>
                                 </TouchableOpacity>
                             )}
@@ -9207,7 +9207,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ) : archiveRivals.length === 0 ? (
                                 <EmptyState emoji="🗃️" text={t.emptyArchive} />
                             ) : (
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical: 8 }}>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical: 5 }}>
                                     {archiveRivals.map(m => {
                                         const isOwner = m.senderId === myId;
                                         const parts = Array.isArray(m.participants) ? m.participants : [];
@@ -9220,7 +9220,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                         const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
                                         return (
-                                            <View key={m.id} style={[s.card, { width:'48%', paddingHorizontal:3, paddingTop:3, paddingBottom:3 }]}>
+                                            <View key={m.id} style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0 }]}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
                                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
                                                     {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
@@ -9247,13 +9247,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         const pWins = sets ? sets.filter(s2 => (isSender ? s2.sender : s2.opponent) > (isSender ? s2.opponent : s2.sender)).length : null;
                                                         return (
                                                             <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:3 }}>
-                                                                <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:3, paddingVertical:3, flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                                <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:0, paddingVertical:0, flexDirection:'row', alignItems:'center', gap:3 }}>
                                                                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1}>{senderAlias(p)}</Text>
                                                                     {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(rBefore).toFixed(2)} ★</Text>}
                                                                     {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                                 </TouchableOpacity>
                                                                 {pSets && (
-                                                                    <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:3 }}>
+                                                                    <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:0 }}>
                                                                         {pSets.join('  ')}
                                                                         {'  '}<Text style={{ color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted, fontWeight:'800' }}>({pWins})</Text>
                                                                     </Text>
@@ -9276,13 +9276,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ) : archiveTournaments.length === 0 ? (
                                 <EmptyState emoji="🏆" text="Henüz tamamlanmış turnuva yok" />
                             ) : (
-                                <View style={{ gap:10, paddingVertical:8 }}>
+                                <View style={{ gap:3, paddingVertical:5 }}>
                                     {archiveTournaments.map(tourn => {
                                         const typeLabel = TOURN_TYPE_LABELS(t)[tourn.type] || tourn.type;
                                         const participated = tourn.participants?.length > 0 || tourn.creatorId === myId;
                                         return (
-                                            <View key={tourn.id} style={[s.card, { padding:12 }]}>
-                                                <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
+                                            <View key={tourn.id} style={[s.card, { padding:9 }]}>
+                                                <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', gap:3 }}>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:14, fontWeight:'800', marginBottom:2 }}>{tourn.name}</Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>
@@ -9298,19 +9298,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             </Text>
                                                         )}
                                                     </View>
-                                                    <View style={{ alignItems:'flex-end', gap:4 }}>
-                                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                    <View style={{ alignItems:'flex-end', gap:3 }}>
+                                                        <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                             <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>✅ Tamamlandı</Text>
                                                         </View>
                                                         {participated && (
-                                                            <View style={{ backgroundColor: cfg.color+'20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                                            <View style={{ backgroundColor: cfg.color+'20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: cfg.color+'50' }}>
                                                                 <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>Katıldım</Text>
                                                             </View>
                                                         )}
                                                     </View>
                                                 </View>
                                                 <TouchableOpacity
-                                                    style={{ backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#a855f740', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                                                    style={{ backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#a855f740', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
                                                     onPress={() => setSelectedArchiveTournament(tourn)}
                                                 >
                                                     <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📋 Turnuva Detayları</Text>
@@ -9355,7 +9355,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <TouchableOpacity key={group.user?.id || i}
                                                 onPress={() => setStoryViewer({ visible: true, userIdx: i, storyIdx: 0 })}
                                                 style={{ alignItems: 'center', marginRight: 14 }}>
-                                                <View style={{ width: 62, height: 62, borderRadius: 31, borderWidth: 2.5, borderColor: cfg.color, padding: 2, backgroundColor: colors.surface2 }}>
+                                                <View style={{ width: 62, height: 62, borderRadius: 31, borderWidth: 2.5, borderColor: cfg.color, padding: 0, backgroundColor: colors.surface2 }}>
                                                     <Avatar name={group.user?.username} size={54} color={cfg.color} />
                                                 </View>
                                                 <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4, maxWidth: 62, textAlign: 'center' }} numberOfLines={1}>
@@ -9366,23 +9366,23 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </ScrollView>
                                 )}
                                 {/* Filtreler + paylaş */}
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 8, flexWrap: 'wrap' }}>
                                     <TextInput
-                                        style={{ flex: 1, minWidth: 100, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+                                        style={{ flex: 1, minWidth: 100, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
                                         placeholder={t.mediaCityPh}
                                         placeholderTextColor={colors.textMuted}
                                         value={mediaCity}
                                         onChangeText={setMediaCity}
                                     />
                                     <TouchableOpacity onPress={() => setShowMediaTypeSheet(true)}
-                                        style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: cfg.color + '50' }}>
+                                        style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: cfg.color + '50' }}>
                                         <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>{t.mediaShareBtn}</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                                <View style={{ flexDirection: 'row', gap: 3, marginBottom: 10 }}>
                                     {[['ALL',t.allFilter],['TODAY',t.todayFilter],['WEEK',t.weekFilter],['MONTH',t.monthFilter]].map(([v, label]) => (
                                         <TouchableOpacity key={v} onPress={() => setMediaTimeFilter(v)}
-                                            style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: mediaTimeFilter === v ? cfg.color : colors.surface2, borderWidth: 1, borderColor: mediaTimeFilter === v ? cfg.color : colors.border }}>
+                                            style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: mediaTimeFilter === v ? cfg.color : colors.surface2, borderWidth: 1, borderColor: mediaTimeFilter === v ? cfg.color : colors.border }}>
                                             <Text style={{ color: mediaTimeFilter === v ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '700' }}>{label}</Text>
                                         </TouchableOpacity>
                                     ))}
@@ -9401,7 +9401,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             return `${Math.floor(h / 24)}${t.timeDaySuffix || 'g'}`;
                                         };
                                         return (
-                                            <View style={{ gap: 1 }}>
+                                            <View style={{ gap: 3 }}>
                                                 {filtered.map((post) => {
                                                     const actualIdx = mediaPosts.findIndex(p => p.id === post.id);
                                                     const isLiked = mediaLiked[post.id] ?? (Array.isArray(post.likes) && post.likes.length > 0);
@@ -9420,7 +9420,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     return (
                                                         <View key={post.id} style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 }}>
                                                             {/* Başlık: avatar + kullanıcı + zaman */}
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 }}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingVertical: 7 }}>
                                                                 <Avatar name={post.user?.username} avatar={post.user?.avatar} size={36} color={cfg.color} />
                                                                 <View style={{ flex: 1 }}>
                                                                     <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{post.user?.fullName || post.user?.username}</Text>
@@ -9438,25 +9438,25 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 }
                                                             </TouchableOpacity>
                                                             {/* Aksiyon satırı */}
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6 }}>
-                                                                <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingTop: 7, paddingBottom: 3 }}>
+                                                                <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                                                     <Text style={{ color: isLiked ? '#f43f5e' : colors.textMuted, fontSize: 22 }}>♥</Text>
                                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{likeCount}</Text>
                                                                 </TouchableOpacity>
-                                                                <TouchableOpacity onPress={() => setMediaViewIdx(actualIdx)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                                <TouchableOpacity onPress={() => setMediaViewIdx(actualIdx)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                                                     <Text style={{ color: colors.textMuted, fontSize: 20 }}>💬</Text>
                                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{commentCount}</Text>
                                                                 </TouchableOpacity>
                                                             </View>
                                                             {/* Açıklama */}
                                                             {post.content ? (
-                                                                <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+                                                                <View style={{ paddingHorizontal: 9, paddingBottom: 9 }}>
                                                                     <Text style={{ color: '#fff', fontSize: 13, lineHeight: 19 }}>
                                                                         <Text style={{ fontWeight: '800' }}>{post.user?.username} </Text>
                                                                         {post.content}
                                                                     </Text>
                                                                 </View>
-                                                            ) : <View style={{ paddingBottom: 4 }} />}
+                                                            ) : <View style={{ paddingBottom: 1 }} />}
                                                         </View>
                                                     );
                                                 })}
@@ -9484,7 +9484,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {/* Tip seçim sheet */}
                                 <Modal visible={showMediaTypeSheet} animationType="slide" transparent onRequestClose={() => setShowMediaTypeSheet(false)}>
                                     <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000080' }} activeOpacity={1} onPress={() => setShowMediaTypeSheet(false)}>
-                                        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 }}>
+                                        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 37 }}>
                                             <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center', marginBottom: 16 }}>Ne paylaşmak istiyorsun?</Text>
                                             {[
                                                 { type: 'POST',  emoji: '🖼️', label: 'Gönderi',  desc: 'Fotoğraf veya video paylaş' },
@@ -9492,7 +9492,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 { type: 'REEL',  emoji: '🎬', label: lang === 'tr' ? 'Film Rulosu' : 'Reels', desc: lang === 'tr' ? 'Kısa video paylaş' : 'Share a short video' },
                                             ].map(opt => (
                                                 <TouchableOpacity key={opt.type} onPress={() => pickMediaShare(opt.type)}
-                                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                                     <Text style={{ fontSize: 28 }}>{opt.emoji}</Text>
                                                     <View>
                                                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{opt.label}</Text>
@@ -9507,7 +9507,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {/* Medya paylaş modal */}
                                 <Modal visible={showMediaShare} animationType="slide" transparent onRequestClose={() => setShowMediaShare(false)}>
                                     <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+                                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33 }}>
                                             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>
                                                 {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
                                             </Text>
@@ -9516,7 +9516,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                                                     {mediaShareType === 'STORY' && !!mediaShareCaption && (
                                                         <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12, alignItems: 'center' }}>
-                                                            <View style={{ backgroundColor: '#00000065', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                                                            <View style={{ backgroundColor: '#00000065', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 }}>
                                                                 <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center' }}>{mediaShareCaption}</Text>
                                                             </View>
                                                         </View>
@@ -9531,9 +9531,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 const leftPct = (s / totalDur) * 100;
                                                 const rightPct = (1 - e / totalDur) * 100;
                                                 return (
-                                                    <View style={{ backgroundColor: '#0a0a14', borderRadius: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, marginBottom: 12 }}>
+                                                    <View style={{ backgroundColor: '#0a0a14', borderRadius: 10, paddingHorizontal: 11, paddingTop: 7, paddingBottom: 11, marginBottom: 12 }}>
                                                         {/* Müzik başlığı + süre */}
-                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 10 }}>
                                                             {shareMusic.coverUrl && <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 26, height: 26, borderRadius: 4 }} />}
                                                             <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800', flex: 1 }} numberOfLines={1}>🎵 {shareMusic.title}</Text>
                                                             <Text style={{ color: '#6b7280', fontSize: 11 }}>{s}s – {e}s ({e - s}sn)</Text>
@@ -9567,7 +9567,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 );
                                             })()}
                                             <TextInput
-                                                style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 14 }}
+                                                style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 14 }}
                                                 placeholder={mediaShareType === 'STORY' ? '✏️ Üzerine yazı ekle...' : 'Açıklama ekle (opsiyonel)...'}
                                                 placeholderTextColor={colors.textMuted}
                                                 value={mediaShareCaption}
@@ -9575,9 +9575,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 multiline
                                             />
                                             {/* Müzik + Konum butonları */}
-                                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                                            <View style={{ flexDirection: 'row', gap: 3, marginBottom: 12 }}>
                                                 <TouchableOpacity onPress={() => shareMusic ? setMusicTrimOpen(true) : setMusicSheetOpen(true)}
-                                                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 10, backgroundColor: shareMusic ? '#7c3aed20' : colors.surface2, borderWidth: 1, borderColor: shareMusic ? '#7c3aed60' : colors.border }}>
+                                                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 6, paddingHorizontal: 7, borderRadius: 10, backgroundColor: shareMusic ? '#7c3aed20' : colors.surface2, borderWidth: 1, borderColor: shareMusic ? '#7c3aed60' : colors.border }}>
                                                     {shareMusic?.coverUrl
                                                         ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 22, height: 22, borderRadius: 4 }} />
                                                         : <Text style={{ fontSize: 16 }}>🎵</Text>}
@@ -9592,7 +9592,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </TouchableOpacity>}
                                                 </TouchableOpacity>
                                                 <TouchableOpacity onPress={getGpsLocation} disabled={gettingLocation}
-                                                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 10, backgroundColor: shareLocation ? '#16a34a20' : colors.surface2, borderWidth: 1, borderColor: shareLocation ? '#16a34a60' : colors.border }}>
+                                                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 6, paddingHorizontal: 7, borderRadius: 10, backgroundColor: shareLocation ? '#16a34a20' : colors.surface2, borderWidth: 1, borderColor: shareLocation ? '#16a34a60' : colors.border }}>
                                                     <Text style={{ fontSize: 14 }}>📍</Text>
                                                     <Text style={{ color: shareLocation ? '#4ade80' : colors.textMuted, fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1}>
                                                         {gettingLocation ? 'Alınıyor...' : shareLocation || 'Konum Ekle'}
@@ -9602,13 +9602,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </TouchableOpacity>}
                                                 </TouchableOpacity>
                                             </View>
-                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                            <View style={{ flexDirection: 'row', gap: 3 }}>
                                                 <TouchableOpacity onPress={() => { setShowMediaShare(false); setMediaShareUri(null); setMediaShareCaption(''); setShareMusic(null); setShareLocation(''); }}
-                                                    style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                                    style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
                                                     <Text style={{ color: colors.textMuted, fontWeight: '700' }}>İptal</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity onPress={submitMediaShare} disabled={submittingMediaShare}
-                                                    style={{ flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: cfg.color, opacity: submittingMediaShare ? 0.6 : 1 }}>
+                                                    style={{ flex: 2, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: cfg.color, opacity: submittingMediaShare ? 0.6 : 1 }}>
                                                     <Text style={{ color: '#fff', fontWeight: '900' }}>{submittingMediaShare ? 'Yükleniyor...' : 'Paylaş'}</Text>
                                                 </TouchableOpacity>
                                             </View>
@@ -9616,7 +9616,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {/* Müzik Kırp Modal */}
                                             <Modal visible={musicTrimOpen} animationType="slide" transparent onRequestClose={() => { setMusicTrimOpen(false); stopMusicPreview(); }}>
                                                 <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+                                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33 }}>
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
                                                             {shareMusic?.coverUrl
                                                                 ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} />
@@ -9634,11 +9634,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             ✂️ Kullanılacak aralık {musicDuration ? `(toplam ${Math.floor(musicDuration)}sn)` : ''}
                                                         </Text>
 
-                                                        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                                                        <View style={{ flexDirection: 'row', gap: 3, marginBottom: 16 }}>
                                                             <View style={{ flex: 1 }}>
                                                                 <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Başlangıç (sn)</Text>
                                                                 <TextInput
-                                                                    style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
+                                                                    style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
                                                                     value={trimStart}
                                                                     onChangeText={v => setTrimStart(v.replace(/[^0-9.]/g, ''))}
                                                                     keyboardType="numeric"
@@ -9646,13 +9646,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     placeholderTextColor={colors.textMuted}
                                                                 />
                                                             </View>
-                                                            <View style={{ justifyContent: 'flex-end', paddingBottom: 10 }}>
+                                                            <View style={{ justifyContent: 'flex-end', paddingBottom: 7 }}>
                                                                 <Text style={{ color: colors.textMuted, fontSize: 18 }}>→</Text>
                                                             </View>
                                                             <View style={{ flex: 1 }}>
                                                                 <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Bitiş (sn)</Text>
                                                                 <TextInput
-                                                                    style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
+                                                                    style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
                                                                     value={trimEnd}
                                                                     onChangeText={v => setTrimEnd(v.replace(/[^0-9.]/g, ''))}
                                                                     keyboardType="numeric"
@@ -9666,15 +9666,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             Seçilen aralık: <Text style={{ color: '#a78bfa', fontWeight: '800' }}>{Math.max(0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)).toFixed(1)} saniye</Text>
                                                         </Text>
 
-                                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                        <View style={{ flexDirection: 'row', gap: 3 }}>
                                                             <TouchableOpacity onPress={previewTrim}
-                                                                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: previewPlaying ? '#ef444420' : '#7c3aed20', borderWidth: 1, borderColor: previewPlaying ? '#ef444450' : '#7c3aed50' }}>
+                                                                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: previewPlaying ? '#ef444420' : '#7c3aed20', borderWidth: 1, borderColor: previewPlaying ? '#ef444450' : '#7c3aed50' }}>
                                                                 <Text style={{ color: previewPlaying ? '#ef4444' : '#a78bfa', fontWeight: '800' }}>
                                                                     {previewPlaying ? '⏹ Durdur' : '▶ Önizle'}
                                                                 </Text>
                                                             </TouchableOpacity>
                                                             <TouchableOpacity onPress={() => { stopMusicPreview(); setMusicTrimOpen(false); }}
-                                                                style={{ flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: cfg.color }}>
+                                                                style={{ flex: 2, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: cfg.color }}>
                                                                 <Text style={{ color: '#fff', fontWeight: '900' }}>✓ Onayla</Text>
                                                             </TouchableOpacity>
                                                         </View>
@@ -9685,21 +9685,21 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {/* Müzik seçici sheet */}
                                             <Modal visible={musicSheetOpen} animationType="slide" onRequestClose={() => setMusicSheetOpen(false)}>
                                                 <View style={{ flex: 1, backgroundColor: colors.bg }}>
-                                                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 13, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                                         <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, flex: 1 }}>🎵 Müzik Seç</Text>
                                                         <TouchableOpacity onPress={() => setMusicSheetOpen(false)}>
                                                             <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                     <TouchableOpacity onPress={pickPhoneAudio}
-                                                        style={{ margin: 12, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.border }}>
+                                                        style={{ margin: 12, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: colors.border }}>
                                                         <Text style={{ fontSize: 20 }}>📱</Text>
                                                         <View>
                                                             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Telefondan Yükle</Text>
                                                             <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>MP3, AAC, M4A...</Text>
                                                         </View>
                                                     </TouchableOpacity>
-                                                    <View style={{ margin: 12, marginTop: 8, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                                                    <View style={{ margin: 12, marginTop: 8, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
                                                         <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
                                                         <TextInput
                                                             style={{ flex: 1, color: '#fff', fontSize: 14 }}
@@ -9716,7 +9716,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <TouchableOpacity
                                                             onPress={detectImageMusic}
                                                             disabled={detectingImage}
-                                                            style={{ marginHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#7c3aed20', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: '#7c3aed50', opacity: detectingImage ? 0.6 : 1 }}
+                                                            style={{ marginHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#7c3aed20', borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: '#7c3aed50', opacity: detectingImage ? 0.6 : 1 }}
                                                         >
                                                             <Text style={{ fontSize: 18 }}>🎨</Text>
                                                             <View style={{ flex: 1 }}>
@@ -9730,20 +9730,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {imageSuggestions.length > 0 && (
                                                         <View style={{ marginHorizontal: 12, marginBottom: 10 }}>
                                                             <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700', marginBottom: 6 }}>✨ Önerilen aramalar:</Text>
-                                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3 }}>
                                                                 {imageSuggestions.map((kw, i) => (
                                                                     <TouchableOpacity key={i} onPress={() => searchDeezer(kw)}
-                                                                        style={{ backgroundColor: '#7c3aed20', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#7c3aed40' }}>
+                                                                        style={{ backgroundColor: '#7c3aed20', borderRadius: 16, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: '#7c3aed40' }}>
                                                                         <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700' }}>{kw}</Text>
                                                                     </TouchableOpacity>
                                                                 ))}
                                                             </View>
                                                         </View>
                                                     )}
-                                                    <ScrollView contentContainerStyle={{ padding: 12 }}>
+                                                    <ScrollView contentContainerStyle={{ padding: 9 }}>
                                                         {musicResults.map(track => (
                                                             <TouchableOpacity key={track.id} onPress={() => selectTrack(track)}
-                                                                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                                style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                                                 <Image source={{ uri: track.album.cover_small }} style={{ width: 44, height: 44, borderRadius: 6 }} />
                                                                 <View style={{ flex: 1 }}>
                                                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{track.title}</Text>
@@ -9772,7 +9772,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             : news.length === 0
                                 ? <EmptyState emoji="📰" text={t.emptyNews} />
                                 : <>
-                                    <TouchableOpacity onPress={loadNews} style={{ alignSelf: 'flex-end', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                    <TouchableOpacity onPress={loadNews} style={{ alignSelf: 'flex-end', marginBottom: 8, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
                                         <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔄 {lang === 'tr' ? 'Yenile' : 'Refresh'}</Text>
                                     </TouchableOpacity>
                                     {news.map((item, i) => (
@@ -9781,7 +9781,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {!!item.thumbnail && (
                                                 <Image source={{ uri: item.thumbnail }} style={{ width: '100%', height: 150 }} resizeMode="cover" />
                                             )}
-                                            <View style={{ padding: 12 }}>
+                                            <View style={{ padding: 9 }}>
                                                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', lineHeight: 19 }} numberOfLines={3}>{item.title}</Text>
                                                 {!!item.description && (
                                                     <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 5, lineHeight: 16 }} numberOfLines={2}>{item.description}</Text>
@@ -9800,7 +9800,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── TEXT POSTS ── */}
                     {activeTab === 'posts' && (
                         <>
-                            <View style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: colors.border }}>
+                            <View style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 9, marginBottom: 12, borderWidth: 1, borderColor: colors.border }}>
                                 <TextInput
                                     style={{ color: '#fff', fontSize: 14, minHeight: 70, textAlignVertical: 'top', lineHeight: 20 }}
                                     placeholder={lang === 'tr' ? 'Bir şeyler yaz...' : 'Write something...'}
@@ -9815,7 +9815,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity
                                         onPress={submitTextPost}
                                         disabled={submittingPost || !newPostText.trim()}
-                                        style={{ backgroundColor: newPostText.trim() ? cfg.color : colors.surface, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 7, opacity: (!newPostText.trim() || submittingPost) ? 0.5 : 1 }}>
+                                        style={{ backgroundColor: newPostText.trim() ? cfg.color : colors.surface, borderRadius: 8, paddingHorizontal: 13, paddingVertical: 4, opacity: (!newPostText.trim() || submittingPost) ? 0.5 : 1 }}>
                                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
                                             {submittingPost ? '...' : (lang === 'tr' ? 'Paylaş' : 'Post')}
                                         </Text>
@@ -9862,8 +9862,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <Modal visible animationType="slide" onRequestClose={() => { setCommentMatch(null); setCommentSwapSlot(null); }}>
                         <View style={{ flex:1, backgroundColor: colors.bg }}>
                             {/* Header */}
-                            <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:8, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                <TouchableOpacity onPress={() => { setCommentMatch(null); setCommentSwapSlot(null); }} style={{ marginRight:14, padding:4 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                <TouchableOpacity onPress={() => { setCommentMatch(null); setCommentSwapSlot(null); }} style={{ marginRight:14, padding:1 }}>
                                     <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
                                 </TouchableOpacity>
                                 <View style={{ flex:1 }}>
@@ -9877,12 +9877,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* ScrollView — match details + comments */}
                             <ScrollView
                                 style={{ flex:1 }}
-                                contentContainerStyle={{ paddingHorizontal:8, paddingVertical:16, paddingBottom:16 }}
+                                contentContainerStyle={{ paddingHorizontal:5, paddingVertical:13, paddingBottom:13 }}
                                 showsVerticalScrollIndicator={false}
                                 keyboardShouldPersistTaps="handled"
                             >
                                 {/* Maç detayları */}
-                                <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:20, borderWidth:1, borderColor: colors.border }}>
+                                <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:11, marginBottom:20, borderWidth:1, borderColor: colors.border }}>
                                     {commentMatch.matchType === 'DOUBLE' ? (() => {
                                         const cmPartner = cmSenderTeamArr[0] || null;
                                         const cmOpp1 = cmParticipantsArr[0] || null;
@@ -9910,7 +9910,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         onPress={() => isCommentOwner && commentSwapSlot && handleCommentSwap(slot)}
                                                         delayLongPress={400}
                                                         activeOpacity={0.75}
-                                                        style={{ borderRadius:8, padding:8, borderWidth:1, borderColor: isSource ? '#facc15' : isTarget ? '#4ade80' : accentCol + '50', backgroundColor: isSource ? '#facc1520' : isTarget ? '#4ade8015' : accentCol + '10' }}
+                                                        style={{ borderRadius:8, padding:5, borderWidth:1, borderColor: isSource ? '#facc15' : isTarget ? '#4ade80' : accentCol + '50', backgroundColor: isSource ? '#facc1520' : isTarget ? '#4ade8015' : accentCol + '10' }}
                                                     >
                                                         {player ? (
                                                             <>
@@ -9927,7 +9927,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {isCommentOwner && player && !commentSwapSlot && (
                                                         <TouchableOpacity
                                                             onPress={() => removeCmPlayer(player.id, senderAlias(player))}
-                                                            style={{ marginTop:3, paddingVertical:4, alignItems:'center', backgroundColor:'#dc262615', borderRadius:6, borderWidth:1, borderColor:'#dc262640' }}
+                                                            style={{ marginTop:3, paddingVertical:1, alignItems:'center', backgroundColor:'#dc262615', borderRadius:6, borderWidth:1, borderColor:'#dc262640' }}
                                                         >
                                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Çıkar</Text>
                                                         </TouchableOpacity>
@@ -9938,17 +9938,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         return (
                                             <View style={{ marginBottom:8 }}>
                                                 {isCommentOwner && commentSwapSlot && (
-                                                    <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#1e293b', borderRadius:8, padding:8, marginBottom:8 }}>
+                                                    <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#1e293b', borderRadius:8, padding:5, marginBottom:8 }}>
                                                         <Text style={{ color:'#facc15', fontSize:12, fontWeight:'700' }}>Hedef slota dokun</Text>
                                                         <TouchableOpacity onPress={() => setCommentSwapSlot(null)}>
                                                             <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>İptal</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
-                                                <View style={{ flexDirection:'row', gap:6 }}>
+                                                <View style={{ flexDirection:'row', gap:3 }}>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>KURUCU TAKIMI</Text>
-                                                        <View style={{ borderRadius:8, padding:8, marginBottom:4, borderWidth:1, borderColor:'#6d28d930', backgroundColor:'#6d28d910' }}>
+                                                        <View style={{ borderRadius:8, padding:5, marginBottom:4, borderWidth:1, borderColor:'#6d28d930', backgroundColor:'#6d28d910' }}>
                                                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{senderAlias(commentMatch.sender)}</Text>
                                                             {commentMatch.senderSkillRating != null && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(commentMatch.senderSkillRating).toFixed(2)} ★</Text>}
                                                             <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>• kurucu</Text>
@@ -9964,9 +9964,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </View>
                                         );
                                     })() : (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                             {allP2.map((p, idx) => (
-                                                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                                     {idx > 0 && <Text style={{ color: colors.textMuted }}>·</Text>}
                                                     <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>{senderAlias(p)}</Text>
                                                     {p.skillRating != null && (
@@ -10000,7 +10000,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:13 }}>{t.matchCommentEmpty}</Text>
                                 ) : (
                                     comments.map(c => (
-                                        <View key={c.id} style={{ marginBottom:14, paddingBottom:14, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                        <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
                                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color: cfg2.color, fontSize:13, fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
@@ -10010,7 +10010,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </Text>
                                                 </View>
                                                 {canDelete(c) && (
-                                                    <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:8, marginLeft:8 }}>
+                                                    <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:5, marginLeft:8 }}>
                                                         <Text style={{ color:'#f87171', fontSize:14 }}>✕</Text>
                                                     </TouchableOpacity>
                                                 )}
@@ -10022,7 +10022,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                             {/* Yorum yaz — bottom input */}
                             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
-                                <View style={{ flexDirection:'row', gap:10, paddingHorizontal:12, paddingVertical:10, paddingBottom: Platform.OS === 'ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
+                                <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: Platform.OS === 'ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                                     <TextInput
                                         style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
                                         placeholder={t.matchCommentPlaceholder}
@@ -10034,7 +10034,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         onSubmitEditing={sendComment}
                                     />
                                     <TouchableOpacity
-                                        style={[s.joinBtn, { paddingHorizontal:18, height:44, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}
+                                        style={[s.joinBtn, { paddingHorizontal:15, height:44, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}
                                         onPress={sendComment}
                                         disabled={sendingComment}
                                     >
@@ -10055,7 +10055,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             const tourn = selectedArchiveTournament;
                             const typeLabel = TOURN_TYPE_LABELS(t)[tourn.type] || tourn.type;
                             const row = (label, value) => value ? (
-                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', paddingVertical:10, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', paddingVertical:7, borderBottomWidth:1, borderBottomColor:colors.border }}>
                                     <Text style={{ color:colors.textMuted, fontSize:13, fontWeight:'600', flex:1 }}>{label}</Text>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1.2, textAlign:'right' }}>{value}</Text>
                                 </View>
@@ -10108,24 +10108,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                             };
                             return (
                                 <>
-                                    <View style={[s.modalHeader, { paddingHorizontal:24 }]}>
+                                    <View style={[s.modalHeader, { paddingHorizontal:21 }]}>
                                         <Text style={[s.modalTitle, { flex:1 }]} numberOfLines={2}>🏆 {tourn.name}</Text>
                                         <TouchableOpacity onPress={() => setSelectedArchiveTournament(null)}>
                                             <Text style={s.modalClose}>✕</Text>
                                         </TouchableOpacity>
                                     </View>
-                                    <View style={{ flexDirection:'row', gap:6, marginBottom:10, paddingHorizontal:24 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:10, paddingHorizontal:21 }}>
                                         {tabs.map(tab => (
                                             <TouchableOpacity key={tab} onPress={() => setArchiveModalTab(tab)}
-                                                style={{ paddingHorizontal:12, paddingVertical:6, borderRadius:8, backgroundColor: archiveModalTab===tab ? '#a855f740' : 'transparent', borderWidth:1, borderColor: archiveModalTab===tab ? '#a855f760' : colors.border }}>
+                                                style={{ paddingHorizontal:9, paddingVertical:3, borderRadius:8, backgroundColor: archiveModalTab===tab ? '#a855f740' : 'transparent', borderWidth:1, borderColor: archiveModalTab===tab ? '#a855f760' : colors.border }}>
                                                 <Text style={{ color: archiveModalTab===tab ? '#c084fc' : colors.textMuted, fontSize:12, fontWeight:'700' }}>{tabLabel[tab]}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:24, paddingBottom:24 }}>
+                                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:21, paddingBottom:21 }}>
                                         {archiveModalTab === 'details' && (
                                             <>
-                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:12, paddingVertical:6, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50', marginBottom:14 }}>
+                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:9, paddingVertical:3, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50', marginBottom:14 }}>
                                                     <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✅ Tamamlandı</Text>
                                                 </View>
                                                 {row('📋 Format', typeLabel)}
@@ -10170,7 +10170,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                         const p1SW2 = mSets2.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                                                         const p2SW2 = mSets2.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                                                         return (
-                                                                            <View key={match.id} style={{ width:'48.5%', backgroundColor:'#0f172a', borderRadius:8, padding:3, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
+                                                                            <View key={match.id} style={{ width:'48.5%', backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
                                                                                 <View style={{ flexDirection:'row', alignItems:'center' }}>
                                                                                     <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
                                                                                     {isDone && mSets2.length > 0 && (
@@ -10208,14 +10208,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 : archiveStandings.length === 0
                                                     ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Henüz maç sonucu yok</Text>
                                                     : <View>
-                                                        <View style={{ flexDirection:'row', paddingVertical:4, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
+                                                        <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
                                                             <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
                                                             {['O','G','M','Av','P'].map(h => (
                                                                 <Text key={h} style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
                                                             ))}
                                                         </View>
                                                         {archiveStandings.map((row2, i) => (
-                                                            <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
+                                                            <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:2, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row2.name}</Text>
                                                                 {[row2.played, row2.won, row2.lost, (() => { const t = row2.gamesWon + row2.gamesLost; return t === 0 ? '-' : `${Math.round((row2.gamesWon / t) * 100)}%`; })(), row2.points].map((v,j) => (
                                                                     <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
@@ -10285,12 +10285,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </Text>
 
                                 {/* Like + Comment bar */}
-                                <View style={{ flexDirection: 'row', gap: 24, marginTop: 14 }}>
-                                    <TouchableOpacity onPress={toggleMediaLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ flexDirection: 'row', gap: 3, marginTop: 14 }}>
+                                    <TouchableOpacity onPress={toggleMediaLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                         <Text style={{ color: isLiked ? '#f43f5e' : '#ffffff80', fontSize: 22 }}>♥</Text>
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{likeCount}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={openMediaComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <TouchableOpacity onPress={openMediaComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                         <Text style={{ color: mediaShowComments ? cfg.color : '#ffffff80', fontSize: 20 }}>💬</Text>
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{mediaComments.length || mp._count?.comments || 0}</Text>
                                     </TouchableOpacity>
@@ -10298,25 +10298,25 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                                 {/* Inline comments */}
                                 {mediaShowComments && (
-                                    <View style={{ width: '90%', marginTop: 10, backgroundColor: '#00000060', borderRadius: 12, padding: 10, maxHeight: 180 }}>
+                                    <View style={{ width: '90%', marginTop: 10, backgroundColor: '#00000060', borderRadius: 12, padding: 7, maxHeight: 180 }}>
                                         <ScrollView style={{ maxHeight: 100 }} showsVerticalScrollIndicator={false}>
                                             {mediaComments.map((c, i) => (
-                                                <View key={c.id || i} style={{ flexDirection: 'row', gap: 6, marginBottom: 5 }}>
+                                                <View key={c.id || i} style={{ flexDirection: 'row', gap: 3, marginBottom: 5 }}>
                                                     <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
                                                     <Text style={{ color: '#ffffffcc', fontSize: 12, flex: 1 }}>{c.content}</Text>
                                                 </View>
                                             ))}
                                         </ScrollView>
-                                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                                        <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
                                             <TextInput
-                                                style={{ flex: 1, backgroundColor: '#ffffff15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: '#ffffff30' }}
+                                                style={{ flex: 1, backgroundColor: '#ffffff15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: '#ffffff30' }}
                                                 placeholder="Yorum yaz..."
                                                 placeholderTextColor="#ffffff50"
                                                 value={mediaCommentText}
                                                 onChangeText={setMediaCommentText}
                                             />
                                             <TouchableOpacity onPress={sendMediaComment} disabled={sendingMediaComment || !mediaCommentText.trim()}
-                                                style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center', opacity: !mediaCommentText.trim() ? 0.4 : 1 }}>
+                                                style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 11, justifyContent: 'center', opacity: !mediaCommentText.trim() ? 0.4 : 1 }}>
                                                 <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{sendingMediaComment ? '…' : '↑'}</Text>
                                             </TouchableOpacity>
                                         </View>
@@ -10324,7 +10324,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 )}
 
                                 {/* Prev/Next nav */}
-                                <View style={{ flexDirection: 'row', gap: 20, marginTop: 16 }}>
+                                <View style={{ flexDirection: 'row', gap: 3, marginTop: 16 }}>
                                     {mediaViewIdx > 0 && (
                                         <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaViewIdx(i => i - 1); }}>
                                             <Text style={{ color: '#fff', fontWeight: '700' }}>‹ Önceki</Text>
@@ -10351,164 +10351,164 @@ export default function SubCategoryScreen({ route, navigation }) {
 
 const s = StyleSheet.create({
     container:        { flex:1, backgroundColor: colors.bg },
-    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal:20, marginBottom:14, gap:14 },
+    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal:17, marginBottom:14, gap:3 },
     back:             { fontSize:15, fontWeight:'700' },
     title:            { color:'#fff', fontSize:20, fontWeight:'900', flex:1 },
 
     tabBar:           { flexGrow:0, marginBottom:12 },
-    tabBarInner:      { paddingHorizontal:16, gap:8 },
-    tab:              { paddingHorizontal:14, paddingTop:7, paddingBottom:11, borderRadius:20, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    tabBarInner:      { paddingHorizontal:13, gap:3 },
+    tab:              { paddingHorizontal:11, paddingTop:4, paddingBottom:8, borderRadius:20, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
     tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700', lineHeight:20, includeFontPadding: false },
     tabTextActive:    { color:'#fff' },
 
-    list:             { paddingHorizontal:4, gap:8, paddingBottom:60 },
+    list:             { paddingHorizontal:1, gap:3, paddingBottom:57 },
     sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
 
-    createBtn:        { backgroundColor: colors.surface, borderRadius:10, paddingVertical:6, paddingHorizontal:10, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
+    createBtn:        { backgroundColor: colors.surface, borderRadius:10, paddingVertical:3, paddingHorizontal:7, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
     createBtnText:    { fontWeight:'700', fontSize:14 },
 
-    filterBox:        { backgroundColor: colors.surface, borderRadius:12, padding:8, borderWidth:1, borderColor: colors.border, gap:6 },
-    filterInputRow:   { flexDirection:'row', gap:6, alignItems:'center' },
-    filterInput:      { flex:1, backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor: colors.border, fontSize:12 },
-    nearBtn:          { backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:6, borderWidth:1, borderColor: colors.border, justifyContent:'center' },
+    filterBox:        { backgroundColor: colors.surface, borderRadius:12, padding:5, borderWidth:1, borderColor: colors.border, gap:3 },
+    filterInputRow:   { flexDirection:'row', gap:3, alignItems:'center' },
+    filterInput:      { flex:1, backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: colors.border, fontSize:12 },
+    nearBtn:          { backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:6, paddingVertical:3, borderWidth:1, borderColor: colors.border, justifyContent:'center' },
     nearBtnText:      { fontSize:11, fontWeight:'700' },
-    dateChips:        { flexDirection:'row', gap:5, flexWrap:'wrap' },
-    dateChip:         { paddingHorizontal:9, paddingVertical:4, borderRadius:8, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    dateChips:        { flexDirection:'row', gap:3, flexWrap:'wrap' },
+    dateChip:         { paddingHorizontal:6, paddingVertical:1, borderRadius:8, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     dateChipText:     { color: colors.textSecondary, fontSize:11, fontWeight:'700' },
-    clearChip:        { paddingHorizontal:9, paddingVertical:4, borderRadius:8, backgroundColor:'#dc262620', borderWidth:1, borderColor:'#dc262640' },
+    clearChip:        { paddingHorizontal:6, paddingVertical:1, borderRadius:8, backgroundColor:'#dc262620', borderWidth:1, borderColor:'#dc262640' },
     clearChipText:    { color:'#f87171', fontSize:11, fontWeight:'700' },
 
-    empty:            { alignItems:'center', paddingTop:60, paddingBottom:40 },
+    empty:            { alignItems:'center', paddingTop:57, paddingBottom:37 },
     emptyEmoji:       { fontSize:48, marginBottom:12 },
     emptyText:        { color: colors.textSecondary, fontSize:15, fontWeight:'600' },
-    emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:20, paddingVertical:10 },
+    emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:17, paddingVertical:7 },
     emptyBtnText:     { color:'#fff', fontWeight:'700' },
 
-    card:             { backgroundColor: colors.surface, borderRadius:14, paddingHorizontal:10, paddingTop:8, paddingBottom:8, borderWidth:1, borderColor: colors.border },
-    cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:2 },
+    card:             { backgroundColor: colors.surface, borderRadius:14, paddingHorizontal:7, paddingTop:5, paddingBottom:5, borderWidth:1, borderColor: colors.border },
+    cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:2 },
     avatar:           { justifyContent:'center', alignItems:'center', borderWidth:1 },
     avatarText:       { fontWeight:'800' },
     cardName:         { color:'#fff', fontWeight:'700', fontSize:14 },
     cardSub:          { color: colors.textMuted, fontSize:11 },
     ratingText:       { fontSize:11, fontWeight:'900' },
 
-    modeBadge:        { borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, alignSelf:'flex-start' },
+    modeBadge:        { borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, alignSelf:'flex-start' },
     modeBadgeText:    { fontSize:10, fontWeight:'700' },
     joinedCount:      { color: colors.textMuted, fontSize:10, marginTop:2 },
 
-    flexBanner:       { backgroundColor:'#eab30815', borderRadius:10, padding:8, marginBottom:4, borderWidth:1, borderColor:'#eab30840' },
+    flexBanner:       { backgroundColor:'#eab30815', borderRadius:10, padding:5, marginBottom:4, borderWidth:1, borderColor:'#eab30840' },
     flexTitle:        { color:'#fbbf24', fontSize:11, fontWeight:'700', marginBottom:2 },
     flexDesc:         { color:'#fcd34d99', fontSize:10 },
 
-    levelRow:         { flexDirection:'row', gap:8, marginBottom:4, flexWrap:'wrap' },
-    levelBadge:       { backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:3, color:'#d1d5db', fontSize:11, fontWeight:'700', borderWidth:1, borderColor: colors.border },
-    levelDetail:      { backgroundColor:'#a855f720', borderRadius:8, paddingHorizontal:8, paddingVertical:3, color:'#c084fc', fontSize:11, fontWeight:'700', borderWidth:1, borderColor:'#a855f740' },
+    levelRow:         { flexDirection:'row', gap:3, marginBottom:4, flexWrap:'wrap' },
+    levelBadge:       { backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:0, color:'#d1d5db', fontSize:11, fontWeight:'700', borderWidth:1, borderColor: colors.border },
+    levelDetail:      { backgroundColor:'#a855f720', borderRadius:8, paddingHorizontal:5, paddingVertical:0, color:'#c084fc', fontSize:11, fontWeight:'700', borderWidth:1, borderColor:'#a855f740' },
 
     cardMsg:          { color: colors.textSecondary, fontSize:13, marginBottom:4 },
-    cardMeta:         { flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 },
-    metaItem:         { backgroundColor: colors.surface2, paddingHorizontal:8, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor: colors.border },
+    cardMeta:         { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 },
+    metaItem:         { backgroundColor: colors.surface2, paddingHorizontal:5, paddingVertical:0, borderRadius:8, borderWidth:1, borderColor: colors.border },
     metaItemText:     { color: colors.text, fontSize:11, fontWeight:'600' },
 
-    joinBtn:          { borderRadius:10, paddingVertical:9, alignItems:'center', backgroundColor: colors.purple },
+    joinBtn:          { borderRadius:10, paddingVertical:6, alignItems:'center', backgroundColor: colors.purple },
     joinBtnText:      { color:'#fff', fontWeight:'800', fontSize:13 },
-    msgBtn:           { backgroundColor:'#2563eb20', borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor:'#2563eb40', flex:1 },
+    msgBtn:           { backgroundColor:'#2563eb20', borderRadius:10, paddingVertical:5, alignItems:'center', borderWidth:1, borderColor:'#2563eb40', flex:1 },
     msgBtnText:       { color:'#60a5fa', fontWeight:'700', fontSize:12 },
-    cancelBtn:        { backgroundColor:'#dc262620', borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor:'#dc262640', flex:1 },
+    cancelBtn:        { backgroundColor:'#dc262620', borderRadius:10, paddingVertical:5, alignItems:'center', borderWidth:1, borderColor:'#dc262640', flex:1 },
     cancelBtnText:    { color:'#f87171', fontWeight:'700', fontSize:12 },
-    waitingBox:       { backgroundColor: colors.surface2, borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor: colors.border },
+    waitingBox:       { backgroundColor: colors.surface2, borderRadius:10, paddingVertical:5, alignItems:'center', borderWidth:1, borderColor: colors.border },
     waitingText:      { color: colors.textMuted, fontSize:13, fontWeight:'600' },
 
-    ownerActions:     { gap:8 },
-    ownerBtnRow:      { flexDirection:'row', gap:8 },
-    joinRequestsBox:  { backgroundColor: colors.surface2, borderRadius:12, padding:12, borderWidth:1, borderColor: colors.border },
+    ownerActions:     { gap:3 },
+    ownerBtnRow:      { flexDirection:'row', gap:3 },
+    joinRequestsBox:  { backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border },
     joinRequestsTitle:{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 },
-    joinRequestRow:   { flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 },
+    joinRequestRow:   { flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 },
     joinRequestName:  { flex:1, color: colors.textSecondary, fontSize:12 },
     acceptBtn:        { backgroundColor:'#16a34a', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center' },
     declineBtn:       { backgroundColor:'#dc2626', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center' },
 
-    participantsRow:      { flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:6 },
-    participantChip:      { backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a40' },
+    participantsRow:      { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:6 },
+    participantChip:      { backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a40' },
     participantChipText:  { color:'#4ade80', fontSize:11, fontWeight:'700' },
-    pendingBadge:         { backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#a855f740', marginBottom:4 },
+    pendingBadge:         { backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:7, paddingVertical:2, borderWidth:1, borderColor:'#a855f740', marginBottom:4 },
     pendingBadgeText:     { color:'#c084fc', fontSize:12, fontWeight:'700' },
 
     scoreText:        { color:'#fff', fontSize:16, fontWeight:'900' },
-    scoreBtn:         { backgroundColor:'#a855f720', borderRadius:10, paddingHorizontal:12, paddingVertical:6, borderWidth:1, borderColor:'#a855f750' },
+    scoreBtn:         { backgroundColor:'#a855f720', borderRadius:10, paddingHorizontal:9, paddingVertical:3, borderWidth:1, borderColor:'#a855f750' },
     scoreBtnText:     { color:'#c084fc', fontSize:12, fontWeight:'700' },
-    commentBtn:       { backgroundColor:'#0ea5e920', borderRadius:10, paddingHorizontal:12, paddingVertical:6, borderWidth:1, borderColor:'#0ea5e950' },
+    commentBtn:       { backgroundColor:'#0ea5e920', borderRadius:10, paddingHorizontal:9, paddingVertical:3, borderWidth:1, borderColor:'#0ea5e950' },
     commentBtnText:   { color:'#38bdf8', fontSize:12, fontWeight:'700' },
-    confirmBtn:       { backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:10, paddingVertical:4, marginTop:4, borderWidth:1, borderColor:'#16a34a60' },
+    confirmBtn:       { backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:7, paddingVertical:1, marginTop:4, borderWidth:1, borderColor:'#16a34a60' },
     confirmBtnText:   { color:'#4ade80', fontSize:11, fontWeight:'700' },
     scoreForm:        { marginTop:10 },
-    scoreInputRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8 },
-    scoreInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:10, paddingHorizontal:12, paddingVertical:10, borderWidth:1, borderColor: colors.border, fontSize:18, fontWeight:'800', width:60, textAlign:'center' },
+    scoreInputRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3 },
+    scoreInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:10, paddingHorizontal:9, paddingVertical:7, borderWidth:1, borderColor: colors.border, fontSize:18, fontWeight:'800', width:60, textAlign:'center' },
 
     modalOverlay:     { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    modalBox:         { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:24, paddingLeft:2, paddingRight:2, paddingBottom:40, maxHeight:'92%' },
+    modalBox:         { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:21, paddingLeft:0, paddingRight:0, paddingBottom:37, maxHeight:'92%' },
     modalHeader:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20 },
     modalTitle:       { color:'#fff', fontSize:18, fontWeight:'900' },
     modalClose:       { color: colors.textMuted, fontSize:22 },
 
     fieldLabel:       { color: colors.textSecondary, fontSize:12, fontWeight:'700', marginBottom:6 },
     fieldHint:        { color: colors.textMuted, fontSize:10, marginBottom:8 },
-    fieldInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:12, paddingHorizontal:14, paddingVertical:12, borderWidth:1, borderColor: colors.border, fontSize:14, marginBottom:14 },
-    chipRow:          { flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:14 },
-    chipBtn:          { paddingHorizontal:10, paddingVertical:6, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    fieldInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:12, paddingHorizontal:11, paddingVertical:9, borderWidth:1, borderColor: colors.border, fontSize:14, marginBottom:14 },
+    chipRow:          { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:14 },
+    chipBtn:          { paddingHorizontal:7, paddingVertical:3, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     chipBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
     chipBtnText:      { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
     chipBtnTextActive:{ color:'#fff' },
-    submitBtn:        { backgroundColor: colors.purple, borderRadius:14, paddingVertical:14, alignItems:'center', marginTop:8 },
+    submitBtn:        { backgroundColor: colors.purple, borderRadius:14, paddingVertical:11, alignItems:'center', marginTop:8 },
     submitBtnText:    { color:'#fff', fontWeight:'800', fontSize:15 },
 
-    switchRow:        { flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:14, borderWidth:1, borderColor: colors.border },
+    switchRow:        { flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:11, marginBottom:14, borderWidth:1, borderColor: colors.border },
 
-    eloWarning:       { backgroundColor:'#dc262615', borderRadius:12, padding:12, marginBottom:14, borderWidth:1, borderColor:'#dc262640' },
+    eloWarning:       { backgroundColor:'#dc262615', borderRadius:12, padding:9, marginBottom:14, borderWidth:1, borderColor:'#dc262640' },
     eloWarningText:   { color:'#fca5a5', fontSize:12, fontWeight:'600', lineHeight:18 },
     modeHint:         { color:'#60a5fa', fontSize:11, fontWeight:'600', marginBottom:10, marginTop:-6 },
 
-    profileHeader:    { alignItems:'center', paddingVertical:20, gap:6 },
+    profileHeader:    { alignItems:'center', paddingVertical:17, gap:3 },
     profileName:      { color:'#fff', fontSize:20, fontWeight:'900', textAlign:'center' },
     profileUsername:  { color: colors.textMuted, fontSize:13 },
     profileMeta:      { color: colors.textSecondary, fontSize:12, marginTop:4 },
-    profileBioBox:    { backgroundColor: colors.surface2, borderRadius:12, padding:14, marginBottom:14, borderWidth:1, borderColor: colors.border },
+    profileBioBox:    { backgroundColor: colors.surface2, borderRadius:12, padding:11, marginBottom:14, borderWidth:1, borderColor: colors.border },
     profileBioText:   { color: colors.textSecondary, fontSize:13, lineHeight:20 },
-    profileSection:   { backgroundColor: colors.surface2, borderRadius:14, padding:14, marginBottom:14, borderWidth:1, borderColor: colors.border, gap:10 },
+    profileSection:   { backgroundColor: colors.surface2, borderRadius:14, padding:11, marginBottom:14, borderWidth:1, borderColor: colors.border, gap:3 },
     profileSectionTitle:{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:4 },
-    profileInterestRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:6, borderTopWidth:1, borderTopColor: colors.border },
+    profileInterestRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:3, borderTopWidth:1, borderTopColor: colors.border },
     profileInterestName:{ color:'#fff', fontSize:14, fontWeight:'700', textTransform:'capitalize' },
     profileWL:        { color: colors.textMuted, fontSize:11, marginTop:2 },
     profileRating:    { fontSize:15, fontWeight:'900' },
-    levelPill:        { borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1 },
+    levelPill:        { borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1 },
     levelPillText:    { fontSize:10, fontWeight:'700' },
-    privateBox:       { backgroundColor:'#374151', borderRadius:12, paddingHorizontal:16, paddingVertical:10, marginTop:8 },
+    privateBox:       { backgroundColor:'#374151', borderRadius:12, paddingHorizontal:13, paddingVertical:7, marginTop:8 },
     privateText:      { color:'#9ca3af', fontSize:13, fontWeight:'700' },
 
     courtResultsBox:  { backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, marginBottom:10, overflow:'hidden' },
-    courtResultRow:   { padding:12, borderBottomWidth:1, borderBottomColor: colors.border, flexDirection:'row', alignItems:'center' },
+    courtResultRow:   { padding:9, borderBottomWidth:1, borderBottomColor: colors.border, flexDirection:'row', alignItems:'center' },
     courtResultName:  { color:'#fff', fontSize:13, fontWeight:'700' },
     courtResultCity:  { color: colors.textMuted, fontSize:11, marginTop:2 },
-    selectedCourtBox: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#16a34a20', borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor:'#16a34a50' },
+    selectedCourtBox: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#16a34a20', borderRadius:10, padding:7, marginBottom:10, borderWidth:1, borderColor:'#16a34a50' },
     selectedCourtText:{ color:'#4ade80', fontSize:13, fontWeight:'700', flex:1 },
-    addCourtBtn:      { paddingVertical:10, alignItems:'center', marginBottom:10 },
+    addCourtBtn:      { paddingVertical:7, alignItems:'center', marginBottom:10 },
     addCourtBtnText:  { color: colors.purple, fontSize:13, fontWeight:'700' },
-    manualCourtBox:   { backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:10, borderWidth:1, borderColor: colors.border },
+    manualCourtBox:   { backgroundColor: colors.surface2, borderRadius:12, padding:9, marginBottom:10, borderWidth:1, borderColor: colors.border },
     manualCourtNote:  { color:'#fbbf24', fontSize:11, marginBottom:10, lineHeight:16 },
 
-    checkRow:         { flexDirection:'row', alignItems:'center', gap:10, marginBottom:14 },
+    checkRow:         { flexDirection:'row', alignItems:'center', gap:3, marginBottom:14 },
     checkbox:         { width:22, height:22, borderRadius:6, borderWidth:2, borderColor: colors.border, justifyContent:'center', alignItems:'center' },
     checkboxChecked:  { backgroundColor: colors.purple, borderColor: colors.purple },
     checkLabel:       { color: colors.textSecondary, fontSize:13, fontWeight:'600' },
 
-    triRow:           { flexDirection:'row', gap:8, marginBottom:12 },
-    triBtn:           { flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, paddingHorizontal:8, borderWidth:1, borderColor: colors.border, alignItems:'center' },
+    triRow:           { flexDirection:'row', gap:3, marginBottom:12 },
+    triBtn:           { flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:4, paddingHorizontal:5, borderWidth:1, borderColor: colors.border, alignItems:'center' },
     triBtnFilled:     { borderColor: colors.purple+'80' },
     triLabel:         { color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:2 },
     triValue:         { color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
     triPlaceholder:   { color: colors.textMuted, fontSize:13 },
 
-    storyNavBtn:      { backgroundColor:'#ffffff20', borderRadius:12, paddingHorizontal:20, paddingVertical:10 },
+    storyNavBtn:      { backgroundColor:'#ffffff20', borderRadius:12, paddingHorizontal:17, paddingVertical:7 },
 
-    chip:             { paddingHorizontal:12, paddingVertical:7, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    chip:             { paddingHorizontal:9, paddingVertical:4, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     chipText:         { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
 });

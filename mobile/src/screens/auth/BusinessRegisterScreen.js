@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import RainbowLogo from '../../components/RainbowLogo';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -191,7 +191,7 @@ export default function BusinessRegisterScreen({ navigation }) {
 
                     {/* İşletme Adresi */}
                     <Text style={s.label}>İşletme Adresi</Text>
-                    <TextInput style={[s.input, { height: 72, textAlignVertical: 'top', paddingTop: 10 }]}
+                    <TextInput style={[s.input, { height: 72, textAlignVertical: 'top', paddingTop: 7 }]}
                         value={form.businessAddress} onChangeText={v => set('businessAddress', v)}
                         placeholder="Mahalle, cadde, sokak, bina no..." placeholderTextColor={colors.textMuted}
                         multiline />
@@ -325,41 +325,41 @@ export default function BusinessRegisterScreen({ navigation }) {
 
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
-    inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 40 },
+    inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 17, paddingVertical: 37 },
     sub: { fontSize: 18, color: '#fbbf24', textAlign: 'center', marginBottom: 2, fontWeight: '800' },
     subHint: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginBottom: 20 },
-    card: { backgroundColor: colors.surface, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#f59e0b40' },
+    card: { backgroundColor: colors.surface, borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#f59e0b40' },
 
     label: { color: colors.textSecondary, fontSize: 10, fontWeight: '800', marginBottom: 5, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.6 },
-    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
+    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
 
     selectBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     selectText: { color: colors.text, fontSize: 14 },
     selectPh: { color: colors.textMuted, fontSize: 14 },
 
     passRow: { flexDirection: 'row' },
-    eyeBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12, paddingHorizontal: 14, justifyContent: 'center' },
-    rulesBox: { marginTop: 6, gap: 3, paddingLeft: 2 },
+    eyeBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12, paddingHorizontal: 11, justifyContent: 'center' },
+    rulesBox: { marginTop: 6, gap: 3, paddingLeft: 0 },
     ruleOk: { color: '#4ade80', fontSize: 11, fontWeight: '600' },
     ruleFail: { color: '#f87171', fontSize: 11, fontWeight: '600' },
 
     divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
 
-    checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+    checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 3, marginBottom: 10 },
     checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center', marginTop: 1, flexShrink: 0 },
     checkboxChecked: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
     checkmark: { color: '#fff', fontSize: 12, fontWeight: '900' },
     checkLabel: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, flex: 1 },
 
-    captchaBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border, marginTop: 4, marginBottom: 4 },
-    captchaLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-    captchaRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    captchaBtn: { backgroundColor: '#f59e0b', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+    captchaBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 14, padding: 11, borderWidth: 1, borderColor: colors.border, marginTop: 4, marginBottom: 4 },
+    captchaLeft: { flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1 },
+    captchaRight: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    captchaBtn: { backgroundColor: '#f59e0b', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 5 },
 
-    btn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
+    btn: { borderRadius: 14, paddingVertical: 11, alignItems: 'center', marginTop: 18 },
     bizBtn: { backgroundColor: '#d97706' },
     btnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
-    otpBox: { marginTop: 16, backgroundColor: colors.surface2, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f59e0b50' },
+    otpBox: { marginTop: 16, backgroundColor: colors.surface2, borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#f59e0b50' },
     otpInfo: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: 4, textAlign: 'center' },
 });

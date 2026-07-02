@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import api from '../../services/api';
 import colors from '../../theme/colors';
@@ -144,19 +144,19 @@ export default function ForgotPasswordScreen({ navigation }) {
 
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
-    inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+    inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 21 },
     sub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
-    card: { backgroundColor: colors.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border },
-    steps: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 20 },
+    card: { backgroundColor: colors.surface, borderRadius: 20, padding: 21, borderWidth: 1, borderColor: colors.border },
+    steps: { flexDirection: 'row', justifyContent: 'center', gap: 3, marginBottom: 20 },
     stepDot: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
     stepDotActive: { borderColor: colors.purple, backgroundColor: colors.purple + '20' },
     stepNum: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
     stepNumActive: { color: colors.purple },
     label: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
     hint: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginBottom: 4, marginTop: 4 },
-    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
+    input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
     codeInput: { fontSize: 22, fontWeight: '800', textAlign: 'center', letterSpacing: 10 },
-    btn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
+    btn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 11, alignItems: 'center', marginTop: 20 },
     btnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
     linkRow: { marginTop: 16, alignItems: 'center' },
     linkText: { color: colors.textSecondary, fontSize: 13 },

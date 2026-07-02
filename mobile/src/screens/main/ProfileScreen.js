@@ -55,7 +55,7 @@ function EloLineGraph({ matches, userId }) {
     const PADDING = 6;
 
     if (!matches || matches.length < 2) return (
-        <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+        <View style={{ alignItems: 'center', paddingVertical: 13 }}>
             <Text style={{ color: '#6b7280', fontSize: 11 }}>— En az 2 maç gerekli —</Text>
         </View>
     );
@@ -147,12 +147,12 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
-                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: SH * 0.82, paddingBottom: 20 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
+                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: SH * 0.82, paddingBottom: 17 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
                         <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>{label} ({filtered.length})</Text>
                         <TouchableOpacity onPress={onClose}><Text style={{ color: '#6b7280', fontSize: 20 }}>✕</Text></TouchableOpacity>
                     </View>
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16 }}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 13 }}>
                         {filtered.length === 0 ? (
                             <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 24 }}>—</Text>
                         ) : filtered.map((m, idx) => {
@@ -169,7 +169,7 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
                             const modeLabel = m.matchMode === 'COMPETITIVE' ? (tr ? '⚔️ Rekabetçi' : '⚔️ Competitive') : m.matchMode === 'PRACTICE' ? (tr ? '🎯 Antrenman' : '🎯 Practice') : '';
                             const typeLabel = m.matchType === 'DOUBLE' ? (tr ? '👥 Çiftler' : '👥 Doubles') : m.matchType === 'SINGLE' ? (tr ? '👤 Tekler' : '👤 Singles') : '';
                             return (
-                                <View key={m.id || idx} style={{ backgroundColor: '#ffffff06', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#ffffff0f', borderLeftWidth: 3, borderLeftColor: resultColor + '80' }}>
+                                <View key={m.id || idx} style={{ backgroundColor: '#ffffff06', borderRadius: 12, padding: 9, marginBottom: 10, borderWidth: 1, borderColor: '#ffffff0f', borderLeftWidth: 3, borderLeftColor: resultColor + '80' }}>
                                     {/* Satır 1: Rakip + ELO */}
                                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>
@@ -188,10 +188,10 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
                                         </Text>
                                     )}
                                     {/* Chip'ler: mod, tür, zemin */}
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
-                                        {modeLabel ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}><Text style={{ color: '#e2e8f0', fontSize: 10, fontWeight: '700' }}>{modeLabel}</Text></View> : null}
-                                        {typeLabel ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}><Text style={{ color: '#e2e8f0', fontSize: 10, fontWeight: '700' }}>{typeLabel}</Text></View> : null}
-                                        {surface ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}><Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '700' }}>⬜ {surface}</Text></View> : null}
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginBottom: 6 }}>
+                                        {modeLabel ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 0 }}><Text style={{ color: '#e2e8f0', fontSize: 10, fontWeight: '700' }}>{modeLabel}</Text></View> : null}
+                                        {typeLabel ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 0 }}><Text style={{ color: '#e2e8f0', fontSize: 10, fontWeight: '700' }}>{typeLabel}</Text></View> : null}
+                                        {surface ? <View style={{ backgroundColor: '#ffffff10', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 0 }}><Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '700' }}>⬜ {surface}</Text></View> : null}
                                     </View>
                                     {/* Konum */}
                                     {(m.courtName || m.location) && (
@@ -305,7 +305,7 @@ function TennisDailyAnimation({ color, lang }) {
     });
 
     return (
-        <View style={{ alignItems: 'center', paddingTop: 4 }}>
+        <View style={{ alignItems: 'center', paddingTop: 1 }}>
             <Text style={{ color: color + '90', fontSize: 8, fontWeight: '900', letterSpacing: 2.5, marginBottom: 10 }}>
                 ✦ {lang === 'tr' ? 'GÜNÜN OYUNCUSU' : "TODAY'S PLAYER"} ✦
             </Text>
@@ -364,7 +364,7 @@ function TennisDailyAnimation({ color, lang }) {
             </Text>
 
             {/* Gün göstergesi */}
-            <View style={{ flexDirection:'row', gap:5, marginTop:10 }}>
+            <View style={{ flexDirection:'row', gap:3, marginTop:10 }}>
                 {[0,1,2,3,4,5,6].map(i => (
                     <View key={i} style={{ width:5, height:5, borderRadius:2.5, backgroundColor: i === dayIdx % 7 ? color : color+'25' }} />
                 ))}
@@ -452,7 +452,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             <Animated.View style={[fc.card, { transform: [{ perspective: 1200 }, { rotateY }] }]}>
                 {!isBack ? (
                     <View style={fc.face}>
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 70 }}>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 67 }}>
 
                             {/* ── Tek satır: emoji + isim + G/M/B butonları ── */}
                             <View style={fc.topRow}>
@@ -462,7 +462,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1}>{item.alias}</Text> : null}
                                 </View>
                                 {item.assessmentCompleted && (
-                                    <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 7, borderWidth: 1, borderColor: '#facc1540' }}>
+                                    <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
                                         <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
                                         <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
                                     </TouchableOpacity>
@@ -491,17 +491,17 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     </TouchableOpacity>
                                     {isOwnProfile && (
                                         isEditingAlias ? (
-                                            <View style={{ gap: 4 }}>
+                                            <View style={{ gap: 3 }}>
                                                 <TextInput value={aliasValue} onChangeText={setAliasValue}
                                                     placeholder={`${profile?.username}`} placeholderTextColor="#6b7280" maxLength={30} autoFocus
-                                                    style={{ color: '#fff', fontSize: 11, backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: '#ffffff20' }} />
-                                                <View style={{ flexDirection: 'row', gap: 4 }}>
+                                                    style={{ color: '#fff', fontSize: 11, backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 3, borderWidth: 1, borderColor: '#ffffff20' }} />
+                                                <View style={{ flexDirection: 'row', gap: 3 }}>
                                                     <TouchableOpacity onPress={onSaveAlias} disabled={savingAlias}
-                                                        style={{ flex: 1, backgroundColor: '#a855f7', borderRadius: 6, paddingVertical: 5, alignItems: 'center' }}>
+                                                        style={{ flex: 1, backgroundColor: '#a855f7', borderRadius: 6, paddingVertical: 2, alignItems: 'center' }}>
                                                         <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity onPress={onCancelAlias}
-                                                        style={{ flex: 1, backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 5, alignItems: 'center' }}>
+                                                        style={{ flex: 1, backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 2, alignItems: 'center' }}>
                                                         <Text style={{ color: '#9ca3af', fontSize: 11 }}>✕</Text>
                                                     </TouchableOpacity>
                                                 </View>
@@ -558,12 +558,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                           desc: lang==='tr' ? 'Gerginlikte odaklanmayı sürdürme, mazeret üretmeme.' : 'Maintaining focus under pressure.' },
                                     ].map(({ key, emoji, title, desc }) => (
                                         <View key={key} style={fc.anketCard}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 3 }}>
                                                 <Text style={{ fontSize: 13 }}>{emoji}</Text>
                                                 <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', flex: 1 }}>{title}</Text>
                                             </View>
                                             <Text style={{ color: '#6b7280', fontSize: 9, marginBottom: 6, lineHeight: 13 }}>{desc}</Text>
-                                            <View style={{ flexDirection: 'row', gap: 4, justifyContent: 'flex-start' }}>
+                                            <View style={{ flexDirection: 'row', gap: 3, justifyContent: 'flex-start' }}>
                                                 {[1,2,3,4,5].map(n => {
                                                     const sel = anketScores[key] === n;
                                                     const col = n <= 2 ? '#f87171' : n === 3 ? '#facc15' : '#4ade80';
@@ -588,7 +588,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                         {/* ELO Grafik Modali */}
                         <Modal visible={showEloModal} transparent animationType="slide" onRequestClose={() => setShowEloModal(false)}>
                             <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
-                                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36, borderWidth: 1, borderColor: '#a855f730' }}>
+                                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33, borderWidth: 1, borderColor: '#a855f730' }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View>
                                             <Text style={{ color: '#facc15', fontSize: 16, fontWeight: '900' }}>ELO ★ {Number(item.skillRating || 0).toFixed(2)}</Text>
@@ -608,7 +608,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                         {/* Anket Ortalaması Modali */}
                         <Modal visible={showAnketModal} transparent animationType="slide" onRequestClose={() => setShowAnketModal(false)}>
                             <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
-                                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36, borderWidth: 1, borderColor: '#a855f730' }}>
+                                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33, borderWidth: 1, borderColor: '#a855f730' }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                         <View>
                                             <Text style={{ color: '#c084fc', fontSize: 16, fontWeight: '900' }}>📊 {lang==='tr' ? 'Anket Ortalaması' : 'Survey Average'}</Text>
@@ -836,16 +836,16 @@ function DartModal({ visible, onClose, lang, cfg }) {
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor:'#0f0f1a', borderTopLeftRadius:24, borderTopRightRadius:24, paddingBottom:34 }}>
+                <View style={{ backgroundColor:'#0f0f1a', borderTopLeftRadius:24, borderTopRightRadius:24, paddingBottom:31 }}>
                     {/* Header */}
-                    <View style={{ flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', padding:13, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                         <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', flex:1 }}>🎯 {tr ? 'Hedefler — Dart Oyunu' : 'Goals — Dart Game'}</Text>
                         <Text style={{ color:color, fontSize:14, fontWeight:'900', marginRight:12 }}>{throws.length}/{MAX_THROWS}  ·  {totalScore} {tr?'puan':'pts'}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={{ color:'#6b7280', fontSize:22 }}>✕</Text></TouchableOpacity>
                     </View>
 
                     {/* Mesaj */}
-                    <View style={{ minHeight:52, justifyContent:'center', paddingHorizontal:16, paddingVertical:8 }}>
+                    <View style={{ minHeight:52, justifyContent:'center', paddingHorizontal:13, paddingVertical:5 }}>
                         {lastMsg && !done && (
                             <Text style={{ color: lastScore >= 25 ? '#4ade80' : lastScore >= 10 ? '#facc15' : '#f87171', fontSize:12, fontWeight:'700', textAlign:'center', lineHeight:18 }}>
                                 {lastMsg}
@@ -897,9 +897,9 @@ function DartModal({ visible, onClose, lang, cfg }) {
                     </View>
 
                     {/* Alt bilgi */}
-                    <View style={{ paddingHorizontal:16, marginTop:10 }}>
+                    <View style={{ paddingHorizontal:13, marginTop:10 }}>
                         {/* Zone bilgileri */}
-                        <View style={{ flexDirection:'row', justifyContent:'center', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+                        <View style={{ flexDirection:'row', justifyContent:'center', gap:3, marginBottom:10, flexWrap:'wrap' }}>
                             {[{c:'#ef4444',l:'50'},{c:'#166534',l:'25'},{c:'#dc2626',l:'15'},{c:'#15803d',l:'10'},{c:'#1e293b',l:'5'},{c:'#374151',l:'1'}].map((z,i)=>(
                                 <View key={i} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                     <View style={{ width:8, height:8, borderRadius:4, backgroundColor:z.c }} />
@@ -908,7 +908,7 @@ function DartModal({ visible, onClose, lang, cfg }) {
                             ))}
                         </View>
                         {done ? (
-                            <TouchableOpacity onPress={reset} style={{ backgroundColor:color+'20', borderRadius:10, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:color+'50' }}>
+                            <TouchableOpacity onPress={reset} style={{ backgroundColor:color+'20', borderRadius:10, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor:color+'50' }}>
                                 <Text style={{ color, fontWeight:'900', fontSize:14 }}>🔄 {tr ? 'Tekrar Oyna' : 'Play Again'}</Text>
                             </TouchableOpacity>
                         ) : (
@@ -989,26 +989,26 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '88%', paddingBottom: 36 }}>
+                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '88%', paddingBottom: 33 }}>
                     {/* Header */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
                         <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }}>🏆 {tr ? 'Başarılar' : 'Achievements'}</Text>
                         {isOwnProfile && !showAdd && (
                             <TouchableOpacity onPress={() => setShowAdd(true)}
-                                style={{ backgroundColor: color + '20', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: color + '50', marginRight: 10 }}>
+                                style={{ backgroundColor: color + '20', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: color + '50', marginRight: 10 }}>
                                 <Text style={{ color, fontWeight: '800', fontSize: 12 }}>+ {tr ? 'Ekle' : 'Add'}</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity onPress={onClose}><Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text></TouchableOpacity>
                     </View>
 
-                    <ScrollView contentContainerStyle={{ padding: 18 }} showsVerticalScrollIndicator={false}>
+                    <ScrollView contentContainerStyle={{ padding: 15 }} showsVerticalScrollIndicator={false}>
                         {/* Başarı ekleme formu */}
                         {showAdd && (
-                            <View style={{ backgroundColor: '#ffffff08', borderRadius: 14, padding: 14, marginBottom: 18, borderWidth: 1, borderColor: color + '40' }}>
+                            <View style={{ backgroundColor: '#ffffff08', borderRadius: 14, padding: 11, marginBottom: 18, borderWidth: 1, borderColor: color + '40' }}>
                                 <Text style={{ color, fontSize: 12, fontWeight: '800', marginBottom: 10 }}>✦ {tr ? 'Yeni Başarı Ekle' : 'Add Achievement'}</Text>
                                 <TextInput
-                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 8 }}
+                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 8 }}
                                     placeholder={tr ? 'Başlık *' : 'Title *'}
                                     placeholderTextColor="#6b7280"
                                     value={form.title}
@@ -1016,7 +1016,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                     maxLength={80}
                                 />
                                 <TextInput
-                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 8, minHeight: 60, textAlignVertical: 'top' }}
+                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 8, minHeight: 60, textAlignVertical: 'top' }}
                                     placeholder={tr ? 'Açıklama (isteğe bağlı)' : 'Description (optional)'}
                                     placeholderTextColor="#6b7280"
                                     value={form.description}
@@ -1025,27 +1025,27 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                     maxLength={300}
                                 />
                                 <TextInput
-                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 10 }}
+                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 10 }}
                                     placeholder={tr ? 'Tarih (ör. Haziran 2024)' : 'Date (e.g. June 2024)'}
                                     placeholderTextColor="#6b7280"
                                     value={form.achievedAt}
                                     onChangeText={v => setForm(f => ({ ...f, achievedAt: v }))}
                                 />
                                 <TouchableOpacity onPress={pickProof}
-                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: '#ffffff20', borderStyle: 'dashed', backgroundColor: '#ffffff08', marginBottom: 12, justifyContent: 'center' }}>
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#ffffff20', borderStyle: 'dashed', backgroundColor: '#ffffff08', marginBottom: 12, justifyContent: 'center' }}>
                                     <Text style={{ fontSize: 16 }}>📎</Text>
                                     <Text style={{ color: proofUri ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: '700' }}>
                                         {proofUri ? (tr ? 'Belge seçildi ✓' : 'Proof selected ✓') : (tr ? 'Belge / Fotoğraf Ekle' : 'Add Proof / Photo')}
                                     </Text>
                                 </TouchableOpacity>
                                 {proofUri && <Image source={{ uri: proofUri }} style={{ width: '100%', height: 120, borderRadius: 10, marginBottom: 10 }} resizeMode="cover" />}
-                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <View style={{ flexDirection: 'row', gap: 3 }}>
                                     <TouchableOpacity onPress={() => { setShowAdd(false); setForm({ title: '', description: '', achievedAt: '' }); setProofUri(null); }}
-                                        style={{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', backgroundColor: '#ffffff10' }}>
+                                        style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: '#ffffff10' }}>
                                         <Text style={{ color: '#6b7280', fontWeight: '700' }}>{tr ? 'İptal' : 'Cancel'}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={submit} disabled={submitting}
-                                        style={{ flex: 2, paddingVertical: 10, borderRadius: 8, alignItems: 'center', backgroundColor: color, opacity: submitting ? 0.6 : 1 }}>
+                                        style={{ flex: 2, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: color, opacity: submitting ? 0.6 : 1 }}>
                                         <Text style={{ color: '#fff', fontWeight: '900' }}>{submitting ? '...' : (tr ? 'Kaydet' : 'Save')}</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -1065,7 +1065,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                         {data.tournament.map((item, i) => (
                                             <TouchableOpacity key={i} activeOpacity={0.7}
                                                 onPress={() => onViewTournament && onViewTournament(item)}
-                                                style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f59e0b30', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                                style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 9, marginBottom: 8, borderWidth: 1, borderColor: '#f59e0b30', flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                                 <Text style={{ fontSize: 32 }}>{item.medal}</Text>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{item.name}</Text>
@@ -1093,7 +1093,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                             ✦ {tr ? 'KİŞİSEL BAŞARILAR' : 'PERSONAL ACHIEVEMENTS'}
                                         </Text>
                                         {data.custom.map(item => (
-                                            <View key={item.id} style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#ffffff15' }}>
+                                            <View key={item.id} style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 9, marginBottom: 8, borderWidth: 1, borderColor: '#ffffff15' }}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>🎯 {item.title}</Text>
@@ -1120,7 +1120,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                 )}
 
                                 {data.tournament.length === 0 && data.custom.length === 0 && !showAdd && (
-                                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                    <View style={{ alignItems: 'center', paddingVertical: 37 }}>
                                         <Text style={{ fontSize: 48, marginBottom: 12 }}>🏆</Text>
                                         <Text style={{ color: '#6b7280', fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
                                             {tr ? 'Henüz başarı yok' : 'No achievements yet'}
@@ -1143,26 +1143,26 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
 
 const fc = StyleSheet.create({
     card: { flex: 1, elevation: 20 },
-    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 3, paddingTop: 48 },
+    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 0, paddingTop: 45 },
     backFace: { backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' },
-    topRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 6, borderWidth: 1, borderColor: '#ffffff10', flexWrap: 'nowrap' },
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 3, borderWidth: 1, borderColor: '#ffffff10', flexWrap: 'nowrap' },
     smallEmoji: { fontSize: 16 },
     smallSportName: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' },
-    miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 3, borderWidth: 1, borderColor: '#ffffff15' },
+    miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 0, paddingHorizontal: 0, borderWidth: 1, borderColor: '#ffffff15' },
     halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
     rightCol: { flex: 1, gap: 3 },
     actionCol: { flex: 1, gap: 3 },
-    statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
+    statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 0, paddingHorizontal: 0, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
     statBigNum: { fontSize: 16, fontWeight: '900' },
     statSmLbl: { color: '#6b7280', fontSize: 7, fontWeight: '700', letterSpacing: 0.5 },
-    actionBtn: { backgroundColor: '#ffffff08', borderRadius: 8, padding: 3, borderWidth: 1, borderColor: '#ffffff10' },
+    actionBtn: { backgroundColor: '#ffffff08', borderRadius: 8, padding: 0, borderWidth: 1, borderColor: '#ffffff10' },
     actionTxt: { fontSize: 11, fontWeight: '700' },
-    progressBox: { backgroundColor: '#ffffff06', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 10 },
+    progressBox: { backgroundColor: '#ffffff06', borderRadius: 10, padding: 7, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 10 },
     progressTrack: { height: 5, backgroundColor: '#ffffff15', borderRadius: 3, overflow: 'hidden' },
     progressFill: { height: 5, borderRadius: 3 },
-    graphBox: { backgroundColor: '#ffffff06', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#ffffff10' },
+    graphBox: { backgroundColor: '#ffffff06', borderRadius: 12, padding: 11, borderWidth: 1, borderColor: '#ffffff10' },
     btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', position: 'absolute', bottom: 28, left: 16, right: 16 },
-    backBtn: { backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3, borderWidth: 1, borderColor: '#ffffff20' },
+    backBtn: { backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 0, paddingVertical: 0, borderWidth: 1, borderColor: '#ffffff20' },
     backBtnText: { color: '#9ca3af', fontSize: 11, fontWeight: '700' },
     flipBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#a855f730', borderWidth: 1, borderColor: '#a855f760', justifyContent: 'center', alignItems: 'center' },
     flipBtnText: { fontSize: 13 },
@@ -1170,8 +1170,8 @@ const fc = StyleSheet.create({
     backTitle: { color: '#a855f7', fontSize: 20, fontWeight: '900', letterSpacing: 2, marginBottom: 8, textAlign: 'center' },
     anketSection: { marginTop: 8 },
     anketSectionTitle: { color: '#a855f7', fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
-    anketCard: { backgroundColor: '#ffffff06', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 6 },
-    backPattern: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginBottom: 32, paddingHorizontal: 20 },
+    anketCard: { backgroundColor: '#ffffff06', borderRadius: 8, padding: 5, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 6 },
+    backPattern: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 3, marginBottom: 32, paddingHorizontal: 17 },
     backPatternEmoji: { fontSize: 32, opacity: 0.3 },
     backComingSoon: { color: '#a855f780', fontSize: 16, fontWeight: '700', letterSpacing: 3 },
 });
@@ -2252,7 +2252,7 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={s.profileCard}>
 
                     {/* Avatar + Info row */}
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 3, marginBottom: 14 }}>
 
                         {/* Left: username above avatar */}
                         <View style={{ alignItems: 'center' }}>
@@ -2289,8 +2289,8 @@ export default function ProfileScreen({ route, navigation }) {
                         </View>
 
                         {/* Right: Name + personal info column */}
-                        <View style={{ flex: 1, paddingTop: 6, gap: 6 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <View style={{ flex: 1, paddingTop: 3, gap: 3 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 2 }}>
                                 <Text style={[s.fullName, { marginBottom: 0, flex: 1 }]} numberOfLines={1}>
                                     {profile?.fullName || profile?.username}
                                 </Text>
@@ -2300,7 +2300,7 @@ export default function ProfileScreen({ route, navigation }) {
                             </View>
 
                             {(isOwnProfile || profile?.gender) && (
-                                <View style={[s.infoItem, { gap: 6 }]}>
+                                <View style={[s.infoItem, { gap: 3 }]}>
                                     <Text style={s.infoItemText}>
                                         {profile?.gender === 'MALE' ? `👨  ${t.genderMale.replace(/^[^\s]+\s*/,'')}`
                                             : profile?.gender === 'FEMALE' ? `👩  ${t.genderFemale.replace(/^[^\s]+\s*/,'')}`
@@ -2313,7 +2313,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 </View>
                             )}
                             {(isOwnProfile || profile?.birthDate) && (
-                                <View style={[s.infoItem, { gap: 6 }]}>
+                                <View style={[s.infoItem, { gap: 3 }]}>
                                     <Text style={s.infoItemText}>
                                         {profile?.birthDate
                                             ? `🎂  ${formatBirthDate(profile.birthDate)} · ${calcAge(profile.birthDate)} ${t.years}`
@@ -2325,7 +2325,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 </View>
                             )}
                             {(isOwnProfile || profile?.city) && (
-                                <View style={[s.infoItem, { gap: 6 }]}>
+                                <View style={[s.infoItem, { gap: 3 }]}>
                                     <Text style={s.infoItemText}>
                                         {profile?.city ? `📍  ${profile.city}` : isOwnProfile ? '— Şehir' : ''}
                                     </Text>
@@ -2411,7 +2411,7 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={s.section}>
                     <Text style={s.sectionTitle}>{isOwnProfile ? t.branchesSection : (lang === 'tr' ? '🏅 Sporlar' : '🏅 Sports')}</Text>
                     {interests.length > 0 ? (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 3, paddingVertical: 1 }}>
                             {interests.map(i => {
                                 const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
                                 return (
@@ -2425,7 +2425,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             archiveCount: myHistory.filter(m => m.subCategory === i.subCategory).length,
                                             historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
                                         })}
-                                        style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, gap: 6 }}
+                                        style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, gap: 3 }}
                                     >
                                         <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
                                         <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }}>{i.subCategory}</Text>
@@ -2441,7 +2441,7 @@ export default function ProfileScreen({ route, navigation }) {
                         isOwnProfile ? (
                             <TouchableOpacity
                                 onPress={() => setManageOpen(true)}
-                                style={{ backgroundColor: colors.surface2, borderRadius:12, paddingVertical:14, alignItems:'center', borderWidth:1, borderColor: colors.border, borderStyle:'dashed' }}
+                                style={{ backgroundColor: colors.surface2, borderRadius:12, paddingVertical:11, alignItems:'center', borderWidth:1, borderColor: colors.border, borderStyle:'dashed' }}
                             >
                                 <Text style={{ color: colors.textMuted, fontSize:13 }}>+ {t.addSportBtn || 'Spor Ekle'}</Text>
                             </TouchableOpacity>
@@ -2486,37 +2486,37 @@ export default function ProfileScreen({ route, navigation }) {
                                     const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
                                     const sizeBadge2 = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                     return (
-                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:14 }}>
+                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:11 }}>
                                             {/* Sport + badges */}
                                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                                                 <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'800' }}>
                                                     {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
                                                 </Text>
                                             </View>
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
-                                                <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                                <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: colors.border }}>
                                                     <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{sizeBadge2}</Text>
                                                 </View>
                                                 {m.matchMode?.toUpperCase() === 'COMPETITIVE' && (
-                                                    <View style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#ef444440' }}>
+                                                    <View style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#ef444440' }}>
                                                         <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>⚔️ Rekabetçi</Text>
                                                     </View>
                                                 )}
                                                 {m.matchMode?.toUpperCase() === 'PRACTICE' && (
-                                                    <View style={{ backgroundColor:'#22c55e20', borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#22c55e40' }}>
+                                                    <View style={{ backgroundColor:'#22c55e20', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#22c55e40' }}>
                                                         <Text style={{ color:'#22c55e', fontSize:11, fontWeight:'700' }}>🏃 Antrenman</Text>
                                                     </View>
                                                 )}
                                                 {m.flexibleSchedule && (
-                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b40' }}>
                                                         <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>📅 Esnek</Text>
                                                     </View>
                                                 )}
                                             </View>
                                             {/* Players */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                                 {allP.map(p => (
-                                                    <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                    <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:1, flexDirection:'row', alignItems:'center', gap:3 }}>
                                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username}</Text>
                                                         {p.skillRating != null && (
                                                             <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
@@ -2525,7 +2525,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 ))}
                                             </View>
                                             {/* Date / Time / Location */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginBottom:6 }}>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:6 }}>
                                                 {m.flexibleSchedule ? (
                                                     <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 Esnek Program</Text>
                                                 ) : (
@@ -2568,10 +2568,10 @@ export default function ProfileScreen({ route, navigation }) {
                             </TouchableOpacity>
                         </View>
                         {/* Archive sub-tabs */}
-                        <View style={{ flexDirection:'row', gap:6, paddingHorizontal:16, paddingBottom:8 }}>
+                        <View style={{ flexDirection:'row', gap:3, paddingHorizontal:13, paddingBottom:5 }}>
                             {['rivals','tournaments'].map(st => (
                                 <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
-                                    style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? colors.purple : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? colors.purple : colors.border }}>
+                                    style={{ flex:1, paddingVertical:3, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? colors.purple : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? colors.purple : colors.border }}>
                                     <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>
                                         {st === 'rivals' ? '⚔️ Bireysel Maçlar' : '🏆 Turnuvalar'}
                                     </Text>
@@ -2597,8 +2597,8 @@ export default function ProfileScreen({ route, navigation }) {
                                     const sizeTxt2 = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                     const modeTxt2 = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '⚔️ Rekabetçi' : m.matchMode?.toUpperCase() === 'PRACTICE' ? '🏃 Antrenman' : '';
                                     return (
-                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6, flexWrap:'wrap' }}>
+                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:9 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6, flexWrap:'wrap' }}>
                                                 <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800' }}>{SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
                                                 <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{sizeTxt2}</Text>
@@ -2613,7 +2613,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             {(m.courtName || m.location) ? (
                                                 <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:6 }}>🏟️ {m.courtName || m.location}</Text>
                                             ) : null}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                                 {allP.map(p => {
                                                     const isSender = p.id === m.senderId;
                                                     const hist = snapshot[p.id];
@@ -2622,14 +2622,14 @@ export default function ProfileScreen({ route, navigation }) {
                                                     const pSets = sets ? sets.map(s2 => isSender ? s2.sender : s2.opponent) : null;
                                                     const pWins = sets ? sets.filter(s2 => (isSender ? s2.sender : s2.opponent) > (isSender ? s2.opponent : s2.sender)).length : null;
                                                     return (
-                                                        <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:2 }}>
-                                                            <TouchableOpacity onPress={() => p.id && p.id !== myUser?.id && navigation.push('Profile', { userId: p.id })} activeOpacity={p.id && p.id !== myUser?.id ? 0.7 : 1} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:8, paddingVertical:4, flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                        <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:3 }}>
+                                                            <TouchableOpacity onPress={() => p.id && p.id !== myUser?.id && navigation.push('Profile', { userId: p.id })} activeOpacity={p.id && p.id !== myUser?.id ? 0.7 : 1} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:1, flexDirection:'row', alignItems:'center', gap:3 }}>
                                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username}</Text>
                                                                 {ratingBefore != null && ratingBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(ratingBefore).toFixed(2)} ★</Text>}
                                                                 {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                             </TouchableOpacity>
                                                             {pSets && (
-                                                                <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:4 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:1 }}>
                                                                     {pSets.join('  ')}
                                                                     {'  '}<Text style={{ color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted, fontWeight:'800' }}>({pWins})</Text>
                                                                 </Text>
@@ -2648,13 +2648,13 @@ export default function ProfileScreen({ route, navigation }) {
                                 const filtered = archiveSub ? myTournamentHistory.filter(tt => tt.subCategory === archiveSub) : myTournamentHistory;
                                 if (filtered.length === 0) return <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>Henüz tamamlanmış turnuva yok.</Text>;
                                 return filtered.map(tourn => (
-                                    <View key={tourn.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:12 }}>
-                                        <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
+                                    <View key={tourn.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:9 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', gap:3 }}>
                                             <View style={{ flex:1 }}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:2 }}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flexShrink:1 }} numberOfLines={1}>{tourn.name}</Text>
                                                     {tourn.myPlacement ? (
-                                                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
                                                             <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'800' }}>
                                                                 {{ 1:'🥇', 2:'🥈', 3:'🥉' }[tourn.myPlacement]} {tourn.myPlacement}.
                                                             </Text>
@@ -2672,12 +2672,12 @@ export default function ProfileScreen({ route, navigation }) {
                                                     </Text>
                                                 )}
                                             </View>
-                                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                 <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>✅ Tamamlandı</Text>
                                             </View>
                                         </View>
                                         <TouchableOpacity
-                                            style={{ backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#a855f740', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                                            style={{ backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#a855f740', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
                                             onPress={() => setSelectedArchiveTournament(tourn)}
                                         >
                                             <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📋 Turnuva Detayları</Text>
@@ -2698,7 +2698,7 @@ export default function ProfileScreen({ route, navigation }) {
                         {selectedArchiveTournament && (() => {
                             const tourn = selectedArchiveTournament;
                             const row = (label, value) => value ? (
-                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', paddingVertical:10, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', paddingVertical:7, borderBottomWidth:1, borderBottomColor:colors.border }}>
                                     <Text style={{ color:colors.textMuted, fontSize:13, fontWeight:'600', flex:1 }}>{label}</Text>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1.2, textAlign:'right' }}>{value}</Text>
                                 </View>
@@ -2746,24 +2746,24 @@ export default function ProfileScreen({ route, navigation }) {
                             };
                             return (
                                 <>
-                                    <View style={[s.modalHeader, { paddingHorizontal:24 }]}>
+                                    <View style={[s.modalHeader, { paddingHorizontal:21 }]}>
                                         <Text style={[s.modalTitle, { flex:1 }]} numberOfLines={2}>🏆 {tourn.name}</Text>
                                         <TouchableOpacity onPress={() => setSelectedArchiveTournament(null)}>
                                             <Text style={s.modalClose}>✕</Text>
                                         </TouchableOpacity>
                                     </View>
-                                    <View style={{ flexDirection:'row', gap:6, marginBottom:10, paddingHorizontal:24 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:10, paddingHorizontal:21 }}>
                                         {tabs.map(tab => (
                                             <TouchableOpacity key={tab} onPress={() => setArchiveModalTab(tab)}
-                                                style={{ paddingHorizontal:12, paddingVertical:6, borderRadius:8, backgroundColor: archiveModalTab===tab ? '#a855f740' : 'transparent', borderWidth:1, borderColor: archiveModalTab===tab ? '#a855f760' : colors.border }}>
+                                                style={{ paddingHorizontal:9, paddingVertical:3, borderRadius:8, backgroundColor: archiveModalTab===tab ? '#a855f740' : 'transparent', borderWidth:1, borderColor: archiveModalTab===tab ? '#a855f760' : colors.border }}>
                                                 <Text style={{ color: archiveModalTab===tab ? '#c084fc' : colors.textMuted, fontSize:12, fontWeight:'700' }}>{tabLabel[tab]}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:24, paddingBottom:24 }}>
+                                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:21, paddingBottom:21 }}>
                                         {archiveModalTab === 'details' && (
                                             <>
-                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:12, paddingVertical:6, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50', marginBottom:14 }}>
+                                                <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:9, paddingVertical:3, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50', marginBottom:14 }}>
                                                     <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✅ Tamamlandı</Text>
                                                 </View>
                                                 {tourn.subCategory ? row('🏅 Dal', `${SUB_EMOJI[tourn.subCategory] || ''} ${tourn.subCategory}`) : null}
@@ -2803,7 +2803,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                                         const isDone = match.status === 'COMPLETED';
                                                                         const isBye = match.status === 'BYE';
                                                                         return (
-                                                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
+                                                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:5, marginBottom:5, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
                                                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                                                     <View style={{ flex:1 }}>
                                                                                         <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{match.p1Name || 'TBD'}</Text>
@@ -2833,14 +2833,14 @@ export default function ProfileScreen({ route, navigation }) {
                                                 : archiveStandings.length === 0
                                                     ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Henüz maç sonucu yok</Text>
                                                     : <View>
-                                                        <View style={{ flexDirection:'row', paddingVertical:4, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
+                                                        <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
                                                             <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
                                                             {['O','G','M','Av','P'].map(h => (
                                                                 <Text key={h} style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
                                                             ))}
                                                         </View>
                                                         {archiveStandings.map((row2, i) => (
-                                                            <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
+                                                            <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:2, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row2.name}</Text>
                                                                 {[row2.played, row2.won, row2.lost, (() => { const d=row2.setsWon-row2.setsLost; return (d>=0?'+':'')+d; })(), row2.points].map((v,j) => (
                                                                     <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
@@ -2860,7 +2860,7 @@ export default function ProfileScreen({ route, navigation }) {
             {/* ── Arkadaş Ara & Ekle ── */}
             <Modal visible={showAddFriendModal} animationType="slide" transparent onRequestClose={() => setShowAddFriendModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>Arkadaş Ara</Text>
                             <TouchableOpacity onPress={() => { setShowAddFriendModal(false); setFriendSearchQuery(''); setFriendSearchResults([]); }}>
@@ -2868,7 +2868,7 @@ export default function ProfileScreen({ route, navigation }) {
                             </TouchableOpacity>
                         </View>
                         <TextInput
-                            style={{ backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:14, paddingVertical:11, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
+                            style={{ backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:11, paddingVertical:8, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
                             placeholder="İsim veya kullanıcı adı yazın..."
                             placeholderTextColor={colors.textMuted}
                             value={friendSearchQuery}
@@ -2883,7 +2883,7 @@ export default function ProfileScreen({ route, navigation }) {
                             ) : friendSearchResults.length === 0 ? (
                                 <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Kullanıcı bulunamadı</Text>
                             ) : friendSearchResults.map(u => (
-                                <View key={u.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                <View key={u.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                     <TouchableOpacity
                                         style={{ flex:1, flexDirection:'row', alignItems:'center' }}
                                         onPress={() => { setShowAddFriendModal(false); navigation.push('Profile', { userId: u.id }); }}>
@@ -2898,22 +2898,22 @@ export default function ProfileScreen({ route, navigation }) {
                                             <Text style={{ color: colors.textMuted, fontSize:11 }}>{u.username}</Text>
                                         </View>
                                     </TouchableOpacity>
-                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
                                         <TouchableOpacity
                                             disabled={friendActionLoading === `${u.id}_friend`}
                                             onPress={() => handleSendFriendRequest(u)}
-                                            style={{ backgroundColor: colors.purple + '20', borderRadius:8, paddingHorizontal:8, paddingVertical:7, borderWidth:1, borderColor: colors.purple + '50', opacity: friendActionLoading === `${u.id}_friend` ? 0.5 : 1 }}>
+                                            style={{ backgroundColor: colors.purple + '20', borderRadius:8, paddingHorizontal:5, paddingVertical:4, borderWidth:1, borderColor: colors.purple + '50', opacity: friendActionLoading === `${u.id}_friend` ? 0.5 : 1 }}>
                                             <Text style={{ fontSize:15 }}>👥</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             disabled={friendActionLoading === `${u.id}_follow`}
                                             onPress={() => handleFollow(u)}
-                                            style={{ backgroundColor:'#2563eb20', borderRadius:8, paddingHorizontal:8, paddingVertical:7, borderWidth:1, borderColor:'#2563eb50', opacity: friendActionLoading === `${u.id}_follow` ? 0.5 : 1 }}>
+                                            style={{ backgroundColor:'#2563eb20', borderRadius:8, paddingHorizontal:5, paddingVertical:4, borderWidth:1, borderColor:'#2563eb50', opacity: friendActionLoading === `${u.id}_follow` ? 0.5 : 1 }}>
                                             <Text style={{ fontSize:15 }}>🔔</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             onPress={() => handleSendMessageRequest(u)}
-                                            style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:8, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:5, paddingVertical:4, borderWidth:1, borderColor:'#16a34a50' }}>
                                             <Text style={{ fontSize:15 }}>💬</Text>
                                         </TouchableOpacity>
                                     </View>
@@ -2961,8 +2961,8 @@ export default function ProfileScreen({ route, navigation }) {
             {/* ── Gönderiler modalı ── */}
             <Modal visible={showPostsModal} animationType="slide" transparent onRequestClose={() => setShowPostsModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
-                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10 }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:3 }}>
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🔥 {t.postsLabel}</Text>
                             {isOwnProfile && (
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('posts')}>
@@ -2973,7 +2973,7 @@ export default function ProfileScreen({ route, navigation }) {
                         </View>
                         {isOwnProfile && (
                             <TouchableOpacity
-                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:11, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:8, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
                                 onPress={() => { setShowPostsModal(false); handleCreatePost(); }}>
                                 <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>+ Gönderi Ekle</Text>
                             </TouchableOpacity>
@@ -2982,12 +2982,12 @@ export default function ProfileScreen({ route, navigation }) {
                             {posts.length === 0 ? (
                                 <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz gönderi yok</Text>
                             ) : (
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {posts.map(p => (
                                         <View key={p.id} style={{ width:'31.5%', aspectRatio:1, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
                                             {p.imageUrl || p.videoUrl
                                                 ? <Image source={{ uri: p.imageUrl || p.videoUrl }} style={{ width:'100%', height:'100%' }} />
-                                                : <View style={{ flex:1, padding:6, justifyContent:'center' }}>
+                                                : <View style={{ flex:1, padding:3, justifyContent:'center' }}>
                                                     <Text style={{ color: colors.textSecondary, fontSize:10 }} numberOfLines={4}>{p.content}</Text>
                                                   </View>
                                             }
@@ -3003,8 +3003,8 @@ export default function ProfileScreen({ route, navigation }) {
             {/* ── Reels modalı ── */}
             <Modal visible={showReelsModal} animationType="slide" transparent onRequestClose={() => setShowReelsModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
-                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10 }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:3 }}>
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🎬 {t.reels}</Text>
                             {isOwnProfile && (
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('reels')}>
@@ -3015,7 +3015,7 @@ export default function ProfileScreen({ route, navigation }) {
                         </View>
                         {isOwnProfile && (
                             <TouchableOpacity
-                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:11, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:8, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
                                 onPress={() => { setShowReelsModal(false); handleCreateReel(); }}>
                                 <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>+ Reels Ekle</Text>
                             </TouchableOpacity>
@@ -3024,12 +3024,12 @@ export default function ProfileScreen({ route, navigation }) {
                             {reels.length === 0 ? (
                                 <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz reels yok</Text>
                             ) : (
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {reels.map(r => (
                                         <View key={r.id} style={{ width:'31.5%', aspectRatio:9/16, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
                                             {r.imageUrl || r.videoUrl
                                                 ? <Image source={{ uri: r.imageUrl || r.videoUrl }} style={{ width:'100%', height:'100%' }} />
-                                                : <View style={{ flex:1, padding:6, justifyContent:'center' }}>
+                                                : <View style={{ flex:1, padding:3, justifyContent:'center' }}>
                                                     <Text style={{ color: colors.textSecondary, fontSize:10 }} numberOfLines={4}>{r.content}</Text>
                                                   </View>
                                             }
@@ -3045,8 +3045,8 @@ export default function ProfileScreen({ route, navigation }) {
             {/* ── Arkadaşlar listesi modalı ── */}
             <Modal visible={showFriendsListModal} animationType="slide" transparent onRequestClose={() => setShowFriendsListModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'85%', padding:20 }}>
-                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10 }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'85%', padding:17 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:3 }}>
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>👥 {t.friendsLabel}</Text>
                             {isOwnProfile && (
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('friendsList')}>
@@ -3058,13 +3058,13 @@ export default function ProfileScreen({ route, navigation }) {
 
                         {isOwnProfile && (
                             <TouchableOpacity
-                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:11, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:8, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
                                 onPress={() => { setShowFriendsListModal(false); setShowAddFriendModal(true); }}>
                                 <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>🔎 Arkadaş Ara</Text>
                             </TouchableOpacity>
                         )}
 
-                        <View style={{ flexDirection:'row', gap:6, marginBottom:12 }}>
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
                             {[
                                 { key:'friends', label:'Arkadaşlar' },
                                 { key:'following', label:'Takip Ettiklerim' },
@@ -3072,7 +3072,7 @@ export default function ProfileScreen({ route, navigation }) {
                             ].map(tab => (
                                 <TouchableOpacity
                                     key={tab.key}
-                                    style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: friendsModalTab===tab.key ? colors.purple : colors.surface2, borderWidth:1, borderColor: friendsModalTab===tab.key ? colors.purple : colors.border }}
+                                    style={{ flex:1, paddingVertical:5, borderRadius:10, alignItems:'center', backgroundColor: friendsModalTab===tab.key ? colors.purple : colors.surface2, borderWidth:1, borderColor: friendsModalTab===tab.key ? colors.purple : colors.border }}
                                     onPress={() => switchFriendsModalTab(tab.key)}>
                                     <Text style={{ color: friendsModalTab===tab.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>{tab.label}</Text>
                                 </TouchableOpacity>
@@ -3086,7 +3086,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 ) : friendsList.length === 0 ? (
                                     <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz arkadaş yok</Text>
                                 ) : friendsList.map(f => (
-                                    <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                    <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                         <TouchableOpacity
                                             style={{ flex:1, flexDirection:'row', alignItems:'center' }}
                                             onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
@@ -3102,7 +3102,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             </View>
                                         </TouchableOpacity>
                                         {isOwnProfile && (
-                                            <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleRemoveFriendFromList(f)}>
+                                            <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleRemoveFriendFromList(f)}>
                                                 <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Arkadaşlıktan Çık</Text>
                                             </TouchableOpacity>
                                         )}
@@ -3116,7 +3116,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 ) : followingList.length === 0 ? (
                                     <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz kimseyi takip etmiyorsun</Text>
                                 ) : followingList.map(f => (
-                                    <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                    <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                         <TouchableOpacity style={{ flex:1, flexDirection:'row', alignItems:'center' }} onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
                                             {f.avatar
                                                 ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
@@ -3130,7 +3130,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             </View>
                                         </TouchableOpacity>
                                         {isOwnProfile && (
-                                            <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleUnfollowFromList(f)}>
+                                            <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleUnfollowFromList(f)}>
                                                 <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Takipten Çık</Text>
                                             </TouchableOpacity>
                                         )}
@@ -3147,7 +3147,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             <View style={{ marginBottom: 12 }}>
                                                 <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>⏳ Bekleyen İstekler</Text>
                                                 {pendingFollowReqs.map(req => (
-                                                    <View key={req.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.purple + '40' }}>
+                                                    <View key={req.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.purple + '40' }}>
                                                         <View style={{ flex:1 }}>
                                                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{req.fullName || req.username}</Text>
                                                             <Text style={{ color: colors.textMuted, fontSize:11 }}>{req.username}</Text>
@@ -3165,7 +3165,7 @@ export default function ProfileScreen({ route, navigation }) {
                                         {followersList.length === 0 ? (
                                             <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:10 }}>Henüz takipçin yok</Text>
                                         ) : followersList.map(f => (
-                                            <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                            <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                                 <TouchableOpacity style={{ flex:1, flexDirection:'row', alignItems:'center' }} onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
                                                     {f.avatar
                                                         ? <Image source={{ uri: f.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
@@ -3179,7 +3179,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                     </View>
                                                 </TouchableOpacity>
                                                 {isOwnProfile && (
-                                                    <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleRemoveFollower(f)}>
+                                                    <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleRemoveFollower(f)}>
                                                         <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Kaldır</Text>
                                                     </TouchableOpacity>
                                                 )}
@@ -3196,8 +3196,8 @@ export default function ProfileScreen({ route, navigation }) {
             {/* ── Aktiviteler görüntüleme modalı (başkasının profili) ── */}
             <Modal visible={showActivitiesViewModal} animationType="slide" transparent onRequestClose={() => setShowActivitiesViewModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:20 }}>
-                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10 }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:3 }}>
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🏃 Sporlar</Text>
                             {isOwnProfile && (
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('activities')}>
@@ -3210,7 +3210,7 @@ export default function ProfileScreen({ route, navigation }) {
                             {interests.length === 0 ? (
                                 <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz spor eklenmemiş</Text>
                             ) : interests.map(i => (
-                                <View key={i.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                <View key={i.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                     <Text style={{ fontSize:22, marginRight:10 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
                                     <View style={{ flex:1 }}>
                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{i.subCategory}</Text>
@@ -3234,7 +3234,7 @@ export default function ProfileScreen({ route, navigation }) {
                         {loadingPerms ? (
                             <ActivityIndicator color={colors.purple} style={{ marginVertical: 40 }} />
                         ) : permRequests.length === 0 ? (
-                            <View style={{ alignItems: 'center', paddingVertical: 48 }}>
+                            <View style={{ alignItems: 'center', paddingVertical: 45 }}>
                                 <Text style={{ fontSize: 40, marginBottom: 12 }}>✅</Text>
                                 <Text style={{ color: colors.textMuted, fontSize: 14 }}>Bekleyen talep yok.</Text>
                             </View>
@@ -3321,14 +3321,14 @@ export default function ProfileScreen({ route, navigation }) {
                                 }
                                 {/* Müzik — sol üst */}
                                 {!!story.musicName && (
-                                    <View style={{ position: 'absolute', top: 90, left: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#00000075', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, maxWidth: '65%' }}>
+                                    <View style={{ position: 'absolute', top: 90, left: 14, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00000075', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4, maxWidth: '65%' }}>
                                         <Text style={{ fontSize: 14 }}>🎵</Text>
                                         <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{story.musicName}{story.musicArtist ? ` – ${story.musicArtist}` : ''}</Text>
                                     </View>
                                 )}
                                 {/* Konum — sağ alt */}
                                 {!!story.location && (
-                                    <View style={{ position: 'absolute', bottom: isOwnProfile ? 180 : 72, right: 14, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}>
+                                    <View style={{ position: 'absolute', bottom: isOwnProfile ? 180 : 72, right: 14, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 7, paddingVertical: 3 }}>
                                         <Text style={{ fontSize: 12 }}>📍</Text>
                                         <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{story.location}</Text>
                                     </View>
@@ -3336,14 +3336,14 @@ export default function ProfileScreen({ route, navigation }) {
                                 {/* Yazı overlay — ortada */}
                                 {!!story.content && (
                                     <View style={{ position: 'absolute', left: 20, right: 20, bottom: story.location ? (isOwnProfile ? 240 : 130) : (isOwnProfile ? 180 : 72), alignItems: 'center' }}>
-                                        <View style={{ backgroundColor: '#00000065', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+                                        <View style={{ backgroundColor: '#00000065', borderRadius: 12, paddingHorizontal: 13, paddingVertical: 7 }}>
                                             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', lineHeight: 23 }}>{story.content}</Text>
                                         </View>
                                     </View>
                                 )}
                                 {/* Kim baktı — sadece kendi profilinde */}
                                 {isOwnProfile && (
-                                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#000000cc', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 30 }}>
+                                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#000000cc', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 17, paddingTop: 11, paddingBottom: 27 }}>
                                         <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 10 }}>
                                             👁 {storyViewers.length} kişi baktı
                                         </Text>
@@ -3374,7 +3374,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 <TouchableOpacity style={{ position: 'absolute', right: 0, top: 60, bottom: isOwnProfile ? 140 : 0, width: '65%' }} onPress={goStoryNext} activeOpacity={1} />
                             </View>
                             {/* İlerleme çubukları — en üstte */}
-                            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', gap: 3, paddingHorizontal: 12, paddingTop: 52, paddingBottom: 8 }}>
+                            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', gap: 3, paddingHorizontal: 9, paddingTop: 49, paddingBottom: 5 }}>
                                 {stories.map((_, i) => (
                                     <View key={i} style={{ flex: 1, height: 2.5, borderRadius: 2, backgroundColor: '#ffffff35', overflow: 'hidden' }}>
                                         {i < storyViewIdx
@@ -3407,7 +3407,7 @@ export default function ProfileScreen({ route, navigation }) {
                             {/* ── Language ── */}
                             <View style={s.infoFieldHeader}>
                                 <Text style={s.fieldLabel}>🌐 Dil / Language</Text>
-                                <View style={{ flexDirection: 'row', gap: 6 }}>
+                                <View style={{ flexDirection: 'row', gap: 3 }}>
                                     {['tr', 'en'].map(l => (
                                         <TouchableOpacity
                                             key={l}
@@ -3471,14 +3471,14 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={s.menuBtnIcon}>≡</Text>
                                 </TouchableOpacity>
                             </View>
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
                                 <View style={[s.fieldInput, { flex:1, justifyContent:'center' }]}>
                                     <Text style={{ color: infoForm.fullName ? '#fff' : colors.textMuted, fontSize:13 }}>
                                         {infoForm.fullName || 'Girilmemiş'}
                                     </Text>
                                 </View>
                                 <TouchableOpacity onPress={() => openChangeReq('fullName')}
-                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#7c3aed50' }}>
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#7c3aed50' }}>
                                     <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>Değiştir</Text>
                                 </TouchableOpacity>
                             </View>
@@ -3519,7 +3519,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={s.menuBtnIcon}>≡</Text>
                                 </TouchableOpacity>
                             </View>
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
                                 <View style={[s.fieldInput, { flex:1, justifyContent:'center' }]}>
                                     <Text style={{ color: infoForm.gender ? '#fff' : colors.textMuted, fontSize:13 }}>
                                         {infoForm.gender === 'MALE' ? t.genderMale
@@ -3529,7 +3529,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     </Text>
                                 </View>
                                 <TouchableOpacity onPress={() => openChangeReq('gender')}
-                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#7c3aed50' }}>
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#7c3aed50' }}>
                                     <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>Değiştir</Text>
                                 </TouchableOpacity>
                             </View>
@@ -3546,14 +3546,14 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={s.menuBtnIcon}>≡</Text>
                                 </TouchableOpacity>
                             </View>
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
                                 <View style={[s.fieldInput, { flex:1, justifyContent:'center' }]}>
                                     <Text style={{ color: infoForm.birthDate ? '#fff' : colors.textMuted, fontSize:13 }}>
                                         {infoForm.birthDate || 'Girilmemiş'}
                                     </Text>
                                 </View>
                                 <TouchableOpacity onPress={() => openChangeReq('birthDate')}
-                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#7c3aed50' }}>
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#7c3aed50' }}>
                                     <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>Değiştir</Text>
                                 </TouchableOpacity>
                             </View>
@@ -3609,7 +3609,7 @@ export default function ProfileScreen({ route, navigation }) {
                             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight:400 }}>
                                 {/* Mevcut bekleyen talep uyarısı */}
                                 {myChangeRequests.filter(r => r.field === changeReqField && r.status === 'PENDING').length > 0 && (
-                                    <View style={{ backgroundColor:'#f59e0b12', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                    <View style={{ backgroundColor:'#f59e0b12', borderRadius:10, padding:9, marginBottom:12, borderWidth:1, borderColor:'#f59e0b40' }}>
                                         <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>⏳ Bu alan için bekleyen bir talebiniz zaten var</Text>
                                         <Text style={{ color:colors.textMuted, fontSize:11, marginTop:4 }}>Yönetici onayı bekleniyor. Yeni talep gönderemezsiniz.</Text>
                                     </View>
@@ -3617,7 +3617,7 @@ export default function ProfileScreen({ route, navigation }) {
 
                                 {/* Son işlenmiş talepler */}
                                 {myChangeRequests.filter(r => r.field === changeReqField && r.status !== 'PENDING').slice(0,1).map(r => (
-                                    <View key={r.id} style={{ backgroundColor: r.status === 'APPROVED' ? '#16a34a12' : '#dc262612', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor: r.status === 'APPROVED' ? '#16a34a40' : '#dc262640' }}>
+                                    <View key={r.id} style={{ backgroundColor: r.status === 'APPROVED' ? '#16a34a12' : '#dc262612', borderRadius:10, padding:9, marginBottom:12, borderWidth:1, borderColor: r.status === 'APPROVED' ? '#16a34a40' : '#dc262640' }}>
                                         <Text style={{ color: r.status === 'APPROVED' ? '#4ade80' : '#f87171', fontSize:12, fontWeight:'700' }}>
                                             {r.status === 'APPROVED' ? '✅ Son talebiniz onaylandı' : '❌ Son talebiniz reddedildi'}
                                         </Text>
@@ -3637,7 +3637,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 </Text>
 
                                 {changeReqField === 'gender' ? (
-                                    <View style={{ flexDirection:'row', gap:8, marginBottom:16 }}>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:16 }}>
                                         {[{ k:'MALE', l: t.genderMale }, { k:'FEMALE', l: t.genderFemale }, { k:'OTHER', l: t.genderOther }].map(opt => (
                                             <TouchableOpacity key={opt.k} onPress={() => setChangeReqNewValue(opt.k)}
                                                 style={[s.optionBtn, changeReqNewValue === opt.k && s.optionBtnActive]}>
@@ -3659,7 +3659,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 {/* Belge yükleme */}
                                 <Text style={[s.fieldLabel, { marginBottom:6 }]}>📎 Kimlik Belgesi (zorunlu)</Text>
                                 <TouchableOpacity onPress={pickChangeReqDoc} disabled={changeReqUploading}
-                                    style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1.5, borderStyle:'dashed', borderColor:'#7c3aed50', padding:14, alignItems:'center', marginBottom:8 }}>
+                                    style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1.5, borderStyle:'dashed', borderColor:'#7c3aed50', padding:11, alignItems:'center', marginBottom:8 }}>
                                     {changeReqUploading
                                         ? <Text style={{ color:'#a78bfa', fontSize:12 }}>Yükleniyor...</Text>
                                         : changeReqDocUrl
@@ -3692,7 +3692,7 @@ export default function ProfileScreen({ route, navigation }) {
             {/* ── Privacy Picker Modal ── */}
             <Modal visible={privacyPickerField !== null} animationType="slide" transparent onRequestClose={() => setPrivacyPickerField(null)}>
                 <View style={s.modalOverlay}>
-                    <View style={[s.modalBox, { paddingBottom: 32 }]}>
+                    <View style={[s.modalBox, { paddingBottom: 29 }]}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>Gizlilik Ayarı</Text>
                             <TouchableOpacity onPress={() => setPrivacyPickerField(null)}>
@@ -3874,7 +3874,7 @@ export default function ProfileScreen({ route, navigation }) {
                             ? <Text style={{ color: colors.textMuted, textAlign: 'center', marginVertical: 30 }}>Arşivde hikaye yok</Text>
                             : (
                                 <ScrollView showsVerticalScrollIndicator={false}>
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3 }}>
                                         {archivedStories.map(story => (
                                             <View key={story.id} style={s.archiveThumb}>
                                                 {story.imageUrl
@@ -3902,19 +3902,19 @@ export default function ProfileScreen({ route, navigation }) {
 // ─── Admin Panel Styles ───────────────────────────────────────────────────────
 
 const ap = StyleSheet.create({
-    adminBtn:    { marginHorizontal: 20, marginTop: 20, marginBottom: 8, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    adminBtn:    { marginHorizontal: 20, marginTop: 20, marginBottom: 8, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
     adminBtnText:{ color: colors.purple, fontSize: 14, fontWeight: '800' },
     overlay:     { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
-    box:         { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, maxHeight: '80%' },
+    box:         { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 17, paddingTop: 17, paddingBottom: 45, maxHeight: '80%' },
     header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     title:       { color: '#fff', fontSize: 16, fontWeight: '900' },
     close:       { color: colors.textMuted, fontSize: 22 },
-    card:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border + '50' },
+    card:        { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '50' },
     username:    { color: '#fff', fontSize: 14, fontWeight: '700' },
     fullname:    { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-    approveBtn:  { backgroundColor: '#16a34a', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+    approveBtn:  { backgroundColor: '#16a34a', borderRadius: 10, paddingHorizontal: 11, paddingVertical: 5 },
     approveTxt:  { color: '#fff', fontSize: 12, fontWeight: '800' },
-    rejectBtn:   { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#ef444450' },
+    rejectBtn:   { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 5, borderWidth: 1, borderColor: '#ef444450' },
     rejectTxt:   { color: '#ef4444', fontSize: 12, fontWeight: '800' },
 });
 
@@ -3923,19 +3923,19 @@ const ap = StyleSheet.create({
 const s = StyleSheet.create({
     container:        { flex: 1, backgroundColor: colors.bg },
 
-    topBar:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 12 },
+    topBar:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 13, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 9 },
     backBtn:          { color: colors.purple, fontSize: 14, fontWeight: '700' },
     topBarUsername:   { color: colors.textMuted, fontSize: 12, fontWeight: '800', minWidth: 60 },
-    logoutBtn:        { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+    logoutBtn:        { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
     logoutText:       { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
-    langChip:         { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colors.surface2 },
+    langChip:         { borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: colors.surface2 },
     langChipActive:   { backgroundColor: colors.purple + '30' },
     langChipText:     { color: colors.textMuted, fontSize: 12, fontWeight: '800' },
 
-    scroll:           { padding: 16, paddingBottom: 60, gap: 16 },
+    scroll:           { padding: 13, paddingBottom: 57, gap: 3 },
 
     // Profile card
-    profileCard:      { paddingHorizontal: 4, paddingVertical: 12 },
+    profileCard:      { paddingHorizontal: 1, paddingVertical: 9 },
     avatarCircle:     { backgroundColor: colors.purple, justifyContent: 'center', alignItems: 'center' },
     avatarLetter:     { color: '#fff', fontWeight: '900' },
     avatarStarBadge:  { position: 'absolute', top: 0, left: 0, width: 26, height: 26, borderRadius: 13, backgroundColor: '#d97706', borderWidth: 2, borderColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
@@ -3957,17 +3957,17 @@ const s = StyleSheet.create({
     divider:          { marginVertical: 14 },
 
     // Stat rows
-    statRow:          { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
+    statRow:          { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, gap: 3 },
     statRowEmoji:     { fontSize: 18, width: 26, textAlign: 'center' },
     statRowLabel:     { flex: 1, color: '#fff', fontSize: 14, fontWeight: '700' },
-    statRowBadge:     { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, minWidth: 32, alignItems: 'center' },
+    statRowBadge:     { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 0, minWidth: 32, alignItems: 'center' },
     statRowCount:     { color: '#fff', fontSize: 13, fontWeight: '800' },
     addBtn:           { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.purple, justifyContent: 'center', alignItems: 'center' },
     addBtnText:       { color: '#fff', fontSize: 13, fontWeight: '900', lineHeight: 17 },
 
     // Single-row stat cards
-    statGrid:         { flexDirection: 'row', gap: 6 },
-    statCard:         { flex: 1, padding: 10 },
+    statGrid:         { flexDirection: 'row', gap: 3 },
+    statCard:         { flex: 1, padding: 7 },
     statCardEmoji:    { fontSize: 15 },
     statCardCount:    { color: '#fff', fontSize: 18, fontWeight: '900', marginBottom: 1 },
     statCardLabel:    { color: colors.textMuted, fontSize: 9, fontWeight: '700' },
@@ -3975,100 +3975,100 @@ const s = StyleSheet.create({
 
     metaLine:         { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginBottom: 4 },
 
-    matchStats:       { flexDirection: 'row', padding: 14, marginTop: 14 },
+    matchStats:       { flexDirection: 'row', padding: 11, marginTop: 14 },
     matchStatItem:    { flex: 1, alignItems: 'center' },
     matchStatVal:     { fontSize: 22, fontWeight: '900' },
     matchStatLbl:     { color: colors.textMuted, fontSize: 10, fontWeight: '700', marginTop: 2 },
     matchStatDivider: {},
 
-    editBtn:          { backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 16 },
+    editBtn:          { backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 10, alignItems: 'center', marginTop: 16 },
     editBtnText:      { color: '#fff', fontWeight: '800', fontSize: 14 },
 
-    actionRow:        { flexDirection: 'row', gap: 10, marginTop: 16 },
-    actionBtn:        { flex: 1, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
+    actionRow:        { flexDirection: 'row', gap: 3, marginTop: 16 },
+    actionBtn:        { flex: 1, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 10, alignItems: 'center' },
     actionBtnActive:  { backgroundColor: colors.purple + '25', borderColor: colors.purple },
     msgBtn:           { backgroundColor: colors.purple, borderColor: colors.purple },
     actionBtnText:    { color: '#fff', fontWeight: '800', fontSize: 13 },
 
-    storyNavBtn:      { backgroundColor: '#ffffff20', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
+    storyNavBtn:      { backgroundColor: '#ffffff20', borderRadius: 12, paddingHorizontal: 17, paddingVertical: 7 },
 
     // Branch chips (create post)
-    branchChip:       { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: colors.surface2, marginRight: 8 },
+    branchChip:       { borderRadius: 10, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: colors.surface2, marginRight: 8 },
     branchChipActive: { backgroundColor: colors.purple + '35' },
     branchChipText:   { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
 
     // Branch picker (create story)
-    branchOption:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 12, padding: 12, marginBottom: 6 },
+    branchOption:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 12, padding: 9, marginBottom: 6 },
     branchOptionActive:{ backgroundColor: colors.purple + '30' },
     branchOptionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
     // Archive
     archiveThumb:     { width: '47%', aspectRatio: 1, borderRadius: 12, backgroundColor: colors.surface2, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', position: 'relative' },
-    archiveLabel:     { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#000000aa', padding: 4, alignItems: 'center' },
+    archiveLabel:     { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#000000aa', padding: 1, alignItems: 'center' },
 
     // Activities
-    section:          { gap: 12 },
+    section:          { gap: 3 },
     sectionTitle:     { color: '#fff', fontSize: 15, fontWeight: '800' },
-    interestGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    interestCard:     { backgroundColor: colors.surface2, borderRadius: 14, padding: 14, alignItems: 'center', minWidth: 90, flex: 1 },
+    interestGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+    interestCard:     { backgroundColor: colors.surface2, borderRadius: 14, padding: 11, alignItems: 'center', minWidth: 90, flex: 1 },
     interestEmoji:    { fontSize: 28, marginBottom: 6 },
     interestName:     { color: '#fff', fontSize: 12, fontWeight: '700', textTransform: 'capitalize', textAlign: 'center', marginBottom: 4 },
     interestRating:   { fontSize: 12, fontWeight: '800', marginBottom: 4 },
-    levelPill:        { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
+    levelPill:        { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 0 },
     levelPillText:    { fontSize: 10, fontWeight: '700' },
 
     // Feed empty state
-    feedEmpty:        { padding: 40, alignItems: 'center', gap: 10 },
+    feedEmpty:        { padding: 37, alignItems: 'center', gap: 3 },
 
     // Instagram-style posts grid
     postsGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP, marginHorizontal: -16 },
     gridCell:         { width: CELL_SIZE, height: CELL_SIZE },
     gridCellInner:    { width: '100%', height: '100%' },
-    gridVideoTag:     { position: 'absolute', top: 4, right: 4, backgroundColor: '#000000bb', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 },
+    gridVideoTag:     { position: 'absolute', top: 4, right: 4, backgroundColor: '#000000bb', borderRadius: 4, paddingHorizontal: 1, paddingVertical: 0 },
     feedEmptyIcon:    { fontSize: 40, opacity: 0.4 },
     feedEmptyText:    { color: colors.textSecondary, fontSize: 14 },
     feedEmptyLink:    { color: colors.purple, fontSize: 13, fontWeight: '700' },
 
     // Edit modal
     modalOverlay:     { flex: 1, backgroundColor: '#000000aa', justifyContent: 'flex-end' },
-    modalBox:         { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+    modalBox:         { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 21, paddingBottom: 37 },
     modalHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     modalTitle:       { color: '#fff', fontSize: 18, fontWeight: '900' },
     modalClose:       { color: colors.textMuted, fontSize: 20 },
     fieldLabel:       { color: colors.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 6 },
-    fieldInput:       { backgroundColor: colors.surface2, color: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, marginBottom: 14 },
+    fieldInput:       { backgroundColor: colors.surface2, color: '#fff', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9, fontSize: 14, marginBottom: 14 },
     switchRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-    modalBtns:        { flexDirection: 'row', gap: 12 },
-    cancelBtn:        { flex: 1, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+    modalBtns:        { flexDirection: 'row', gap: 3 },
+    cancelBtn:        { flex: 1, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center' },
     cancelBtnText:    { color: colors.textSecondary, fontWeight: '700' },
-    saveBtn:          { flex: 1, backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+    saveBtn:          { flex: 1, backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 11, alignItems: 'center' },
     saveBtnText:      { color: '#fff', fontWeight: '800' },
 
     // Toggle switch
-    toggleTrack:      { width: 46, height: 26, borderRadius: 13, backgroundColor: colors.surface2, padding: 3, justifyContent: 'center' },
+    toggleTrack:      { width: 46, height: 26, borderRadius: 13, backgroundColor: colors.surface2, padding: 0, justifyContent: 'center' },
     toggleTrackOn:    { backgroundColor: colors.purple },
     toggleThumb:      { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.textMuted },
     toggleThumbOn:    { backgroundColor: '#fff', alignSelf: 'flex-end' },
 
     // Info field header (label + privacy menu button)
     infoFieldHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-    menuBtn:          { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: colors.surface2, borderRadius: 8 },
+    menuBtn:          { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 5, paddingVertical: 1, backgroundColor: colors.surface2, borderRadius: 8 },
     menuBtnPrivacy:   { fontSize: 12 },
     menuBtnIcon:      { color: '#fff', fontSize: 14, fontWeight: '900' },
     excludeHint:      { color: '#f87171', fontSize: 10, fontWeight: '600', marginTop: -10, marginBottom: 12 },
 
     // Privacy picker options
-    privacyOption:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: 12, padding: 14, marginBottom: 8 },
+    privacyOption:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: 12, padding: 11, marginBottom: 8 },
     privacyOptionActive: { backgroundColor: colors.purple + '30' },
     privacyOptionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
     // Gender/option buttons
-    optionBtn:        { flex: 1, borderRadius: 10, paddingVertical: 9, alignItems: 'center', backgroundColor: colors.surface2 },
+    optionBtn:        { flex: 1, borderRadius: 10, paddingVertical: 6, alignItems: 'center', backgroundColor: colors.surface2 },
     optionBtnActive:  { backgroundColor: colors.purple + '35' },
     optionBtnText:    { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
 
     // Friend exclude picker
-    friendRow:        { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 10, marginBottom: 4 },
+    friendRow:        { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 7, paddingHorizontal: 1, borderRadius: 10, marginBottom: 4 },
     friendRowExcluded:{ backgroundColor: '#f8717120' },
     friendAvatar:     { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.purple + '60', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
     checkbox:         { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
