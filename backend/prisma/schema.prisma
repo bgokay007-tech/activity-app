@@ -100,6 +100,9 @@ model User {
   profileChangeRequests ProfileChangeRequest[]
   subscriptions         BusinessSubscription[]
   subscriptionRequests  SubscriptionRequest[]
+  businessIban          String?
+  venues                BusinessVenue[]
+  courtReservations     CourtReservation[]
 }
 
 model ProfileChangeRequest {
@@ -824,6 +827,59 @@ model TournamentCourt {
   court        Court      @relation(fields: [courtId],      references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, courtId])
+}
+
+// İŞLETME TESİSİ — işletme hesabı tarafından eklenir, admin onaylar
+model BusinessVenue {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  branch      String
+  city        String
+  district    String?
+  address     String?
+  phone       String?
+  openTime    String   @default("08:00")
+  closeTime   String   @default("22:00")
+  openDays    Json     @default("[1,2,3,4,5,6,7]")
+  slotType    String   @default("FULL_HOUR") // FULL_HOUR | HALF_HOUR | FLEXIBLE
+  status      String   @default("PENDING")   // PENDING | APPROVED | REJECTED
+  adminNote   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courts       VenueCourt[]
+  reservations CourtReservation[]
+}
+
+model VenueCourt {
+  id      String   @id @default(uuid())
+  venueId String
+  name    String
+
+  venue        BusinessVenue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  reservations CourtReservation[]
+}
+
+model CourtReservation {
+  id            String   @id @default(uuid())
+  venueId       String
+  courtId       String
+  userId        String
+  date          String
+  startTime     String
+  endTime       String
+  paymentMethod String   @default("CASH")    // EFT | CASH | ONLINE
+  status        String   @default("PENDING") // PENDING | CONFIRMED | CANCELLED
+  receiptUrl    String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  venue   BusinessVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  court   VenueCourt    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId],  references: [id], onDelete: Cascade)
 }
 
 // KORT BLOĞU — turnuva süresince kort rezervasyona kapalıdır

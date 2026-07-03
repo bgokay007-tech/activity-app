@@ -5,7 +5,7 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions'];
 
 const TAB_LABEL = {
     dashboard:          '📊 Dashboard',
@@ -14,6 +14,7 @@ const TAB_LABEL = {
     disputes:           '⚠️ Disputes',
     posts:              '📝 Posts',
     venues:             '🏗️ Pending Venues',
+    'biz-venues':       '🏟️ İşletme Tesisleri',
     noshow:             '🚫 No-Show Reports',
     cities:             '📍 İl / İlçe Onayı',
     'tournament-perms': '🏆 Turnuva İzinleri',
@@ -959,6 +960,116 @@ function SubscriptionsPanel() {
     );
 }
 
+// ── İŞLETME TESİSLERİ ─────────────────────────────────────────────────────
+function BusinessVenuesPanel() {
+    const [venues, setVenues] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [actionId, setActionId] = useState(null);
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get('/venues/admin/pending').then(r => setVenues(r.data)).catch(() => {}).finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const approve = async (id) => {
+        setActionId(id);
+        try { await api.patch(`/venues/${id}/approve`); load(); }
+        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        finally { setActionId(null); }
+    };
+
+    const reject = async (id) => {
+        const note = window.prompt('Red nedeni (isteğe bağlı):');
+        if (note === null) return;
+        setActionId(id);
+        try { await api.patch(`/venues/${id}/reject`, { adminNote: note || null }); load(); }
+        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        finally { setActionId(null); }
+    };
+
+    const SLOT_LABELS = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu Saatler', FLEXIBLE: 'Serbest Süre' };
+    const DAY_NAMES = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+
+    if (loading) return <p className="text-gray-500 text-center py-16">Yükleniyor...</p>;
+    if (!venues.length) return (
+        <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
+            <p className="text-4xl mb-3">✅</p>
+            <p className="text-white font-bold">Bekleyen tesis başvurusu yok</p>
+        </div>
+    );
+
+    return (
+        <div className="space-y-5">
+            <p className="text-gray-400 text-sm">{venues.length} bekleyen tesis başvurusu</p>
+            {venues.map(v => (
+                <div key={v.id} className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-white font-black text-lg">{v.name}</p>
+                            <p className="text-amber-400 text-xs font-bold">{v.branch} · {v.city}{v.district ? ` / ${v.district}` : ''}</p>
+                            <p className="text-gray-400 text-xs mt-1">
+                                İşletme: <span className="text-white font-bold">{v.user?.businessName || v.user?.username}</span>
+                                {' · '}{v.user?.email}
+                            </p>
+                        </div>
+                        <span className="bg-yellow-900/40 border border-yellow-700/50 text-yellow-400 text-xs font-black px-3 py-1 rounded-full">BEKLIYOR</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="bg-gray-800 rounded-xl p-3">
+                            <p className="text-gray-500 text-xs font-bold mb-1">Adres</p>
+                            <p className="text-white">{v.address || '—'}</p>
+                            {v.phone && <p className="text-gray-400 text-xs mt-1">📞 {v.phone}</p>}
+                        </div>
+                        <div className="bg-gray-800 rounded-xl p-3">
+                            <p className="text-gray-500 text-xs font-bold mb-1">Saatler & Tip</p>
+                            <p className="text-white">{v.openTime} – {v.closeTime}</p>
+                            <p className="text-amber-400 text-xs mt-1">{SLOT_LABELS[v.slotType] || v.slotType}</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-xl p-3">
+                        <p className="text-gray-500 text-xs font-bold mb-2">Açık Günler</p>
+                        <div className="flex gap-2 flex-wrap">
+                            {(v.openDays || []).map(d => (
+                                <span key={d} className="bg-amber-900/40 border border-amber-700/50 text-amber-400 text-xs font-bold px-2 py-1 rounded-lg">{DAY_NAMES[d]}</span>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-xl p-3">
+                        <p className="text-gray-500 text-xs font-bold mb-2">Kortlar / Sahalar ({v.courts?.length || 0})</p>
+                        <div className="flex gap-2 flex-wrap">
+                            {(v.courts || []).map(c => (
+                                <span key={c.id} className="bg-gray-700 text-gray-200 text-xs px-2 py-1 rounded-lg">{c.name}</span>
+                            ))}
+                        </div>
+                    </div>
+
+                    <p className="text-gray-500 text-xs">Başvuru: {new Date(v.createdAt).toLocaleString('tr-TR')}</p>
+
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => approve(v.id)}
+                            disabled={actionId === v.id}
+                            className="flex-1 py-2.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition disabled:opacity-50">
+                            ✅ Onayla
+                        </button>
+                        <button
+                            onClick={() => reject(v.id)}
+                            disabled={actionId === v.id}
+                            className="flex-1 py-2.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition disabled:opacity-50">
+                            ❌ Reddet
+                        </button>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function AdminPage() {
     const { t } = useTranslation();
@@ -1002,7 +1113,8 @@ export default function AdminPage() {
                     {activeTab === 'courts'    && <CourtsPanel />}
                     {activeTab === 'disputes'  && <DisputesPanel />}
                     {activeTab === 'posts'     && <PostsPanel />}
-                    {activeTab === 'venues'    && <VenuesPanel />}
+                    {activeTab === 'venues'     && <VenuesPanel />}
+                    {activeTab === 'biz-venues' && <BusinessVenuesPanel />}
                     {activeTab === 'noshow'            && <NoShowPanel />}
                     {activeTab === 'cities'            && <CitiesPanel />}
                     {activeTab === 'tournament-perms'  && <TournamentPermsPanel />}

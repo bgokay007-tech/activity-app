@@ -29,6 +29,7 @@ import surveyRoutes from './routes/survey.routes.js';
 import achievementRoutes from './routes/achievement.routes.js';
 import spotlightRoutes from './routes/spotlight.routes.js';
 import subscriptionRoutes from './routes/subscription.routes.js';
+import venueRoutes from './routes/venue.routes.js';
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use('/api/survey', surveyRoutes);
 app.use('/api/achievements', achievementRoutes);
 app.use('/api/spotlight', spotlightRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/venues', venueRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });
