@@ -3,7 +3,10 @@ import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 
 const PACKAGES = {
-    STARTER: { price: 399, label: 'Başlangıç Paketi', durationDays: 30 },
+    STARTER:     { price: 399,  label: 'Başlangıç Paketi',  durationDays: 30 },
+    RAHATLATICI: { price: 999,  label: 'Rahatlatıcı Paket', durationDays: 30 },
+    PRO:         { price: 1999, label: 'Pro Paket',          durationDays: 30 },
+    PREMIUM:     { price: 3999, label: 'Premium Paket',      durationDays: 30 },
 };
 
 // Mevcut abonelik + bekleyen talep durumu

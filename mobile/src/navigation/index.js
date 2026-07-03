@@ -72,6 +72,10 @@ import NotificationsScreen from '../screens/main/NotificationsScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import UserPostsScreen from '../screens/main/UserPostsScreen';
 import CreatePostScreen from '../screens/main/CreatePostScreen';
+import VenueSearchScreen from '../screens/main/VenueSearchScreen';
+import VenueDetailScreen from '../screens/main/VenueDetailScreen';
+import CourtSlotsScreen from '../screens/main/CourtSlotsScreen';
+import MyReservationsScreen from '../screens/main/MyReservationsScreen';
 import colors from '../theme/colors';
 
 const Stack = createNativeStackNavigator();
@@ -90,6 +94,10 @@ function HomeStackNav() {
             <HomeStack.Screen name="Profile" component={ProfileScreen} />
             <HomeStack.Screen name="UserPosts" component={UserPostsScreen} />
             <HomeStack.Screen name="CreatePost" component={CreatePostScreen} />
+            <HomeStack.Screen name="VenueSearch" component={VenueSearchScreen} />
+            <HomeStack.Screen name="VenueDetail" component={VenueDetailScreen} />
+            <HomeStack.Screen name="CourtSlots" component={CourtSlotsScreen} />
+            <HomeStack.Screen name="MyReservations" component={MyReservationsScreen} />
         </HomeStack.Navigator>
     );
 }
@@ -113,6 +121,10 @@ function ProfileStackNav() {
             <ProfileStack.Screen name="CreatePost" component={CreatePostScreen} />
             <ProfileStack.Screen name="BusinessHome" component={BusinessHomeScreen} />
             <ProfileStack.Screen name="AdminPortal" component={AdminPortalScreen} />
+            <ProfileStack.Screen name="VenueSearch" component={VenueSearchScreen} />
+            <ProfileStack.Screen name="VenueDetail" component={VenueDetailScreen} />
+            <ProfileStack.Screen name="CourtSlots" component={CourtSlotsScreen} />
+            <ProfileStack.Screen name="MyReservations" component={MyReservationsScreen} />
         </ProfileStack.Navigator>
     );
 }

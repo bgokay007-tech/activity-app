@@ -26,11 +26,28 @@ function computeSlots(venue, reservations, date) {
     }
 
     if (venue.slotType === 'HALF_HOUR') {
+        // Buçuklu saatler: 10:30-11:30, 11:30-12:30... (1-saatlik slotlar, :30'dan başlar)
         const slots = [];
-        for (let t = open; t + 30 <= close; t += 30) {
-            slots.push({ start: toTime(t), end: toTime(t + 30), free: isFree(t, t + 30) });
+        let start = open;
+        if (start % 60 !== 30) {
+            start = Math.floor(start / 60) * 60 + 30;
+            if (start < open) start += 60;
+        }
+        for (let t = start; t + 60 <= close; t += 60) {
+            slots.push({ start: toTime(t), end: toTime(t + 60), free: isFree(t, t + 60) });
         }
         return { type: 'HALF_HOUR', slots };
+    }
+
+    if (venue.slotType === 'NINETY_MIN') {
+        // 90 dakikalık slotlar, aralarında 30 dk temizlik boşluğu: 10:00-11:30 → 12:00-13:30
+        const DURATION = 90;
+        const PERIOD   = 120; // 90 dk slot + 30 dk boşluk
+        const slots = [];
+        for (let t = open; t + DURATION <= close; t += PERIOD) {
+            slots.push({ start: toTime(t), end: toTime(t + DURATION), free: isFree(t, t + DURATION) });
+        }
+        return { type: 'NINETY_MIN', slots };
     }
 
     // FLEXIBLE — serbest pencereler
@@ -51,15 +68,19 @@ function computeSlots(venue, reservations, date) {
 
 // ─── İşletme sahibi ───────────────────────────────────────────────────────────
 
+const VENUE_ALLOWED_PACKAGES = ['RAHATLATICI', 'PRO', 'PREMIUM'];
+
 export const createVenue = async (req, res, next) => {
     try {
-        const { name, branch, city, district, address, phone, openTime, closeTime, openDays, slotType, courts } = req.body;
+        const { name, branch, city, district, address, phone, openTime, closeTime, openDays, slotType, pricePerSlot, courts } = req.body;
 
         const now = new Date();
         const sub = await prisma.businessSubscription.findFirst({
             where: { userId: req.userId, status: 'ACTIVE', endDate: { gt: now } },
         });
         if (!sub) return res.status(403).json({ message: 'Tesis eklemek için aktif abonelik gerekli' });
+        if (!VENUE_ALLOWED_PACKAGES.includes(sub.packageType))
+            return res.status(403).json({ message: 'Tesis eklemek için en az Rahatlatıcı paket gereklidir' });
 
         if (!name || !branch || !city) return res.status(400).json({ message: 'İsim, spor dalı ve şehir zorunludur' });
         if (!courts?.length) return res.status(400).json({ message: 'En az bir kort/saha girmelisiniz' });
@@ -74,6 +95,7 @@ export const createVenue = async (req, res, next) => {
                 closeTime: closeTime || '22:00',
                 openDays: openDays ?? [1, 2, 3, 4, 5, 6, 7],
                 slotType: slotType || 'FULL_HOUR',
+                pricePerSlot: pricePerSlot ? parseInt(pricePerSlot) : 0,
                 courts: { create: courts.map(c => ({ name: c })) },
             },
             include: { courts: true },
@@ -193,6 +215,20 @@ export const getVenueReservations = async (req, res, next) => {
             where: { venueId: id },
             include: {
                 user:  { select: { id: true, username: true, fullName: true, avatar: true } },
+                court: true,
+            },
+            orderBy: [{ date: 'desc' }, { startTime: 'asc' }],
+        });
+        res.json(reservations);
+    } catch (error) { next(error); }
+};
+
+export const getMyReservations = async (req, res, next) => {
+    try {
+        const reservations = await prisma.courtReservation.findMany({
+            where: { userId: req.userId },
+            include: {
+                venue: { select: { id: true, name: true, city: true, district: true, address: true, phone: true } },
                 court: true,
             },
             orderBy: [{ date: 'desc' }, { startTime: 'asc' }],

@@ -843,8 +843,9 @@ model BusinessVenue {
   openTime    String   @default("08:00")
   closeTime   String   @default("22:00")
   openDays    Json     @default("[1,2,3,4,5,6,7]")
-  slotType    String   @default("FULL_HOUR") // FULL_HOUR | HALF_HOUR | FLEXIBLE
-  status      String   @default("PENDING")   // PENDING | APPROVED | REJECTED
+  slotType     String   @default("FULL_HOUR") // FULL_HOUR | HALF_HOUR | NINETY_MIN
+  pricePerSlot Int      @default(0)           // TL cinsinden slot başı ücret
+  status       String   @default("PENDING")   // PENDING | APPROVED | REJECTED
   adminNote   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

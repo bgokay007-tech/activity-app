@@ -68,6 +68,18 @@ export default function HomeScreen({ navigation }) {
                     <Text style={s.heroSub}>{t.heroSub}</Text>
                 </View>
 
+                {/* Kort Rezervasyonu */}
+                <TouchableOpacity style={s.venueCard} onPress={() => navigation.navigate('VenueSearch')} activeOpacity={0.8}>
+                    <View style={s.venueCardLeft}>
+                        <Text style={s.venueCardEmoji}>🏟️</Text>
+                        <View>
+                            <Text style={s.venueCardTitle}>Kort Rezervasyonu</Text>
+                            <Text style={s.venueCardSub}>Online slot ayır, kortuna git</Text>
+                        </View>
+                    </View>
+                    <Text style={s.venueCardArrow}>›</Text>
+                </TouchableOpacity>
+
                 {/* Category Cards */}
                 <View style={s.cards}>
                     {CATEGORIES.map(cat => (
@@ -120,4 +132,11 @@ const s = StyleSheet.create({
     cardBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     maintenanceBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: '#374151', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
     maintenanceText: { color: '#9ca3af', fontSize: 11, fontWeight: '700' },
+
+    venueCard: { marginHorizontal: 17, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#9333ea40' },
+    venueCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    venueCardEmoji: { fontSize: 32 },
+    venueCardTitle: { color: '#fff', fontSize: 15, fontWeight: '900' },
+    venueCardSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    venueCardArrow: { color: colors.purple, fontSize: 26, fontWeight: '300' },
 });

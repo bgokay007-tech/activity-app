@@ -14,41 +14,51 @@ const BIZ_COLOR = '#f59e0b';
 const BIZ_LIGHT = '#fbbf24';
 const BIZ_DIM   = '#f59e0b18';
 
-const EFT_INFO = {
+const EFT_BANK = {
     banka:    'Ziraat Bankası',
     iban:     'TR00 0000 0000 0000 0000 0000 00',
     sahip:    'AcTiViTy Teknoloji Ltd. Şti.',
-    tutar:    '399,00 TL',
-    aciklama: 'Başlangıç Paketi – ',
 };
 
-const STARTER_PACKAGE = {
-    key: 'STARTER', icon: '🏆', name: 'Başlangıç Paketi', price: '399', period: 'ay',
-    features: [
-        'Turnuva oluşturma yetkisi',
-        'Kortlarını turnuvaya ekleme',
-        'Turnuva maçlarına kort atama',
-        'Turnuva süresinde kortlar rezervasyona kapanır',
-    ],
-};
+const PACKAGES = [
+    {
+        key: 'STARTER', icon: '🏅', name: 'Başlangıç Paketi', price: '399',
+        features: ['Turnuva oluşturma yetkisi', 'Kortlarını turnuvaya ekleme', 'Turnuva maçlarına kort atama'],
+    },
+    {
+        key: 'RAHATLATICI', icon: '🌿', name: 'Rahatlatıcı Paket', price: '999',
+        features: ['Başlangıç paketi dahil her şey', 'Tesis & kort ekleme yetkisi', 'Uygulama üzerinden online rezervasyon', 'Telefon trafiğini sıfırla'],
+    },
+    {
+        key: 'PRO', icon: '🚀', name: 'Pro Paket', price: '1999',
+        features: ['Rahatlatıcı paketi dahil her şey', 'Sınırsız tesis ekleme', 'Öncelikli destek', 'Gelişmiş istatistikler'],
+    },
+    {
+        key: 'PREMIUM', icon: '👑', name: 'Premium Paket', price: '3999',
+        features: ['Pro paketi dahil her şey', 'Özel marka sayfası', 'API entegrasyonu', 'Dedicated destek hattı'],
+    },
+];
 
 const DAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 const SLOT_TYPES = [
-    { key: 'FULL_HOUR',  label: 'Tam Saatler',     desc: '1s · 2s · 3s' },
-    { key: 'HALF_HOUR',  label: 'Buçuklu Saatler',  desc: '1:30 · 2:30 · 3:30' },
-    { key: 'FLEXIBLE',   label: 'Serbest Süre',      desc: 'Min 1s, aralıksız' },
+    { key: 'FULL_HOUR',  label: 'Tam Saatler',     desc: '10:00-11:00, 11:00-12:00…' },
+    { key: 'HALF_HOUR',  label: 'Buçuklu Saatler',  desc: '10:30-11:30, 11:30-12:30…' },
+    { key: 'NINETY_MIN', label: '90 Dakika',         desc: '10:00-11:30 → 12:00-13:30 (30dk boşluk)' },
 ];
 const STATUS_COLOR = { PENDING: '#eab308', APPROVED: '#22c55e', REJECTED: '#ef4444' };
 const STATUS_LABEL = { PENDING: '⏳ Onay Bekliyor', APPROVED: '✅ Onaylandı', REJECTED: '❌ Reddedildi' };
 
 // ── Abonelik Modalı ──────────────────────────────────────────────────────────
 function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, onCancel, cancelling, submitting, uploading, onUploadReceipt, username }) {
-    const [payStep, setPayStep] = useState('select');
-    const handlePayClose = () => { setPayStep('select'); };
+    const [step, setStep]           = useState('packages'); // packages | pay | eft
+    const [selectedPkg, setSelected] = useState(null);
+
+    const resetFlow = () => { setStep('packages'); setSelected(null); };
+    const activePkg = PACKAGES.find(p => p.key === sub?.packageType);
 
     const handleEftConfirm = async () => {
-        await onPurchase();
-        setPayStep('select');
+        await onPurchase(selectedPkg.key);
+        resetFlow();
     };
 
     const renderSubContent = () => {
@@ -58,15 +68,15 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
             return (
                 <View style={m.activeCard}>
                     <View style={m.activeHeader}>
-                        <Text style={m.activeIcon}>✅</Text>
+                        <Text style={m.activeIcon}>{activePkg?.icon || '✅'}</Text>
                         <View style={{ flex: 1 }}>
-                            <Text style={m.activeTitle}>Başlangıç Paketi Aktif</Text>
+                            <Text style={m.activeTitle}>{activePkg?.name || sub.packageType} Aktif</Text>
                             <Text style={m.activeSub}>{daysLeft} gün kaldı · {endDate.toLocaleDateString('tr-TR')}</Text>
                         </View>
                         <View style={m.activeBadge}><Text style={m.activeBadgeText}>AKTİF</Text></View>
                     </View>
                     <View style={m.divider} />
-                    {STARTER_PACKAGE.features.map((f, i) => (
+                    {(activePkg?.features || []).map((f, i) => (
                         <View key={i} style={m.featureRow}>
                             <Text style={m.featureCheck}>✓</Text>
                             <Text style={m.featureText}>{f}</Text>
@@ -103,30 +113,58 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
                 </View>
             );
         }
-        // Paket kartı
-        if (payStep === 'select') {
+        // Paket seçimi
+        if (step === 'packages') {
+            return (
+                <View>
+                    <Text style={m.pkgSelectTitle}>Bir paket seçin</Text>
+                    {PACKAGES.map(pkg => (
+                        <TouchableOpacity key={pkg.key} style={[m.pkgSelectCard, selectedPkg?.key === pkg.key && m.pkgSelectCardActive]}
+                            onPress={() => setSelected(pkg)} activeOpacity={0.8}>
+                            <View style={m.pkgSelectRow}>
+                                <Text style={m.pkgIcon}>{pkg.icon}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={m.pkgName}>{pkg.name}</Text>
+                                    <Text style={m.pkgSelectPrice}>{pkg.price}₺/ay</Text>
+                                </View>
+                                {selectedPkg?.key === pkg.key && <Text style={m.pkgSelectCheck}>✓</Text>}
+                            </View>
+                            {selectedPkg?.key === pkg.key && pkg.features.map((f, i) => (
+                                <View key={i} style={m.featureRow}>
+                                    <Text style={m.featureCheck}>✓</Text>
+                                    <Text style={m.featureText}>{f}</Text>
+                                </View>
+                            ))}
+                        </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity style={[m.pkgContinueBtn, !selectedPkg && { opacity: 0.4 }]}
+                        onPress={() => setStep('pay')} disabled={!selectedPkg} activeOpacity={0.8}>
+                        <Text style={m.pkgContinueBtnText}>Devam Et →</Text>
+                    </TouchableOpacity>
+                </View>
+            );
+        }
+        // Ödeme yöntemi
+        if (step === 'pay') {
             return (
                 <View style={m.pkgCard}>
-                    <Text style={m.pkgIcon}>{STARTER_PACKAGE.icon}</Text>
-                    <Text style={m.pkgName}>{STARTER_PACKAGE.name}</Text>
+                    <TouchableOpacity onPress={resetFlow} style={m.backRow}>
+                        <Text style={m.backArrow}>‹</Text>
+                        <Text style={m.backLabel}>Paket Seçimi</Text>
+                    </TouchableOpacity>
+                    <Text style={m.pkgIcon}>{selectedPkg.icon}</Text>
+                    <Text style={m.pkgName}>{selectedPkg.name}</Text>
                     <View style={m.pkgPriceRow}>
-                        <Text style={m.pkgPrice}>{STARTER_PACKAGE.price}₺</Text>
-                        <Text style={m.pkgPeriod}>/{STARTER_PACKAGE.period}</Text>
+                        <Text style={m.pkgPrice}>{selectedPkg.price}₺</Text>
+                        <Text style={m.pkgPeriod}>/ay</Text>
                     </View>
                     <View style={m.divider} />
-                    {STARTER_PACKAGE.features.map((f, i) => (
-                        <View key={i} style={m.featureRow}>
-                            <Text style={m.featureCheck}>✓</Text>
-                            <Text style={m.featureText}>{f}</Text>
-                        </View>
-                    ))}
-
                     <Text style={m.payTitle}>Ödeme Yöntemi Seç</Text>
                     <View style={m.payOptionDisabled}>
                         <View style={m.optionLeft}><Text style={m.payIcon}>💳</Text><View><Text style={m.payLabelOff}>Online Ödeme</Text><Text style={m.payDesc}>Kredi / banka kartı</Text></View></View>
                         <View style={m.soonBadge}><Text style={m.soonText}>Yakında</Text></View>
                     </View>
-                    <TouchableOpacity style={m.payOption} onPress={() => setPayStep('eft')} activeOpacity={0.8}>
+                    <TouchableOpacity style={m.payOption} onPress={() => setStep('eft')} activeOpacity={0.8}>
                         <View style={m.optionLeft}><Text style={m.payIcon}>🏦</Text><View><Text style={m.payLabel}>EFT / Havale</Text><Text style={m.payDesc}>Banka transferi</Text></View></View>
                         <Text style={m.arrow}>›</Text>
                     </TouchableOpacity>
@@ -136,18 +174,18 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
         // EFT adımı
         return (
             <View style={m.pkgCard}>
-                <TouchableOpacity onPress={handlePayClose} style={m.backRow}>
+                <TouchableOpacity onPress={() => setStep('pay')} style={m.backRow}>
                     <Text style={m.backArrow}>‹</Text>
                     <Text style={m.backLabel}>Geri</Text>
                 </TouchableOpacity>
                 <Text style={m.pkgName}>EFT / Havale Bilgileri</Text>
                 <View style={m.infoBox}>
                     {[
-                        { label: 'Banka', value: EFT_INFO.banka },
-                        { label: 'IBAN', value: EFT_INFO.iban },
-                        { label: 'Hesap Sahibi', value: EFT_INFO.sahip },
-                        { label: 'Tutar', value: EFT_INFO.tutar },
-                        { label: 'Açıklama', value: EFT_INFO.aciklama + (username || '') },
+                        { label: 'Banka', value: EFT_BANK.banka },
+                        { label: 'IBAN', value: EFT_BANK.iban },
+                        { label: 'Hesap Sahibi', value: EFT_BANK.sahip },
+                        { label: 'Tutar', value: `${selectedPkg?.price || '?'},00 TL` },
+                        { label: 'Açıklama', value: `${selectedPkg?.name || ''} – ${username || ''}` },
                     ].map(row => (
                         <View key={row.label} style={m.infoRow}>
                             <Text style={m.infoLabel}>{row.label}</Text>
@@ -159,7 +197,7 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
                     <Text style={m.noteText}>✅  Açıklamaya kullanıcı adınızı yazmayı unutmayın.{'\n\n'}📎  Ödemeyi yaptıktan sonra onay isteği gönderin. Dekontunuzu 24 saat içinde yükleyebilirsiniz.</Text>
                 </View>
                 <View style={m.eftBtnRow}>
-                    <TouchableOpacity style={m.laterBtn} onPress={handlePayClose} activeOpacity={0.8}>
+                    <TouchableOpacity style={m.laterBtn} onPress={() => setStep('pay')} activeOpacity={0.8}>
                         <Text style={m.laterBtnText}>Belki Daha Sonra</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[m.doneBtn, submitting && { opacity: 0.6 }]} onPress={handleEftConfirm} disabled={submitting} activeOpacity={0.8}>
@@ -197,6 +235,7 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
         openTime: '08:00', closeTime: '22:00',
         openDays: [1, 2, 3, 4, 5, 6, 7],
         slotType: 'FULL_HOUR',
+        pricePerSlot: '',
         courts: ['Kort 1'],
     });
 
@@ -222,7 +261,7 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
 
     const handleClose = () => {
         setStep(1);
-        setForm({ name: '', branch: '', city: '', district: '', address: '', phone: '', openTime: '08:00', closeTime: '22:00', openDays: [1,2,3,4,5,6,7], slotType: 'FULL_HOUR', courts: ['Kort 1'] });
+        setForm({ name: '', branch: '', city: '', district: '', address: '', phone: '', openTime: '08:00', closeTime: '22:00', openDays: [1,2,3,4,5,6,7], slotType: 'FULL_HOUR', pricePerSlot: '', courts: ['Kort 1'] });
         onClose();
     };
 
@@ -289,13 +328,16 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
                 <Text style={va.label}>Rezervasyon Tipi</Text>
                 {SLOT_TYPES.map(st => (
                     <TouchableOpacity key={st.key} style={[va.slotBtn, form.slotType === st.key && va.slotBtnActive]} onPress={() => set('slotType', st.key)} activeOpacity={0.8}>
-                        <View>
+                        <View style={{ flex: 1 }}>
                             <Text style={[va.slotBtnLabel, form.slotType === st.key && { color: '#000' }]}>{st.label}</Text>
                             <Text style={[va.slotBtnDesc, form.slotType === st.key && { color: '#00000099' }]}>{st.desc}</Text>
                         </View>
                         {form.slotType === st.key && <Text style={va.slotCheck}>✓</Text>}
                     </TouchableOpacity>
                 ))}
+
+                <Text style={va.label}>Slot Başı Ücret (₺)</Text>
+                <TextInput style={va.input} placeholder="0 (ücretsiz ise boş bırakın)" placeholderTextColor={colors.textMuted} value={form.pricePerSlot} onChangeText={v => set('pricePerSlot', v)} keyboardType="numeric" />
 
                 <View style={va.rowBtns}>
                     <TouchableOpacity style={va.backBtn} onPress={() => setStep(1)} activeOpacity={0.8}>
@@ -529,10 +571,10 @@ export default function BusinessHomeScreen({ navigation }) {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
-    const handlePurchase = async () => {
+    const handlePurchase = async (packageType) => {
         setSubmitting(true);
         try {
-            const { data } = await api.post('/subscriptions/request', { packageType: 'STARTER' });
+            const { data } = await api.post('/subscriptions/request', { packageType });
             setPendingRequest(data.request);
             setSubModal(false);
             Alert.alert('✅ Talep Gönderildi', 'Ödeme bildiriminiz alındı. Admin onayladığında paketiniz aktif edilecek.');
@@ -616,7 +658,7 @@ export default function BusinessHomeScreen({ navigation }) {
                     <View style={s.statusBox}>
                         <Text style={s.statusText}>
                             {sub
-                                ? '✅ Başlangıç Paketi aktif — turnuva oluşturabilirsiniz.'
+                                ? `✅ ${PACKAGES.find(p => p.key === sub.packageType)?.name || sub.packageType} aktif.`
                                 : pendingRequest
                                     ? '⏳ Abonelik onayı bekleniyor.'
                                     : '⚠️ Aktif abonelik yok — tesis eklemek için abonelik gereklidir.'}
@@ -634,7 +676,7 @@ export default function BusinessHomeScreen({ navigation }) {
                     {/* Tesisler */}
                     <View style={s.sectionHeader}>
                         <Text style={s.sectionTitle}>🏟️ Tesislerim</Text>
-                        {sub && (
+                        {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) && (
                             <TouchableOpacity style={s.addVenueBtn} onPress={() => setVenueModal(true)} activeOpacity={0.8}>
                                 <Text style={s.addVenueBtnText}>+ Tesis Ekle</Text>
                             </TouchableOpacity>
@@ -644,8 +686,11 @@ export default function BusinessHomeScreen({ navigation }) {
                     {venues.length === 0 ? (
                         <View style={s.emptyBox}>
                             <Text style={s.emptyIcon}>🏟️</Text>
-                            <Text style={s.emptyText}>{sub ? 'Henüz tesis eklenmedi.' : 'Tesis eklemek için önce abonelik alın.'}</Text>
-                            {sub && (
+                            <Text style={s.emptyText}>{sub ? (
+                                    ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType)
+                                        ? 'Henüz tesis eklenmedi.' : 'Tesis eklemek için Rahatlatıcı veya üstü paket gereklidir.')
+                                    : 'Tesis eklemek için önce abonelik alın.'}</Text>
+                            {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) && (
                                 <TouchableOpacity style={s.addVenueBtnLg} onPress={() => setVenueModal(true)} activeOpacity={0.8}>
                                     <Text style={s.addVenueBtnText}>+ Tesis / Kort Ekle</Text>
                                 </TouchableOpacity>
@@ -755,6 +800,16 @@ const m = StyleSheet.create({
     receiptThumb: { width: '100%', height: 140, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
     uploadBtn:    { backgroundColor: BIZ_COLOR, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center' },
     uploadBtnText:{ color: '#000', fontWeight: '900', fontSize: 13 },
+
+    // Paket seçim listesi
+    pkgSelectTitle:    { color: '#fff', fontSize: 16, fontWeight: '900', marginBottom: 12 },
+    pkgSelectCard:     { backgroundColor: colors.surface2, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+    pkgSelectCardActive:{ borderColor: BIZ_COLOR, backgroundColor: BIZ_COLOR + '12' },
+    pkgSelectRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+    pkgSelectPrice:    { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    pkgSelectCheck:    { color: BIZ_COLOR, fontSize: 18, fontWeight: '900' },
+    pkgContinueBtn:    { backgroundColor: BIZ_COLOR, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 8 },
+    pkgContinueBtnText:{ color: '#000', fontWeight: '900', fontSize: 15 },
 
     // Paket kartı (satın al)
     pkgCard:      { backgroundColor: colors.surface2, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BIZ_COLOR + '40' },

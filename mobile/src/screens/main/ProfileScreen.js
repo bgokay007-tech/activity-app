@@ -2463,6 +2463,13 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
+                {/* ── Rezervasyonlarım (tüm kullanıcılar) ── */}
+                {isOwnProfile && (
+                    <TouchableOpacity style={ap.reservBtn} onPress={() => navigation.navigate('MyReservations')}>
+                        <Text style={ap.reservBtnText}>📅 Rezervasyonlarım</Text>
+                    </TouchableOpacity>
+                )}
+
                 {/* ── Admin Panel Butonu (sadece admin) ── */}
                 {isOwnProfile && myUser?.isAdmin && (
                     <TouchableOpacity style={ap.adminBtn} onPress={() => navigation.navigate('AdminPortal')}>
@@ -3914,7 +3921,9 @@ export default function ProfileScreen({ route, navigation }) {
 // ─── Admin Panel Styles ───────────────────────────────────────────────────────
 
 const ap = StyleSheet.create({
-    adminBtn:    { marginHorizontal: 20, marginTop: 20, marginBottom: 8, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    reservBtn:   { marginHorizontal: 20, marginTop: 12, marginBottom: 4, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: '#9333ea30' },
+    reservBtnText:{ color: colors.purple, fontSize: 14, fontWeight: '800' },
+    adminBtn:    { marginHorizontal: 20, marginTop: 8, marginBottom: 8, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
     adminBtnText:{ color: colors.purple, fontSize: 14, fontWeight: '800' },
     overlay:     { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
     box:         { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 17, paddingTop: 17, paddingBottom: 45, maxHeight: '80%' },

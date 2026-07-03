@@ -4,6 +4,7 @@ import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
     createVenue, getMyVenues, deleteVenue, updateIban,
     getVenueSlots, makeReservation, getVenueReservations, cancelReservation,
+    getMyReservations,
     searchVenues,
     getPendingVenues, approveVenue, rejectVenue,
 } from '../controllers/venue.controller.js';
@@ -22,6 +23,7 @@ router.patch('/iban',     updateIban);
 router.get('/search',     searchVenues);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);
 router.post('/:id/courts/:courtId/reserve', makeReservation);
+router.get('/reservations/mine',     getMyReservations);
 router.delete('/reservations/:resId', cancelReservation);
 
 // Admin
