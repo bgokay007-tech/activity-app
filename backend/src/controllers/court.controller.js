@@ -77,36 +77,50 @@ export const searchCourts = async (req, res, next) => {
             prisma.businessVenue.findMany({
                 where: {
                     status: 'APPROVED',
-                    ...(name ? { name: { contains: name, mode: 'insensitive' } } : {}),
+                    ...(name
+                        ? {
+                            OR: [
+                                { name:   { contains: name, mode: 'insensitive' } },
+                                { courts: { some: { name: { contains: name, mode: 'insensitive' } } } },
+                            ],
+                          }
+                        : {}),
                     ...(city ? { city: { contains: city, mode: 'insensitive' } } : {}),
                 },
-                include: { user: { select: { id: true, username: true, businessName: true } } },
+                include: {
+                    courts: true,
+                    user: { select: { id: true, username: true, businessName: true } },
+                },
                 orderBy: { createdAt: 'desc' },
             }),
         ]);
 
-        const venueAsCourts = venues.map(v => ({
-            id: `venue_${v.id}`,
-            name: v.name,
-            address: v.address || null,
-            city: v.city,
-            country: null,
-            lat: null,
-            lng: null,
-            sport: v.branch,
-            surface: null,
-            indoor: false,
-            fee: false,
-            feeAmount: null,
-            lights: false,
-            description: `${v.branch} · ${v.openTime}–${v.closeTime}`,
-            addedBy: v.userId,
-            verified: true,
-            pending: false,
-            isBusinessVenue: true,
-            venueId: v.id,
-            user: v.user,
-        }));
+        // Her kort ayrı bir satır olarak döner: "Büro Kort — Kort 1"
+        const venueAsCourts = venues.flatMap(v =>
+            v.courts.map(c => ({
+                id: `venue_${v.id}_court_${c.id}`,
+                name: `${v.name} — ${c.name}`,
+                address: v.address || null,
+                city: v.city,
+                country: null,
+                lat: null,
+                lng: null,
+                sport: v.branch,
+                surface: null,
+                indoor: false,
+                fee: false,
+                feeAmount: null,
+                lights: false,
+                description: `${v.branch} · ${v.openTime}–${v.closeTime}`,
+                addedBy: v.userId,
+                verified: true,
+                pending: false,
+                isBusinessVenue: true,
+                venueId: v.id,
+                courtId: c.id,
+                user: v.user,
+            }))
+        );
 
         res.json([...courts, ...venueAsCourts]);
     } catch (error) {
