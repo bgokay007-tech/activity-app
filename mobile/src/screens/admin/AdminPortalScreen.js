@@ -825,7 +825,9 @@ function ProfileChangesTab() {
 
 // ── Subscriptions ─────────────────────────────────────────────────────────────────
 function SubscriptionsTab() {
+    const [view, setView] = useState('pending');
     const [reqs, setReqs] = useState([]);
+    const [activeSubs, setActiveSubs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [rejectId, setRejectId] = useState(null);
@@ -834,8 +836,12 @@ function SubscriptionsTab() {
     const load = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true); else setLoading(true);
         try {
-            const { data } = await api.get('/subscriptions/requests');
-            setReqs(Array.isArray(data) ? data : []);
+            const [pendingRes, activeRes] = await Promise.all([
+                api.get('/subscriptions/requests'),
+                api.get('/subscriptions/active'),
+            ]);
+            setReqs(Array.isArray(pendingRes.data) ? pendingRes.data : []);
+            setActiveSubs(Array.isArray(activeRes.data) ? activeRes.data : []);
         } catch {}
         if (isRefresh) setRefreshing(false); else setLoading(false);
     }, []);
@@ -845,7 +851,7 @@ function SubscriptionsTab() {
     const approve = async (id) => {
         try {
             await api.patch(`/subscriptions/requests/${id}/approve`);
-            setReqs(prev => prev.filter(r => r.id !== id));
+            await load();
         } catch { Alert.alert('Hata', 'Onaylanamadı.'); }
     };
 
@@ -859,35 +865,79 @@ function SubscriptionsTab() {
     };
 
     const PACKAGE_LABELS = {
+        STARTER: 'Başlangıç (299₺)',
         starter: 'Başlangıç (299₺)',
+        PRO:     'Profesyonel (599₺)',
         pro:     'Profesyonel (599₺)',
+        PREMIUM: 'Premium (999₺)',
         premium: 'Premium (999₺)',
+    };
+
+    const daysLeft = (endDate) => {
+        const diff = new Date(endDate) - new Date();
+        return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
     };
 
     if (loading) return <LoadingView />;
 
     return (
         <>
-            <FlatList
-                data={reqs}
-                keyExtractor={r => r.id}
-                contentContainerStyle={{ padding: 12 }}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.purple} />}
-                renderItem={({ item: r }) => (
-                    <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
-                        <Text style={s.cardTitle}>{r.user?.businessName || r.user?.username || '?'}</Text>
-                        <Text style={s.cardMeta}>Paket: {PACKAGE_LABELS[r.packageType] || r.packageType}</Text>
-                        <Text style={s.cardMeta}>E-posta: {r.user?.email || '?'}</Text>
-                        <Text style={s.cardMeta}>Makbuz: {r.receiptUrl ? '📎 Yüklendi' : '⏳ Bekleniyor'}</Text>
-                        <Text style={s.cardMeta}>{new Date(r.createdAt).toLocaleDateString('tr-TR')}</Text>
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                            <Btn label="✅ Onayla" onPress={() => approve(r.id)} color="#10b981" small />
-                            <Btn label="❌ Reddet" onPress={() => setRejectId(r.id)} color="#ef4444" small />
-                        </View>
-                    </View>
-                )}
-                ListEmptyComponent={<EmptyView text="Bekleyen abonelik talebi yok. ✅" />}
+            <FilterRow
+                options={[
+                    { key: 'pending', label: `⏳ Bekleyen (${reqs.length})` },
+                    { key: 'active',  label: `✅ Aktif Aboneler (${activeSubs.length})` },
+                ]}
+                active={view}
+                onChange={setView}
             />
+
+            {view === 'pending' ? (
+                <FlatList
+                    data={reqs}
+                    keyExtractor={r => r.id}
+                    contentContainerStyle={{ padding: 12 }}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.purple} />}
+                    renderItem={({ item: r }) => (
+                        <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
+                            <Text style={s.cardTitle}>{r.user?.businessName || r.user?.username || '?'}</Text>
+                            <Text style={s.cardMeta}>Paket: {PACKAGE_LABELS[r.packageType] || r.packageType}</Text>
+                            <Text style={s.cardMeta}>E-posta: {r.user?.email || '?'}</Text>
+                            <Text style={s.cardMeta}>Makbuz: {r.receiptUrl ? '📎 Yüklendi' : '⏳ Bekleniyor'}</Text>
+                            <Text style={s.cardMeta}>{new Date(r.createdAt).toLocaleDateString('tr-TR')}</Text>
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <Btn label="✅ Onayla" onPress={() => approve(r.id)} color="#10b981" small />
+                                <Btn label="❌ Reddet" onPress={() => setRejectId(r.id)} color="#ef4444" small />
+                            </View>
+                        </View>
+                    )}
+                    ListEmptyComponent={<EmptyView text="Bekleyen abonelik talebi yok. ✅" />}
+                />
+            ) : (
+                <FlatList
+                    data={activeSubs}
+                    keyExtractor={s => s.id}
+                    contentContainerStyle={{ padding: 12 }}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.purple} />}
+                    renderItem={({ item: sub }) => {
+                        const left = daysLeft(sub.endDate);
+                        const urgent = left <= 7;
+                        return (
+                            <View style={[s.card, { flexDirection: 'column', gap: 6 }]}>
+                                <Text style={s.cardTitle}>{sub.user?.businessName || sub.user?.username || '?'}</Text>
+                                <Text style={s.cardMeta}>@{sub.user?.username} · {sub.user?.email || '—'}</Text>
+                                <Text style={s.cardMeta}>Paket: {PACKAGE_LABELS[sub.packageType] || sub.packageType}</Text>
+                                <Text style={s.cardMeta}>Başlangıç: {new Date(sub.startDate).toLocaleDateString('tr-TR')}</Text>
+                                <Text style={s.cardMeta}>Bitiş: {new Date(sub.endDate).toLocaleDateString('tr-TR')}</Text>
+                                <Text style={[s.cardMeta, { color: urgent ? '#ef4444' : '#10b981', fontWeight: '700' }]}>
+                                    {urgent ? `⚠️ ${left} gün kaldı` : `✅ ${left} gün kaldı`}
+                                </Text>
+                            </View>
+                        );
+                    }}
+                    ListEmptyComponent={<EmptyView text="Aktif abonelik bulunamadı." />}
+                />
+            )}
+
             <Modal visible={!!rejectId} transparent animationType="fade" onRequestClose={() => setRejectId(null)}>
                 <View style={s.overlay}>
                     <View style={s.modalBox}>

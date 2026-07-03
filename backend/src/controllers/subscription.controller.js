@@ -125,6 +125,21 @@ export const cancelSubscription = async (req, res, next) => {
 
 // ── Admin fonksiyonları ────────────────────────────────────────────────────────
 
+// Aktif abonelikleri listele
+export const getActiveSubscriptions = async (req, res, next) => {
+    try {
+        const now = new Date();
+        const subs = await prisma.businessSubscription.findMany({
+            where: { status: 'ACTIVE', endDate: { gt: now } },
+            include: { user: { select: { id: true, username: true, fullName: true, businessName: true, email: true } } },
+            orderBy: { endDate: 'asc' },
+        });
+        res.json(subs);
+    } catch (error) {
+        next(error);
+    }
+};
+
 // Bekleyen talepleri listele
 export const getPendingRequests = async (req, res, next) => {
     try {

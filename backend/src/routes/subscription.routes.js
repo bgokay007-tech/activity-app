@@ -7,6 +7,7 @@ import {
     uploadReceipt,
     cancelSubscription,
     getPendingRequests,
+    getActiveSubscriptions,
     approveRequest,
     rejectRequest,
 } from '../controllers/subscription.controller.js';
@@ -21,6 +22,7 @@ router.delete('/cancel',       cancelSubscription);
 
 // Admin
 router.get('/requests',               requireAdmin, getPendingRequests);
+router.get('/active',                 requireAdmin, getActiveSubscriptions);
 router.patch('/requests/:id/approve', requireAdmin, approveRequest);
 router.patch('/requests/:id/reject',  requireAdmin, rejectRequest);
 
