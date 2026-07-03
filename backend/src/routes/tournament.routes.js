@@ -32,6 +32,10 @@ import {
     sendTournamentChatMessage,
     getChatNotifyPref,
     setChatNotifyPref,
+    getTournamentCourts,
+    addTournamentCourt,
+    removeTournamentCourt,
+    assignCourtToMatch,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -66,6 +70,10 @@ router.get('/:id/chat',                      getTournamentChat);
 router.post('/:id/chat',                     sendTournamentChatMessage);
 router.get('/:id/chat/notify',                getChatNotifyPref);
 router.patch('/:id/chat/notify',              setChatNotifyPref);
+router.get('/:id/courts',                    getTournamentCourts);
+router.post('/:id/courts',                   addTournamentCourt);
+router.delete('/:id/courts/:courtId',        removeTournamentCourt);
+router.patch('/:id/matches/:matchId/court',  assignCourtToMatch);
 router.patch('/:id',                         updateTournament);
 router.delete('/:id',                        deleteTournament);
 

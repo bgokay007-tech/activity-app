@@ -527,9 +527,12 @@ export const createTournament = async (req, res, next) => {
     try {
         const creator = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
         if (!creator?.isAdmin) {
-            const perm = await prisma.tournamentPermissionRequest.findUnique({ where: { userId: req.userId }, select: { status: true } });
-            if (perm?.status !== 'APPROVED') {
-                return res.status(403).json({ message: 'Turnuva oluşturma izniniz yok. Lütfen admin onayı alın.' });
+            const now = new Date();
+            const sub = await prisma.businessSubscription.findFirst({
+                where: { userId: req.userId, status: 'ACTIVE', endDate: { gt: now } },
+            });
+            if (!sub) {
+                return res.status(403).json({ message: 'Turnuva oluşturmak için aktif Başlangıç Paketi gereklidir.' });
             }
         }
         const {
@@ -2462,7 +2465,103 @@ export const requestTournamentPermission = async (req, res, next) => {
 
 export const getTournamentPermissionStatus = async (req, res, next) => {
     try {
-        const request = await prisma.tournamentPermissionRequest.findUnique({ where: { userId: req.userId }, select: { status: true } });
-        res.json({ status: request?.status || 'NONE' });
+        const now = new Date();
+        const sub = await prisma.businessSubscription.findFirst({
+            where: { userId: req.userId, status: 'ACTIVE', endDate: { gt: now } },
+            select: { packageType: true, endDate: true },
+        });
+        res.json({ status: sub ? 'APPROVED' : 'NONE', subscription: sub || null });
     } catch (e) { next(e); }
 };
+
+// ─── Turnuva Kort Yönetimi ─────────────────────────────────────────────────────
+
+export const getTournamentCourts = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const courts = await prisma.tournamentCourt.findMany({
+            where: { tournamentId: id },
+            include: { court: true },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json(courts);
+    } catch (e) { next(e); }
+};
+
+export const addTournamentCourt = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { courtId } = req.body;
+
+        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { creatorId: true, eventDate: true, eventTime: true, eventEndDate: true, eventEndTime: true, matchTimeStart: true, matchTimeEnd: true } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Yalnızca turnuva sahibi kort ekleyebilir' });
+
+        const court = await prisma.court.findUnique({ where: { id: courtId }, select: { addedBy: true } });
+        if (!court) return res.status(404).json({ message: 'Kort bulunamadı' });
+        if (court.addedBy !== req.userId) return res.status(403).json({ message: 'Yalnızca kendi kortlarınızı ekleyebilirsiniz' });
+
+        // Kort bloğu için tarih/saat hesapla
+        const blockStart = buildDateTime(tournament.eventDate, tournament.matchTimeStart || tournament.eventTime);
+        const blockEnd   = buildDateTime(tournament.eventEndDate || tournament.eventDate, tournament.matchTimeEnd || tournament.eventEndTime);
+
+        const [tc] = await prisma.$transaction([
+            prisma.tournamentCourt.create({ data: { tournamentId: id, courtId }, include: { court: true } }),
+            ...(blockStart && blockEnd ? [prisma.courtBlock.upsert({
+                where: { courtId_tournamentId: { courtId, tournamentId: id } },
+                create: { courtId, tournamentId: id, startAt: blockStart, endAt: blockEnd },
+                update: { startAt: blockStart, endAt: blockEnd },
+            })] : []),
+        ]);
+
+        res.status(201).json(tc);
+    } catch (e) { next(e); }
+};
+
+export const removeTournamentCourt = async (req, res, next) => {
+    try {
+        const { id, courtId } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { creatorId: true } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Yalnızca turnuva sahibi kort kaldırabilir' });
+
+        await prisma.$transaction([
+            prisma.tournamentCourt.deleteMany({ where: { tournamentId: id, courtId } }),
+            prisma.courtBlock.deleteMany({ where: { tournamentId: id, courtId } }),
+            prisma.tournamentMatch.updateMany({ where: { tournamentId: id, courtId }, data: { courtId: null } }),
+        ]);
+
+        res.json({ message: 'Kort kaldırıldı' });
+    } catch (e) { next(e); }
+};
+
+export const assignCourtToMatch = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const { courtId } = req.body;
+
+        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { creatorId: true } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Yalnızca turnuva sahibi kort atayabilir' });
+
+        if (courtId) {
+            const linked = await prisma.tournamentCourt.findUnique({ where: { tournamentId_courtId: { tournamentId: id, courtId } } });
+            if (!linked) return res.status(400).json({ message: 'Bu kort turnuvaya eklenmemiş' });
+        }
+
+        const match = await prisma.tournamentMatch.update({
+            where: { id: matchId },
+            data: { courtId: courtId || null },
+            include: { court: { select: { id: true, name: true, address: true } } },
+        });
+
+        res.json(match);
+    } catch (e) { next(e); }
+};
+
+function buildDateTime(date, time) {
+    if (!date) return null;
+    const d = new Date(date).toISOString().split('T')[0];
+    const t = time || '00:00';
+    return new Date(`${d}T${t}:00+03:00`);
+}

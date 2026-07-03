@@ -98,6 +98,7 @@ model User {
   surveyGiven      SportSurvey[] @relation("SurveyRater")
   surveyReceived   SportSurvey[] @relation("SurveySubject")
   profileChangeRequests ProfileChangeRequest[]
+  subscriptions         BusinessSubscription[]
 }
 
 model ProfileChangeRequest {
@@ -547,6 +548,8 @@ model Tournament {
   messages         TournamentMessage[]
   chatNotifyPrefs  TournamentChatNotify[]
   teams            TournamentTeam[]
+  tournamentCourts TournamentCourt[]
+  courtBlocks      CourtBlock[]
 }
 
 // TURNUVA GRUP SOHBETI — turnuva sahibi + AS/yedek olarak onaylanmis tum katilimcilar
@@ -594,9 +597,11 @@ model TournamentMatch {
   p1Confirmed        Boolean   @default(false) // p1 tarafından biri (Çiftler'de takım üyesi) skoru onayladı
   p2Confirmed        Boolean   @default(false) // p2 tarafından biri skoru onayladı — ikisi de true olunca skor kilitlenir, Düzelt kalkar
   scoreSubmittedAt   DateTime? // skor en son ne zaman girildi — karşı taraf 1 saat içinde onaylamazsa otomatik onaylanır
+  courtId            String?
   createdAt          DateTime  @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  court        Court?     @relation(fields: [courtId], references: [id], onDelete: SetNull)
 }
 
 // TURNUVA KATILIMCI / JOIN REQUEST
@@ -690,7 +695,10 @@ model Court {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User     @relation(fields: [addedBy], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [addedBy], references: [id], onDelete: Cascade)
+  tournamentCourts TournamentCourt[]
+  blocks           CourtBlock[]
+  matchAssignments TournamentMatch[]
 }
 
 // ARKADAŞLIK
@@ -775,4 +783,45 @@ model CityAlert {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, subCategory, city, tab])
+}
+
+// İŞLETME ABONELİĞİ
+model BusinessSubscription {
+  id          String   @id @default(uuid())
+  userId      String
+  packageType String   @default("STARTER") // STARTER | PRO | ENTERPRISE
+  status      String   @default("ACTIVE")  // ACTIVE | EXPIRED | CANCELLED
+  startDate   DateTime @default(now())
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// TURNUVA KORTU — işletme kortlarını turnuvaya bağlar
+model TournamentCourt {
+  id           String   @id @default(uuid())
+  tournamentId String
+  courtId      String
+  createdAt    DateTime @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  court        Court      @relation(fields: [courtId],      references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, courtId])
+}
+
+// KORT BLOĞU — turnuva süresince kort rezervasyona kapalıdır
+model CourtBlock {
+  id           String   @id @default(uuid())
+  courtId      String
+  tournamentId String
+  startAt      DateTime
+  endAt        DateTime
+  createdAt    DateTime @default(now())
+
+  court        Court      @relation(fields: [courtId],      references: [id], onDelete: Cascade)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([courtId, tournamentId])
 }
