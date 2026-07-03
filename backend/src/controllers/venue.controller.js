@@ -115,11 +115,14 @@ export const deleteVenue = async (req, res, next) => {
 
 export const updateIban = async (req, res, next) => {
     try {
-        const { businessIban } = req.body;
+        const { businessIban, businessIbanHolder } = req.body;
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
         if (!user?.isBusiness) return res.status(403).json({ message: 'Yalnızca işletme hesapları' });
-        const updated = await prisma.user.update({ where: { id: req.userId }, data: { businessIban } });
-        res.json({ businessIban: updated.businessIban });
+        const updated = await prisma.user.update({
+            where: { id: req.userId },
+            data: { businessIban, businessIbanHolder: businessIbanHolder || null },
+        });
+        res.json({ businessIban: updated.businessIban, businessIbanHolder: updated.businessIbanHolder });
     } catch (error) { next(error); }
 };
 

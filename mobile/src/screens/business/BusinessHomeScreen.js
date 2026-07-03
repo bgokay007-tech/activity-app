@@ -364,38 +364,58 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
 }
 
 // ── IBAN Kartı ────────────────────────────────────────────────────────────────
-function IbanCard({ iban, onSave }) {
+function IbanCard({ iban, ibanHolder, onSave }) {
     const [editing, setEditing] = useState(false);
-    const [value, setValue] = useState(iban || '');
+    const [ibanVal, setIbanVal]     = useState(iban       || '');
+    const [holderVal, setHolderVal] = useState(ibanHolder || '');
     const [saving, setSaving] = useState(false);
 
+    const handleEdit = () => {
+        setIbanVal(iban || '');
+        setHolderVal(ibanHolder || '');
+        setEditing(true);
+    };
+
     const handleSave = async () => {
+        if (!holderVal.trim()) { Alert.alert('Hata', 'Hesap sahibi adını giriniz'); return; }
+        if (!ibanVal.trim())   { Alert.alert('Hata', 'IBAN giriniz'); return; }
         setSaving(true);
         try {
-            await onSave(value.trim());
+            await onSave(ibanVal.trim(), holderVal.trim());
             setEditing(false);
         } catch { Alert.alert('Hata', 'IBAN kaydedilemedi'); }
         finally { setSaving(false); }
     };
 
+    const hasData = iban && ibanHolder;
+
     return (
         <View style={ic.card}>
             <View style={ic.row}>
-                <Text style={ic.title}>🏦 İşletme IBAN</Text>
+                <Text style={ic.title}>🏦 Ödeme IBAN Bilgileri</Text>
                 {!editing && (
-                    <TouchableOpacity onPress={() => { setValue(iban || ''); setEditing(true); }}>
-                        <Text style={ic.editBtn}>{iban ? 'Düzenle' : 'Ekle'}</Text>
+                    <TouchableOpacity onPress={handleEdit}>
+                        <Text style={ic.editBtn}>{hasData ? 'Düzenle' : 'Ekle'}</Text>
                     </TouchableOpacity>
                 )}
             </View>
             {editing ? (
                 <>
+                    <Text style={ic.fieldLabel}>Hesap Sahibi Adı</Text>
+                    <TextInput
+                        style={ic.input}
+                        placeholder="İşletme adı veya ad soyad"
+                        placeholderTextColor={colors.textMuted}
+                        value={holderVal}
+                        onChangeText={setHolderVal}
+                    />
+                    <Text style={ic.fieldLabel}>IBAN</Text>
                     <TextInput
                         style={ic.input}
                         placeholder="TR00 0000 0000 0000 0000 0000 00"
                         placeholderTextColor={colors.textMuted}
-                        value={value}
-                        onChangeText={setValue}
+                        value={ibanVal}
+                        onChangeText={setIbanVal}
                         autoCapitalize="characters"
                     />
                     <View style={ic.btns}>
@@ -407,10 +427,21 @@ function IbanCard({ iban, onSave }) {
                         </TouchableOpacity>
                     </View>
                 </>
+            ) : hasData ? (
+                <>
+                    <View style={ic.dataRow}>
+                        <Text style={ic.dataLabel}>Hesap Sahibi</Text>
+                        <Text style={ic.dataValue}>{ibanHolder}</Text>
+                    </View>
+                    <View style={ic.dataRow}>
+                        <Text style={ic.dataLabel}>IBAN</Text>
+                        <Text style={ic.dataValueMono} selectable>{iban}</Text>
+                    </View>
+                </>
             ) : (
-                <Text style={ic.value}>{iban || 'IBAN bilgisi eklenmemiş'}</Text>
+                <Text style={ic.empty}>IBAN bilgisi eklenmemiş</Text>
             )}
-            <Text style={ic.hint}>Müşteriler EFT ile ödeme yapabilmesi için IBAN gereklidir.</Text>
+            <Text style={ic.hint}>Müşterilerin EFT ile ödeme yapabilmesi için IBAN ve hesap sahibi adı gereklidir.</Text>
         </View>
     );
 }
@@ -474,6 +505,7 @@ export default function BusinessHomeScreen() {
     const [pendingRequest, setPendingRequest] = useState(null);
     const [venues,         setVenues]         = useState([]);
     const [iban,           setIban]           = useState(user?.businessIban || null);
+    const [ibanHolder,     setIbanHolder]     = useState(user?.businessIbanHolder || null);
     const [loading,        setLoading]        = useState(true);
     const [subModal,       setSubModal]       = useState(false);
     const [venueModal,     setVenueModal]     = useState(false);
@@ -541,9 +573,10 @@ export default function BusinessHomeScreen() {
         ]);
     };
 
-    const handleSaveIban = async (val) => {
-        await api.patch('/venues/iban', { businessIban: val });
-        setIban(val);
+    const handleSaveIban = async (ibanVal, holderVal) => {
+        const { data } = await api.patch('/venues/iban', { businessIban: ibanVal, businessIbanHolder: holderVal });
+        setIban(data.businessIban);
+        setIbanHolder(data.businessIbanHolder);
     };
 
     const handleLogout = () => {
@@ -592,7 +625,7 @@ export default function BusinessHomeScreen() {
                     </View>
 
                     {/* IBAN */}
-                    <IbanCard iban={iban} onSave={handleSaveIban} />
+                    <IbanCard iban={iban} ibanHolder={ibanHolder} onSave={handleSaveIban} />
 
                     {/* Tesisler */}
                     <View style={s.sectionHeader}>
@@ -754,18 +787,23 @@ const m = StyleSheet.create({
 });
 
 const ic = StyleSheet.create({
-    card:      { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: colors.border },
-    row:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    title:     { color: '#fff', fontSize: 14, fontWeight: '800' },
-    editBtn:   { color: BIZ_COLOR, fontSize: 13, fontWeight: '700' },
-    value:     { color: colors.textSecondary, fontSize: 13, fontFamily: 'monospace', letterSpacing: 0.5 },
-    hint:      { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 8 },
-    input:     { backgroundColor: colors.bg, borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 10, fontFamily: 'monospace' },
-    btns:      { flexDirection: 'row', gap: 8 },
-    cancelBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-    cancelBtnText: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
-    saveBtn:   { flex: 2, backgroundColor: BIZ_COLOR, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    saveBtnText: { color: '#000', fontWeight: '900', fontSize: 13 },
+    card:         { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: colors.border },
+    row:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    title:        { color: '#fff', fontSize: 14, fontWeight: '800' },
+    editBtn:      { color: BIZ_COLOR, fontSize: 13, fontWeight: '700' },
+    empty:        { color: colors.textMuted, fontSize: 13, marginBottom: 4 },
+    hint:         { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 8 },
+    fieldLabel:   { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 4 },
+    input:        { backgroundColor: colors.bg, borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
+    btns:         { flexDirection: 'row', gap: 8 },
+    cancelBtn:    { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    cancelBtnText:{ color: colors.textMuted, fontWeight: '700', fontSize: 13 },
+    saveBtn:      { flex: 2, backgroundColor: BIZ_COLOR, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    saveBtnText:  { color: '#000', fontWeight: '900', fontSize: 13 },
+    dataRow:      { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 1, borderColor: colors.border },
+    dataLabel:    { color: colors.textMuted, fontSize: 12, fontWeight: '700', flex: 1 },
+    dataValue:    { color: '#fff', fontSize: 13, fontWeight: '700', flex: 2, textAlign: 'right' },
+    dataValueMono:{ color: '#fff', fontSize: 12, fontWeight: '700', flex: 2, textAlign: 'right', letterSpacing: 0.5 },
 });
 
 const vc = StyleSheet.create({

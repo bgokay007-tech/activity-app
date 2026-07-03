@@ -101,6 +101,7 @@ model User {
   subscriptions         BusinessSubscription[]
   subscriptionRequests  SubscriptionRequest[]
   businessIban          String?
+  businessIbanHolder    String?
   venues                BusinessVenue[]
   courtReservations     CourtReservation[]
 }
