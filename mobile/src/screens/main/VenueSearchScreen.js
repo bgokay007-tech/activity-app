@@ -382,6 +382,14 @@ export default function VenueSearchScreen({ navigation }) {
                 <Text style={s.title}>🏟️ Tesis Ara</Text>
             </View>
 
+            {/* Bilgilendirme banner'ı */}
+            <View style={s.infoBanner}>
+                <Text style={s.infoBannerIcon}>🏅</Text>
+                <Text style={s.infoBannerText}>
+                    Burada yalnızca anlaşmalı (Pro/Premium) işletmelerin onaylı tesisleri listelenir. Seçtiğiniz slotu rezerve ettiğinizde o saat bloğu otomatik kapanır.
+                </Text>
+            </View>
+
             <View style={s.filters}>
                 <TextInput
                     style={s.input}
@@ -464,6 +472,10 @@ const s = StyleSheet.create({
     backBtn:    { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     backBtnText:{ color: colors.textSecondary, fontSize: 26, fontWeight: '300' },
     title:  { color: '#fff', fontSize: 17, fontWeight: '900' },
+
+    infoBanner:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginHorizontal: 14, marginTop: 12, marginBottom: 4, backgroundColor: '#9333ea14', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#9333ea30' },
+    infoBannerIcon: { fontSize: 18, lineHeight: 22 },
+    infoBannerText: { flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
 
     filters:      { padding: 14, gap: 8 },
     input:        { backgroundColor: colors.surface, borderRadius: 10, padding: 12, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: colors.border },

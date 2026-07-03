@@ -265,9 +265,19 @@ export const cancelReservation = async (req, res, next) => {
 export const searchVenues = async (req, res, next) => {
     try {
         const { city, branch } = req.query;
+
+        // Yalnızca aktif PRO veya PREMIUM aboneliği olan işletmecilerin tesisleri listelenir
+        const now = new Date();
+        const proSubs = await prisma.businessSubscription.findMany({
+            where: { status: 'ACTIVE', endDate: { gt: now }, packageType: { in: ['PRO', 'PREMIUM'] } },
+            select: { userId: true },
+        });
+        const proUserIds = proSubs.map(s => s.userId);
+
         const venues = await prisma.businessVenue.findMany({
             where: {
                 status: 'APPROVED',
+                userId: { in: proUserIds },
                 ...(city   ? { city:   { contains: city,   mode: 'insensitive' } } : {}),
                 ...(branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
             },

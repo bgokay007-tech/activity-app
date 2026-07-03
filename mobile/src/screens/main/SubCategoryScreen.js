@@ -9065,8 +9065,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── RIVALS ── */}
                     {activeTab === 'rivals' && (
                         <>
-                            {/* İlan oluştur + bildirim butonu yan yana */}
+                            {/* İlan oluştur + Kort Rezervasyonu + bildirim butonu yan yana */}
                             <CityAlertRow tab="rivals">
+                                <TouchableOpacity style={s.courtResBtn} onPress={() => navigation.navigate('VenueSearch')} activeOpacity={0.8}>
+                                    <Text style={s.courtResBtnText}>🏟️ Kort Rez.</Text>
+                                </TouchableOpacity>
                                 <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createAdBtn}</Text>
                                 </TouchableOpacity>
@@ -10955,6 +10958,9 @@ const s = StyleSheet.create({
 
     createBtn:        { backgroundColor: colors.surface, borderRadius:10, paddingVertical:3, paddingHorizontal:7, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
     createBtnText:    { fontWeight:'700', fontSize:14 },
+
+    courtResBtn:      { backgroundColor: '#9333ea20', borderRadius:10, paddingVertical:3, paddingHorizontal:7, alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
+    courtResBtnText:  { color: '#a855f7', fontWeight:'800', fontSize:12 },
 
     filterBox:        { backgroundColor: colors.surface, borderRadius:12, padding:5, borderWidth:1, borderColor: colors.border, gap:3 },
     filterInputRow:   { flexDirection:'row', gap:3, alignItems:'center' },
