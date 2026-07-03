@@ -61,6 +61,7 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import BusinessRegisterScreen from '../screens/auth/BusinessRegisterScreen';
 import BusinessHomeScreen from '../screens/business/BusinessHomeScreen';
+import AdminPortalScreen from '../screens/admin/AdminPortalScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import HomeScreen from '../screens/main/HomeScreen';
 import CategoryScreen from '../screens/main/CategoryScreen';
@@ -111,6 +112,7 @@ function ProfileStackNav() {
             <ProfileStack.Screen name="UserPosts" component={UserPostsScreen} />
             <ProfileStack.Screen name="CreatePost" component={CreatePostScreen} />
             <ProfileStack.Screen name="BusinessHome" component={BusinessHomeScreen} />
+            <ProfileStack.Screen name="AdminPortal" component={AdminPortalScreen} />
         </ProfileStack.Navigator>
     );
 }

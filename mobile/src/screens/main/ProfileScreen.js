@@ -2465,7 +2465,7 @@ export default function ProfileScreen({ route, navigation }) {
 
                 {/* ── Admin Panel Butonu (sadece admin) ── */}
                 {isOwnProfile && myUser?.isAdmin && (
-                    <TouchableOpacity style={ap.adminBtn} onPress={openAdminPanel}>
+                    <TouchableOpacity style={ap.adminBtn} onPress={() => navigation.navigate('AdminPortal')}>
                         <Text style={ap.adminBtnText}>{t.adminPanelBtn}</Text>
                     </TouchableOpacity>
                 )}
