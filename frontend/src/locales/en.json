@@ -331,5 +331,19 @@
     "draw": "Draw",
     "vs": "vs",
     "no_score": "No score"
+  },
+  "subscriptions": {
+    "tab_label": "💳 Subscription Requests",
+    "title": "Subscription Requests",
+    "pending_count": "{{count}} pending request",
+    "pending_count_plural": "{{count}} pending requests",
+    "no_requests": "No pending subscription requests.",
+    "status_pending": "PENDING",
+    "receipt_not_uploaded": "📎 Receipt not uploaded yet (Time remaining: {{hours}} hours {{minutes}} minutes)",
+    "receipt_expired": "⚠️ 24-hour receipt upload window has expired! (Receipt Not Uploaded)",
+    "approve": "✅ Approve — Start Subscription",
+    "reject": "❌ Reject",
+    "reject_reason_prompt": "Rejection reason (optional):",
+    "loading": "Loading..."
   }
 }

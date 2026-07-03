@@ -26,11 +26,10 @@ export const getMySubscription = async (req, res, next) => {
     }
 };
 
-// Dekont ile abonelik talebi gönder
+// Abonelik talebi gönder (dekont isteğe bağlı, sonradan eklenebilir)
 export const submitSubscriptionRequest = async (req, res, next) => {
     try {
         const { packageType = 'STARTER', receiptUrl } = req.body;
-        if (!receiptUrl) return res.status(400).json({ message: 'Dekont görseli gerekli' });
 
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { isBusiness: true, username: true } });
         if (!user?.isBusiness) return res.status(403).json({ message: 'Yalnızca işletme hesapları paket satın alabilir' });
@@ -62,12 +61,47 @@ export const submitSubscriptionRequest = async (req, res, next) => {
                 admin.id,
                 'SUBSCRIPTION_REQUEST',
                 '🏢 Yeni Abonelik Talebi',
-                `${user.username} işletmesi ${pkg.label} için dekont gönderdi.`,
+                `${user.username} işletmesi ${pkg.label} için abonelik talebi gönderdi.`,
                 { requestId: request.id, userId: req.userId }
             ).then(() => emitToUser(admin.id, 'notification', {})).catch(() => {})
         ));
 
-        res.status(201).json({ request, message: 'Dekont gönderildi, onay bekleniyor' });
+        res.status(201).json({ request, message: 'Abonelik talebi oluşturuldu, onay bekleniyor' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Mevcut bekleyen talebe dekont ekle
+export const uploadReceipt = async (req, res, next) => {
+    try {
+        const { receiptUrl } = req.body;
+        if (!receiptUrl) return res.status(400).json({ message: 'receiptUrl gerekli' });
+
+        const request = await prisma.subscriptionRequest.findFirst({
+            where: { userId: req.userId, status: 'PENDING' },
+        });
+        if (!request) return res.status(404).json({ message: 'Bekleyen talep bulunamadı' });
+
+        const updated = await prisma.subscriptionRequest.update({
+            where: { id: request.id },
+            data: { receiptUrl },
+        });
+
+        // Adminleri bilgilendir
+        const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        await Promise.all(admins.map(admin =>
+            createNotification(
+                admin.id,
+                'SUBSCRIPTION_RECEIPT',
+                '📎 Dekont Yüklendi',
+                `${user?.username} abonelik talebi için dekont yükledi.`,
+                { requestId: request.id, userId: req.userId }
+            ).then(() => emitToUser(admin.id, 'notification', {})).catch(() => {})
+        ));
+
+        res.json({ request: updated });
     } catch (error) {
         next(error);
     }

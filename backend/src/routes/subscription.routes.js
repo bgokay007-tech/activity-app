@@ -4,6 +4,7 @@ import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
     getMySubscription,
     submitSubscriptionRequest,
+    uploadReceipt,
     cancelSubscription,
     getPendingRequests,
     approveRequest,
@@ -13,9 +14,10 @@ import {
 const router = Router();
 router.use(authenticate);
 
-router.get('/me',            getMySubscription);
-router.post('/request',      submitSubscriptionRequest);
-router.delete('/cancel',     cancelSubscription);
+router.get('/me',              getMySubscription);
+router.post('/request',        submitSubscriptionRequest);
+router.patch('/request/receipt', uploadReceipt);
+router.delete('/cancel',       cancelSubscription);
 
 // Admin
 router.get('/requests',               requireAdmin, getPendingRequests);

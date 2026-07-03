@@ -330,6 +330,20 @@
     "loss": "Mağlubiyet",
     "draw": "Beraberlik",
     "vs": "vs",
-    "no_score": "Skor yok"
+    "no_score": "No score"
+  },
+  "subscriptions": {
+    "tab_label": "💳 Abonelik Talepleri",
+    "title": "Abonelik Talepleri",
+    "pending_count": "{{count}} bekleyen talep",
+    "pending_count_plural": "{{count}} bekleyen talep",
+    "no_requests": "Bekleyen abonelik talebi yok.",
+    "status_pending": "BEKLİYOR",
+    "receipt_not_uploaded": "📎 Dekont henüz yüklenmedi (Kalan süre: {{hours}} saat {{minutes}} dakika)",
+    "receipt_expired": "⚠️ 24 saatlik dekont yükleme süresi doldu! (Dekont Yüklenmedi)",
+    "approve": "✅ Onayla — Aboneliği Başlat",
+    "reject": "❌ Reddet",
+    "reject_reason_prompt": "Red nedeni (isteğe bağlı):",
+    "loading": "Yükleniyor..."
   }
 }

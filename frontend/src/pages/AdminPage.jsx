@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
+import { useTranslation } from 'react-i18next';
 
 const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions'];
 
@@ -858,6 +859,7 @@ function ProfileChangesPanel() {
 
 // ── ABONELİK TALEPLERİ ─────────────────────────────────────────────────────
 function SubscriptionsPanel() {
+    const { t } = useTranslation();
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionId, setActionId] = useState(null);
@@ -877,7 +879,7 @@ function SubscriptionsPanel() {
     };
 
     const reject = async (id) => {
-        const note = window.prompt('Red nedeni (isteğe bağlı):');
+        const note = window.prompt(t('subscriptions.reject_reason_prompt', { defaultValue: 'Red nedeni (isteğe bağlı):' }));
         if (note === null) return;
         setActionId(id);
         try { await api.patch(`/subscriptions/requests/${id}/reject`, { adminNote: note || null }); load(); }
@@ -885,56 +887,81 @@ function SubscriptionsPanel() {
         finally { setActionId(null); }
     };
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Yükleniyor...</p>;
-    if (!requests.length) return <p className="text-gray-500 text-center py-16">Bekleyen abonelik talebi yok.</p>;
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('subscriptions.loading', { defaultValue: 'Yükleniyor...' })}</p>;
+    if (!requests.length) return <p className="text-gray-500 text-center py-16">{t('subscriptions.no_requests', { defaultValue: 'Bekleyen abonelik talebi yok.' })}</p>;
 
     return (
         <div className="space-y-4">
-            <p className="text-gray-400 text-sm">{requests.length} bekleyen talep</p>
-            {requests.map(req => (
-                <div key={req.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-3">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-white font-black">{req.user?.businessName || req.user?.fullName || req.user?.username}</p>
-                            <p className="text-gray-400 text-xs">@{req.user?.username} · {req.user?.email}</p>
-                            <p className="text-amber-400 text-xs font-bold mt-1">
-                                {req.packageType} · {new Date(req.createdAt).toLocaleString('tr-TR')}
-                            </p>
+            <p className="text-gray-400 text-sm">
+                {requests.length === 1
+                    ? t('subscriptions.pending_count', { count: requests.length, defaultValue: '1 bekleyen talep' })
+                    : t('subscriptions.pending_count_plural', { count: requests.length, defaultValue: `${requests.length} bekleyen talep` })}
+            </p>
+            {requests.map(req => {
+                const createdTime = new Date(req.createdAt).getTime();
+                const limitTime = createdTime + 24 * 60 * 60 * 1000;
+                const isExpired = !req.receiptUrl && Date.now() > limitTime;
+                const hoursLeft = Math.max(0, Math.floor((limitTime - Date.now()) / (1000 * 60 * 60)));
+                const minsLeft = Math.max(0, Math.floor(((limitTime - Date.now()) % (1000 * 60 * 60)) / (1000 * 60)));
+
+                return (
+                    <div key={req.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-3">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-white font-black">{req.user?.businessName || req.user?.fullName || req.user?.username}</p>
+                                <p className="text-gray-400 text-xs">@{req.user?.username} · {req.user?.email}</p>
+                                <p className="text-amber-400 text-xs font-bold mt-1">
+                                    {req.packageType} · {new Date(req.createdAt).toLocaleString('tr-TR')}
+                                </p>
+                            </div>
+                            <span className="bg-yellow-900/40 border border-yellow-700/50 text-yellow-400 text-xs font-black px-3 py-1 rounded-full">
+                                {t('subscriptions.status_pending', { defaultValue: 'BEKLIYOR' })}
+                            </span>
                         </div>
-                        <span className="bg-yellow-900/40 border border-yellow-700/50 text-yellow-400 text-xs font-black px-3 py-1 rounded-full">
-                            BEKLIYOR
-                        </span>
-                    </div>
 
-                    {/* Dekont */}
-                    {req.receiptUrl && (
-                        <a href={req.receiptUrl} target="_blank" rel="noreferrer">
-                            <img src={req.receiptUrl} alt="dekont" className="w-full max-h-64 object-contain rounded-xl border border-gray-700 cursor-pointer hover:opacity-90 transition" />
-                        </a>
-                    )}
+                        {/* Dekont */}
+                        {req.receiptUrl ? (
+                            <a href={req.receiptUrl} target="_blank" rel="noreferrer">
+                                <img src={req.receiptUrl} alt="dekont" className="w-full max-h-64 object-contain rounded-xl border border-gray-700 cursor-pointer hover:opacity-90 transition" />
+                            </a>
+                        ) : isExpired ? (
+                            <div className="bg-red-950/20 border border-red-900/40 rounded-xl p-4 text-center text-red-400 text-sm font-semibold">
+                                {t('subscriptions.receipt_expired', { defaultValue: '⚠️ 24 saatlik dekont yükleme süresi doldu! (Dekont Yüklenmedi)' })}
+                            </div>
+                        ) : (
+                            <div className="bg-gray-800/40 border border-gray-800 rounded-xl p-4 text-center text-gray-400 text-sm">
+                                {t('subscriptions.receipt_not_uploaded', {
+                                    hours: hoursLeft,
+                                    minutes: minsLeft,
+                                    defaultValue: `📎 Dekont henüz yüklenmedi (Kalan süre: ${hoursLeft} saat ${minsLeft} dakika)`
+                                })}
+                            </div>
+                        )}
 
-                    <div className="flex gap-3 pt-1">
-                        <button
-                            onClick={() => approve(req.id)}
-                            disabled={actionId === req.id}
-                            className="flex-1 py-2.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition disabled:opacity-50">
-                            ✅ Onayla — Aboneliği Başlat
-                        </button>
-                        <button
-                            onClick={() => reject(req.id)}
-                            disabled={actionId === req.id}
-                            className="flex-1 py-2.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition disabled:opacity-50">
-                            ❌ Reddet
-                        </button>
+                        <div className="flex gap-3 pt-1">
+                            <button
+                                onClick={() => approve(req.id)}
+                                disabled={actionId === req.id}
+                                className="flex-1 py-2.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition disabled:opacity-50">
+                                {t('subscriptions.approve', { defaultValue: '✅ Onayla — Aboneliği Başlat' })}
+                            </button>
+                            <button
+                                onClick={() => reject(req.id)}
+                                disabled={actionId === req.id}
+                                className="flex-1 py-2.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition disabled:opacity-50">
+                                {t('subscriptions.reject', { defaultValue: '❌ Reddet' })}
+                            </button>
+                        </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }
 
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function AdminPage() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const user = useSelector(s => s.auth.user);
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -942,6 +969,11 @@ export default function AdminPage() {
     useEffect(() => {
         if (user && !user.isAdmin) navigate('/home');
     }, [user]);
+
+    const dynamicTabLabels = {
+        ...TAB_LABEL,
+        subscriptions: t('subscriptions.tab_label', { defaultValue: '💳 Abonelik Talepleri' })
+    };
 
     return (
         <div className="min-h-screen bg-gray-950">
@@ -957,14 +989,14 @@ export default function AdminPage() {
                     {TABS.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)}
                             className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold transition ${activeTab === tab ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
-                            {TAB_LABEL[tab]}
+                            {dynamicTabLabels[tab]}
                         </button>
                     ))}
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 p-6 overflow-y-auto">
-                    <h2 className="text-white font-black text-xl mb-6">{TAB_LABEL[activeTab]}</h2>
+                    <h2 className="text-white font-black text-xl mb-6">{dynamicTabLabels[activeTab]}</h2>
                     {activeTab === 'dashboard' && <Dashboard />}
                     {activeTab === 'users'     && <UsersPanel />}
                     {activeTab === 'courts'    && <CourtsPanel />}

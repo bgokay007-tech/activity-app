@@ -791,7 +791,7 @@ model SubscriptionRequest {
   id          String   @id @default(uuid())
   userId      String
   packageType String   @default("STARTER")
-  receiptUrl  String
+  receiptUrl  String?
   status      String   @default("PENDING") // PENDING | APPROVED | REJECTED
   adminNote   String?
   createdAt   DateTime @default(now())
