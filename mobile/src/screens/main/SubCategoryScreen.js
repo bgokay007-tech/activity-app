@@ -3433,6 +3433,7 @@ function VenueBookingModal({ visible, court, onClose, onBooked }) {
     const ibanHolder = court?.user?.businessIbanHolder;
 
     return (
+        <>
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={vb.overlay}>
                 <View style={vb.sheet}>
@@ -3560,6 +3561,7 @@ function VenueBookingModal({ visible, court, onClose, onBooked }) {
             venueId={court?.venueId}
             onClose={() => { setMenuOrderVisible(false); onClose(); }}
         />
+        </>
     );
 }
 
