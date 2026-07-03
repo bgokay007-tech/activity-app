@@ -99,6 +99,7 @@ model User {
   surveyReceived   SportSurvey[] @relation("SurveySubject")
   profileChangeRequests ProfileChangeRequest[]
   subscriptions         BusinessSubscription[]
+  subscriptionRequests  SubscriptionRequest[]
 }
 
 model ProfileChangeRequest {
@@ -783,6 +784,20 @@ model CityAlert {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, subCategory, city, tab])
+}
+
+// ABONELİK TALEBİ (EFT dekont onayı bekliyor)
+model SubscriptionRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  packageType String   @default("STARTER")
+  receiptUrl  String
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // İŞLETME ABONELİĞİ

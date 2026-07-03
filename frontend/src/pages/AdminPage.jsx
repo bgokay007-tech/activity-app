@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions'];
 
 const TAB_LABEL = {
     dashboard:          '📊 Dashboard',
@@ -18,6 +18,7 @@ const TAB_LABEL = {
     'tournament-perms': '🏆 Turnuva İzinleri',
     'flagged-listings': '🚩 Şüpheli İlanlar',
     'profile-changes':  '🪪 Profil Değişiklik',
+    'subscriptions':    '💳 Abonelik Talepleri',
 };
 
 function StatCard({ label, value, color = 'text-white' }) {
@@ -855,6 +856,83 @@ function ProfileChangesPanel() {
     );
 }
 
+// ── ABONELİK TALEPLERİ ─────────────────────────────────────────────────────
+function SubscriptionsPanel() {
+    const [requests, setRequests] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [actionId, setActionId] = useState(null);
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get('/subscriptions/requests').then(r => setRequests(r.data)).catch(() => {}).finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const approve = async (id) => {
+        setActionId(id);
+        try { await api.patch(`/subscriptions/requests/${id}/approve`); load(); }
+        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        finally { setActionId(null); }
+    };
+
+    const reject = async (id) => {
+        const note = window.prompt('Red nedeni (isteğe bağlı):');
+        if (note === null) return;
+        setActionId(id);
+        try { await api.patch(`/subscriptions/requests/${id}/reject`, { adminNote: note || null }); load(); }
+        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        finally { setActionId(null); }
+    };
+
+    if (loading) return <p className="text-gray-500 text-center py-16">Yükleniyor...</p>;
+    if (!requests.length) return <p className="text-gray-500 text-center py-16">Bekleyen abonelik talebi yok.</p>;
+
+    return (
+        <div className="space-y-4">
+            <p className="text-gray-400 text-sm">{requests.length} bekleyen talep</p>
+            {requests.map(req => (
+                <div key={req.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-3">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-white font-black">{req.user?.businessName || req.user?.fullName || req.user?.username}</p>
+                            <p className="text-gray-400 text-xs">@{req.user?.username} · {req.user?.email}</p>
+                            <p className="text-amber-400 text-xs font-bold mt-1">
+                                {req.packageType} · {new Date(req.createdAt).toLocaleString('tr-TR')}
+                            </p>
+                        </div>
+                        <span className="bg-yellow-900/40 border border-yellow-700/50 text-yellow-400 text-xs font-black px-3 py-1 rounded-full">
+                            BEKLIYOR
+                        </span>
+                    </div>
+
+                    {/* Dekont */}
+                    {req.receiptUrl && (
+                        <a href={req.receiptUrl} target="_blank" rel="noreferrer">
+                            <img src={req.receiptUrl} alt="dekont" className="w-full max-h-64 object-contain rounded-xl border border-gray-700 cursor-pointer hover:opacity-90 transition" />
+                        </a>
+                    )}
+
+                    <div className="flex gap-3 pt-1">
+                        <button
+                            onClick={() => approve(req.id)}
+                            disabled={actionId === req.id}
+                            className="flex-1 py-2.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition disabled:opacity-50">
+                            ✅ Onayla — Aboneliği Başlat
+                        </button>
+                        <button
+                            onClick={() => reject(req.id)}
+                            disabled={actionId === req.id}
+                            className="flex-1 py-2.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition disabled:opacity-50">
+                            ❌ Reddet
+                        </button>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function AdminPage() {
     const navigate = useNavigate();
@@ -898,6 +976,7 @@ export default function AdminPage() {
                     {activeTab === 'tournament-perms'  && <TournamentPermsPanel />}
                     {activeTab === 'flagged-listings'  && <FlaggedListingsPanel />}
                     {activeTab === 'profile-changes'  && <ProfileChangesPanel />}
+                    {activeTab === 'subscriptions'    && <SubscriptionsPanel />}
                 </div>
             </div>
         </div>
