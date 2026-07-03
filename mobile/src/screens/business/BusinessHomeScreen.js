@@ -23,19 +23,51 @@ const EFT_BANK = {
 const PACKAGES = [
     {
         key: 'STARTER', icon: '🏅', name: 'Başlangıç Paketi', price: '399',
-        features: ['Turnuva oluşturma yetkisi', 'Kortlarını turnuvaya ekleme', 'Turnuva maçlarına kort atama'],
+        features: [
+            'Turnuva oluşturma yetkisi',
+            'Kortlarını turnuvaya ekleme',
+            'Turnuva maçlarına kort atama',
+        ],
     },
     {
         key: 'RAHATLATICI', icon: '🌿', name: 'Rahatlatıcı Paket', price: '999',
-        features: ['Başlangıç paketi dahil her şey', 'Tesis & kort ekleme yetkisi', 'Uygulama üzerinden online rezervasyon', 'Telefon trafiğini sıfırla'],
+        features: [
+            'Turnuva oluşturma yetkisi',
+            'Kortlarını turnuvaya ekleme',
+            'Turnuva maçlarına kort atama',
+            'Tesis & kort ekleme (max 3 tesis)',
+            'Uygulama üzerinden online rezervasyon',
+            'Telefon trafiği iş yükü kalkar',
+        ],
     },
     {
         key: 'PRO', icon: '🚀', name: 'Pro Paket', price: '1999',
-        features: ['Rahatlatıcı paketi dahil her şey', 'Sınırsız tesis ekleme', 'Öncelikli destek', 'Gelişmiş istatistikler'],
+        features: [
+            'Turnuva oluşturma yetkisi',
+            'Kortlarını turnuvaya ekleme',
+            'Turnuva maçlarına kort atama',
+            'Tesis & kort ekleme (sınırsız tesis)',
+            'Uygulama üzerinden online rezervasyon',
+            'Telefon trafiği iş yükü kalkar',
+            'Öncelikli destek',
+            'Gelişmiş istatistikler',
+        ],
     },
     {
         key: 'PREMIUM', icon: '👑', name: 'Premium Paket', price: '3999',
-        features: ['Pro paketi dahil her şey', 'Özel marka sayfası', 'API entegrasyonu', 'Dedicated destek hattı'],
+        features: [
+            'Turnuva oluşturma yetkisi',
+            'Kortlarını turnuvaya ekleme',
+            'Turnuva maçlarına kort atama',
+            'Tesis & kort ekleme (sınırsız tesis)',
+            'Uygulama üzerinden online rezervasyon',
+            'Telefon trafiği iş yükü kalkar',
+            'Öncelikli destek',
+            'Gelişmiş istatistikler',
+            'Özel marka sayfası',
+            'API entegrasyonu',
+            'Dedicated destek hattı',
+        ],
     },
 ];
 
