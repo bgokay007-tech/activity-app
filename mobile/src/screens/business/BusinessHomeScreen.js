@@ -264,10 +264,9 @@ export default function BusinessHomeScreen() {
     const [sub,            setSub]            = useState(null);
     const [pendingRequest, setPendingRequest] = useState(null);
     const [loading,        setLoading]        = useState(true);
-    const [cancelling,     setCancelling]     = useState(false);
-    const [payModal,       setPayModal]       = useState(false);
-    const [showReceipt,    setShowReceipt]    = useState(false);
-    const [submitting,     setSubmitting]     = useState(false);
+    const [cancelling,  setCancelling]  = useState(false);
+    const [payModal,    setPayModal]    = useState(false);
+    const [submitting,  setSubmitting]  = useState(false);
 
     const fetchStatus = useCallback(async () => {
         try {
@@ -343,10 +342,13 @@ export default function BusinessHomeScreen() {
         if (pendingRequest) {
             return <PendingCard request={pendingRequest} />;
         }
-        if (showReceipt) {
-            return <ReceiptSection onSubmit={handleSubmitReceipt} submitting={submitting} />;
-        }
-        return <PackageCard onPressActivate={() => setPayModal(true)} />;
+        return (
+            <>
+                <PackageCard onPressActivate={() => setPayModal(true)} />
+                <View style={{ height: 16 }} />
+                <ReceiptSection onSubmit={handleSubmitReceipt} submitting={submitting} />
+            </>
+        );
     };
 
     return (
@@ -391,7 +393,7 @@ export default function BusinessHomeScreen() {
             <PaymentModal
                 visible={payModal}
                 onClose={() => setPayModal(false)}
-                onEftConfirm={() => { setPayModal(false); setShowReceipt(true); }}
+                onEftConfirm={() => setPayModal(false)}
                 username={user?.username}
             />
         </View>
