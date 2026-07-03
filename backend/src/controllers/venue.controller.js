@@ -82,6 +82,13 @@ export const createVenue = async (req, res, next) => {
         if (!VENUE_ALLOWED_PACKAGES.includes(sub.packageType))
             return res.status(403).json({ message: 'Tesis eklemek için en az Rahatlatıcı paket gereklidir' });
 
+        // RAHATLATICI paketi için max 3 tesis; PRO ve PREMIUM sınırsız
+        if (sub.packageType === 'RAHATLATICI') {
+            const count = await prisma.businessVenue.count({ where: { userId: req.userId } });
+            if (count >= 3)
+                return res.status(403).json({ message: 'Rahatlatıcı pakette en fazla 3 tesis ekleyebilirsiniz. Daha fazlası için Pro pakete geçin.' });
+        }
+
         if (!name || !branch || !city) return res.status(400).json({ message: 'İsim, spor dalı ve şehir zorunludur' });
         if (!courts?.length) return res.status(400).json({ message: 'En az bir kort/saha girmelisiniz' });
 

@@ -3292,8 +3292,8 @@ function VenueBookingModal({ visible, court, onClose, onBooked }) {
                     <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
                         {loading && <ActivityIndicator color="#22c55e" style={{ marginVertical: 24 }} />}
 
-                        {/* FULL_HOUR & HALF_HOUR */}
-                        {!loading && slots && (slots.type === 'FULL_HOUR' || slots.type === 'HALF_HOUR') && (
+                        {/* FULL_HOUR, HALF_HOUR & NINETY_MIN */}
+                        {!loading && slots && (slots.type === 'FULL_HOUR' || slots.type === 'HALF_HOUR' || slots.type === 'NINETY_MIN') && (
                             <>
                                 <Text style={vb.sectionLabel}>Saat Seçin</Text>
                                 <View style={vb.slotGrid}>
