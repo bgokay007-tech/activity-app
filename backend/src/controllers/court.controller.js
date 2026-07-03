@@ -89,7 +89,7 @@ export const searchCourts = async (req, res, next) => {
                 },
                 include: {
                     courts: true,
-                    user: { select: { id: true, username: true, businessName: true } },
+                    user: { select: { id: true, username: true, businessName: true, businessIban: true, businessIbanHolder: true } },
                 },
                 orderBy: { createdAt: 'desc' },
             }),
