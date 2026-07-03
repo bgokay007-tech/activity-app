@@ -1906,14 +1906,20 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             // hiçbir tarafın puanı artmaz/azalmaz.
             if (missing.length === 0) {
                 const ratingDiff = Math.abs(wAvg - lAvg);
-                let winnerGames = 0, totalGames = 0;
-                for (const s of sets) { winnerGames += winner === 'p1' ? (s.p1||0) : (s.p2||0); totalGames += (s.p1||0) + (s.p2||0); }
+                let winnerGames = 0, totalGames = 0, loserSets = 0;
+                for (const s of sets) {
+                    const wg = winner === 'p1' ? (s.p1||0) : (s.p2||0);
+                    const lg = winner === 'p1' ? (s.p2||0) : (s.p1||0);
+                    winnerGames += wg; totalGames += (s.p1||0) + (s.p2||0);
+                    if (lg > wg) loserSets++;
+                }
 
                 let wStep, lStep, transferWin, transferLose;
                 let reassessFlags = [];
                 if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory)) {
                     // Tenis/Padel: kullanıcının verdiği sabit ELO puan tablosu — takım ortalamasına göre
-                    const dominant = totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD;
+                    // Kaybeden taraf en az 1 set aldıysa (set skoru 2-1 vb.) → daima rekabetçi
+                    const dominant = loserSets === 0 && (totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD);
                     const lowerRatedWon = wAvg < lAvg;
                     const { winnerGain, loserLoss } = getTennisPadelEloDelta(ratingDiff, dominant, lowerRatedWon);
                     wStep = winnerGain;
@@ -1927,7 +1933,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     const loserInterestsForCheck = loserMembers.map(uid => interests.find(i => i.userId === uid));
                     reassessFlags = getReassessmentFlags(winnerInterestsForCheck, loserInterestsForCheck, wAvg, lAvg);
                 } else {
-                    const dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
+                    const dominant = loserSets === 0 && (totalGames === 0 || (winnerGames / totalGames) > 0.65);
                     let transfer;
                     if (ratingDiff >= 2.0)        transfer = dominant ? 7 : 6;
                     else if (ratingDiff >= 1.0)   transfer = dominant ? 5 : 4;

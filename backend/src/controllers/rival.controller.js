@@ -19,14 +19,18 @@ function calcTransfer(winnerPts, loserPts, score) {
     let dominant = true; // default when no score available
     if (score && Array.isArray(score.sets) && score.sets.length > 0) {
         const side = score.winner;
-        let winnerGames = 0, totalGames = 0;
+        let winnerGames = 0, totalGames = 0, loserSets = 0;
         for (const set of score.sets) {
             const s = Number(set.sender)   || 0;
             const o = Number(set.opponent) || 0;
-            winnerGames += side === 'sender' ? s : o;
+            const wg = side === 'sender' ? s : o;
+            const lg = side === 'sender' ? o : s;
+            winnerGames += wg;
             totalGames  += s + o;
+            if (lg > wg) loserSets++;
         }
-        dominant = totalGames === 0 || (winnerGames / totalGames) > 0.65;
+        // Kaybeden taraf en az 1 set aldıysa (set skoru 2-1 vb.) → rekabetçi
+        dominant = loserSets === 0 && (totalGames === 0 || (winnerGames / totalGames) > 0.65);
     }
 
     if (ratingDiff >= 2.0) return dominant ? 7 : 6;
