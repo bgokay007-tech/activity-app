@@ -521,11 +521,96 @@ function IbanCard({ iban, ibanHolder, onSave }) {
 }
 
 // ── Tesis Kartı ────────────────────────────────────────────────────────────────
-function VenueCard({ venue, onDelete }) {
-    const [deleting, setDeleting] = useState(false);
-    const statusColor = STATUS_COLOR[venue.status] || '#9ca3af';
-    const statusLabel = STATUS_LABEL[venue.status] || venue.status;
-    const slotLabel = SLOT_TYPES.find(s => s.key === venue.slotType)?.label || venue.slotType;
+const MENU_CATS = [
+    { key: 'EQUIPMENT', label: '🎾 Ekipman' },
+    { key: 'FOOD',      label: '🍔 Yiyecek' },
+    { key: 'DRINK',     label: '☕ İçecek' },
+    { key: 'OTHER',     label: '📦 Diğer' },
+];
+const ORDER_COLORS = { PENDING:'#eab308', CONFIRMED:'#3b82f6', READY:'#22c55e', CANCELLED:'#ef4444' };
+const ORDER_LABELS = { PENDING:'⏳ Bekliyor', CONFIRMED:'✅ Onaylandı', READY:'🟢 Hazır', CANCELLED:'❌ İptal' };
+
+function VenueCard({ venue, sub, onDelete }) {
+    const isApproved = venue.status === 'APPROVED';
+    const isPro = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
+    const [activeTab, setActiveTab] = useState('info');
+    const [deleting, setDeleting]   = useState(false);
+
+    const [blocks, setBlocks]             = useState([]);
+    const [blockQ, setBlockQ]             = useState('');
+    const [blocking, setBlocking]         = useState(false);
+    const [blocksLoaded, setBlocksLoaded] = useState(false);
+
+    const [menuItems, setMenuItems]   = useState([]);
+    const [mName, setMName]           = useState('');
+    const [mPrice, setMPrice]         = useState('');
+    const [mCat, setMCat]             = useState('EQUIPMENT');
+    const [addingItem, setAddingItem] = useState(false);
+    const [menuLoaded, setMenuLoaded] = useState(false);
+
+    const [orders, setOrders]             = useState([]);
+    const [ordersLoaded, setOrdersLoaded] = useState(false);
+
+    const loadBlocks = async () => {
+        try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
+        catch {} finally { setBlocksLoaded(true); }
+    };
+    const loadMenu = async () => {
+        try { const { data } = await api.get(`/venues/${venue.id}/menu`); setMenuItems(data.items || []); }
+        catch {} finally { setMenuLoaded(true); }
+    };
+    const loadOrders = async () => {
+        try { const { data } = await api.get(`/venues/${venue.id}/orders`); setOrders(data); }
+        catch {} finally { setOrdersLoaded(true); }
+    };
+
+    const handleTab = (tab) => {
+        setActiveTab(tab);
+        if (tab === 'blocks' && !blocksLoaded) loadBlocks();
+        if (tab === 'menu'   && !menuLoaded)   loadMenu();
+        if (tab === 'orders' && !ordersLoaded) loadOrders();
+    };
+
+    const handleBlock = async () => {
+        if (!blockQ.trim()) return;
+        setBlocking(true);
+        try {
+            const { data } = await api.post(`/venues/${venue.id}/block`, { username: blockQ.trim() });
+            setBlocks(p => [{ ...data.block, user: data.user }, ...p]);
+            setBlockQ('');
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Engellenemedi'); }
+        finally { setBlocking(false); }
+    };
+    const handleUnblock = async (userId) => {
+        try { await api.delete(`/venues/${venue.id}/block/${userId}`); setBlocks(p => p.filter(b => b.userId !== userId)); }
+        catch {}
+    };
+    const handleAddItem = async () => {
+        if (!mName.trim()) return;
+        setAddingItem(true);
+        try {
+            const { data } = await api.post(`/venues/${venue.id}/menu`, { name: mName.trim(), price: mPrice, category: mCat });
+            setMenuItems(p => [...p, data.item]);
+            setMName(''); setMPrice(''); setMCat('EQUIPMENT');
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Eklenemedi'); }
+        finally { setAddingItem(false); }
+    };
+    const toggleItem = async (item) => {
+        try {
+            const { data } = await api.patch(`/venues/${venue.id}/menu/${item.id}`, { available: !item.available });
+            setMenuItems(p => p.map(m => m.id === item.id ? data.item : m));
+        } catch {}
+    };
+    const deleteItem = async (itemId) => {
+        try { await api.delete(`/venues/${venue.id}/menu/${itemId}`); setMenuItems(p => p.filter(m => m.id !== itemId)); }
+        catch {}
+    };
+    const handleOrderStatus = async (orderId, status) => {
+        try {
+            await api.patch(`/venues/orders/${orderId}`, { status });
+            setOrders(p => p.map(o => o.id === orderId ? { ...o, status } : o));
+        } catch {}
+    };
 
     const handleDelete = () => {
         Alert.alert('Tesisi Sil', `"${venue.name}" silinecek. Emin misiniz?`, [
@@ -539,6 +624,17 @@ function VenueCard({ venue, onDelete }) {
         ]);
     };
 
+    const statusColor = STATUS_COLOR[venue.status] || '#9ca3af';
+    const statusLabel = STATUS_LABEL[venue.status] || venue.status;
+    const slotLabel   = SLOT_TYPES.find(s => s.key === venue.slotType)?.label || venue.slotType;
+
+    const TABS = [
+        { key: 'info',   label: 'ℹ️ Bilgi' },
+        isApproved ? { key: 'blocks', label: '🚫 Engel' } : null,
+        isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
+        isApproved && isPro ? { key: 'orders', label: '🛒 Sipariş' } : null,
+    ].filter(Boolean);
+
     return (
         <View style={vc.card}>
             <View style={vc.header}>
@@ -551,21 +647,142 @@ function VenueCard({ venue, onDelete }) {
                 </View>
             </View>
 
-            {venue.adminNote ? (
-                <View style={vc.noteBox}>
-                    <Text style={vc.noteText}>📝 {venue.adminNote}</Text>
+            {venue.adminNote ? <View style={vc.noteBox}><Text style={vc.noteText}>📝 {venue.adminNote}</Text></View> : null}
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+                <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 4 }}>
+                    {TABS.map(tab => (
+                        <TouchableOpacity key={tab.key}
+                            style={[vc.tab, activeTab === tab.key && vc.tabActive]}
+                            onPress={() => handleTab(tab.key)}>
+                            <Text style={[vc.tabTxt, activeTab === tab.key && vc.tabTxtActive]}>{tab.label}</Text>
+                        </TouchableOpacity>
+                    ))}
                 </View>
-            ) : null}
+            </ScrollView>
 
-            <View style={vc.infoRow}>
-                <Text style={vc.infoItem}>🏟️ {venue.courts?.length || 0} kort</Text>
-                <Text style={vc.infoItem}>⏰ {venue.openTime}–{venue.closeTime}</Text>
-                <Text style={vc.infoItem}>📅 {slotLabel}</Text>
-            </View>
+            {activeTab === 'info' && (
+                <>
+                    <View style={vc.infoRow}>
+                        <Text style={vc.infoItem}>🏟️ {venue.courts?.length || 0} kort</Text>
+                        <Text style={vc.infoItem}>⏰ {venue.openTime}–{venue.closeTime}</Text>
+                        <Text style={vc.infoItem}>📅 {slotLabel}</Text>
+                    </View>
+                    <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting} activeOpacity={0.8}>
+                        {deleting ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={vc.deleteBtnText}>Tesisi Sil</Text>}
+                    </TouchableOpacity>
+                </>
+            )}
 
-            <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting} activeOpacity={0.8}>
-                {deleting ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={vc.deleteBtnText}>Sil</Text>}
-            </TouchableOpacity>
+            {activeTab === 'blocks' && (
+                <View style={vc.panel}>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                        <TextInput
+                            style={[ic.input, { flex: 1, marginBottom: 0 }]}
+                            placeholder="Kullanıcı adı ile engelle"
+                            placeholderTextColor={colors.textMuted}
+                            value={blockQ} onChangeText={setBlockQ}
+                            autoCapitalize="none"
+                        />
+                        <TouchableOpacity style={vc.blockBtn} onPress={handleBlock} disabled={blocking}>
+                            {blocking ? <ActivityIndicator size="small" color="#fff" /> : <Text style={vc.blockBtnTxt}>Engelle</Text>}
+                        </TouchableOpacity>
+                    </View>
+                    {blocks.length === 0
+                        ? <Text style={vc.emptyTxt}>Engellenen kullanıcı yok</Text>
+                        : blocks.map(b => (
+                            <View key={b.id} style={vc.blockRow}>
+                                <Text style={vc.blockUser}>@{b.user?.username}</Text>
+                                <TouchableOpacity onPress={() => handleUnblock(b.userId)}>
+                                    <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>Kaldır</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))
+                    }
+                </View>
+            )}
+
+            {activeTab === 'menu' && (
+                <View style={vc.panel}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {MENU_CATS.map(c => (
+                                <TouchableOpacity key={c.key}
+                                    style={[vc.catBtn, mCat === c.key && vc.catBtnActive]}
+                                    onPress={() => setMCat(c.key)}>
+                                    <Text style={[vc.catBtnTxt, mCat === c.key && { color: BIZ_COLOR }]}>{c.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </ScrollView>
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                        <TextInput style={[ic.input, { flex: 2, marginBottom: 0 }]}
+                            placeholder="Ürün adı" placeholderTextColor={colors.textMuted}
+                            value={mName} onChangeText={setMName} />
+                        <TextInput style={[ic.input, { flex: 1, marginBottom: 0 }]}
+                            placeholder="₺" placeholderTextColor={colors.textMuted}
+                            value={mPrice} onChangeText={setMPrice} keyboardType="numeric" />
+                        <TouchableOpacity style={vc.blockBtn} onPress={handleAddItem} disabled={addingItem}>
+                            {addingItem ? <ActivityIndicator size="small" color="#fff" /> : <Text style={vc.blockBtnTxt}>+</Text>}
+                        </TouchableOpacity>
+                    </View>
+                    {menuItems.length === 0
+                        ? <Text style={vc.emptyTxt}>Henüz menü kalemi yok. Yukarıdan ekleyin.</Text>
+                        : menuItems.map(item => (
+                            <View key={item.id} style={vc.menuRow}>
+                                <Text style={{ color: item.available ? '#fff' : '#555', flex: 1, fontSize: 13 }} numberOfLines={1}>
+                                    {MENU_CATS.find(c => c.key === item.category)?.label.split(' ')[0]} {item.name}
+                                </Text>
+                                <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '700', marginRight: 8 }}>{item.price}₺</Text>
+                                <Switch value={item.available} onValueChange={() => toggleItem(item)}
+                                    trackColor={{ false: '#333', true: BIZ_COLOR + '60' }}
+                                    thumbColor={item.available ? BIZ_COLOR : '#555'}
+                                    style={{ transform: [{ scale: 0.7 }] }} />
+                                <TouchableOpacity onPress={() => deleteItem(item.id)} style={{ marginLeft: 4 }}>
+                                    <Text style={{ color: '#ef4444', fontSize: 13 }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))
+                    }
+                </View>
+            )}
+
+            {activeTab === 'orders' && (
+                <View style={vc.panel}>
+                    {orders.length === 0
+                        ? <Text style={vc.emptyTxt}>Henüz sipariş yok</Text>
+                        : orders.slice(0, 15).map(order => (
+                            <View key={order.id} style={vc.orderCard}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>@{order.user?.username}</Text>
+                                    <Text style={{ color: ORDER_COLORS[order.status], fontSize: 12, fontWeight: '600' }}>{ORDER_LABELS[order.status]}</Text>
+                                </View>
+                                {order.items?.map((it, i) => (
+                                    <Text key={i} style={{ color: '#aaa', fontSize: 12 }}>
+                                        {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺
+                                    </Text>
+                                ))}
+                                <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {order.totalPrice}₺</Text>
+                                {order.status === 'PENDING' && (
+                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                                        <TouchableOpacity style={vc.orderBtn} onPress={() => handleOrderStatus(order.id, 'CONFIRMED')}>
+                                            <Text style={vc.orderBtnTxt}>✅ Onayla</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[vc.orderBtn, { borderColor: '#ef444440' }]} onPress={() => handleOrderStatus(order.id, 'CANCELLED')}>
+                                            <Text style={[vc.orderBtnTxt, { color: '#f87171' }]}>❌ İptal</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                                {order.status === 'CONFIRMED' && (
+                                    <TouchableOpacity style={vc.orderBtn} onPress={() => handleOrderStatus(order.id, 'READY')} style={{ marginTop: 6 }}>
+                                        <Text style={vc.orderBtnTxt}>🟢 Hazır İşaretle</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        ))
+                    }
+                </View>
+            )}
         </View>
     );
 }
@@ -730,7 +947,7 @@ export default function BusinessHomeScreen({ navigation }) {
                         </View>
                     ) : (
                         venues.map(v => (
-                            <VenueCard key={v.id} venue={v} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} />
+                            <VenueCard key={v.id} venue={v} sub={sub} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} />
                         ))
                     )}
 
@@ -911,8 +1128,25 @@ const vc = StyleSheet.create({
     noteText:  { color: '#f87171', fontSize: 12, lineHeight: 17 },
     infoRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
     infoItem:  { color: colors.textSecondary, fontSize: 12, backgroundColor: colors.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-    deleteBtn: { borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440', backgroundColor: '#ef444410' },
-    deleteBtnText: { color: '#f87171', fontWeight: '700', fontSize: 13 },
+    deleteBtn:    { borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440', backgroundColor: '#ef444410', marginTop: 8 },
+    deleteBtnText:{ color: '#f87171', fontWeight: '700', fontSize: 13 },
+    tab:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
+    tabActive:    { backgroundColor: BIZ_COLOR + '20', borderColor: BIZ_COLOR + '60' },
+    tabTxt:       { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+    tabTxtActive: { color: BIZ_LIGHT },
+    panel:        { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+    emptyTxt:     { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
+    blockBtn:     { backgroundColor: BIZ_COLOR, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, justifyContent: 'center' },
+    blockBtnTxt:  { color: '#000', fontWeight: '800', fontSize: 13 },
+    blockRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+    blockUser:    { color: '#fff', fontSize: 13, fontWeight: '600' },
+    catBtn:       { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
+    catBtnActive: { borderColor: BIZ_COLOR + '60', backgroundColor: BIZ_COLOR + '15' },
+    catBtnTxt:    { color: colors.textMuted, fontSize: 12 },
+    menuRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+    orderCard:    { backgroundColor: colors.bg, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+    orderBtn:     { borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: '#22c55e40', backgroundColor: '#22c55e10', alignItems: 'center' },
+    orderBtnTxt:  { color: '#22c55e', fontSize: 12, fontWeight: '700' },
 });
 
 const va = StyleSheet.create({

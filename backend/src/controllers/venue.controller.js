@@ -182,6 +182,11 @@ export const makeReservation = async (req, res, next) => {
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
 
+        const isBlocked = await prisma.venueBlock.findUnique({
+            where: { venueId_userId: { venueId: id, userId: req.userId } },
+        });
+        if (isBlocked) return res.status(403).json({ message: 'Bu tesiste rezervasyon yapamazsınız' });
+
         if (!date || !startTime || !endTime) return res.status(400).json({ message: 'Tarih, başlangıç ve bitiş saati zorunludur' });
 
         const startMins = toMins(startTime);
@@ -320,5 +325,239 @@ export const rejectVenue = async (req, res, next) => {
         );
         emitToUser(venue.userId, 'notification', {});
         res.json({ message: 'Reddedildi' });
+    } catch (error) { next(error); }
+};
+
+// ─── Kullanıcı Engelleme ──────────────────────────────────────────────────────
+
+export const blockUser = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { username } = req.body;
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        const target = await prisma.user.findUnique({ where: { username } });
+        if (!target) return res.status(404).json({ message: 'Kullanıcı bulunamadı' });
+        if (target.id === req.userId) return res.status(400).json({ message: 'Kendinizi engelleyemezsiniz' });
+        const block = await prisma.venueBlock.upsert({
+            where: { venueId_userId: { venueId: id, userId: target.id } },
+            update: {},
+            create: { venueId: id, userId: target.id },
+        });
+        res.status(201).json({ block, user: { id: target.id, username: target.username, avatar: target.avatar } });
+    } catch (error) { next(error); }
+};
+
+export const unblockUser = async (req, res, next) => {
+    try {
+        const { id, userId } = req.params;
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        await prisma.venueBlock.deleteMany({ where: { venueId: id, userId } });
+        res.json({ message: 'Engel kaldırıldı' });
+    } catch (error) { next(error); }
+};
+
+export const getBlockedUsers = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        const blocks = await prisma.venueBlock.findMany({
+            where: { venueId: id },
+            include: { user: { select: { id: true, username: true, avatar: true, fullName: true } } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(blocks);
+    } catch (error) { next(error); }
+};
+
+// ─── Menü Yönetimi ────────────────────────────────────────────────────────────
+
+const PRO_PACKAGES = ['PRO', 'PREMIUM'];
+
+const assertProVenueOwner = async (venueId, userId) => {
+    const venue = await prisma.businessVenue.findUnique({ where: { id: venueId } });
+    if (!venue || venue.userId !== userId) return { error: 'Yetkisiz', status: 403 };
+    const now = new Date();
+    const sub = await prisma.businessSubscription.findFirst({
+        where: { userId, status: 'ACTIVE', endDate: { gt: now } },
+    });
+    if (!sub || !PRO_PACKAGES.includes(sub.packageType))
+        return { error: 'Menü özelliği için Pro veya Premium paket gereklidir', status: 403 };
+    return { venue, sub };
+};
+
+export const addMenuItem = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { name, price, category } = req.body;
+        const check = await assertProVenueOwner(id, req.userId);
+        if (check.error) return res.status(check.status).json({ message: check.error });
+        if (!name?.trim()) return res.status(400).json({ message: 'İsim zorunludur' });
+        const item = await prisma.venueMenuItem.create({
+            data: { venueId: id, name: name.trim(), price: parseInt(price) || 0, category: category || 'OTHER' },
+        });
+        res.status(201).json({ item });
+    } catch (error) { next(error); }
+};
+
+export const updateMenuItem = async (req, res, next) => {
+    try {
+        const { id, itemId } = req.params;
+        const { name, price, category, available } = req.body;
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        const item = await prisma.venueMenuItem.update({
+            where: { id: itemId },
+            data: {
+                ...(name      !== undefined ? { name: name.trim() }         : {}),
+                ...(price     !== undefined ? { price: parseInt(price) || 0 } : {}),
+                ...(category  !== undefined ? { category }                  : {}),
+                ...(available !== undefined ? { available }                 : {}),
+            },
+        });
+        res.json({ item });
+    } catch (error) { next(error); }
+};
+
+export const deleteMenuItem = async (req, res, next) => {
+    try {
+        const { id, itemId } = req.params;
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        await prisma.venueMenuItem.delete({ where: { id: itemId } });
+        res.json({ message: 'Silindi' });
+    } catch (error) { next(error); }
+};
+
+export const getVenueMenu = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
+
+        const now = new Date();
+        const sub = await prisma.businessSubscription.findFirst({
+            where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: now } },
+        });
+        if (!sub || !PRO_PACKAGES.includes(sub.packageType))
+            return res.json({ items: [], hasMenu: false });
+
+        const items = await prisma.venueMenuItem.findMany({
+            where: { venueId: id },
+            orderBy: [{ category: 'asc' }, { name: 'asc' }],
+        });
+        res.json({ items, hasMenu: true });
+    } catch (error) { next(error); }
+};
+
+// ─── Sipariş ──────────────────────────────────────────────────────────────────
+
+export const placeOrder = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { items, notes } = req.body; // items: [{menuItemId, quantity}]
+        if (!items?.length) return res.status(400).json({ message: 'En az bir ürün seçin' });
+
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
+
+        // Blocked kontrolü
+        const isBlocked = await prisma.venueBlock.findUnique({
+            where: { venueId_userId: { venueId: id, userId: req.userId } },
+        });
+        if (isBlocked) return res.status(403).json({ message: 'Bu tesisten sipariş veremezsiniz' });
+
+        // Menu item fiyatlarını çek
+        const menuItems = await prisma.venueMenuItem.findMany({
+            where: { id: { in: items.map(i => i.menuItemId) }, venueId: id, available: true },
+        });
+        if (menuItems.length === 0) return res.status(400).json({ message: 'Seçilen ürünler mevcut değil' });
+
+        const totalPrice = items.reduce((sum, i) => {
+            const mi = menuItems.find(m => m.id === i.menuItemId);
+            return mi ? sum + mi.price * (i.quantity || 1) : sum;
+        }, 0);
+
+        const order = await prisma.venueOrder.create({
+            data: {
+                venueId: id, userId: req.userId,
+                totalPrice, notes: notes || null,
+                items: {
+                    create: items.flatMap(i => {
+                        const mi = menuItems.find(m => m.id === i.menuItemId);
+                        if (!mi) return [];
+                        return [{ menuItemId: i.menuItemId, quantity: i.quantity || 1, unitPrice: mi.price }];
+                    }),
+                },
+            },
+            include: { items: { include: { menuItem: true } } },
+        });
+
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        await createNotification(venue.userId, 'VENUE_ORDER', '🛒 Yeni Sipariş',
+            `${user?.username} tesisinden sipariş verdi. Toplam: ${totalPrice}₺`,
+            { orderId: order.id, venueId: id }
+        );
+        emitToUser(venue.userId, 'notification', {});
+
+        res.status(201).json({ order });
+    } catch (error) { next(error); }
+};
+
+export const getVenueOrders = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        const orders = await prisma.venueOrder.findMany({
+            where: { venueId: id },
+            include: {
+                user:  { select: { id: true, username: true, avatar: true } },
+                items: { include: { menuItem: { select: { name: true, category: true } } } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(orders);
+    } catch (error) { next(error); }
+};
+
+export const getUserOrders = async (req, res, next) => {
+    try {
+        const orders = await prisma.venueOrder.findMany({
+            where: { userId: req.userId },
+            include: {
+                venue: { select: { id: true, name: true } },
+                items: { include: { menuItem: { select: { name: true } } } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+        });
+        res.json(orders);
+    } catch (error) { next(error); }
+};
+
+export const updateOrderStatus = async (req, res, next) => {
+    try {
+        const { orderId } = req.params;
+        const { status } = req.body;
+        const VALID = ['CONFIRMED', 'READY', 'CANCELLED'];
+        if (!VALID.includes(status)) return res.status(400).json({ message: 'Geçersiz durum' });
+
+        const order = await prisma.venueOrder.findUnique({ where: { id: orderId }, include: { venue: true } });
+        if (!order) return res.status(404).json({ message: 'Sipariş bulunamadı' });
+        if (order.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const updated = await prisma.venueOrder.update({ where: { id: orderId }, data: { status } });
+
+        const statusMsg = { CONFIRMED: '✅ onaylandı', READY: '🟢 hazır', CANCELLED: '❌ iptal edildi' };
+        await createNotification(order.userId, 'ORDER_STATUS', '📦 Sipariş Güncellendi',
+            `${order.venue.name} siparişiniz ${statusMsg[status]}.`,
+            { orderId, venueId: order.venueId }
+        );
+        emitToUser(order.userId, 'notification', {});
+
+        res.json({ order: updated });
     } catch (error) { next(error); }
 };

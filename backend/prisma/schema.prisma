@@ -104,6 +104,8 @@ model User {
   businessIbanHolder    String?
   venues                BusinessVenue[]
   courtReservations     CourtReservation[]
+  venueBlocks           VenueBlock[]       @relation("BlockedUser")
+  venueOrders           VenueOrder[]
 }
 
 model ProfileChangeRequest {
@@ -397,6 +399,8 @@ model ActivityRequest {
   courtAddress    String?
   courtLat        Float?
   courtLng        Float?
+  venueId         String?   // işletme tesisi bağlantısı
+  venueCourtId    String?
   isCourtReserved    Boolean      @default(false)
   courtFeePerPerson  Int?
   flexibleSchedule   Boolean      @default(false)
@@ -853,6 +857,9 @@ model BusinessVenue {
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   courts       VenueCourt[]
   reservations CourtReservation[]
+  blocks       VenueBlock[]
+  menuItems    VenueMenuItem[]
+  orders       VenueOrder[]
 }
 
 model VenueCourt {
@@ -882,6 +889,62 @@ model CourtReservation {
   venue   BusinessVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
   court   VenueCourt    @relation(fields: [courtId], references: [id], onDelete: Cascade)
   user    User          @relation(fields: [userId],  references: [id], onDelete: Cascade)
+}
+
+// TESİS KULLANICI ENGELİ
+model VenueBlock {
+  id        String   @id @default(uuid())
+  venueId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  venue     BusinessVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user      User          @relation("BlockedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, userId])
+}
+
+// TESİS MENÜ KALEMİ
+model VenueMenuItem {
+  id        String   @id @default(uuid())
+  venueId   String
+  name      String
+  price     Int      @default(0)
+  category  String   @default("OTHER") // EQUIPMENT | FOOD | DRINK | OTHER
+  available Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venue      BusinessVenue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  orderItems VenueOrderItem[]
+}
+
+// TESİS SİPARİŞİ
+model VenueOrder {
+  id         String   @id @default(uuid())
+  venueId    String
+  userId     String
+  status     String   @default("PENDING") // PENDING | CONFIRMED | READY | CANCELLED
+  totalPrice Int      @default(0)
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  venue  BusinessVenue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user   User             @relation(fields: [userId],  references: [id], onDelete: Cascade)
+  items  VenueOrderItem[]
+}
+
+// SİPARİŞ KALEMİ
+model VenueOrderItem {
+  id         String @id @default(uuid())
+  orderId    String
+  menuItemId String
+  quantity   Int    @default(1)
+  unitPrice  Int
+
+  order    VenueOrder    @relation(fields: [orderId],    references: [id], onDelete: Cascade)
+  menuItem VenueMenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 }
 
 // KORT BLOĞU — turnuva süresince kort rezervasyona kapalıdır

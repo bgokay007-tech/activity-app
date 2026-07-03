@@ -7,24 +7,44 @@ import {
     getMyReservations,
     searchVenues,
     getPendingVenues, approveVenue, rejectVenue,
+    blockUser, unblockUser, getBlockedUsers,
+    addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
+    placeOrder, getVenueOrders, getUserOrders, updateOrderStatus,
 } from '../controllers/venue.controller.js';
 
 const router = Router();
 router.use(authenticate);
 
-// İşletme sahibi
+// İşletme sahibi — tesis
 router.post('/',          createVenue);
 router.get('/mine',       getMyVenues);
 router.delete('/:id',     deleteVenue);
-router.get('/:id/reservations', getVenueReservations);
 router.patch('/iban',     updateIban);
+router.get('/:id/reservations', getVenueReservations);
+
+// Engelleme
+router.post('/:id/block',          blockUser);
+router.delete('/:id/block/:userId', unblockUser);
+router.get('/:id/blocked',         getBlockedUsers);
+
+// Menü (sahip)
+router.post('/:id/menu',            addMenuItem);
+router.patch('/:id/menu/:itemId',   updateMenuItem);
+router.delete('/:id/menu/:itemId',  deleteMenuItem);
+
+// Siparişler (sahip)
+router.get('/:id/orders',            getVenueOrders);
+router.patch('/orders/:orderId',     updateOrderStatus);
 
 // Genel (tüm kullanıcılar)
-router.get('/search',     searchVenues);
+router.get('/search',                    searchVenues);
+router.get('/reservations/mine',         getMyReservations);
+router.get('/orders/mine',               getUserOrders);
+router.delete('/reservations/:resId',    cancelReservation);
+router.get('/:id/menu',                  getVenueMenu);
+router.post('/:id/orders',               placeOrder);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);
 router.post('/:id/courts/:courtId/reserve', makeReservation);
-router.get('/reservations/mine',     getMyReservations);
-router.delete('/reservations/:resId', cancelReservation);
 
 // Admin
 router.get('/admin/pending',   requireAdmin, getPendingVenues);
