@@ -551,6 +551,10 @@ function VenueCard({ venue, sub, onDelete }) {
     const [orders, setOrders]             = useState([]);
     const [ordersLoaded, setOrdersLoaded] = useState(false);
 
+    const [reservations, setReservations]   = useState([]);
+    const [resLoaded, setResLoaded]         = useState(false);
+    const [resFilter, setResFilter]         = useState('today'); // today | week | all
+
     const loadBlocks = async () => {
         try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
         catch {} finally { setBlocksLoaded(true); }
@@ -563,12 +567,17 @@ function VenueCard({ venue, sub, onDelete }) {
         try { const { data } = await api.get(`/venues/${venue.id}/orders`); setOrders(data); }
         catch {} finally { setOrdersLoaded(true); }
     };
+    const loadReservations = async () => {
+        try { const { data } = await api.get(`/venues/${venue.id}/reservations`); setReservations(data); }
+        catch {} finally { setResLoaded(true); }
+    };
 
     const handleTab = (tab) => {
         setActiveTab(tab);
-        if (tab === 'blocks' && !blocksLoaded) loadBlocks();
-        if (tab === 'menu'   && !menuLoaded)   loadMenu();
-        if (tab === 'orders' && !ordersLoaded) loadOrders();
+        if (tab === 'blocks'       && !blocksLoaded) loadBlocks();
+        if (tab === 'menu'         && !menuLoaded)   loadMenu();
+        if (tab === 'orders'       && !ordersLoaded) loadOrders();
+        if (tab === 'reservations' && !resLoaded)    loadReservations();
     };
 
     const handleBlock = async () => {
@@ -612,6 +621,13 @@ function VenueCard({ venue, sub, onDelete }) {
         } catch {}
     };
 
+    const handleCancelReservation = async (resId) => {
+        try {
+            await api.delete(`/venues/reservations/${resId}`);
+            setReservations(p => p.map(r => r.id === resId ? { ...r, status: 'CANCELLED' } : r));
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İptal edilemedi'); }
+    };
+
     const handleDelete = () => {
         Alert.alert('Tesisi Sil', `"${venue.name}" silinecek. Emin misiniz?`, [
             { text: 'Vazgeç', style: 'cancel' },
@@ -629,8 +645,9 @@ function VenueCard({ venue, sub, onDelete }) {
     const slotLabel   = SLOT_TYPES.find(s => s.key === venue.slotType)?.label || venue.slotType;
 
     const TABS = [
-        { key: 'info',   label: 'ℹ️ Bilgi' },
-        isApproved ? { key: 'blocks', label: '🚫 Engel' } : null,
+        { key: 'info',         label: 'ℹ️ Bilgi' },
+        isApproved ? { key: 'reservations', label: '📅 Rezervasyonlar' } : null,
+        isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
         isApproved && isPro ? { key: 'orders', label: '🛒 Sipariş' } : null,
     ].filter(Boolean);
@@ -783,6 +800,81 @@ function VenueCard({ venue, sub, onDelete }) {
                     }
                 </View>
             )}
+
+            {activeTab === 'reservations' && (() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const weekEnd = new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10);
+                const filtered = reservations.filter(r => {
+                    if (resFilter === 'today') return r.date === today;
+                    if (resFilter === 'week')  return r.date >= today && r.date <= weekEnd;
+                    return true;
+                });
+                // Group by court
+                const byCourtMap = {};
+                filtered.forEach(r => {
+                    const key = r.court?.id || 'unknown';
+                    if (!byCourtMap[key]) byCourtMap[key] = { name: r.court?.name || 'Kort', list: [] };
+                    byCourtMap[key].list.push(r);
+                });
+                const courtGroups = Object.values(byCourtMap);
+
+                return (
+                    <View style={vc.panel}>
+                        {/* Filter buttons */}
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                            {[['today','Bugün'],['week','Bu Hafta'],['all','Tümü']].map(([k, lbl]) => (
+                                <TouchableOpacity key={k}
+                                    style={[vc.resFilterBtn, resFilter === k && vc.resFilterBtnActive]}
+                                    onPress={() => setResFilter(k)}>
+                                    <Text style={[vc.resFilterTxt, resFilter === k && vc.resFilterTxtActive]}>{lbl}</Text>
+                                </TouchableOpacity>
+                            ))}
+                            <TouchableOpacity onPress={loadReservations} style={{ marginLeft: 'auto', padding: 4 }}>
+                                <Text style={{ color: BIZ_COLOR, fontSize: 12 }}>↻ Yenile</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {!resLoaded && <ActivityIndicator color={BIZ_COLOR} />}
+                        {resLoaded && filtered.length === 0 && (
+                            <Text style={vc.emptyTxt}>Bu dönem için rezervasyon yok</Text>
+                        )}
+
+                        {courtGroups.map(group => (
+                            <View key={group.name} style={{ marginBottom: 14 }}>
+                                <Text style={vc.resCourtName}>{group.name}</Text>
+                                {group.list.map(r => {
+                                    const isCancelled = r.status === 'CANCELLED';
+                                    return (
+                                        <View key={r.id} style={[vc.resCard, isCancelled && { opacity: 0.5 }]}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={vc.resTime}>{r.date} · {r.startTime}–{r.endTime}</Text>
+                                                <Text style={vc.resUser}>@{r.user?.username || '—'}
+                                                    {r.user?.fullName ? `  ${r.user.fullName}` : ''}
+                                                </Text>
+                                                <Text style={vc.resMeta}>
+                                                    {r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Kortta Öde'}
+                                                    {isCancelled ? '  ·  ❌ İptal' : ''}
+                                                    {r.notes ? `  ·  ${r.notes}` : ''}
+                                                </Text>
+                                            </View>
+                                            {!isCancelled && (
+                                                <TouchableOpacity
+                                                    style={vc.resCancelBtn}
+                                                    onPress={() => Alert.alert('Rezervasyonu İptal Et', `${r.user?.username} kişisinin ${r.date} tarihli rezervasyonu iptal edilsin mi?`, [
+                                                        { text: 'Vazgeç', style: 'cancel' },
+                                                        { text: 'İptal Et', style: 'destructive', onPress: () => handleCancelReservation(r.id) },
+                                                    ])}>
+                                                    <Text style={vc.resCancelTxt}>İptal</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        ))}
+                    </View>
+                );
+            })()}
         </View>
     );
 }
@@ -1144,9 +1236,20 @@ const vc = StyleSheet.create({
     catBtnActive: { borderColor: BIZ_COLOR + '60', backgroundColor: BIZ_COLOR + '15' },
     catBtnTxt:    { color: colors.textMuted, fontSize: 12 },
     menuRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
-    orderCard:    { backgroundColor: colors.bg, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
-    orderBtn:     { borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: '#22c55e40', backgroundColor: '#22c55e10', alignItems: 'center' },
-    orderBtnTxt:  { color: '#22c55e', fontSize: 12, fontWeight: '700' },
+    orderCard:       { backgroundColor: colors.bg, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+    orderBtn:        { borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: '#22c55e40', backgroundColor: '#22c55e10', alignItems: 'center' },
+    orderBtnTxt:     { color: '#22c55e', fontSize: 12, fontWeight: '700' },
+    resFilterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
+    resFilterBtnActive: { borderColor: BIZ_COLOR + '60', backgroundColor: BIZ_COLOR + '15' },
+    resFilterTxt:    { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+    resFilterTxtActive: { color: BIZ_LIGHT },
+    resCourtName:    { color: BIZ_LIGHT, fontSize: 13, fontWeight: '800', marginBottom: 6 },
+    resCard:         { backgroundColor: colors.bg, borderRadius: 10, padding: 11, marginBottom: 7, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 10 },
+    resTime:         { color: '#fff', fontSize: 13, fontWeight: '700' },
+    resUser:         { color: '#60a5fa', fontSize: 12, marginTop: 2 },
+    resMeta:         { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+    resCancelBtn:    { backgroundColor: '#ef444415', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#ef444440' },
+    resCancelTxt:    { color: '#f87171', fontSize: 12, fontWeight: '700' },
 });
 
 const va = StyleSheet.create({
