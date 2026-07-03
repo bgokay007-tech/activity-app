@@ -95,14 +95,17 @@ async function applyCompetitivePoints(request, winnerUserId) {
         let dominant = true;
         const score = request.score;
         if (score && Array.isArray(score.sets) && score.sets.length > 0) {
-            let winnerGames = 0, totalGames = 0;
+            let winnerGames = 0, totalGames = 0, loserSets = 0;
             for (const set of score.sets) {
                 const s = Number(set.sender) || 0;
                 const o = Number(set.opponent) || 0;
-                winnerGames += score.winner === 'sender' ? s : o;
+                const wg = score.winner === 'sender' ? s : o;
+                const lg = score.winner === 'sender' ? o : s;
+                winnerGames += wg;
                 totalGames  += s + o;
+                if (lg > wg) loserSets++;
             }
-            dominant = totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD;
+            dominant = loserSets === 0 && (totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD);
         }
 
         const lowerRatedWon = avgWinnerRating < avgLoserRating;

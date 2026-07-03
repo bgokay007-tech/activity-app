@@ -331,6 +331,8 @@ export default function Navigation() {
                         <Stack.Screen name="BusinessRegister" component={BusinessRegisterScreen} />
                         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
                     </>
+                ) : isBusiness ? (
+                    <Stack.Screen name="BusinessApp" component={BusinessHomeScreen} />
                 ) : (
                     <Stack.Screen name="App" component={AppTabs} />
                 )}
