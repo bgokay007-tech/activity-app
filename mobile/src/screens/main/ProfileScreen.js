@@ -2246,6 +2246,18 @@ export default function ProfileScreen({ route, navigation }) {
                 )}
             </View>
 
+            {/* İşletme Hesabı Bandı */}
+            {isOwnProfile && myUser?.isBusiness && (
+                <TouchableOpacity
+                    style={s.bizBanner}
+                    onPress={() => navigation.navigate('BusinessHome')}
+                    activeOpacity={0.85}
+                >
+                    <Text style={s.bizBannerText}>🏢 İşletme Hesabım</Text>
+                    <Text style={s.bizBannerArrow}>›</Text>
+                </TouchableOpacity>
+            )}
+
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
                 {/* ── Profile Card ── */}
@@ -3928,6 +3940,9 @@ const s = StyleSheet.create({
     topBarUsername:   { color: colors.textMuted, fontSize: 12, fontWeight: '800', minWidth: 60 },
     logoutBtn:        { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
     logoutText:       { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
+    bizBanner:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f59e0b18', borderBottomWidth: 1, borderColor: '#f59e0b30', paddingHorizontal: 16, paddingVertical: 11 },
+    bizBannerText:    { color: '#fbbf24', fontSize: 13, fontWeight: '800' },
+    bizBannerArrow:   { color: '#f59e0b', fontSize: 22, fontWeight: '900' },
     langChip:         { borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: colors.surface2 },
     langChipActive:   { backgroundColor: colors.purple + '30' },
     langChipText:     { color: colors.textMuted, fontSize: 12, fontWeight: '800' },

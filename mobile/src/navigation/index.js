@@ -110,6 +110,7 @@ function ProfileStackNav() {
             <ProfileStack.Screen name="Profile" component={ProfileScreen} />
             <ProfileStack.Screen name="UserPosts" component={UserPostsScreen} />
             <ProfileStack.Screen name="CreatePost" component={CreatePostScreen} />
+            <ProfileStack.Screen name="BusinessHome" component={BusinessHomeScreen} />
         </ProfileStack.Navigator>
     );
 }
@@ -330,8 +331,6 @@ export default function Navigation() {
                         <Stack.Screen name="BusinessRegister" component={BusinessRegisterScreen} />
                         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
                     </>
-                ) : isBusiness ? (
-                    <Stack.Screen name="BusinessApp" component={BusinessHomeScreen} />
                 ) : (
                     <Stack.Screen name="App" component={AppTabs} />
                 )}
