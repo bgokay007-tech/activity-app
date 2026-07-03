@@ -62,26 +62,53 @@ export const searchCourts = async (req, res, next) => {
         const { city, sport, surface, indoor } = req.query;
         const name = req.query.name || req.query.q;
 
-        const courts = await prisma.court.findMany({
-            where: {
-                ...(name ? { name: { contains: name, mode: 'insensitive' } } : {}),
-                ...(city ? { city: { contains: city, mode: 'insensitive' } } : {}),
-                sport: sport || undefined,
-                surface: surface || undefined,
-                indoor: indoor === 'true' ? true : indoor === 'false' ? false : undefined,
-            },
-            include: {
-                user: {
-                    select: { id: true, username: true },
+        const [courts, venues] = await Promise.all([
+            prisma.court.findMany({
+                where: {
+                    ...(name ? { name: { contains: name, mode: 'insensitive' } } : {}),
+                    ...(city ? { city: { contains: city, mode: 'insensitive' } } : {}),
+                    sport: sport || undefined,
+                    surface: surface || undefined,
+                    indoor: indoor === 'true' ? true : indoor === 'false' ? false : undefined,
                 },
-            },
-            orderBy: [
-                { verified: 'desc' },
-                { createdAt: 'desc' },
-            ],
-        });
+                include: { user: { select: { id: true, username: true } } },
+                orderBy: [{ verified: 'desc' }, { createdAt: 'desc' }],
+            }),
+            prisma.businessVenue.findMany({
+                where: {
+                    status: 'APPROVED',
+                    ...(name ? { name: { contains: name, mode: 'insensitive' } } : {}),
+                    ...(city ? { city: { contains: city, mode: 'insensitive' } } : {}),
+                },
+                include: { user: { select: { id: true, username: true, businessName: true } } },
+                orderBy: { createdAt: 'desc' },
+            }),
+        ]);
 
-        res.json(courts);
+        const venueAsCourts = venues.map(v => ({
+            id: `venue_${v.id}`,
+            name: v.name,
+            address: v.address || null,
+            city: v.city,
+            country: null,
+            lat: null,
+            lng: null,
+            sport: v.branch,
+            surface: null,
+            indoor: false,
+            fee: false,
+            feeAmount: null,
+            lights: false,
+            description: `${v.branch} · ${v.openTime}–${v.closeTime}`,
+            addedBy: v.userId,
+            verified: true,
+            pending: false,
+            isBusinessVenue: true,
+            venueId: v.id,
+            user: v.user,
+        }));
+
+        res.json([...courts, ...venueAsCourts]);
     } catch (error) {
         next(error);
     }
