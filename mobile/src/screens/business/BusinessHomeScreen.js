@@ -497,7 +497,7 @@ function VenueCard({ venue, onDelete }) {
 }
 
 // ── Ana Ekran ─────────────────────────────────────────────────────────────────
-export default function BusinessHomeScreen() {
+export default function BusinessHomeScreen({ navigation }) {
     const dispatch = useDispatch();
     const user     = useSelector(s => s.auth.user);
 
@@ -599,9 +599,14 @@ export default function BusinessHomeScreen() {
                     <Text style={s.headerBadge}>🏢 İŞLETME HESABI</Text>
                     <Text style={s.headerBiz} numberOfLines={1}>{user?.businessName || user?.fullName || 'İşletme'}</Text>
                 </View>
-                <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
-                    <Text style={s.logoutText}>Çıkış</Text>
-                </TouchableOpacity>
+                <View style={s.rightBtns}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={s.backAppBtn}>
+                        <Text style={s.backAppBtnText}>‹ Uygulamaya Dön</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
+                        <Text style={s.logoutText}>Çıkış</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {loading ? (
@@ -693,6 +698,9 @@ const s = StyleSheet.create({
     subBtn:       { flexDirection: 'row', alignItems: 'center', backgroundColor: BIZ_DIM, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BIZ_COLOR + '40', gap: 4 },
     subBtnText:   { color: BIZ_LIGHT, fontSize: 11, fontWeight: '800' },
     activeDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' },
+    rightBtns:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    backAppBtn:   { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+    backAppBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     logoutBtn:    { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#ef444440', backgroundColor: '#ef444410' },
     logoutText:   { color: '#f87171', fontSize: 11, fontWeight: '700' },
 

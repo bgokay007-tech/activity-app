@@ -57,19 +57,22 @@ function SearchBar({ value, onChangeText, placeholder }) {
 
 function FilterRow({ options, active, onChange }) {
     return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={options}
+            keyExtractor={o => o.key}
             style={{ maxHeight: 46 }}
-            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
-            {options.map(o => (
+            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}
+            renderItem={({ item: o }) => (
                 <TouchableOpacity
-                    key={o.key}
                     style={[s.filterBtn, active === o.key && s.filterBtnActive]}
                     onPress={() => onChange(o.key)}
                 >
                     <Text style={[s.filterBtnText, active === o.key && s.filterBtnTextActive]}>{o.label}</Text>
                 </TouchableOpacity>
-            ))}
-        </ScrollView>
+            )}
+        />
     );
 }
 
@@ -915,7 +918,7 @@ function SubscriptionsTab() {
             ) : (
                 <FlatList
                     data={activeSubs}
-                    keyExtractor={s => s.id}
+                    keyExtractor={sub => sub.id}
                     contentContainerStyle={{ padding: 12 }}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.purple} />}
                     renderItem={({ item: sub }) => {
@@ -996,16 +999,16 @@ export default function AdminPortalScreen({ navigation }) {
             </View>
 
             {/* Tab Bar */}
-            <ScrollView
+            <FlatList
                 ref={tabScrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                data={TABS}
+                keyExtractor={tab => tab.key}
                 style={s.tabBar}
                 contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 8, gap: 6, alignItems: 'center' }}
-            >
-                {TABS.map(tab => (
+                renderItem={({ item: tab }) => (
                     <TouchableOpacity
-                        key={tab.key}
                         style={[s.tabBtn, activeTab === tab.key && s.tabBtnActive]}
                         onPress={() => setActiveTab(tab.key)}
                     >
@@ -1013,8 +1016,8 @@ export default function AdminPortalScreen({ navigation }) {
                             {tab.label}
                         </Text>
                     </TouchableOpacity>
-                ))}
-            </ScrollView>
+                )}
+            />
 
             {/* Content */}
             <View style={{ flex: 1 }}>
