@@ -21,6 +21,7 @@
     "jsonwebtoken": "^9.0.0",
     "morgan": "^1.10.0",
     "multer": "^2.1.1",
+    "node-cron": "^4.5.0",
     "nodemailer": "^8.0.10",
     "prisma": "^5.22.0",
     "resend": "^6.12.4",

@@ -597,7 +597,6 @@ export default function BusinessHomeScreen({ navigation }) {
                 </TouchableOpacity>
                 <View style={s.headerCenter}>
                     <Text style={s.headerBadge}>🏢 İŞLETME HESABI</Text>
-                    <Text style={s.headerBiz} numberOfLines={1}>{user?.businessName || user?.fullName || 'İşletme'}</Text>
                 </View>
                 <View style={s.rightBtns}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={s.backAppBtn}>
