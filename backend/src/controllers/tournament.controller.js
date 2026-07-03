@@ -273,6 +273,82 @@ function pairByClosestElo(players, playedPairKeys) {
     return pairs.map(([a, b]) => ({ p1: byId.get(a), p2: byId.get(b) }));
 }
 
+/**
+ * Full round-robin for Çiftler Rekabetçi (type '2').
+ * Generates ALL N-1 rounds upfront so every team meets every other team exactly once.
+ *
+ * Algorithm:
+ *   1. Circle method — a well-known algorithm that guarantees a complete, valid
+ *      round-robin schedule (no team appears twice in the same round, every pair
+ *      plays exactly once). Teams are first sorted ascending by ELO so adjacent
+ *      teams in the circle are similar in skill.
+ *   2. Sort the generated rounds by average ELO diff (ascending) so round 1
+ *      always contains the globally closest-rated pairings.
+ */
+function fullRoundRobinByElo(teams, tournamentId, baseDate) {
+    const n = teams.length;
+    if (n < 2) return [];
+
+    // Sort by ELO ascending so adjacent circle positions are similar in skill
+    const sorted = [...teams].sort((a, b) => (a.skillRating || 0) - (b.skillRating || 0));
+
+    // Pad to even count with a null "bye" placeholder if odd
+    const padded = sorted.length % 2 === 0 ? [...sorted] : [...sorted, null];
+    const m = padded.length; // always even
+    const totalRounds = m - 1;
+
+    // Circle method: fix padded[0], rotate padded[1..m-1] each round
+    const rotating = padded.slice(1); // length = m-1
+    const roundSets = [];
+
+    for (let r = 0; r < totalRounds; r++) {
+        const pairs = [];
+        const fixed = padded[0];
+        if (fixed !== null && rotating[0] !== null) {
+            pairs.push({ a: fixed, b: rotating[0] });
+        }
+        for (let i = 1; i < m / 2; i++) {
+            const x = rotating[i];
+            const y = rotating[m - 1 - i]; // rotating has indices 0..m-2
+            if (x !== null && y !== null) pairs.push({ a: x, b: y });
+        }
+        roundSets.push(pairs);
+        // Rotate: move last element to front
+        rotating.unshift(rotating.pop());
+    }
+
+    // Sort rounds so the closest-rated pairings come first
+    roundSets.sort((ra, rb) => {
+        const avg = (pairs) => pairs.length === 0 ? Infinity
+            : pairs.reduce((s, p) => s + Math.abs((p.a.skillRating || 0) - (p.b.skillRating || 0)), 0) / pairs.length;
+        return avg(ra) - avg(rb);
+    });
+
+    // Convert to match records with per-round deadlines (7 days per round)
+    const matches = [];
+    for (let r = 0; r < roundSets.length; r++) {
+        const pairs = roundSets[r];
+        if (pairs.length === 0) continue;
+        const deadline = new Date(baseDate);
+        deadline.setDate(deadline.getDate() + (r + 1) * 7);
+        pairs.forEach((pair, idx) => {
+            matches.push({
+                tournamentId,
+                round: r + 1,
+                phase: 'GROUP',
+                matchIndex: idx,
+                p1Id: pair.a.id,
+                p1Name: pair.a.fullName || pair.a.username,
+                p2Id: pair.b.id,
+                p2Name: pair.b.fullName || pair.b.username,
+                status: 'PENDING',
+                deadline,
+            });
+        });
+    }
+    return matches;
+}
+
 async function getCurrentPlayerRatings(tournament, userIds) {
     const participants = await prisma.tournamentParticipant.findMany({
         where: { tournamentId: tournament.id, status: 'ACCEPTED', userId: { in: userIds } },
@@ -1466,10 +1542,9 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
             username: `${t.player1Name} & ${t.player2Name}`,
             skillRating: t.avgRating,
         }));
-        matches = eloBasedMatches(teamPlayers, id, 1);
-        const deadline = new Date(baseDate);
-        deadline.setDate(deadline.getDate() + 7);
-        matches = matches.map(m => ({ ...m, deadline }));
+        // Full round-robin: all N-1 rounds pre-generated, sorted by ELO closeness so
+        // round 1 always contains the globally closest pairings.
+        matches = fullRoundRobinByElo(teamPlayers, id, baseDate);
     } else {
         // Diğer türler
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
@@ -1975,13 +2050,18 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             if (currentRoundDone) {
                 const maxRound = Math.max(...allGroupMatches.map(m => m.round));
                 const sideCount = isTeamTournament ? new Set(allGroupMatches.flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean)).size : tournament.participants.length;
-                const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(sideCount - 1, 3);
+                // type '2': full round-robin — all N-1 rounds pre-generated at start, never cap at 3
+                const matchesPerPlayer = tournament.type === '2'
+                    ? sideCount - 1
+                    : (tournament.matchesBeforePlayoff || Math.min(sideCount - 1, 3));
                 const existingPlayoff = await prisma.tournamentMatch.findFirst({
                     where: { tournamentId: id, phase: 'PLAYOFF' },
                 });
+                // type '2' rounds are pre-generated; only generate dynamically for type '1'
+                const nextRoundAlreadyExists = allGroupMatches.some(m => m.round === maxRound + 1);
 
-                if (maxRound < matchesPerPlayer && !existingPlayoff) {
-                    // Sonraki GROUP turunu güncel ELO ile oluştur
+                if (maxRound < matchesPerPlayer && !existingPlayoff && !nextRoundAlreadyExists) {
+                    // Sonraki GROUP turunu güncel ELO ile oluştur (type '1' only in practice)
                     const playedPairKeys = allGroupMatches
                         .filter(m => m.p1Id && m.p2Id)
                         .map(m => [m.p1Id, m.p2Id].sort().join('|'));
@@ -1989,7 +2069,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     if (nextRoundMatches.length > 0) {
                         await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
                     }
-                } else if (!existingPlayoff) {
+                } else if (!existingPlayoff && !nextRoundAlreadyExists) {
                     // Tüm GROUP turları bitti → playoff oluştur (ELO sıralaması + averaj tiebreaker)
                     const players = isTeamTournament
                         ? (await prisma.tournamentTeam.findMany({ where: { tournamentId: id } })).map(t => ({
