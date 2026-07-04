@@ -982,11 +982,11 @@ export default function BusinessHomeScreen({ navigation }) {
                     <Text style={s.headerBadge}>🏢 İŞLETME HESABI</Text>
                 </View>
                 <View style={s.rightBtns}>
-                    {navigation.canGoBack() && (
-                        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backAppBtn}>
-                            <Text style={s.backAppBtnText}>‹ Uygulamaya Dön</Text>
-                        </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                        onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('App')}
+                        style={s.backAppBtn}>
+                        <Text style={s.backAppBtnText}>‹ Uygulamaya Dön</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
                         <Text style={s.logoutText}>Çıkış</Text>
                     </TouchableOpacity>

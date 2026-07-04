@@ -346,7 +346,10 @@ export default function Navigation() {
                         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
                     </>
                 ) : isBusiness ? (
-                    <Stack.Screen name="BusinessApp" component={BusinessHomeScreen} />
+                    <>
+                        <Stack.Screen name="BusinessApp" component={BusinessHomeScreen} />
+                        <Stack.Screen name="App" component={AppTabs} />
+                    </>
                 ) : (
                     <Stack.Screen name="App" component={AppTabs} />
                 )}
