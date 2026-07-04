@@ -222,11 +222,21 @@ export default function MyReservationsScreen({ navigation }) {
         });
     }, []);
 
-    const today = new Date().toISOString().slice(0, 10);
+    const now     = new Date();
+    const today   = now.toISOString().slice(0, 10);
+    const isPast  = (r) => {
+        if (r.date < today) return true;
+        if (r.date === today && r.endTime) {
+            const [h, m] = r.endTime.split(':').map(Number);
+            const end = new Date(`${r.date}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
+            return end <= now;
+        }
+        return false;
+    };
     const filtered = reservations.filter(r => {
-        if (filter === 'upcoming') return r.date >= today && r.status === 'CONFIRMED';
-        if (filter === 'pending')  return r.date >= today && r.status === 'PENDING';
-        if (filter === 'past')     return r.date < today  || r.status === 'CANCELLED';
+        if (filter === 'upcoming') return !isPast(r) && r.status === 'CONFIRMED';
+        if (filter === 'pending')  return !isPast(r) && r.status === 'PENDING';
+        if (filter === 'past')     return isPast(r)  || r.status === 'CANCELLED';
         return true;
     });
 
