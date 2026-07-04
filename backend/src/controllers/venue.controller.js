@@ -375,7 +375,7 @@ export const getMyReservations = async (req, res, next) => {
         const reservations = await prisma.courtReservation.findMany({
             where: { userId: req.userId },
             include: {
-                venue: { select: { id: true, name: true, city: true, district: true, address: true, phone: true } },
+                venue: { select: { id: true, name: true, branch: true, city: true, district: true, address: true, phone: true } },
                 court: true,
             },
             orderBy: [{ date: 'desc' }, { startTime: 'asc' }],

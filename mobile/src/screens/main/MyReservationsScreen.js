@@ -10,13 +10,34 @@ import api from '../../services/api';
 const STATUS_COLOR = { PENDING: '#eab308', CONFIRMED: '#22c55e', CANCELLED: '#6b7280' };
 const STATUS_LABEL = { PENDING: 'Bekliyor', CONFIRMED: 'Onaylandı', CANCELLED: 'İptal' };
 
+// Tesisteki Türkçe spor dalını SubCategoryScreen sub anahtarına çevir
+function branchToSub(branch) {
+    const b = (branch || '').toLowerCase();
+    if (b.includes('padel'))                             return { sub: 'padel',      cat: 'SPORTS' };
+    if (b.includes('tenis') || b.includes('tennis'))     return { sub: 'tennis',     cat: 'SPORTS' };
+    if (b.includes('futbol') || b.includes('hali') || b.includes('halı')) return { sub: 'football',  cat: 'SPORTS' };
+    if (b.includes('basketbol') || b.includes('basket')) return { sub: 'basketball', cat: 'SPORTS' };
+    if (b.includes('voleybol') || b.includes('volley'))  return { sub: 'volleyball', cat: 'SPORTS' };
+    if (b.includes('badminton'))                         return { sub: 'badminton',  cat: 'SPORTS' };
+    return { sub: b || 'tennis', cat: 'SPORTS' };
+}
+
+function calcDuration(start, end) {
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    return String((eh * 60 + em) - (sh * 60 + sm));
+}
+
 function ReservationCard({ item, onCancel }) {
-    const [cancelling, setCanc] = useState(false);
+    const [cancelling,    setCanc]    = useState(false);
+    const [creatingRival, setCreating] = useState(false);
     const sc = STATUS_COLOR[item.status] || '#9ca3af';
     const sl = STATUS_LABEL[item.status] || item.status;
 
-    const isPast = item.date < new Date().toISOString().slice(0, 10);
+    const today  = new Date().toISOString().slice(0, 10);
+    const isPast  = item.date < today;
     const canCancel = item.status !== 'CANCELLED' && !isPast;
+    const canRival  = item.status !== 'CANCELLED' && !isPast; // aynı koşul
 
     const handleCancel = () => {
         Alert.alert('İptal Et', 'Bu rezervasyonu iptal etmek istiyor musunuz?', [
@@ -28,6 +49,44 @@ function ReservationCard({ item, onCancel }) {
                 finally { setCanc(false); }
             }},
         ]);
+    };
+
+    const handleCreateRival = () => {
+        const venueName = item.venue?.name || '';
+        const courtName = item.court?.name || '';
+        Alert.alert(
+            '🆚 Rakip Bul\'da İlan Aç',
+            `${venueName} · ${courtName}\n${item.date} · ${item.startTime}–${item.endTime}\n\nBu rezervasyon için rakip arama ilanı oluşturulsun mu?`,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'İlan Aç', onPress: async () => {
+                    const { sub, cat } = branchToSub(item.venue?.branch);
+                    const teamSports = new Set(['football', 'volleyball']);
+                    setCreating(true);
+                    try {
+                        await api.post('/rivals', {
+                            category:        cat,
+                            subCategory:     sub,
+                            matchType:       teamSports.has(sub) ? 'FIND_OPPONENT' : 'SINGLE',
+                            matchMode:       'COMPETITIVE',
+                            matchDate:       item.date,
+                            matchTime:       item.startTime,
+                            duration:        calcDuration(item.startTime, item.endTime),
+                            courtName:       courtName || undefined,
+                            courtId:         item.courtId || undefined,
+                            location:        item.venue?.city || undefined,
+                            isCourtReserved: true,
+                            venueId:         item.venueId || undefined,
+                            venueCourtId:    item.courtId || undefined,
+                        });
+                        Alert.alert('✅ İlan Oluşturuldu',
+                            `Rakip bul ilanınız ${item.date} ${item.startTime} için oluşturuldu.`);
+                    } catch (e) {
+                        Alert.alert('Hata', e?.response?.data?.message || 'İlan oluşturulamadı');
+                    } finally { setCreating(false); }
+                }},
+            ]
+        );
     };
 
     return (
@@ -57,13 +116,22 @@ function ReservationCard({ item, onCancel }) {
                 </Text>
             )}
 
-            {canCancel && (
-                <TouchableOpacity style={s.cancelBtn} onPress={handleCancel} disabled={cancelling} activeOpacity={0.8}>
-                    {cancelling
-                        ? <ActivityIndicator size="small" color="#f87171" />
-                        : <Text style={s.cancelBtnText}>Rezervasyonu İptal Et</Text>}
-                </TouchableOpacity>
-            )}
+            <View style={s.actionRow}>
+                {canCancel && (
+                    <TouchableOpacity style={s.cancelBtn} onPress={handleCancel} disabled={cancelling} activeOpacity={0.8}>
+                        {cancelling
+                            ? <ActivityIndicator size="small" color="#f87171" />
+                            : <Text style={s.cancelBtnText}>İptal Et</Text>}
+                    </TouchableOpacity>
+                )}
+                {canRival && (
+                    <TouchableOpacity style={s.rivalBtn} onPress={handleCreateRival} disabled={creatingRival} activeOpacity={0.8}>
+                        {creatingRival
+                            ? <ActivityIndicator size="small" color="#c084fc" />
+                            : <Text style={s.rivalBtnText}>🆚 Rakip Bul'da İlan Aç</Text>}
+                    </TouchableOpacity>
+                )}
+            </View>
         </View>
     );
 }
@@ -178,8 +246,11 @@ const s = StyleSheet.create({
     locationText: { color: colors.textMuted, fontSize: 12, marginBottom: 4 },
     payText: { color: colors.textMuted, fontSize: 12, marginBottom: 8 },
 
-    cancelBtn: { marginTop: 4, borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440', backgroundColor: '#ef444408' },
-    cancelBtnText: { color: '#f87171', fontWeight: '700', fontSize: 13 },
+    actionRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+    cancelBtn: { flex: 1, borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440', backgroundColor: '#ef444408' },
+    cancelBtnText: { color: '#f87171', fontWeight: '700', fontSize: 12 },
+    rivalBtn: { flex: 2, borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#9333ea50', backgroundColor: '#9333ea10' },
+    rivalBtnText: { color: '#c084fc', fontWeight: '700', fontSize: 12 },
 
     empty: { alignItems: 'center', paddingTop: 60 },
     emptyIcon: { fontSize: 44, marginBottom: 12 },
