@@ -235,6 +235,69 @@ export const getVenueReservations = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const getOwnerSchedule = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { date } = req.query;
+        if (!date) return res.status(400).json({ message: 'date parametresi gerekli (YYYY-MM-DD)' });
+
+        const venue = await prisma.businessVenue.findUnique({
+            where: { id },
+            include: { courts: { orderBy: { name: 'asc' } } },
+        });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const allRes = await prisma.courtReservation.findMany({
+            where: { venueId: id, date, status: { not: 'CANCELLED' } },
+            include: { user: { select: { id: true, username: true, fullName: true } } },
+        });
+
+        const open  = toMins(venue.openTime);
+        const close = toMins(venue.closeTime);
+
+        const findRes = (courtId, s, e) =>
+            allRes.filter(r => r.courtId === courtId && overlaps(s, e, toMins(r.startTime), toMins(r.endTime)));
+
+        const buildSlots = (courtId) => {
+            const { slotType } = venue;
+            const slots = [];
+
+            if (slotType === 'FULL_HOUR') {
+                for (let t = open; t + 60 <= close; t += 60) {
+                    const rs = findRes(courtId, t, t + 60);
+                    slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                }
+            } else if (slotType === 'HALF_HOUR') {
+                let start = open;
+                if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
+                for (let t = start; t + 60 <= close; t += 60) {
+                    const rs = findRes(courtId, t, t + 60);
+                    slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                }
+            } else if (slotType === 'NINETY_MIN') {
+                for (let t = open; t + 90 <= close; t += 120) {
+                    const rs = findRes(courtId, t, t + 90);
+                    slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                }
+            } else {
+                // FLEXIBLE — show reservations as-is
+                allRes.filter(r => r.courtId === courtId).forEach(r => {
+                    slots.push({ start: r.startTime, end: r.endTime, status: r.status, user: r.user });
+                });
+            }
+            return slots;
+        };
+
+        const courts = venue.courts.map(court => ({
+            courtId:   court.id,
+            courtName: court.name,
+            slots:     buildSlots(court.id),
+        }));
+
+        res.json({ slotType: venue.slotType, openTime: venue.openTime, closeTime: venue.closeTime, courts });
+    } catch (error) { next(error); }
+};
+
 export const getMyReservations = async (req, res, next) => {
     try {
         const reservations = await prisma.courtReservation.findMany({

@@ -520,6 +520,146 @@ function IbanCard({ iban, ibanHolder, onSave }) {
     );
 }
 
+// ── Venue Schedule Modal ──────────────────────────────────────────────────────
+
+const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef4444' };
+const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
+const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: 'Bekliyor (EFT)', CONFIRMED: 'Rezerveli' };
+
+function VenueScheduleModal({ visible, venue, onClose }) {
+    const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
+    const [schedule, setSchedule] = useState(null);
+    const [loading, setLoading]   = useState(false);
+    const [selCourt, setSelCourt] = useState(null);
+
+    const shiftDate = (n) => {
+        const d = new Date(selDate + 'T12:00:00');
+        d.setDate(d.getDate() + n);
+        setSelDate(toDateStr(d));
+    };
+    const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString('tr-TR',
+        { weekday: 'long', day: 'numeric', month: 'long' });
+
+    useEffect(() => {
+        if (!visible || !venue?.id) return;
+        setLoading(true);
+        api.get(`/venues/${venue.id}/schedule?date=${selDate}`)
+            .then(r => {
+                setSchedule(r.data);
+                setSelCourt(prev => {
+                    if (prev && r.data.courts?.find(c => c.courtId === prev)) return prev;
+                    return r.data.courts?.[0]?.courtId || null;
+                });
+            })
+            .catch(() => setSchedule(null))
+            .finally(() => setLoading(false));
+    }, [visible, venue?.id, selDate]);
+
+    const courtData = schedule?.courts?.find(c => c.courtId === selCourt);
+
+    return (
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: '#0a0a14' }}>
+                {/* Header */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
+                    paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom: 14,
+                    borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}>
+                    <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
+                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1}>
+                        {venue?.name} — Rezervasyon Takvimi
+                    </Text>
+                </View>
+
+                {/* Date nav */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                    paddingVertical: 10, gap: 16, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                    <TouchableOpacity onPress={() => shiftDate(-1)} style={{ padding: 10 }}>
+                        <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700' }}>‹</Text>
+                    </TouchableOpacity>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600', minWidth: 200, textAlign: 'center' }}>
+                        {fmtDate(selDate)}
+                    </Text>
+                    <TouchableOpacity onPress={() => shiftDate(1)} style={{ padding: 10 }}>
+                        <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700' }}>›</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Court tabs */}
+                {schedule?.courts && schedule.courts.length > 1 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                        style={{ maxHeight: 50, paddingHorizontal: 12, paddingVertical: 8 }}>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                            {schedule.courts.map(c => (
+                                <TouchableOpacity key={c.courtId}
+                                    style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1,
+                                        borderColor: selCourt === c.courtId ? BIZ_COLOR + '70' : '#ffffff20',
+                                        backgroundColor: selCourt === c.courtId ? BIZ_COLOR + '18' : '#ffffff07' }}
+                                    onPress={() => setSelCourt(c.courtId)}>
+                                    <Text style={{ color: selCourt === c.courtId ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: '600' }}>
+                                        {c.courtName}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </ScrollView>
+                )}
+
+                {/* Legend */}
+                <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                    {[['FREE','Müsait'],['PENDING','Bekliyor'],['CONFIRMED','Rezerveli']].map(([s, lbl]) => (
+                        <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                            <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: SLOT_STATUS_COLOR[s] }} />
+                            <Text style={{ color: '#888', fontSize: 11 }}>{lbl}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                {/* Slot grid */}
+                {loading
+                    ? <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 40 }} />
+                    : (
+                        <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
+                            {(!courtData || courtData.slots?.length === 0) && (
+                                <Text style={{ color: '#555', textAlign: 'center', marginTop: 32, fontSize: 13 }}>
+                                    Bu gün için slot bulunamadı
+                                </Text>
+                            )}
+                            {courtData?.slots?.map((slot, i) => (
+                                <View key={i} style={{
+                                    flexDirection: 'row', alignItems: 'stretch',
+                                    backgroundColor: SLOT_STATUS_BG[slot.status],
+                                    borderRadius: 12, marginBottom: 8,
+                                    borderWidth: 1, borderColor: SLOT_STATUS_COLOR[slot.status] + '55',
+                                    overflow: 'hidden',
+                                }}>
+                                    <View style={{ width: 5, backgroundColor: SLOT_STATUS_COLOR[slot.status] }} />
+                                    <View style={{ flex: 1, padding: 12 }}>
+                                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>
+                                            {slot.start} – {slot.end}
+                                        </Text>
+                                        {slot.user
+                                            ? <Text style={{ color: '#60a5fa', fontSize: 12, marginTop: 3 }}>
+                                                @{slot.user.username}{slot.user.fullName ? `  ·  ${slot.user.fullName}` : ''}
+                                              </Text>
+                                            : null}
+                                        <Text style={{ color: SLOT_STATUS_COLOR[slot.status], fontSize: 11, marginTop: 3, fontWeight: '700' }}>
+                                            {SLOT_STATUS_LABEL[slot.status]}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ))}
+                            <View style={{ height: 32 }} />
+                        </ScrollView>
+                    )
+                }
+            </View>
+        </Modal>
+    );
+}
+
 // ── Tesis Kartı ────────────────────────────────────────────────────────────────
 const MENU_CATS = [
     { key: 'EQUIPMENT', label: '🎾 Ekipman' },
@@ -554,6 +694,7 @@ function VenueCard({ venue, sub, onDelete }) {
     const [reservations, setReservations]   = useState([]);
     const [resLoaded, setResLoaded]         = useState(false);
     const [resFilter, setResFilter]         = useState('today'); // today | week | all
+    const [scheduleOpen, setScheduleOpen]   = useState(false);
 
     const loadBlocks = async () => {
         try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
@@ -577,7 +718,7 @@ function VenueCard({ venue, sub, onDelete }) {
         if (tab === 'blocks'       && !blocksLoaded) loadBlocks();
         if (tab === 'menu'         && !menuLoaded)   loadMenu();
         if (tab === 'orders'       && !ordersLoaded) loadOrders();
-        if (tab === 'reservations' && !resLoaded)    loadReservations();
+        if (tab === 'reservations') { setScheduleOpen(true); if (!resLoaded) loadReservations(); }
     };
 
     const handleBlock = async () => {
@@ -801,80 +942,39 @@ function VenueCard({ venue, sub, onDelete }) {
                 </View>
             )}
 
-            {activeTab === 'reservations' && (() => {
-                const today = new Date().toISOString().slice(0, 10);
-                const weekEnd = new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10);
-                const filtered = reservations.filter(r => {
-                    if (resFilter === 'today') return r.date === today;
-                    if (resFilter === 'week')  return r.date >= today && r.date <= weekEnd;
-                    return true;
-                });
-                // Group by court
-                const byCourtMap = {};
-                filtered.forEach(r => {
-                    const key = r.court?.id || 'unknown';
-                    if (!byCourtMap[key]) byCourtMap[key] = { name: r.court?.name || 'Kort', list: [] };
-                    byCourtMap[key].list.push(r);
-                });
-                const courtGroups = Object.values(byCourtMap);
-
-                return (
-                    <View style={vc.panel}>
-                        {/* Filter buttons */}
-                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                            {[['today','Bugün'],['week','Bu Hafta'],['all','Tümü']].map(([k, lbl]) => (
-                                <TouchableOpacity key={k}
-                                    style={[vc.resFilterBtn, resFilter === k && vc.resFilterBtnActive]}
-                                    onPress={() => setResFilter(k)}>
-                                    <Text style={[vc.resFilterTxt, resFilter === k && vc.resFilterTxtActive]}>{lbl}</Text>
-                                </TouchableOpacity>
-                            ))}
-                            <TouchableOpacity onPress={loadReservations} style={{ marginLeft: 'auto', padding: 4 }}>
-                                <Text style={{ color: BIZ_COLOR, fontSize: 12 }}>↻ Yenile</Text>
+            {activeTab === 'reservations' && (
+                <View style={vc.panel}>
+                    <TouchableOpacity style={vc.scheduleBtn} onPress={() => setScheduleOpen(true)}>
+                        <Text style={vc.scheduleBtnTxt}>📅 Takvimi Görüntüle</Text>
+                    </TouchableOpacity>
+                    {/* Quick today list */}
+                    {reservations.filter(r => r.date === new Date().toISOString().slice(0,10) && r.status !== 'CANCELLED').map(r => (
+                        <View key={r.id} style={vc.resCard}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                <Text style={vc.resUser}>@{r.user?.username || '—'}</Text>
+                                <Text style={vc.resMeta}>{r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Kortta Öde'}{r.status === 'PENDING' ? '  · ⏳ Onay Bekleniyor' : ''}</Text>
+                            </View>
+                            <TouchableOpacity style={vc.resCancelBtn}
+                                onPress={() => Alert.alert('İptal Et', `${r.user?.username} kişisinin rezervasyonu iptal edilsin mi?`, [
+                                    { text: 'Vazgeç', style: 'cancel' },
+                                    { text: 'İptal Et', style: 'destructive', onPress: () => handleCancelReservation(r.id) },
+                                ])}>
+                                <Text style={vc.resCancelTxt}>İptal</Text>
                             </TouchableOpacity>
                         </View>
+                    ))}
+                    {resLoaded && reservations.filter(r => r.date === new Date().toISOString().slice(0,10) && r.status !== 'CANCELLED').length === 0 && (
+                        <Text style={vc.emptyTxt}>Bugün rezervasyon yok</Text>
+                    )}
+                </View>
+            )}
 
-                        {!resLoaded && <ActivityIndicator color={BIZ_COLOR} />}
-                        {resLoaded && filtered.length === 0 && (
-                            <Text style={vc.emptyTxt}>Bu dönem için rezervasyon yok</Text>
-                        )}
-
-                        {courtGroups.map(group => (
-                            <View key={group.name} style={{ marginBottom: 14 }}>
-                                <Text style={vc.resCourtName}>{group.name}</Text>
-                                {group.list.map(r => {
-                                    const isCancelled = r.status === 'CANCELLED';
-                                    return (
-                                        <View key={r.id} style={[vc.resCard, isCancelled && { opacity: 0.5 }]}>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={vc.resTime}>{r.date} · {r.startTime}–{r.endTime}</Text>
-                                                <Text style={vc.resUser}>@{r.user?.username || '—'}
-                                                    {r.user?.fullName ? `  ${r.user.fullName}` : ''}
-                                                </Text>
-                                                <Text style={vc.resMeta}>
-                                                    {r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Kortta Öde'}
-                                                    {isCancelled ? '  ·  ❌ İptal' : ''}
-                                                    {r.notes ? `  ·  ${r.notes}` : ''}
-                                                </Text>
-                                            </View>
-                                            {!isCancelled && (
-                                                <TouchableOpacity
-                                                    style={vc.resCancelBtn}
-                                                    onPress={() => Alert.alert('Rezervasyonu İptal Et', `${r.user?.username} kişisinin ${r.date} tarihli rezervasyonu iptal edilsin mi?`, [
-                                                        { text: 'Vazgeç', style: 'cancel' },
-                                                        { text: 'İptal Et', style: 'destructive', onPress: () => handleCancelReservation(r.id) },
-                                                    ])}>
-                                                    <Text style={vc.resCancelTxt}>İptal</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    );
-                                })}
-                            </View>
-                        ))}
-                    </View>
-                );
-            })()}
+            <VenueScheduleModal
+                visible={scheduleOpen}
+                venue={venue}
+                onClose={() => setScheduleOpen(false)}
+            />
         </View>
     );
 }
@@ -1241,6 +1341,8 @@ const vc = StyleSheet.create({
     orderCard:       { backgroundColor: colors.bg, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
     orderBtn:        { borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: '#22c55e40', backgroundColor: '#22c55e10', alignItems: 'center' },
     orderBtnTxt:     { color: '#22c55e', fontSize: 12, fontWeight: '700' },
+    scheduleBtn:     { backgroundColor: BIZ_COLOR + '18', borderRadius: 10, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '50', marginBottom: 12 },
+    scheduleBtnTxt:  { color: BIZ_LIGHT, fontWeight: '800', fontSize: 14 },
     resFilterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
     resFilterBtnActive: { borderColor: BIZ_COLOR + '60', backgroundColor: BIZ_COLOR + '15' },
     resFilterTxt:    { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
