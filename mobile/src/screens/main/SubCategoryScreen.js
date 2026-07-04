@@ -3364,202 +3364,261 @@ const vm = StyleSheet.create({
     orderBtnTxt:{ color:'#fff', fontSize:14, fontWeight:'700' },
 });
 
-// ─── Venue Booking Modal ──────────────────────────────────────────────────────
+// ─── Venue Multi-Court Booking Modal ─────────────────────────────────────────
+// Tüm kortları sekme olarak gösterir; boş=yeşil, dolu=kırmızı
 
-function VenueBookingModal({ visible, court, onClose, onBooked }) {
-    const toDateStr = (d) =>
-        `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-    const [selDate, setSelDate] = useState(() => toDateStr(new Date()));
-    const [slots, setSlots] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [selSlot, setSelSlot] = useState(null);
-    const [flexDur, setFlexDur]   = useState(60); // minutes, for FLEXIBLE type
-    const [payMethod, setPayMethod] = useState('CASH');
-    const [booking, setBooking] = useState(false);
-    const [menuOrderVisible, setMenuOrderVisible] = useState(false);
-
-    useEffect(() => {
-        if (!visible || !court?.venueId || !court?.courtId) return;
-        setSlots(null); setSelSlot(null);
-        setLoading(true);
-        api.get(`/venues/${court.venueId}/courts/${court.courtId}/slots`, { params: { date: selDate } })
-            .then(r => setSlots(r.data))
-            .catch(() => setSlots(null))
-            .finally(() => setLoading(false));
-    }, [visible, court, selDate]);
-
-    const shiftDate = (days) => {
-        const d = new Date(selDate);
-        d.setDate(d.getDate() + days);
-        setSelDate(toDateStr(d));
-        setSelSlot(null);
+function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked }) {
+    const todayStr = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     };
-
     const addMins = (t, m) => {
         const [h, min] = t.split(':').map(Number);
-        const total = h * 60 + min + m;
-        return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+        const tot = h * 60 + min + m;
+        return `${String(Math.floor(tot/60)).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`;
+    };
+    const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString('tr-TR',
+        { weekday: 'short', day: 'numeric', month: 'short' });
+
+    const [venue,       setVenue]       = useState(null);
+    const [loadingV,    setLoadingV]    = useState(false);
+    const [courtId,     setCourtId]     = useState(null);
+    const [selDate,     setSelDate]     = useState(todayStr);
+    const [slotsData,   setSlotsData]   = useState(null);
+    const [loadingS,    setLoadingS]    = useState(false);
+    const [selSlot,     setSelSlot]     = useState(null);
+    const [flexDur,     setFlexDur]     = useState(60);
+    const [payMethod,   setPayMethod]   = useState('CASH');
+    const [booking,     setBooking]     = useState(false);
+    const [menuVisible, setMenuVisible] = useState(false);
+
+    // Tesis verisi yükle
+    useEffect(() => {
+        if (!visible || !venueId) return;
+        setVenue(null); setSlotsData(null); setSelSlot(null); setSelDate(todayStr());
+        setLoadingV(true);
+        api.get(`/venues/${venueId}`)
+            .then(r => {
+                setVenue(r.data);
+                setCourtId(initialCourtId || r.data.courts?.[0]?.id || null);
+            })
+            .catch(() => setVenue(null))
+            .finally(() => setLoadingV(false));
+    }, [visible, venueId]);
+
+    // Slot verisi yükle
+    useEffect(() => {
+        if (!venue || !courtId || !venueId) return;
+        setSlotsData(null); setSelSlot(null); setLoadingS(true);
+        api.get(`/venues/${venueId}/courts/${courtId}/slots`, { params: { date: selDate } })
+            .then(r => setSlotsData(r.data))
+            .catch(() => setSlotsData(null))
+            .finally(() => setLoadingS(false));
+    }, [courtId, selDate, venue]);
+
+    const shiftDate = (days) => {
+        const d = new Date(selDate + 'T12:00:00');
+        d.setDate(d.getDate() + days);
+        const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        if (next < todayStr()) return;
+        setSelDate(next); setSelSlot(null);
     };
 
     const confirmBooking = async () => {
-        if (!selSlot) return;
-        const endTime = slots?.type === 'FLEXIBLE' ? addMins(selSlot.start, flexDur) : selSlot.end;
+        if (!selSlot || !courtId) return;
+        const activeCourt = venue?.courts?.find(c => c.id === courtId);
+        const endTime = slotsData?.type === 'FLEXIBLE' ? addMins(selSlot.start, flexDur) : selSlot.end;
         setBooking(true);
         try {
-            await api.post(`/venues/${court.venueId}/courts/${court.courtId}/reserve`, {
-                date: selDate, startTime: selSlot.start, endTime,
-                paymentMethod: payMethod,
+            await api.post(`/venues/${venueId}/courts/${courtId}/reserve`, {
+                date: selDate, startTime: selSlot.start, endTime, paymentMethod: payMethod,
             });
-            onBooked?.(court, selDate, selSlot.start, endTime);
+            const courtObj = { name: activeCourt?.name || '', venueId, courtId, id: courtId, city: venue?.city };
+            onBooked?.(courtObj, selDate, selSlot.start, endTime);
             try {
-                const menuRes = await api.get(`/venues/${court.venueId}/menu`);
-                if (menuRes.data?.hasMenu) {
-                    setMenuOrderVisible(true);
-                    return;
-                }
+                const menuRes = await api.get(`/venues/${venueId}/menu`);
+                if (menuRes.data?.hasMenu) { setMenuVisible(true); return; }
             } catch {}
-            Alert.alert('✅ Rezervasyon Yapıldı', `${court.name}\n${selDate} · ${selSlot.start}–${endTime}`);
+            Alert.alert('✅ Rezervasyon Yapıldı',
+                `${activeCourt?.name || ''}\n${selDate} · ${selSlot.start}–${endTime}`);
             onClose();
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon yapılamadı');
         } finally { setBooking(false); }
     };
 
-    const fmtDate = (str) => new Date(str).toLocaleDateString('tr-TR',
-        { weekday: 'short', day: 'numeric', month: 'short' });
-
-    const iban = court?.user?.businessIban;
-    const ibanHolder = court?.user?.businessIbanHolder;
+    const activeCourt = venue?.courts?.find(c => c.id === courtId);
+    const isStructured = slotsData && (slotsData.type === 'FULL_HOUR' || slotsData.type === 'HALF_HOUR' || slotsData.type === 'NINETY_MIN');
 
     return (
         <>
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={vb.overlay}>
                 <View style={vb.sheet}>
+                    {/* Header */}
                     <View style={vb.header}>
-                        <Text style={vb.title} numberOfLines={1}>{court?.name}</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={vb.title} numberOfLines={1}>{venue?.name || 'Tesis'}</Text>
+                            {venue && <Text style={vb.subtitle}>{venue.branch} · {venue.city}</Text>}
+                        </View>
                         <TouchableOpacity onPress={onClose} style={vb.closeBtn}>
                             <Text style={vb.closeX}>✕</Text>
                         </TouchableOpacity>
                     </View>
 
-                    <View style={vb.dateRow}>
-                        <TouchableOpacity onPress={() => shiftDate(-1)} style={vb.dateArrow}>
-                            <Text style={vb.dateArrowTxt}>‹</Text>
-                        </TouchableOpacity>
-                        <Text style={vb.dateLabel}>{fmtDate(selDate)}</Text>
-                        <TouchableOpacity onPress={() => shiftDate(1)} style={vb.dateArrow}>
-                            <Text style={vb.dateArrowTxt}>›</Text>
-                        </TouchableOpacity>
-                    </View>
+                    {loadingV && <ActivityIndicator color="#22c55e" style={{ marginVertical: 28 }} />}
 
-                    <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
-                        {loading && <ActivityIndicator color="#22c55e" style={{ marginVertical: 24 }} />}
+                    {!loadingV && venue && (
+                        <>
+                            {/* Kort Sekmeleri */}
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={vb.tabs}>
+                                {venue.courts.map(c => (
+                                    <TouchableOpacity key={c.id}
+                                        style={[vb.tab, c.id === courtId && vb.tabActive]}
+                                        onPress={() => { setCourtId(c.id); setSelSlot(null); }}
+                                        activeOpacity={0.7}>
+                                        <Text style={[vb.tabTxt, c.id === courtId && vb.tabTxtActive]}>
+                                            🎾 {c.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
 
-                        {/* FULL_HOUR, HALF_HOUR & NINETY_MIN */}
-                        {!loading && slots && (slots.type === 'FULL_HOUR' || slots.type === 'HALF_HOUR' || slots.type === 'NINETY_MIN') && (
-                            <>
-                                <Text style={vb.sectionLabel}>Saat Seçin</Text>
-                                <View style={vb.slotGrid}>
-                                    {slots.slots.map((sl, i) => {
-                                        const sel = selSlot?.start === sl.start;
-                                        return (
-                                            <TouchableOpacity
-                                                key={i} disabled={!sl.free}
-                                                style={[vb.slot, sl.free ? vb.slotFree : vb.slotTaken, sel && vb.slotSel]}
-                                                onPress={() => setSelSlot(sel ? null : sl)}
-                                            >
-                                                <Text style={[vb.slotT, !sl.free && vb.slotTakenT]}>{sl.start}</Text>
-                                                <Text style={[vb.slotT, { fontSize:10, opacity:.7 }, !sl.free && vb.slotTakenT]}>{sl.end}</Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                            </>
-                        )}
+                            {/* Tarih Seçici */}
+                            <View style={vb.dateRow}>
+                                <TouchableOpacity onPress={() => shiftDate(-1)} style={vb.dateArrow}>
+                                    <Text style={vb.dateArrowTxt}>‹</Text>
+                                </TouchableOpacity>
+                                <Text style={vb.dateLabel}>{fmtDate(selDate)}</Text>
+                                <TouchableOpacity onPress={() => shiftDate(1)} style={vb.dateArrow}>
+                                    <Text style={vb.dateArrowTxt}>›</Text>
+                                </TouchableOpacity>
+                            </View>
 
-                        {/* FLEXIBLE */}
-                        {!loading && slots?.type === 'FLEXIBLE' && (
-                            <>
-                                {slots.taken.length > 0 && (
+                            <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
+                                {loadingS && <ActivityIndicator color="#22c55e" style={{ marginVertical: 24 }} />}
+
+                                {/* Renk Açıklaması */}
+                                {!loadingS && isStructured && (
+                                    <View style={vb.legend}>
+                                        <View style={vb.legendItem}>
+                                            <View style={[vb.legendDot, { backgroundColor:'#16a34a' }]} />
+                                            <Text style={vb.legendTxt}>Boş</Text>
+                                        </View>
+                                        <View style={vb.legendItem}>
+                                            <View style={[vb.legendDot, { backgroundColor:'#dc2626' }]} />
+                                            <Text style={vb.legendTxt}>Dolu</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* FULL_HOUR / HALF_HOUR / NINETY_MIN — renkli grid */}
+                                {!loadingS && isStructured && (
+                                    <View style={vb.slotGrid}>
+                                        {slotsData.slots.map((sl, i) => {
+                                            const sel = selSlot?.start === sl.start;
+                                            return (
+                                                <TouchableOpacity key={i} disabled={!sl.free}
+                                                    style={[vb.slot,
+                                                        sl.free  ? vb.slotFree  : vb.slotTaken,
+                                                        sel && vb.slotSel,
+                                                    ]}
+                                                    onPress={() => setSelSlot(sel ? null : sl)}
+                                                    activeOpacity={0.75}>
+                                                    <Text style={[vb.slotT, !sl.free && vb.slotTakenT]}>{sl.start}</Text>
+                                                    <Text style={[vb.slotT, { fontSize:10, opacity:.7 }, !sl.free && vb.slotTakenT]}>{sl.end}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                )}
+
+                                {/* FLEXIBLE */}
+                                {!loadingS && slotsData?.type === 'FLEXIBLE' && (
                                     <>
-                                        <Text style={vb.sectionLabel}>🔴 Dolu</Text>
-                                        {slots.taken.map((t, i) => (
-                                            <Text key={i} style={vb.takenRow}>{t.start} – {t.end}</Text>
-                                        ))}
+                                        {slotsData.taken.length > 0 && (
+                                            <>
+                                                <Text style={vb.sectionLabel}>🔴 Dolu</Text>
+                                                {slotsData.taken.map((t, i) => (
+                                                    <Text key={i} style={vb.takenRow}>{t.start} – {t.end}</Text>
+                                                ))}
+                                            </>
+                                        )}
+                                        <Text style={[vb.sectionLabel, { marginTop:12 }]}>🟢 Müsait Pencereler</Text>
+                                        {slotsData.windows.map((w, i) => {
+                                            const sel = selSlot?.start === w.start;
+                                            return (
+                                                <TouchableOpacity key={i}
+                                                    style={[vb.flexWin, sel && vb.flexWinSel]}
+                                                    onPress={() => { setSelSlot(sel ? null : w); setFlexDur(60); }}>
+                                                    <Text style={vb.flexWinTxt}>{w.start} – {w.end}</Text>
+                                                    <Text style={vb.flexWinSub}>Max {Math.floor(w.durationMins/60)}s {w.durationMins%60 ? w.durationMins%60+'dk':''}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                        {selSlot && (
+                                            <>
+                                                <Text style={[vb.sectionLabel, { marginTop:12 }]}>Süre Seçin</Text>
+                                                <View style={vb.durRow}>
+                                                    {[60,90,120,150,180].filter(m => m <= selSlot.durationMins).map(m => (
+                                                        <TouchableOpacity key={m}
+                                                            style={[vb.durBtn, flexDur===m && vb.durBtnSel]}
+                                                            onPress={() => setFlexDur(m)}>
+                                                            <Text style={[vb.durTxt, flexDur===m && vb.durTxtSel]}>
+                                                                {m<60?m+'dk':m===60?'1s':m===90?'1.5s':m===120?'2s':m===150?'2.5s':'3s'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </>
+                                        )}
                                     </>
                                 )}
-                                <Text style={[vb.sectionLabel, { marginTop: 12 }]}>🟢 Müsait Pencereler</Text>
-                                {slots.windows.map((w, i) => {
-                                    const sel = selSlot?.start === w.start;
-                                    return (
-                                        <TouchableOpacity key={i}
-                                            style={[vb.flexWin, sel && vb.flexWinSel]}
-                                            onPress={() => { setSelSlot(sel ? null : w); setFlexDur(60); }}>
-                                            <Text style={vb.flexWinTxt}>{w.start} – {w.end}</Text>
-                                            <Text style={vb.flexWinSub}>Max {Math.floor(w.durationMins/60)}s {w.durationMins%60 ? w.durationMins%60+'dk' : ''}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
+
+                                {!loadingS && !slotsData && (
+                                    <Text style={vb.emptyTxt}>Slot bilgisi alınamadı</Text>
+                                )}
+
+                                {/* Ödeme + Rezervasyon */}
                                 {selSlot && (
-                                    <>
-                                        <Text style={[vb.sectionLabel, { marginTop:12 }]}>Süre Seçin</Text>
-                                        <View style={vb.durRow}>
-                                            {[60, 90, 120, 150, 180].filter(m => m <= selSlot.durationMins).map(m => (
+                                    <View style={{ marginTop:18 }}>
+                                        <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
+                                        <View style={vb.payRow}>
+                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT']].map(([m, label]) => (
                                                 <TouchableOpacity key={m}
-                                                    style={[vb.durBtn, flexDur === m && vb.durBtnSel]}
-                                                    onPress={() => setFlexDur(m)}>
-                                                    <Text style={[vb.durTxt, flexDur === m && vb.durTxtSel]}>
-                                                        {m < 60 ? m+'dk' : m === 60 ? '1s' : m === 90 ? '1.5s' : m === 120 ? '2s' : m === 150 ? '2.5s' : '3s'}
-                                                    </Text>
+                                                    style={[vb.payBtn, payMethod===m && vb.payBtnSel]}
+                                                    onPress={() => setPayMethod(m)}>
+                                                    <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
-                                    </>
-                                )}
-                            </>
-                        )}
-
-                        {!loading && !slots && (
-                            <Text style={vb.emptyTxt}>Slot bilgisi alınamadı</Text>
-                        )}
-
-                        {/* Ödeme */}
-                        {selSlot && (
-                            <View style={{ marginTop: 18 }}>
-                                <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
-                                <View style={vb.payRow}>
-                                    {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT']].map(([m, label]) => (
-                                        <TouchableOpacity key={m}
-                                            style={[vb.payBtn, payMethod===m && vb.payBtnSel]}
-                                            onPress={() => setPayMethod(m)}>
-                                            <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
+                                        {payMethod === 'EFT' && venue?.user?.businessIban && (
+                                            <View style={vb.ibanBox}>
+                                                {venue.user.businessIbanHolder && (
+                                                    <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.user.businessIbanHolder}</Text></Text>
+                                                )}
+                                                <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal, { fontFamily:'monospace' }]} selectable>{venue.user.businessIban}</Text></Text>
+                                            </View>
+                                        )}
+                                        <TouchableOpacity style={vb.bookBtn} onPress={confirmBooking} disabled={booking}>
+                                            {booking
+                                                ? <ActivityIndicator color="#fff" />
+                                                : <Text style={vb.bookBtnTxt}>Rezervasyon Yap</Text>}
                                         </TouchableOpacity>
-                                    ))}
-                                </View>
-                                {payMethod === 'EFT' && iban && (
-                                    <View style={vb.ibanBox}>
-                                        {ibanHolder && <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{ibanHolder}</Text></Text>}
-                                        <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal, { fontFamily:'monospace' }]} selectable>{iban}</Text></Text>
                                     </View>
                                 )}
-                                <TouchableOpacity style={vb.bookBtn} onPress={confirmBooking} disabled={booking}>
-                                    {booking
-                                        ? <ActivityIndicator color="#fff" />
-                                        : <Text style={vb.bookBtnTxt}>Rezervasyon Yap</Text>}
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                        <View style={{ height: 20 }} />
-                    </ScrollView>
+                                <View style={{ height: 24 }} />
+                            </ScrollView>
+                        </>
+                    )}
                 </View>
             </View>
         </Modal>
         <VenueMenuOrderModal
-            visible={menuOrderVisible}
-            venueId={court?.venueId}
-            onClose={() => { setMenuOrderVisible(false); onClose(); }}
+            visible={menuVisible}
+            venueId={venueId}
+            onClose={() => { setMenuVisible(false); onClose(); }}
         />
         </>
     );
@@ -3567,24 +3626,40 @@ function VenueBookingModal({ visible, court, onClose, onBooked }) {
 
 const vb = StyleSheet.create({
     overlay:      { flex:1, backgroundColor:'#000b', justifyContent:'flex-end' },
-    sheet:        { backgroundColor:'#12121e', borderTopLeftRadius:20, borderTopRightRadius:20, maxHeight:'87%' },
-    header:       { flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor:'#ffffff12' },
-    title:        { flex:1, color:'#fff', fontSize:16, fontWeight:'700' },
-    closeBtn:     { padding:4 },
-    closeX:       { color:'#888', fontSize:18 },
-    dateRow:      { flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:10, gap:16 },
+    sheet:        { backgroundColor:'#12121e', borderTopLeftRadius:20, borderTopRightRadius:20, maxHeight:'90%' },
+    header:       { flexDirection:'row', alignItems:'flex-start', padding:16, borderBottomWidth:1, borderBottomColor:'#ffffff12' },
+    title:        { color:'#fff', fontSize:16, fontWeight:'800' },
+    subtitle:     { color:'#888', fontSize:12, marginTop:2 },
+    closeBtn:     { width:32, height:32, alignItems:'center', justifyContent:'center', borderRadius:16, backgroundColor:'#ffffff10' },
+    closeX:       { color:'#888', fontSize:16, fontWeight:'700' },
+
+    tabs:         { paddingHorizontal:14, paddingVertical:8, gap:8 },
+    tab:          { paddingVertical:6, paddingHorizontal:14, borderRadius:20, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff15' },
+    tabActive:    { backgroundColor:'#9333ea22', borderColor:'#9333ea' },
+    tabTxt:       { color:'#888', fontSize:13, fontWeight:'600' },
+    tabTxtActive: { color:'#c084fc', fontWeight:'700' },
+
+    dateRow:      { flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:10, gap:16, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
     dateArrow:    { padding:10 },
     dateArrowTxt: { color:'#fff', fontSize:26, fontWeight:'700' },
-    dateLabel:    { color:'#fff', fontSize:14, fontWeight:'600', minWidth:150, textAlign:'center' },
-    body:         { padding:16 },
+    dateLabel:    { color:'#fff', fontSize:14, fontWeight:'700', minWidth:150, textAlign:'center' },
+
+    body:         { padding:16, maxHeight:420 },
+
+    legend:       { flexDirection:'row', gap:14, marginBottom:10 },
+    legendItem:   { flexDirection:'row', alignItems:'center', gap:5 },
+    legendDot:    { width:11, height:11, borderRadius:6 },
+    legendTxt:    { color:'#888', fontSize:12 },
+
     slotGrid:     { flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:4 },
-    slot:         { width:'22%', aspectRatio:1.15, borderRadius:9, alignItems:'center', justifyContent:'center', borderWidth:1 },
-    slotFree:     { backgroundColor:'#16a34a18', borderColor:'#22c55e' },
-    slotTaken:    { backgroundColor:'#33333340', borderColor:'#3f3f3f' },
-    slotSel:      { backgroundColor:'#22c55e35', borderWidth:2 },
-    slotT:        { color:'#22c55e', fontSize:12, fontWeight:'700' },
-    slotTakenT:   { color:'#555' },
-    sectionLabel: { color:'#888', fontSize:11, fontWeight:'700', marginBottom:8, letterSpacing:0.5 },
+    slot:         { width:'22%', aspectRatio:1.15, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1.5 },
+    slotFree:     { backgroundColor:'#14532d', borderColor:'#16a34a' },
+    slotTaken:    { backgroundColor:'#450a0a', borderColor:'#7f1d1d', opacity:0.75 },
+    slotSel:      { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2.5 },
+    slotT:        { color:'#4ade80', fontSize:12, fontWeight:'700' },
+    slotTakenT:   { color:'#ef4444' },
+
+    sectionLabel: { color:'#888', fontSize:11, fontWeight:'700', marginBottom:8, letterSpacing:0.5, textTransform:'uppercase' },
     takenRow:     { color:'#ef4444', fontSize:13, marginBottom:4 },
     flexWin:      { backgroundColor:'#16a34a18', borderRadius:8, borderWidth:1, borderColor:'#22c55e55', padding:12, marginBottom:8 },
     flexWinSel:   { borderColor:'#22c55e', backgroundColor:'#16a34a30' },
@@ -3647,7 +3722,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [ratingPickerTarget, setRatingPickerTarget] = useState(null);
-    const [venueBooking, setVenueBooking] = useState({ visible: false, court: null });
+    const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null });
     const [menuOrder, setMenuOrder] = useState({ visible: false, venueId: null });
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
 
@@ -3685,7 +3760,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
 
     const selectCourt = (court) => {
         if (court.isBusinessVenue) {
-            setVenueBooking({ visible: true, court });
+            setVenueBooking({ visible: true, venueId: court.venueId, initialCourtId: court.courtId });
             set('courtResults', []);
             return;
         }
@@ -4218,8 +4293,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         </Modal>
         <VenueBookingModal
             visible={venueBooking.visible}
-            court={venueBooking.court}
-            onClose={() => setVenueBooking({ visible: false, court: null })}
+            venueId={venueBooking.venueId}
+            initialCourtId={venueBooking.initialCourtId}
+            onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null })}
             onBooked={(court, date, startTime) => {
                 setF(p => ({
                     ...p,
@@ -4231,7 +4307,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
                     venueId: court.venueId || null,
                     venueCourtId: court.courtId || null,
                 }));
-                setVenueBooking({ visible: false, court: null });
+                setVenueBooking({ visible: false, venueId: null, initialCourtId: null });
             }}
         />
         <VenueMenuOrderModal

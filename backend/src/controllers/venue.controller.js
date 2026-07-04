@@ -360,6 +360,20 @@ export const searchVenues = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const getVenueById = async (req, res, next) => {
+    try {
+        const venue = await prisma.businessVenue.findUnique({
+            where: { id: req.params.id, status: 'APPROVED' },
+            include: {
+                courts: true,
+                user: { select: { id: true, username: true, businessName: true, businessIban: true, businessIbanHolder: true } },
+            },
+        });
+        if (!venue) return res.status(404).json({ message: 'Tesis bulunamadı' });
+        res.json(venue);
+    } catch (error) { next(error); }
+};
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export const getPendingVenues = async (req, res, next) => {

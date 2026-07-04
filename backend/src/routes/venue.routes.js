@@ -5,7 +5,7 @@ import {
     createVenue, getMyVenues, deleteVenue, updateIban,
     getVenueSlots, makeReservation, getVenueReservations, cancelReservation,
     getMyReservations, getOwnerSchedule,
-    searchVenues,
+    searchVenues, getVenueById,
     getPendingVenues, approveVenue, rejectVenue,
     blockUser, unblockUser, getBlockedUsers,
     addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
@@ -46,6 +46,7 @@ router.get('/:id/menu',                  getVenueMenu);
 router.post('/:id/orders',               placeOrder);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);
 router.post('/:id/courts/:courtId/reserve', makeReservation);
+router.get('/:id', getVenueById);
 
 // Admin
 router.get('/admin/pending',   requireAdmin, getPendingVenues);
