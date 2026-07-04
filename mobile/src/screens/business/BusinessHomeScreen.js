@@ -724,8 +724,7 @@ const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef
 const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
 const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: 'Bekliyor (EFT)', CONFIRMED: 'Rezerveli' };
 
-const TIME_COL_W  = 72;
-const COURT_COL_W = 62;
+const SCHED_COURT_W = 130;
 
 function VenueScheduleModal({ visible, venue, onClose }) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -750,13 +749,7 @@ function VenueScheduleModal({ visible, venue, onClose }) {
             .finally(() => setLoading(false));
     }, [visible, venue?.id, selDate]);
 
-    // Build unified time axis from first court's slots
-    const courts   = schedule?.courts || [];
-    const timeAxis = courts[0]?.slots || [];
-
-    // Lookup helper: get slot status for a given court + row index
-    const getCell = (courtId, idx) =>
-        schedule?.courts?.find(c => c.courtId === courtId)?.slots?.[idx] || null;
+    const courts = schedule?.courts || [];
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -804,63 +797,54 @@ function VenueScheduleModal({ visible, venue, onClose }) {
                     : courts.length === 0
                         ? <Text style={{ color:'#555', textAlign:'center', marginTop:40, fontSize:13 }}>Tesis bulunamadı</Text>
                         : (
-                            /* Outer vertical scroll */
                             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                                {/* Inner horizontal scroll (for many courts) */}
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                    <View>
-                                        {/* Header row: time label + court names */}
-                                        <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ffffff18' }}>
-                                            <View style={{ width: TIME_COL_W, padding: 10, justifyContent: 'center' }}>
-                                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700' }}>SAAT</Text>
-                                            </View>
-                                            {courts.map(c => (
-                                                <View key={c.courtId} style={{ width: COURT_COL_W, padding: 10,
-                                                    alignItems: 'center', justifyContent: 'center',
-                                                    borderLeftWidth: 1, borderLeftColor: '#ffffff10' }}>
-                                                    <Text style={{ color: BIZ_LIGHT, fontSize: 12, fontWeight: '800', textAlign: 'center' }}>
-                                                        {c.courtName}
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 40 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                                        {courts.map(court => (
+                                            <View key={court.courtId} style={{ width: SCHED_COURT_W }}>
+                                                {/* Court header */}
+                                                <View style={{ backgroundColor: BIZ_COLOR + '22', borderRadius: 10,
+                                                    padding: 10, marginBottom: 8, alignItems: 'center',
+                                                    borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
+                                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 13, textAlign: 'center' }}>
+                                                        {court.courtName}
+                                                    </Text>
+                                                    <Text style={{ color: '#888', fontSize: 10, marginTop: 2 }}>
+                                                        {court.slots.length} slot
                                                     </Text>
                                                 </View>
-                                            ))}
-                                        </View>
 
-                                        {/* Data rows: one per time slot */}
-                                        {timeAxis.map((slot, rowIdx) => (
-                                            <View key={rowIdx} style={{ flexDirection: 'row',
-                                                borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
-                                                {/* Time label */}
-                                                <View style={{ width: TIME_COL_W, paddingVertical: 12, paddingLeft: 8, paddingRight: 3,
-                                                    justifyContent: 'center', backgroundColor: '#ffffff05' }}>
-                                                    <Text style={{ color: '#ddd', fontSize: 12, fontWeight: '700' }}>{slot.start}</Text>
-                                                    <Text style={{ color: '#666', fontSize: 10, marginTop: 1 }}>– {slot.end}</Text>
-                                                </View>
-
-                                                {/* Court cells */}
-                                                {courts.map(c => {
-                                                    const cell = getCell(c.courtId, rowIdx);
-                                                    const st = cell?.status || 'FREE';
+                                                {/* Slot cells */}
+                                                {court.slots.length === 0 ? (
+                                                    <View style={{ backgroundColor: '#ffffff08', borderRadius: 8, padding: 10, alignItems: 'center' }}>
+                                                        <Text style={{ color: '#555', fontSize: 11 }}>Slot yok</Text>
+                                                    </View>
+                                                ) : court.slots.map((slot, si) => {
+                                                    const st = slot.status || 'FREE';
+                                                    const color = SLOT_STATUS_COLOR[st];
+                                                    const bg    = SLOT_STATUS_BG[st];
                                                     return (
-                                                        <View key={c.courtId} style={{
-                                                            width: COURT_COL_W,
-                                                            paddingVertical: 10, paddingHorizontal: 8,
-                                                            backgroundColor: SLOT_STATUS_BG[st],
-                                                            borderLeftWidth: 1, borderLeftColor: '#ffffff10',
-                                                            justifyContent: 'center', alignItems: 'center',
+                                                        <View key={si} style={{
+                                                            backgroundColor: bg,
+                                                            borderRadius: 8, padding: 10, marginBottom: 6,
+                                                            borderWidth: 1, borderColor: color + '55',
+                                                            minHeight: 60,
                                                         }}>
-                                                            <View style={{ width: 28, height: 28, borderRadius: 14,
-                                                                backgroundColor: SLOT_STATUS_COLOR[st] + '30',
-                                                                borderWidth: 1.5, borderColor: SLOT_STATUS_COLOR[st],
-                                                                alignItems: 'center', justifyContent: 'center',
-                                                                marginBottom: cell?.user ? 4 : 0 }}>
-                                                                <Text style={{ fontSize: 12 }}>
-                                                                    {st === 'FREE' ? '✓' : st === 'PENDING' ? '⏳' : '●'}
+                                                            <Text style={{ color: color, fontSize: 12, fontWeight: '800' }}>
+                                                                {slot.start}
+                                                            </Text>
+                                                            <Text style={{ color: color + 'aa', fontSize: 11, marginTop: 1 }}>
+                                                                – {slot.end}
+                                                            </Text>
+                                                            {slot.user ? (
+                                                                <Text style={{ color: '#60a5fa', fontSize: 11, marginTop: 5,
+                                                                    fontWeight: '600' }} numberOfLines={1}>
+                                                                    @{slot.user.username}
                                                                 </Text>
-                                                            </View>
-                                                            {cell?.user && (
-                                                                <Text style={{ color: '#60a5fa', fontSize: 10, textAlign: 'center' }}
-                                                                    numberOfLines={1}>
-                                                                    @{cell.user.username}
+                                                            ) : (
+                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 5 }}>
+                                                                    {SLOT_STATUS_LABEL[st]}
                                                                 </Text>
                                                             )}
                                                         </View>
@@ -868,7 +852,6 @@ function VenueScheduleModal({ visible, venue, onClose }) {
                                                 })}
                                             </View>
                                         ))}
-                                        <View style={{ height: 32 }} />
                                     </View>
                                 </ScrollView>
                             </ScrollView>
@@ -915,7 +898,11 @@ function VenueCard({ venue, sub, onDelete }) {
     const [resFilter, setResFilter]         = useState('today'); // today | week | all
     const [scheduleOpen, setScheduleOpen]     = useState(false);
     const [analyticsOpen, setAnalyticsOpen]   = useState(false);
-    const [localSlotType, setLocalSlotType]   = useState(venue.slotType || 'FULL_HOUR');
+    const [courtSlotTypes, setCourtSlotTypes] = useState(() => {
+        const init = {};
+        (venue.courts || []).forEach(c => { init[c.id] = c.slotType || venue.slotType || 'FULL_HOUR'; });
+        return init;
+    });
     const [savingSlot, setSavingSlot]         = useState(false);
 
     const loadBlocks = async () => {
@@ -992,12 +979,12 @@ function VenueCard({ venue, sub, onDelete }) {
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İptal edilemedi'); }
     };
 
-    const handleUpdateSlotType = async (type) => {
-        if (type === localSlotType) return;
+    const handleUpdateCourtSlotType = async (courtId, type) => {
+        if (courtSlotTypes[courtId] === type) return;
         setSavingSlot(true);
         try {
-            await api.patch(`/venues/${venue.id}/settings`, { slotType: type });
-            setLocalSlotType(type);
+            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { slotType: type });
+            setCourtSlotTypes(prev => ({ ...prev, [courtId]: type }));
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingSlot(false); }
     };
@@ -1208,45 +1195,43 @@ function VenueCard({ venue, sub, onDelete }) {
             {activeTab === 'settings' && (
                 <View style={vc.panel}>
                     <Text style={{ color: '#888', fontSize: 12, marginBottom: 14, lineHeight: 17 }}>
-                        Kortlarınız için rezervasyon tipini seçin. Değişiklik anında uygulanır.
+                        Her kort için rezervasyon tipini ayrı ayrı seçebilirsiniz. Değişiklik anında uygulanır.
                     </Text>
-                    {[
-                        {
-                            key: 'FULL_HOUR',
-                            title: 'Tam Saatli',
-                            desc: 'Saat başı sabit 60 dk slotlar\n09:00–10:00 · 10:00–11:00 · 11:00–12:00',
-                        },
-                        {
-                            key: 'HALF_HOUR',
-                            title: 'Buçuklu Saatli',
-                            desc: 'Yarım saatte başlayan 60 dk slotlar\n09:30–10:30 · 10:30–11:30 · 11:30–12:30',
-                        },
-                        {
-                            key: 'VAR_DURATION',
-                            title: 'Esnek Süre',
-                            desc: 'Kullanıcı 60 / 90 / 120 dk seçer\nRezerasyonlar arka arkaya — boşluk yok\nBirisi 10:00–11:30 aldıysa 11:30\'dan devam',
-                        },
-                    ].map(opt => {
-                        const isActive = localSlotType === opt.key;
+                    {(venue.courts || []).map(court => {
+                        const currentType = courtSlotTypes[court.id] || 'FULL_HOUR';
                         return (
-                            <TouchableOpacity key={opt.key}
-                                style={[vc.settingCard, isActive && vc.settingCardActive]}
-                                onPress={() => handleUpdateSlotType(opt.key)}
-                                disabled={savingSlot}>
-                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                                    <View style={[vc.radio, isActive && vc.radioActive]}>
-                                        {isActive && <View style={vc.radioDot} />}
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 14 }}>
-                                            {opt.title}
-                                        </Text>
-                                        <Text style={{ color: '#777', fontSize: 12, marginTop: 4, lineHeight: 17 }}>
-                                            {opt.desc}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
+                            <View key={court.id} style={{ marginBottom: 22 }}>
+                                <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>
+                                    🏟 {court.name}
+                                </Text>
+                                {[
+                                    { key: 'FULL_HOUR',   title: 'Tam Saatli',    desc: 'Saat başı 60 dk\n09:00–10:00 · 10:00–11:00' },
+                                    { key: 'HALF_HOUR',   title: 'Buçuklu Saatli', desc: '30 dk geçmiş saatte başlar\n09:30–10:30 · 10:30–11:30' },
+                                    { key: 'VAR_DURATION', title: 'Esnek Süre',   desc: 'Kullanıcı 60 / 90 / 120 dk seçer\nRezerasyonlar arka arkaya — boşluk yok' },
+                                ].map(opt => {
+                                    const isActive = currentType === opt.key;
+                                    return (
+                                        <TouchableOpacity key={opt.key}
+                                            style={[vc.settingCard, isActive && vc.settingCardActive]}
+                                            onPress={() => handleUpdateCourtSlotType(court.id, opt.key)}
+                                            disabled={savingSlot}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                                                <View style={[vc.radio, isActive && vc.radioActive]}>
+                                                    {isActive && <View style={vc.radioDot} />}
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 14 }}>
+                                                        {opt.title}
+                                                    </Text>
+                                                    <Text style={{ color: '#777', fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+                                                        {opt.desc}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
                         );
                     })}
                     {savingSlot && <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 10 }} />}

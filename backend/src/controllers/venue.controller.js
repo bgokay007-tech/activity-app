@@ -177,15 +177,49 @@ export const getVenueSlots = async (req, res, next) => {
         const { date } = req.query;
         if (!date) return res.status(400).json({ message: 'date parametresi gerekli (YYYY-MM-DD)' });
 
-        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        const [venue, court] = await Promise.all([
+            prisma.businessVenue.findUnique({ where: { id } }),
+            prisma.venueCourt.findUnique({ where: { id: courtId } }),
+        ]);
         if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
 
         const reservations = await prisma.courtReservation.findMany({
             where: { venueId: id, courtId },
         });
 
-        res.json(computeSlots(venue, reservations, date));
+        const effectiveVenue = { ...venue, slotType: court?.slotType || venue.slotType };
+        res.json(computeSlots(effectiveVenue, reservations, date));
     } catch (error) { next(error); }
+};
+
+export const updateCourtSettings = async (req, res, next) => {
+    try {
+        const { id, courtId } = req.params;
+        const { slotType } = req.body;
+        const VALID_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
+        if (slotType && !VALID_TYPES.includes(slotType))
+            return res.status(400).json({ message: 'Geçersiz slot tipi' });
+
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const court = await prisma.venueCourt.update({
+            where: { id: courtId },
+            data: { slotType: slotType || null },
+        });
+        res.json({ court });
+    } catch (e) { next(e); }
+};
+
+export const getVenueById = async (req, res, next) => {
+    try {
+        const venue = await prisma.businessVenue.findUnique({
+            where: { id: req.params.id },
+            include: { courts: true },
+        });
+        if (!venue) return res.status(404).json({ message: 'Tesis bulunamadı' });
+        res.json(venue);
+    } catch (e) { next(e); }
 };
 
 export const makeReservation = async (req, res, next) => {
@@ -292,32 +326,42 @@ export const getOwnerSchedule = async (req, res, next) => {
         const findRes = (courtId, s, e) =>
             allRes.filter(r => r.courtId === courtId && overlaps(s, e, toMins(r.startTime), toMins(r.endTime)));
 
-        const buildSlots = (courtId) => {
-            const { slotType } = venue;
+        const buildSlots = (court) => {
+            const effectiveSlotType = court.slotType || venue.slotType;
             const slots = [];
 
-            if (slotType === 'FULL_HOUR') {
+            if (effectiveSlotType === 'FULL_HOUR') {
                 for (let t = open; t + 60 <= close; t += 60) {
-                    const rs = findRes(courtId, t, t + 60);
+                    const rs = findRes(court.id, t, t + 60);
                     slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
                 }
-            } else if (slotType === 'HALF_HOUR') {
+            } else if (effectiveSlotType === 'HALF_HOUR') {
                 let start = open;
                 if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
                 for (let t = start; t + 60 <= close; t += 60) {
-                    const rs = findRes(courtId, t, t + 60);
+                    const rs = findRes(court.id, t, t + 60);
                     slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
                 }
-            } else if (slotType === 'NINETY_MIN') {
+            } else if (effectiveSlotType === 'NINETY_MIN') {
                 for (let t = open; t + 90 <= close; t += 120) {
-                    const rs = findRes(courtId, t, t + 90);
+                    const rs = findRes(court.id, t, t + 90);
                     slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
                 }
             } else {
-                // FLEXIBLE — show reservations as-is
-                allRes.filter(r => r.courtId === courtId).forEach(r => {
+                // VAR_DURATION / FLEXIBLE — booked slots + free windows
+                const courtRes = allRes
+                    .filter(r => r.courtId === court.id)
+                    .sort((a, b) => toMins(a.startTime) - toMins(b.startTime));
+                let prev = open;
+                for (const r of courtRes) {
+                    const rStart = toMins(r.startTime);
+                    if (rStart > prev && rStart - prev >= 60)
+                        slots.push({ start: toTime(prev), end: toTime(rStart), status: 'FREE', user: null });
                     slots.push({ start: r.startTime, end: r.endTime, status: r.status, user: r.user });
-                });
+                    prev = Math.max(prev, toMins(r.endTime));
+                }
+                if (prev < close && close - prev >= 60)
+                    slots.push({ start: toTime(prev), end: toTime(close), status: 'FREE', user: null });
             }
             return slots;
         };
@@ -325,7 +369,8 @@ export const getOwnerSchedule = async (req, res, next) => {
         const courts = venue.courts.map(court => ({
             courtId:   court.id,
             courtName: court.name,
-            slots:     buildSlots(court.id),
+            slotType:  court.slotType || venue.slotType,
+            slots:     buildSlots(court),
         }));
 
         res.json({ slotType: venue.slotType, openTime: venue.openTime, closeTime: venue.closeTime, courts });

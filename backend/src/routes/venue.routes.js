@@ -5,7 +5,7 @@ import {
     createVenue, getMyVenues, deleteVenue, updateIban,
     getVenueSlots, makeReservation, getVenueReservations, cancelReservation,
     getMyReservations, getOwnerSchedule, getVenueAnalytics, updateVenueSettings,
-    searchVenues, getVenueById,
+    updateCourtSettings, searchVenues, getVenueById,
     getPendingVenues, approveVenue, rejectVenue,
     blockUser, unblockUser, getBlockedUsers,
     addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
@@ -48,6 +48,7 @@ router.get('/:id/menu',                  getVenueMenu);
 router.post('/:id/orders',               placeOrder);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);
 router.post('/:id/courts/:courtId/reserve', makeReservation);
+router.patch('/:id/courts/:courtId/settings', updateCourtSettings);
 router.get('/:id', getVenueById);
 
 // Admin
