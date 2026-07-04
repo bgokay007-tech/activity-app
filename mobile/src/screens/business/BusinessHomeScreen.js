@@ -940,6 +940,10 @@ function VenueCard({ venue, sub, onDelete }) {
     const [localCancelPolicy,     setLocalCancelPolicy]     = useState(venue.cancelHoursBefore     ?? null);
     const [localReschedulePolicy, setLocalReschedulePolicy] = useState(venue.rescheduleHoursBefore ?? null);
     const [savingPolicy,          setSavingPolicy]          = useState(false);
+    const [localAcceptedPayments, setLocalAcceptedPayments] = useState(
+        Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT']
+    );
+    const [savingPayments, setSavingPayments] = useState(false);
 
     const loadBlocks = async () => {
         try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
@@ -1020,6 +1024,19 @@ function VenueCard({ venue, sub, onDelete }) {
             const { data } = await api.patch(`/venues/reservations/${resId}/status`, { action });
             setReservations(p => p.map(r => r.id === resId ? { ...r, status: data.reservation.status, noShow: data.reservation.noShow } : r));
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Güncellenemedi'); }
+    };
+
+    const handleTogglePayment = async (method) => {
+        const next = localAcceptedPayments.includes(method)
+            ? localAcceptedPayments.filter(m => m !== method)
+            : [...localAcceptedPayments, method];
+        if (next.length === 0) { Alert.alert('Uyarı', 'En az bir ödeme yöntemi seçili olmalı'); return; }
+        setSavingPayments(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { acceptedPayments: next });
+            setLocalAcceptedPayments(next);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingPayments(false); }
     };
 
     const handleUpdateCourtSlotType = async (courtId, type) => {
@@ -1253,21 +1270,80 @@ function VenueCard({ venue, sub, onDelete }) {
                 </View>
             )}
 
-            {activeTab === 'reservations' && (
+            {activeTab === 'reservations' && (() => {
+                const nowRes = new Date();
+                const todayResStr = nowRes.toISOString().slice(0, 10);
+                const pendingApproval = reservations.filter(r => {
+                    if (r.status !== 'PENDING' || r.paymentMethod !== 'CASH') return false;
+                    const resStart = new Date(`${r.date}T${r.startTime}:00`);
+                    return resStart <= nowRes;
+                });
+                const todayList = reservations.filter(r => r.date === todayResStr && r.status !== 'CANCELLED');
+                return (
                 <View style={vc.panel}>
                     <TouchableOpacity style={vc.scheduleBtn} onPress={() => setScheduleOpen(true)}>
                         <Text style={vc.scheduleBtnTxt}>📅 Takvimi Görüntüle</Text>
                     </TouchableOpacity>
-                    {/* Quick today list */}
-                    {reservations.filter(r => r.date === new Date().toISOString().slice(0,10) && r.status !== 'CANCELLED').map(r => (
+
+                    {/* Onay bekleyen geçmiş nakit rezervasyonlar */}
+                    {pendingApproval.length > 0 && (
+                        <View style={{ marginBottom: 16 }}>
+                            <Text style={{ color: '#eab308', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                                ⏳ ONAY BEKLİYOR ({pendingApproval.length})
+                            </Text>
+                            {pendingApproval.map(r => (
+                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#eab30840', borderWidth: 1 }]}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                            <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
+                                            <Text style={vc.resMeta}>💵 Kortta Nakit · ⏳ Ödeme Bekleniyor</Text>
+                                            <Text style={{ color: '#eab308', fontSize: 10, marginTop: 3 }}>
+                                                4 saat içinde işlem yapmazsanız sistem otomatik onaylar
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                            onPress={() => handleUpdateResStatus(r.id, 'confirm')}>
+                                            <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Ödeme Alındı</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
+                                            onPress={() => Alert.alert('Gelmedi / İptal', 'Müşteri gelmedi olarak işaretlensin mi?', [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Gelmedi', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'noshow') },
+                                            ])}>
+                                            <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Gelmedi</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={{ backgroundColor: '#7c3aed18', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#7c3aed40' }}
+                                            onPress={() => Alert.alert('Admine Bildir', 'Ödeme alınmadı olarak admine yüksek öncelikli bildirim gönderilsin mi?', [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Bildir', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'no_payment') },
+                                            ])}>
+                                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700' }}>🚨 Bildir</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
+                    {/* Bugünün rezervasyonları */}
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                        BUGÜN
+                    </Text>
+                    {todayList.map(r => (
                         <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
                                     <Text style={vc.resUser}>@{r.user?.username || '—'}</Text>
                                     <Text style={vc.resMeta}>
-                                        {r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Kortta Öde'}
-                                        {r.status === 'PENDING' ? '  · ⏳ Onay Bekleniyor' : r.status === 'CONFIRMED' ? '  · ✅ Onaylandı' : ''}
+                                        {r.paymentMethod === 'EFT' ? '🏦 EFT' : r.paymentMethod === 'ONLINE' ? '💳 Online' : '💵 Kortta Öde'}
+                                        {r.status === 'PENDING' ? '  · ⏳ Bekleniyor' : r.status === 'CONFIRMED' ? '  · ✅ Onaylandı' : ''}
                                         {r.noShow ? '  · ❌ Gelmedi' : ''}
                                     </Text>
                                 </View>
@@ -1279,17 +1355,18 @@ function VenueCard({ venue, sub, onDelete }) {
                                     <Text style={vc.resCancelTxt}>İptal</Text>
                                 </TouchableOpacity>
                             </View>
-                            {r.paymentMethod === 'CASH' && r.status === 'PENDING' && (
+                            {r.paymentMethod === 'CASH' && r.status === 'PENDING' && (() => {
+                                const resStart = new Date(`${r.date}T${r.startTime}:00`);
+                                return resStart > nowRes;
+                            })() && (
                                 <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
                                     <TouchableOpacity
-                                        style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7,
-                                            alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                        style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
                                         onPress={() => handleUpdateResStatus(r.id, 'confirm')}>
                                         <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Ödeme Alındı</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7,
-                                            alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
+                                        style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
                                         onPress={() => Alert.alert('Gelmedi / İptal', 'Müşteri gelmedi olarak işaretlensin mi?', [
                                             { text: 'Vazgeç', style: 'cancel' },
                                             { text: 'Gelmedi', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'noshow') },
@@ -1300,11 +1377,12 @@ function VenueCard({ venue, sub, onDelete }) {
                             )}
                         </View>
                     ))}
-                    {resLoaded && reservations.filter(r => r.date === new Date().toISOString().slice(0,10) && r.status !== 'CANCELLED').length === 0 && (
+                    {resLoaded && todayList.length === 0 && pendingApproval.length === 0 && (
                         <Text style={vc.emptyTxt}>Bugün rezervasyon yok</Text>
                     )}
                 </View>
-            )}
+                );
+            })()}
 
             {activeTab === 'settings' && (
                 <View style={vc.panel}>
@@ -1486,6 +1564,43 @@ function VenueCard({ venue, sub, onDelete }) {
                         </View>
                     ))}
                     {savingPolicy && <ActivityIndicator color={BIZ_COLOR} size="small" />}
+
+                    {/* ── Ödeme Yöntemleri (PRO) ── */}
+                    {isPro && (
+                        <>
+                            <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                ÖDEME YÖNTEMLERİ
+                            </Text>
+                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>
+                                Hangi ödeme yöntemlerini kabul ediyorsunuz? Kullanıcılar yalnızca seçili yöntemlerle rezervasyon yapabilir.
+                            </Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                {[
+                                    { key: 'CASH',   label: '💵 Nakit / Kortta' },
+                                    { key: 'EFT',    label: '🏦 EFT / Havale' },
+                                    { key: 'ONLINE', label: '💳 Online Ödeme' },
+                                ].map(m => {
+                                    const isActive = localAcceptedPayments.includes(m.key);
+                                    return (
+                                        <TouchableOpacity key={m.key} disabled={savingPayments}
+                                            onPress={() => handleTogglePayment(m.key)}
+                                            style={{
+                                                paddingHorizontal: 12, paddingVertical: 8,
+                                                borderRadius: 8, borderWidth: 1.5,
+                                                borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
+                                                backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
+                                            }}>
+                                            <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: isActive ? '700' : '400' }}>
+                                                {m.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                            {savingPayments && <ActivityIndicator color={BIZ_COLOR} size="small" style={{ marginTop: 8 }} />}
+                        </>
+                    )}
                 </View>
             )}
 

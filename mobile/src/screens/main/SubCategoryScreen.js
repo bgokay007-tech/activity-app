@@ -3408,6 +3408,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             .then(r => {
                 setVenue(r.data);
                 setCourtId(initialCourtId || r.data.courts?.[0]?.id || null);
+                const acc = Array.isArray(r.data.acceptedPayments) ? r.data.acceptedPayments : ['CASH', 'EFT'];
+                if (!acc.includes('CASH')) setPayMethod(acc[0] || 'CASH');
             })
             .catch(() => setVenue(null))
             .finally(() => setLoadingV(false));
@@ -3631,7 +3633,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                     <View style={{ marginTop:18 }}>
                                         <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
                                         <View style={vb.payRow}>
-                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT']].map(([m, label]) => (
+                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['ONLINE','💳 Online']].filter(([m]) => {
+                                                const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : ['CASH','EFT'];
+                                                return acc.includes(m);
+                                            }).map(([m, label]) => (
                                                 <TouchableOpacity key={m}
                                                     style={[vb.payBtn, payMethod===m && vb.payBtnSel]}
                                                     onPress={() => setPayMethod(m)}>
@@ -3639,6 +3644,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
+                                        {payMethod === 'ONLINE' && (
+                                            <View style={vb.ibanBox}>
+                                                <Text style={[vb.ibanRow, { color: '#a78bfa' }]}>💳 Online ödeme yakında aktif olacak.</Text>
+                                            </View>
+                                        )}
                                         {payMethod === 'EFT' && venue?.user?.businessIban && (
                                             <View style={vb.ibanBox}>
                                                 {venue.user.businessIbanHolder && (

@@ -233,9 +233,15 @@ export default function MyReservationsScreen({ navigation }) {
         }
         return false;
     };
+    const awaitCount = reservations.filter(r =>
+        r.status === 'PENDING' && r.paymentMethod === 'CASH' &&
+        new Date(`${r.date}T${r.startTime}:00`) <= now
+    ).length;
+
     const filtered = reservations.filter(r => {
         if (filter === 'upcoming') return !isPast(r) && r.status === 'CONFIRMED';
         if (filter === 'pending')  return !isPast(r) && r.status === 'PENDING';
+        if (filter === 'await')    return r.status === 'PENDING' && r.paymentMethod === 'CASH' && new Date(`${r.date}T${r.startTime}:00`) <= now;
         if (filter === 'past')     return isPast(r)  || r.status === 'CANCELLED';
         return true;
     });
@@ -255,16 +261,17 @@ export default function MyReservationsScreen({ navigation }) {
                 {[
                     { key: 'upcoming', label: 'Yaklaşan' },
                     { key: 'pending',  label: 'Bekliyor' },
+                    { key: 'await',    label: awaitCount > 0 ? `Onay Bekliyor (${awaitCount})` : 'Onay Bekliyor' },
                     { key: 'past',     label: 'Geçmiş' },
                     { key: 'all',      label: 'Tümü' },
                 ].map(f => (
                     <TouchableOpacity
                         key={f.key}
-                        style={[s.filterBtn, filter === f.key && s.filterBtnActive]}
+                        style={[s.filterBtn, filter === f.key && (f.key === 'await' ? s.filterBtnAwait : s.filterBtnActive)]}
                         onPress={() => setFilter(f.key)}
                         activeOpacity={0.7}
                     >
-                        <Text style={[s.filterBtnText, filter === f.key && s.filterBtnTextActive]}>{f.label}</Text>
+                        <Text style={[s.filterBtnText, filter === f.key && (f.key === 'await' ? s.filterBtnTextAwait : s.filterBtnTextActive)]}>{f.label}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -282,6 +289,7 @@ export default function MyReservationsScreen({ navigation }) {
                             <Text style={s.emptyText}>
                                 {filter === 'upcoming' ? 'Onaylanmış yaklaşan rezervasyon yok.'
                                     : filter === 'pending' ? 'Onay bekleyen rezervasyon yok.'
+                                    : filter === 'await' ? 'Onay bekleyen geçmiş rezervasyon yok.'
                                     : 'Rezervasyon bulunamadı.'}
                             </Text>
                             {(filter === 'upcoming' || filter === 'pending') && (
@@ -312,8 +320,10 @@ const s = StyleSheet.create({
     filterRow: { flexDirection: 'row', padding: 12, gap: 8 },
     filterBtn: { flex: 1, borderRadius: 20, paddingVertical: 8, alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     filterBtnActive: { backgroundColor: colors.purple, borderColor: colors.purple },
+    filterBtnAwait: { backgroundColor: '#92400e', borderColor: '#eab308' },
     filterBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
     filterBtnTextActive: { color: '#fff' },
+    filterBtnTextAwait: { color: '#fde68a' },
 
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 

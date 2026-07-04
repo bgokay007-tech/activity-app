@@ -852,6 +852,7 @@ model BusinessVenue {
   pricePerSlot          Int      @default(0)           // TL cinsinden slot başı ücret
   cancelHoursBefore     Int?                           // null=her zaman, -1=asla, N>=0=N saat öncesine kadar
   rescheduleHoursBefore Int?                           // null=her zaman, -1=asla, N>=0=N saat öncesine kadar
+  acceptedPayments      Json     @default("[\"CASH\",\"EFT\"]") // kabul edilen ödeme yöntemleri
   status       String   @default("PENDING")   // PENDING | APPROVED | REJECTED
   adminNote   String?
   createdAt   DateTime @default(now())
