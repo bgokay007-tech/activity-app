@@ -195,18 +195,22 @@ export const getVenueSlots = async (req, res, next) => {
 export const updateCourtSettings = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
-        const { slotType } = req.body;
-        const VALID_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
+        const { slotType, surface } = req.body;
+        const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
+        const VALID_SURFACES = ['CLAY', 'HARD', 'CARPET', 'GRASS', 'PARQUET', 'SYNTHETIC'];
         if (slotType && !VALID_TYPES.includes(slotType))
             return res.status(400).json({ message: 'Geçersiz slot tipi' });
+        if (surface && !VALID_SURFACES.includes(surface))
+            return res.status(400).json({ message: 'Geçersiz zemin tipi' });
 
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
-        const court = await prisma.venueCourt.update({
-            where: { id: courtId },
-            data: { slotType: slotType || null },
-        });
+        const data = {};
+        if (slotType !== undefined) data.slotType = slotType || null;
+        if (surface  !== undefined) data.surface  = surface  || null;
+
+        const court = await prisma.venueCourt.update({ where: { id: courtId }, data });
         res.json({ court });
     } catch (e) { next(e); }
 };
@@ -359,6 +363,7 @@ export const getOwnerSchedule = async (req, res, next) => {
             courtId:   court.id,
             courtName: court.name,
             slotType:  court.slotType || venue.slotType,
+            surface:   court.surface || null,
             slots:     buildSlots(court),
         }));
 

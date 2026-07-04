@@ -867,6 +867,7 @@ model VenueCourt {
   venueId  String
   name     String
   slotType String?
+  surface  String?
 
   venue        BusinessVenue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
   reservations CourtReservation[]

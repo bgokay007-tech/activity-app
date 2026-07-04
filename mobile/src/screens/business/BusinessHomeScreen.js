@@ -724,6 +724,18 @@ const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef
 const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
 const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: 'Bekliyor (EFT)', CONFIRMED: 'Rezerveli' };
 
+const SURFACE_LABEL = {
+    CLAY:      'Toprak',
+    HARD:      'Sert Zemin',
+    CARPET:    'Halı Saha',
+    GRASS:     'Çim',
+    PARQUET:   'Parke',
+    SYNTHETIC: 'Sentetik',
+};
+const SURFACE_ICON = {
+    CLAY: '🟤', HARD: '🩶', CARPET: '🟥', GRASS: '🟢', PARQUET: '🟫', SYNTHETIC: '🟩',
+};
+
 const SCHED_COURT_W = 130;
 
 function VenueScheduleModal({ visible, venue, onClose }) {
@@ -810,7 +822,12 @@ function VenueScheduleModal({ visible, venue, onClose }) {
                                                     <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 13, textAlign: 'center' }}>
                                                         {court.courtName}
                                                     </Text>
-                                                    <Text style={{ color: '#888', fontSize: 10, marginTop: 2 }}>
+                                                    {court.surface ? (
+                                                        <Text style={{ color: '#aaa', fontSize: 10, marginTop: 3 }}>
+                                                            {SURFACE_ICON[court.surface]} {SURFACE_LABEL[court.surface]}
+                                                        </Text>
+                                                    ) : null}
+                                                    <Text style={{ color: '#666', fontSize: 10, marginTop: 2 }}>
                                                         {court.slots.length} slot
                                                     </Text>
                                                 </View>
@@ -903,6 +920,11 @@ function VenueCard({ venue, sub, onDelete }) {
         (venue.courts || []).forEach(c => { init[c.id] = c.slotType || venue.slotType || 'FULL_HOUR'; });
         return init;
     });
+    const [courtSurfaces, setCourtSurfaces] = useState(() => {
+        const init = {};
+        (venue.courts || []).forEach(c => { init[c.id] = c.surface || null; });
+        return init;
+    });
     const [savingSlot, setSavingSlot]         = useState(false);
 
     const loadBlocks = async () => {
@@ -987,6 +1009,14 @@ function VenueCard({ venue, sub, onDelete }) {
             setCourtSlotTypes(prev => ({ ...prev, [courtId]: type }));
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingSlot(false); }
+    };
+
+    const handleUpdateCourtSurface = async (courtId, surface) => {
+        const next = courtSurfaces[courtId] === surface ? null : surface;
+        try {
+            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { surface: next });
+            setCourtSurfaces(prev => ({ ...prev, [courtId]: next }));
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
     };
 
     const handleDelete = () => {
@@ -1198,16 +1228,22 @@ function VenueCard({ venue, sub, onDelete }) {
                         Her kort için rezervasyon tipini ayrı ayrı seçebilirsiniz. Değişiklik anında uygulanır.
                     </Text>
                     {(venue.courts || []).map(court => {
-                        const currentType = courtSlotTypes[court.id] || 'FULL_HOUR';
+                        const currentType    = courtSlotTypes[court.id] || 'FULL_HOUR';
+                        const currentSurface = courtSurfaces[court.id] || null;
                         return (
-                            <View key={court.id} style={{ marginBottom: 22 }}>
+                            <View key={court.id} style={{ marginBottom: 28 }}>
                                 <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>
                                     🏟 {court.name}
                                 </Text>
+
+                                {/* Rezervasyon tipi */}
+                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
+                                    REZERVASYON TİPİ
+                                </Text>
                                 {[
-                                    { key: 'FULL_HOUR',   title: 'Tam Saatli',    desc: 'Saat başı 60 dk\n09:00–10:00 · 10:00–11:00' },
-                                    { key: 'HALF_HOUR',   title: 'Buçuklu Saatli', desc: '30 dk geçmiş saatte başlar\n09:30–10:30 · 10:30–11:30' },
-                                    { key: 'VAR_DURATION', title: 'Esnek Süre',   desc: 'Kullanıcı 60 / 90 / 120 dk seçer\nRezerasyonlar arka arkaya — boşluk yok' },
+                                    { key: 'FULL_HOUR',    title: 'Tam Saatli',     desc: 'Saat başı 60 dk\n09:00–10:00 · 10:00–11:00' },
+                                    { key: 'HALF_HOUR',    title: 'Buçuklu Saatli', desc: '30 dk geçmiş saatte başlar\n09:30–10:30 · 10:30–11:30' },
+                                    { key: 'VAR_DURATION', title: 'Esnek Süre',     desc: 'Kullanıcı 60 / 90 / 120 dk seçer\nRezerasyonlar arka arkaya — boşluk yok' },
                                 ].map(opt => {
                                     const isActive = currentType === opt.key;
                                     return (
@@ -1231,6 +1267,42 @@ function VenueCard({ venue, sub, onDelete }) {
                                         </TouchableOpacity>
                                     );
                                 })}
+
+                                {/* Zemin tipi */}
+                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 10, marginBottom: 8, letterSpacing: 0.5 }}>
+                                    ZEMİN TİPİ
+                                </Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                    {[
+                                        { key: 'CLAY',      label: 'Toprak',   icon: '🟤' },
+                                        { key: 'HARD',      label: 'Sert Zemin', icon: '⬜' },
+                                        { key: 'CARPET',    label: 'Halı Saha', icon: '🟥' },
+                                        { key: 'GRASS',     label: 'Çim',       icon: '🌿' },
+                                        { key: 'PARQUET',   label: 'Parke',     icon: '🟫' },
+                                        { key: 'SYNTHETIC', label: 'Sentetik',  icon: '🟩' },
+                                    ].map(s => {
+                                        const isActive = currentSurface === s.key;
+                                        return (
+                                            <TouchableOpacity key={s.key}
+                                                onPress={() => handleUpdateCourtSurface(court.id, s.key)}
+                                                style={{
+                                                    paddingHorizontal: 10, paddingVertical: 6,
+                                                    borderRadius: 8, borderWidth: 1.5,
+                                                    borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
+                                                    backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
+                                                }}>
+                                                <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 12, fontWeight: isActive ? '700' : '400' }}>
+                                                    {s.icon} {s.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                                {currentSurface && (
+                                    <Text style={{ color: '#555', fontSize: 11, marginTop: 6 }}>
+                                        Seçili: {SURFACE_ICON[currentSurface]} {SURFACE_LABEL[currentSurface]} · Seçili zemine tekrar tıklayarak kaldırabilirsin
+                                    </Text>
+                                )}
                             </View>
                         );
                     })}
