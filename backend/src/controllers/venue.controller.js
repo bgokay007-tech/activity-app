@@ -211,17 +211,6 @@ export const updateCourtSettings = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
-export const getVenueById = async (req, res, next) => {
-    try {
-        const venue = await prisma.businessVenue.findUnique({
-            where: { id: req.params.id },
-            include: { courts: true },
-        });
-        if (!venue) return res.status(404).json({ message: 'Tesis bulunamadı' });
-        res.json(venue);
-    } catch (e) { next(e); }
-};
-
 export const makeReservation = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
