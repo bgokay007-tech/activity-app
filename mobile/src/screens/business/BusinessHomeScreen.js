@@ -526,8 +526,8 @@ const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef
 const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
 const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: 'Bekliyor (EFT)', CONFIRMED: 'Rezerveli' };
 
-const TIME_COL_W  = 78;
-const COURT_COL_W = 115;
+const TIME_COL_W  = 72;
+const COURT_COL_W = 80;
 
 function VenueScheduleModal({ visible, venue, onClose }) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
