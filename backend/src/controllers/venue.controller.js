@@ -50,6 +50,20 @@ function computeSlots(venue, reservations, date) {
         return { type: 'NINETY_MIN', slots };
     }
 
+    // VAR_DURATION — 60/90/120 dk seçilebilir, aralarında boşluk yok
+    if (venue.slotType === 'VAR_DURATION') {
+        const windows = [];
+        let prev = open;
+        for (const r of taken.sort((a, b) => a.s - b.s)) {
+            if (r.s > prev && r.s - prev >= 60)
+                windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
+            prev = Math.max(prev, r.e);
+        }
+        if (prev < close && close - prev >= 60)
+            windows.push({ start: toTime(prev), end: toTime(close), durationMins: close - prev });
+        return { type: 'VAR_DURATION', windows };
+    }
+
     // FLEXIBLE — serbest pencereler
     const windows = [];
     let prev = open;
@@ -232,6 +246,26 @@ export const getVenueReservations = async (req, res, next) => {
             orderBy: [{ date: 'desc' }, { startTime: 'asc' }],
         });
         res.json(reservations);
+    } catch (error) { next(error); }
+};
+
+export const updateVenueSettings = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { slotType, pricePerSlot } = req.body;
+        const VALID_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
+        if (slotType && !VALID_TYPES.includes(slotType))
+            return res.status(400).json({ message: 'Geçersiz slot tipi' });
+
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const data = {};
+        if (slotType !== undefined)     data.slotType     = slotType;
+        if (pricePerSlot !== undefined) data.pricePerSlot = parseInt(pricePerSlot) || 0;
+
+        const updated = await prisma.businessVenue.update({ where: { id }, data });
+        res.json({ venue: updated });
     } catch (error) { next(error); }
 };
 

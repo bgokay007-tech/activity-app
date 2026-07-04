@@ -3427,7 +3427,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
     const confirmBooking = async () => {
         if (!selSlot || !courtId) return;
         const activeCourt = venue?.courts?.find(c => c.id === courtId);
-        const endTime = slotsData?.type === 'FLEXIBLE' ? addMins(selSlot.start, flexDur) : selSlot.end;
+        const endTime = (slotsData?.type === 'FLEXIBLE' || slotsData?.type === 'VAR_DURATION') ? addMins(selSlot.start, flexDur) : selSlot.end;
         setBooking(true);
         try {
             await api.post(`/venues/${venueId}/courts/${courtId}/reserve`, {
@@ -3567,6 +3567,45 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                                             onPress={() => setFlexDur(m)}>
                                                             <Text style={[vb.durTxt, flexDur===m && vb.durTxtSel]}>
                                                                 {m<60?m+'dk':m===60?'1s':m===90?'1.5s':m===120?'2s':m===150?'2.5s':'3s'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* VAR_DURATION */}
+                                {!loadingS && slotsData?.type === 'VAR_DURATION' && (
+                                    <>
+                                        <Text style={vb.sectionLabel}>🟢 Müsait Pencereler</Text>
+                                        {slotsData.windows.length === 0 && (
+                                            <Text style={vb.emptyTxt}>Bu gün müsait saat yok</Text>
+                                        )}
+                                        {slotsData.windows.map((w, i) => {
+                                            const sel = selSlot?.start === w.start;
+                                            return (
+                                                <TouchableOpacity key={i}
+                                                    style={[vb.flexWin, sel && vb.flexWinSel]}
+                                                    onPress={() => { setSelSlot(sel ? null : w); setFlexDur(60); }}>
+                                                    <Text style={vb.flexWinTxt}>{w.start} – {w.end}</Text>
+                                                    <Text style={vb.flexWinSub}>
+                                                        {w.durationMins >= 120 ? '60 / 90 / 120 dk' : w.durationMins >= 90 ? '60 / 90 dk' : '60 dk'} seçilebilir
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                        {selSlot && (
+                                            <>
+                                                <Text style={[vb.sectionLabel, { marginTop: 12 }]}>Süre Seçin</Text>
+                                                <View style={vb.durRow}>
+                                                    {[60, 90, 120].filter(m => m <= selSlot.durationMins).map(m => (
+                                                        <TouchableOpacity key={m}
+                                                            style={[vb.durBtn, flexDur === m && vb.durBtnSel]}
+                                                            onPress={() => setFlexDur(m)}>
+                                                            <Text style={[vb.durTxt, flexDur === m && vb.durTxtSel]}>
+                                                                {m === 60 ? '1 saat' : m === 90 ? '1.5 saat' : '2 saat'}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     ))}

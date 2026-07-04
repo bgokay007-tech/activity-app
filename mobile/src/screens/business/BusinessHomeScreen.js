@@ -915,6 +915,8 @@ function VenueCard({ venue, sub, onDelete }) {
     const [resFilter, setResFilter]         = useState('today'); // today | week | all
     const [scheduleOpen, setScheduleOpen]     = useState(false);
     const [analyticsOpen, setAnalyticsOpen]   = useState(false);
+    const [localSlotType, setLocalSlotType]   = useState(venue.slotType || 'FULL_HOUR');
+    const [savingSlot, setSavingSlot]         = useState(false);
 
     const loadBlocks = async () => {
         try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
@@ -990,6 +992,16 @@ function VenueCard({ venue, sub, onDelete }) {
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İptal edilemedi'); }
     };
 
+    const handleUpdateSlotType = async (type) => {
+        if (type === localSlotType) return;
+        setSavingSlot(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { slotType: type });
+            setLocalSlotType(type);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingSlot(false); }
+    };
+
     const handleDelete = () => {
         Alert.alert('Tesisi Sil', `"${venue.name}" silinecek. Emin misiniz?`, [
             { text: 'Vazgeç', style: 'cancel' },
@@ -1012,7 +1024,8 @@ function VenueCard({ venue, sub, onDelete }) {
         isApproved ? { key: 'analytics',    label: '📊 Rapor' }          : null,
         isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
-        isApproved && isPro ? { key: 'orders', label: '🛒 Sipariş' } : null,
+        isApproved && isPro ? { key: 'orders',   label: '🛒 Sipariş' } : null,
+        isApproved          ? { key: 'settings', label: '⚙️ Ayarlar' } : null,
     ].filter(Boolean);
 
     return (
@@ -1189,6 +1202,54 @@ function VenueCard({ venue, sub, onDelete }) {
                     {resLoaded && reservations.filter(r => r.date === new Date().toISOString().slice(0,10) && r.status !== 'CANCELLED').length === 0 && (
                         <Text style={vc.emptyTxt}>Bugün rezervasyon yok</Text>
                     )}
+                </View>
+            )}
+
+            {activeTab === 'settings' && (
+                <View style={vc.panel}>
+                    <Text style={{ color: '#888', fontSize: 12, marginBottom: 14, lineHeight: 17 }}>
+                        Kortlarınız için rezervasyon tipini seçin. Değişiklik anında uygulanır.
+                    </Text>
+                    {[
+                        {
+                            key: 'FULL_HOUR',
+                            title: 'Tam Saatli',
+                            desc: 'Saat başı sabit 60 dk slotlar\n09:00–10:00 · 10:00–11:00 · 11:00–12:00',
+                        },
+                        {
+                            key: 'HALF_HOUR',
+                            title: 'Buçuklu Saatli',
+                            desc: 'Yarım saatte başlayan 60 dk slotlar\n09:30–10:30 · 10:30–11:30 · 11:30–12:30',
+                        },
+                        {
+                            key: 'VAR_DURATION',
+                            title: 'Esnek Süre',
+                            desc: 'Kullanıcı 60 / 90 / 120 dk seçer\nRezerasyonlar arka arkaya — boşluk yok\nBirisi 10:00–11:30 aldıysa 11:30\'dan devam',
+                        },
+                    ].map(opt => {
+                        const isActive = localSlotType === opt.key;
+                        return (
+                            <TouchableOpacity key={opt.key}
+                                style={[vc.settingCard, isActive && vc.settingCardActive]}
+                                onPress={() => handleUpdateSlotType(opt.key)}
+                                disabled={savingSlot}>
+                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                                    <View style={[vc.radio, isActive && vc.radioActive]}>
+                                        {isActive && <View style={vc.radioDot} />}
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 14 }}>
+                                            {opt.title}
+                                        </Text>
+                                        <Text style={{ color: '#777', fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+                                            {opt.desc}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })}
+                    {savingSlot && <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 10 }} />}
                 </View>
             )}
 
@@ -1581,6 +1642,11 @@ const vc = StyleSheet.create({
     resMeta:         { color: colors.textMuted, fontSize: 11, marginTop: 2 },
     resCancelBtn:    { backgroundColor: '#ef444415', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#ef444440' },
     resCancelTxt:    { color: '#f87171', fontSize: 12, fontWeight: '700' },
+    settingCard:     { backgroundColor: '#ffffff07', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1.5, borderColor: '#ffffff12' },
+    settingCardActive: { borderColor: BIZ_COLOR + '70', backgroundColor: BIZ_COLOR + '10' },
+    radio:           { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#555', marginTop: 1, alignItems: 'center', justifyContent: 'center' },
+    radioActive:     { borderColor: BIZ_COLOR },
+    radioDot:        { width: 10, height: 10, borderRadius: 5, backgroundColor: BIZ_COLOR },
 });
 
 const va = StyleSheet.create({
