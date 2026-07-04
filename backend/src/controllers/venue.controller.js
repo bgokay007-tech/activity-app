@@ -8,8 +8,10 @@ const toTime = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m %
 const overlaps = (as, ae, bs, be) => as < be && ae > bs;
 
 function computeSlots(venue, reservations, date) {
-    const open  = toMins(venue.openTime);
-    const close = toMins(venue.closeTime);
+    const openWindows = (venue.openSlots && Array.isArray(venue.openSlots) && venue.openSlots.length > 0)
+        ? venue.openSlots
+        : [{ from: venue.openTime, to: venue.closeTime }];
+
     const taken = reservations
         .filter(r => r.date === date && r.status !== 'CANCELLED')
         .map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime) }))
@@ -19,60 +21,65 @@ function computeSlots(venue, reservations, date) {
 
     if (venue.slotType === 'FULL_HOUR') {
         const slots = [];
-        for (let t = open; t + 60 <= close; t += 60) {
-            slots.push({ start: toTime(t), end: toTime(t + 60), free: isFree(t, t + 60) });
+        for (const w of openWindows) {
+            const open = toMins(w.from), close = toMins(w.to);
+            for (let t = open; t + 60 <= close; t += 60)
+                slots.push({ start: toTime(t), end: toTime(t + 60), free: isFree(t, t + 60) });
         }
         return { type: 'FULL_HOUR', slots };
     }
 
     if (venue.slotType === 'HALF_HOUR') {
-        // Buçuklu saatler: 10:30-11:30, 11:30-12:30... (1-saatlik slotlar, :30'dan başlar)
         const slots = [];
-        let start = open;
-        if (start % 60 !== 30) {
-            start = Math.floor(start / 60) * 60 + 30;
-            if (start < open) start += 60;
-        }
-        for (let t = start; t + 60 <= close; t += 60) {
-            slots.push({ start: toTime(t), end: toTime(t + 60), free: isFree(t, t + 60) });
+        for (const w of openWindows) {
+            let open = toMins(w.from);
+            const close = toMins(w.to);
+            if (open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
+            for (let t = open; t + 60 <= close; t += 60)
+                slots.push({ start: toTime(t), end: toTime(t + 60), free: isFree(t, t + 60) });
         }
         return { type: 'HALF_HOUR', slots };
     }
 
     if (venue.slotType === 'NINETY_MIN') {
-        // 90 dakikalık slotlar, aralarında 30 dk temizlik boşluğu: 10:00-11:30 → 12:00-13:30
-        const DURATION = 90;
-        const PERIOD   = 120; // 90 dk slot + 30 dk boşluk
         const slots = [];
-        for (let t = open; t + DURATION <= close; t += PERIOD) {
-            slots.push({ start: toTime(t), end: toTime(t + DURATION), free: isFree(t, t + DURATION) });
+        for (const w of openWindows) {
+            const open = toMins(w.from), close = toMins(w.to);
+            for (let t = open; t + 90 <= close; t += 120)
+                slots.push({ start: toTime(t), end: toTime(t + 90), free: isFree(t, t + 90) });
         }
         return { type: 'NINETY_MIN', slots };
     }
 
-    // VAR_DURATION — 60/90/120 dk seçilebilir, aralarında boşluk yok
     if (venue.slotType === 'VAR_DURATION') {
         const windows = [];
-        let prev = open;
-        for (const r of taken.sort((a, b) => a.s - b.s)) {
-            if (r.s > prev && r.s - prev >= 60)
-                windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
-            prev = Math.max(prev, r.e);
+        for (const w of openWindows) {
+            const open = toMins(w.from), close = toMins(w.to);
+            const wTaken = taken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
+            let prev = open;
+            for (const r of wTaken) {
+                if (r.s > prev && r.s - prev >= 60)
+                    windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
+                prev = Math.max(prev, r.e);
+            }
+            if (prev < close && close - prev >= 60)
+                windows.push({ start: toTime(prev), end: toTime(close), durationMins: close - prev });
         }
-        if (prev < close && close - prev >= 60)
-            windows.push({ start: toTime(prev), end: toTime(close), durationMins: close - prev });
         return { type: 'VAR_DURATION', windows };
     }
 
-    // FLEXIBLE — serbest pencereler
+    // FLEXIBLE
     const windows = [];
-    let prev = open;
-    for (const r of taken) {
-        if (r.s > prev) windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
-        prev = Math.max(prev, r.e);
+    for (const w of openWindows) {
+        const open = toMins(w.from), close = toMins(w.to);
+        const wTaken = taken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
+        let prev = open;
+        for (const r of wTaken) {
+            if (r.s > prev) windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
+            prev = Math.max(prev, r.e);
+        }
+        if (prev < close) windows.push({ start: toTime(prev), end: toTime(close), durationMins: close - prev });
     }
-    if (prev < close) windows.push({ start: toTime(prev), end: toTime(close), durationMins: close - prev });
-
     return {
         type: 'FLEXIBLE',
         windows: windows.filter(w => w.durationMins >= 60),
@@ -279,7 +286,7 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot } = req.body;
+        const { slotType, pricePerSlot, openSlots } = req.body;
         const VALID_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         if (slotType && !VALID_TYPES.includes(slotType))
             return res.status(400).json({ message: 'Geçersiz slot tipi' });
@@ -290,6 +297,7 @@ export const updateVenueSettings = async (req, res, next) => {
         const data = {};
         if (slotType !== undefined)     data.slotType     = slotType;
         if (pricePerSlot !== undefined) data.pricePerSlot = parseInt(pricePerSlot) || 0;
+        if (openSlots !== undefined)    data.openSlots    = openSlots; // [{from:'HH:MM',to:'HH:MM'}]
 
         const updated = await prisma.businessVenue.update({ where: { id }, data });
         res.json({ venue: updated });
@@ -313,8 +321,9 @@ export const getOwnerSchedule = async (req, res, next) => {
             include: { user: { select: { id: true, username: true, fullName: true } } },
         });
 
-        const open  = toMins(venue.openTime);
-        const close = toMins(venue.closeTime);
+        const openWindows = (venue.openSlots && Array.isArray(venue.openSlots) && venue.openSlots.length > 0)
+            ? venue.openSlots
+            : [{ from: venue.openTime, to: venue.closeTime }];
 
         const findRes = (courtId, s, e) =>
             allRes.filter(r => r.courtId === courtId && overlaps(s, e, toMins(r.startTime), toMins(r.endTime)));
@@ -323,38 +332,42 @@ export const getOwnerSchedule = async (req, res, next) => {
             const effectiveSlotType = court.slotType || venue.slotType;
             const slots = [];
 
-            if (effectiveSlotType === 'FULL_HOUR') {
-                for (let t = open; t + 60 <= close; t += 60) {
-                    const rs = findRes(court.id, t, t + 60);
-                    slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+            for (const w of openWindows) {
+                const open = toMins(w.from), close = toMins(w.to);
+
+                if (effectiveSlotType === 'FULL_HOUR') {
+                    for (let t = open; t + 60 <= close; t += 60) {
+                        const rs = findRes(court.id, t, t + 60);
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                    }
+                } else if (effectiveSlotType === 'HALF_HOUR') {
+                    let start = open;
+                    if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
+                    for (let t = start; t + 60 <= close; t += 60) {
+                        const rs = findRes(court.id, t, t + 60);
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                    }
+                } else if (effectiveSlotType === 'NINETY_MIN') {
+                    for (let t = open; t + 90 <= close; t += 120) {
+                        const rs = findRes(court.id, t, t + 90);
+                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                    }
+                } else {
+                    // VAR_DURATION / FLEXIBLE
+                    const courtRes = allRes
+                        .filter(r => r.courtId === court.id && toMins(r.startTime) < close && toMins(r.endTime) > open)
+                        .sort((a, b) => toMins(a.startTime) - toMins(b.startTime));
+                    let prev = open;
+                    for (const r of courtRes) {
+                        const rStart = toMins(r.startTime);
+                        if (rStart > prev && rStart - prev >= 60)
+                            slots.push({ start: toTime(prev), end: toTime(rStart), status: 'FREE', user: null });
+                        slots.push({ start: r.startTime, end: r.endTime, status: r.status, user: r.user });
+                        prev = Math.max(prev, toMins(r.endTime));
+                    }
+                    if (prev < close && close - prev >= 60)
+                        slots.push({ start: toTime(prev), end: toTime(close), status: 'FREE', user: null });
                 }
-            } else if (effectiveSlotType === 'HALF_HOUR') {
-                let start = open;
-                if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
-                for (let t = start; t + 60 <= close; t += 60) {
-                    const rs = findRes(court.id, t, t + 60);
-                    slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
-                }
-            } else if (effectiveSlotType === 'NINETY_MIN') {
-                for (let t = open; t + 90 <= close; t += 120) {
-                    const rs = findRes(court.id, t, t + 90);
-                    slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
-                }
-            } else {
-                // VAR_DURATION / FLEXIBLE — booked slots + free windows
-                const courtRes = allRes
-                    .filter(r => r.courtId === court.id)
-                    .sort((a, b) => toMins(a.startTime) - toMins(b.startTime));
-                let prev = open;
-                for (const r of courtRes) {
-                    const rStart = toMins(r.startTime);
-                    if (rStart > prev && rStart - prev >= 60)
-                        slots.push({ start: toTime(prev), end: toTime(rStart), status: 'FREE', user: null });
-                    slots.push({ start: r.startTime, end: r.endTime, status: r.status, user: r.user });
-                    prev = Math.max(prev, toMins(r.endTime));
-                }
-                if (prev < close && close - prev >= 60)
-                    slots.push({ start: toTime(prev), end: toTime(close), status: 'FREE', user: null });
             }
             return slots;
         };

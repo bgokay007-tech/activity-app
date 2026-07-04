@@ -927,6 +927,16 @@ function VenueCard({ venue, sub, onDelete }) {
     });
     const [savingSlot, setSavingSlot]         = useState(false);
 
+    const [localOpenSlots, setLocalOpenSlots] = useState(() => {
+        if (venue.openSlots && Array.isArray(venue.openSlots) && venue.openSlots.length > 0)
+            return venue.openSlots.map(w => ({ from: w.from, to: w.to }));
+        return [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
+    });
+    const [addingWindow,   setAddingWindow]   = useState(false);
+    const [newFrom,        setNewFrom]        = useState('');
+    const [newTo,          setNewTo]          = useState('');
+    const [savingWindows,  setSavingWindows]  = useState(false);
+
     const loadBlocks = async () => {
         try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
         catch {} finally { setBlocksLoaded(true); }
@@ -1017,6 +1027,34 @@ function VenueCard({ venue, sub, onDelete }) {
             await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { surface: next });
             setCourtSurfaces(prev => ({ ...prev, [courtId]: next }));
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+    };
+
+    const isValidTime = (t) => /^\d{2}:\d{2}$/.test(t) && parseInt(t.split(':')[0]) < 24 && parseInt(t.split(':')[1]) < 60;
+
+    const saveOpenSlots = async (slots) => {
+        setSavingWindows(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { openSlots: slots });
+            setLocalOpenSlots(slots);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingWindows(false); }
+    };
+
+    const handleRemoveWindow = (idx) => {
+        if (localOpenSlots.length <= 1) { Alert.alert('Uyarı', 'En az bir çalışma aralığı olmalı'); return; }
+        const next = localOpenSlots.filter((_, i) => i !== idx);
+        saveOpenSlots(next);
+    };
+
+    const handleAddWindow = () => {
+        if (!isValidTime(newFrom) || !isValidTime(newTo)) { Alert.alert('Hata', 'Geçerli saat girin (ör: 08:00)'); return; }
+        if (newFrom >= newTo) { Alert.alert('Hata', 'Bitiş saati başlangıçtan büyük olmalı'); return; }
+        const next = [...localOpenSlots, { from: newFrom, to: newTo }]
+            .sort((a, b) => a.from.localeCompare(b.from));
+        setAddingWindow(false);
+        setNewFrom('');
+        setNewTo('');
+        saveOpenSlots(next);
     };
 
     const handleDelete = () => {
@@ -1224,6 +1262,59 @@ function VenueCard({ venue, sub, onDelete }) {
 
             {activeTab === 'settings' && (
                 <View style={vc.panel}>
+                    {/* ── Çalışma Saatleri ─────────────────────── */}
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 10, letterSpacing: 0.5 }}>
+                        ÇALIŞMA SAATLERİ
+                    </Text>
+                    {localOpenSlots.map((w, idx) => (
+                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8,
+                            backgroundColor: '#ffffff08', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 }}>
+                            <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 15, flex: 1 }}>
+                                {w.from} – {w.to}
+                            </Text>
+                            <TouchableOpacity onPress={() => handleRemoveWindow(idx)} style={{ padding: 4 }}>
+                                <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '700' }}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+                    {savingWindows && <ActivityIndicator color={BIZ_COLOR} style={{ marginVertical: 6 }} size="small" />}
+
+                    {addingWindow ? (
+                        <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                            <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 8 }}>Yeni aralık ekle (HH:MM formatı)</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                                <TextInput
+                                    style={[ic.input, { flex: 1, marginBottom: 0 }]}
+                                    placeholder="08:00" placeholderTextColor="#555"
+                                    value={newFrom} onChangeText={setNewFrom}
+                                    keyboardType="numbers-and-punctuation" maxLength={5} />
+                                <Text style={{ color: '#666', fontSize: 16 }}>–</Text>
+                                <TextInput
+                                    style={[ic.input, { flex: 1, marginBottom: 0 }]}
+                                    placeholder="12:00" placeholderTextColor="#555"
+                                    value={newTo} onChangeText={setNewTo}
+                                    keyboardType="numbers-and-punctuation" maxLength={5} />
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <TouchableOpacity onPress={() => { setAddingWindow(false); setNewFrom(''); setNewTo(''); }}
+                                    style={{ flex: 1, padding: 10, borderRadius: 8, backgroundColor: '#ffffff12', alignItems: 'center' }}>
+                                    <Text style={{ color: '#aaa', fontSize: 13 }}>Vazgeç</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleAddWindow} disabled={savingWindows}
+                                    style={{ flex: 1, padding: 10, borderRadius: 8, backgroundColor: BIZ_COLOR + '30', alignItems: 'center' }}>
+                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Ekle</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ) : (
+                        <TouchableOpacity onPress={() => setAddingWindow(true)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20, paddingVertical: 8 }}>
+                            <Text style={{ color: BIZ_COLOR, fontSize: 20, fontWeight: '700' }}>+</Text>
+                            <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '600' }}>Aralık Ekle</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginBottom: 20 }} />
                     <Text style={{ color: '#888', fontSize: 12, marginBottom: 14, lineHeight: 17 }}>
                         Her kort için rezervasyon tipini ayrı ayrı seçebilirsiniz. Değişiklik anında uygulanır.
                     </Text>

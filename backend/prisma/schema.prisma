@@ -846,6 +846,7 @@ model BusinessVenue {
   phone       String?
   openTime    String   @default("08:00")
   closeTime   String   @default("22:00")
+  openSlots   Json?
   openDays    Json     @default("[1,2,3,4,5,6,7]")
   slotType     String   @default("FULL_HOUR") // FULL_HOUR | HALF_HOUR | NINETY_MIN
   pricePerSlot Int      @default(0)           // TL cinsinden slot başı ücret
