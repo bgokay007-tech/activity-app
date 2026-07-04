@@ -738,6 +738,107 @@ const SURFACE_ICON = {
 
 const SCHED_COURT_W = 90;
 
+// 00:00 → 24:00 arası 30'ar dakikalık seçenekler
+const TIME_OPTIONS = Array.from({ length: 49 }, (_, i) => {
+    const h = Math.floor((i * 30) / 60);
+    const m = (i * 30) % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+});
+
+function normalizeTime(raw) {
+    const t = raw.trim().replace(',', '.');
+    if (/^\d{1,2}$/.test(t))      return `${t.padStart(2, '0')}:00`;
+    if (/^\d{3,4}$/.test(t)) {
+        const h = t.slice(0, t.length - 2).padStart(2, '0');
+        const m = t.slice(-2).padStart(2, '0');
+        return `${h}:${m}`;
+    }
+    if (/^\d{1,2}:\d{1,2}$/.test(t)) {
+        const [h, m] = t.split(':');
+        return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+    }
+    return t;
+}
+
+function isValidTimeStr(t) {
+    const n = normalizeTime(t);
+    return /^\d{2}:\d{2}$/.test(n)
+        && parseInt(n.slice(0, 2)) <= 24
+        && parseInt(n.slice(3)) < 60;
+}
+
+function TimePickerModal({ visible, value, onSelect, onClose }) {
+    const [manual, setManual] = useState(value || '');
+    useEffect(() => { setManual(value || ''); }, [value, visible]);
+
+    const handleManualSubmit = () => {
+        const n = normalizeTime(manual);
+        if (!isValidTimeStr(n)) { Alert.alert('Hata', 'Geçerli saat girin (örn: 8, 8:30, 08:00)'); return; }
+        onSelect(n);
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: '#000a', justifyContent: 'flex-end' }}>
+                <View style={{ backgroundColor: '#12121e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '75%' }}>
+                    {/* Header */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16,
+                        borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}>
+                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, flex: 1 }}>Saat Seç</Text>
+                        <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
+                            <Text style={{ color: '#aaa', fontSize: 20 }}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {/* Manuel giriş */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8,
+                        paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                        <TextInput
+                            style={{ flex: 1, backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12,
+                                paddingVertical: 8, color: '#fff', fontSize: 15, borderWidth: 1, borderColor: '#ffffff20' }}
+                            placeholder="Manuel gir: 8, 8:30, 08:00…"
+                            placeholderTextColor="#555"
+                            value={manual}
+                            onChangeText={setManual}
+                            keyboardType="numbers-and-punctuation"
+                            maxLength={5}
+                            returnKeyType="done"
+                            onSubmitEditing={handleManualSubmit}
+                        />
+                        <TouchableOpacity onPress={handleManualSubmit}
+                            style={{ backgroundColor: BIZ_COLOR + '30', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }}>
+                            <Text style={{ color: BIZ_LIGHT, fontWeight: '700' }}>Tamam</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {/* 30dk'lık liste */}
+                    <ScrollView keyboardShouldPersistTaps="always">
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 }}>
+                            {TIME_OPTIONS.map(t => {
+                                const isSelected = t === value;
+                                return (
+                                    <TouchableOpacity key={t}
+                                        onPress={() => onSelect(t)}
+                                        style={{
+                                            paddingHorizontal: 14, paddingVertical: 8,
+                                            borderRadius: 8, borderWidth: 1.5,
+                                            borderColor: isSelected ? BIZ_COLOR : '#ffffff18',
+                                            backgroundColor: isSelected ? BIZ_COLOR + '28' : '#ffffff08',
+                                            minWidth: 70, alignItems: 'center',
+                                        }}>
+                                        <Text style={{ color: isSelected ? BIZ_LIGHT : '#ccc', fontWeight: isSelected ? '800' : '400', fontSize: 14 }}>
+                                            {t}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                        <View style={{ height: 32 }} />
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
@@ -935,6 +1036,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const [newFrom,        setNewFrom]        = useState('');
     const [newTo,          setNewTo]          = useState('');
     const [savingWindows,  setSavingWindows]  = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(null); // null | 'from' | 'to'
 
     const [localCancelPolicy,     setLocalCancelPolicy]     = useState(venue.cancelHoursBefore     ?? null);
     const [localReschedulePolicy, setLocalReschedulePolicy] = useState(venue.rescheduleHoursBefore ?? null);
@@ -1056,7 +1158,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
     };
 
-    const isValidTime = (t) => /^\d{2}:\d{2}$/.test(t) && parseInt(t.split(':')[0]) < 24 && parseInt(t.split(':')[1]) < 60;
+    const isValidTime = isValidTimeStr;
 
     const saveOpenSlots = async (slots) => {
         setSavingWindows(true);
@@ -1084,9 +1186,11 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     };
 
     const handleAddWindow = () => {
-        if (!isValidTime(newFrom) || !isValidTime(newTo)) { Alert.alert('Hata', 'Geçerli saat girin (ör: 08:00)'); return; }
-        if (newFrom >= newTo) { Alert.alert('Hata', 'Bitiş saati başlangıçtan büyük olmalı'); return; }
-        const next = [...localOpenSlots, { from: newFrom, to: newTo }]
+        const from = normalizeTime(newFrom);
+        const to   = normalizeTime(newTo);
+        if (!isValidTime(from) || !isValidTime(to)) { Alert.alert('Hata', 'Geçerli saat girin (ör: 8, 8:30, 08:00)'); return; }
+        if (from >= to) { Alert.alert('Hata', 'Bitiş saati başlangıçtan büyük olmalı'); return; }
+        const next = [...localOpenSlots, { from, to }]
             .sort((a, b) => a.from.localeCompare(b.from));
         setAddingWindow(false);
         setNewFrom('');
@@ -1404,19 +1508,27 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
 
                     {addingWindow ? (
                         <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                            <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 8 }}>Yeni aralık ekle (HH:MM formatı)</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                                <TextInput
-                                    style={[ic.input, { flex: 1, marginBottom: 0 }]}
-                                    placeholder="08:00" placeholderTextColor="#555"
-                                    value={newFrom} onChangeText={setNewFrom}
-                                    keyboardType="numbers-and-punctuation" maxLength={5} />
-                                <Text style={{ color: '#666', fontSize: 16 }}>–</Text>
-                                <TextInput
-                                    style={[ic.input, { flex: 1, marginBottom: 0 }]}
-                                    placeholder="12:00" placeholderTextColor="#555"
-                                    value={newTo} onChangeText={setNewTo}
-                                    keyboardType="numbers-and-punctuation" maxLength={5} />
+                            <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 10 }}>Yeni aralık ekle</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                                <TouchableOpacity
+                                    onPress={() => setShowTimePicker('from')}
+                                    style={{ flex: 1, backgroundColor: newFrom ? BIZ_COLOR + '20' : '#ffffff10',
+                                        borderRadius: 8, paddingVertical: 10, alignItems: 'center',
+                                        borderWidth: 1.5, borderColor: newFrom ? BIZ_COLOR + '60' : '#ffffff20' }}>
+                                    <Text style={{ color: newFrom ? BIZ_LIGHT : '#666', fontWeight: newFrom ? '800' : '400', fontSize: 16 }}>
+                                        {newFrom || 'Başlangıç'}
+                                    </Text>
+                                </TouchableOpacity>
+                                <Text style={{ color: '#555', fontSize: 18 }}>–</Text>
+                                <TouchableOpacity
+                                    onPress={() => setShowTimePicker('to')}
+                                    style={{ flex: 1, backgroundColor: newTo ? BIZ_COLOR + '20' : '#ffffff10',
+                                        borderRadius: 8, paddingVertical: 10, alignItems: 'center',
+                                        borderWidth: 1.5, borderColor: newTo ? BIZ_COLOR + '60' : '#ffffff20' }}>
+                                    <Text style={{ color: newTo ? BIZ_LIGHT : '#666', fontWeight: newTo ? '800' : '400', fontSize: 16 }}>
+                                        {newTo || 'Bitiş'}
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
                             <View style={{ flexDirection: 'row', gap: 8 }}>
                                 <TouchableOpacity onPress={() => { setAddingWindow(false); setNewFrom(''); setNewTo(''); }}
@@ -1436,6 +1548,17 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                             <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '600' }}>Aralık Ekle</Text>
                         </TouchableOpacity>
                     )}
+
+                    <TimePickerModal
+                        visible={showTimePicker !== null}
+                        value={showTimePicker === 'from' ? newFrom : newTo}
+                        onSelect={t => {
+                            if (showTimePicker === 'from') setNewFrom(t);
+                            else setNewTo(t);
+                            setShowTimePicker(null);
+                        }}
+                        onClose={() => setShowTimePicker(null)}
+                    />
 
                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginBottom: 20 }} />
                     <Text style={{ color: '#888', fontSize: 12, marginBottom: 14, lineHeight: 17 }}>

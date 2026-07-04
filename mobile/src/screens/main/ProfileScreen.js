@@ -373,7 +373,7 @@ function TennisDailyAnimation({ color, lang }) {
     );
 }
 
-function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId, onViewTournament }) {
+function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, onReservations, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId, onViewTournament }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [matchListType, setMatchListType] = useState(null);
@@ -477,6 +477,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                         <Text style={{ color: '#6b7280', fontSize: 8, fontWeight: '700' }}>{label}</Text>
                                     </TouchableOpacity>
                                 ))}
+                                {isOwnProfile && (item.reservationCount > 0) && (
+                                    <TouchableOpacity onPress={onReservations} style={fc.miniStatBtn}>
+                                        <Text style={{ color: '#60a5fa', fontSize: 13, fontWeight: '900' }}>{item.reservationCount}</Text>
+                                        <Text style={{ color: '#6b7280', fontSize: 8, fontWeight: '700' }}>📅 Rezerv.</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
 
                             {/* ── Eylem butonları ── */}
@@ -1188,6 +1194,18 @@ const SUB_EMOJI = {
 };
 
 const MONTHS_TR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+
+function reservationMatchesSport(reservation, subCategory) {
+    const b = (reservation?.venue?.branch || '').toLowerCase();
+    const s = (subCategory || '').toLowerCase();
+    if (s === 'tennis')     return b.includes('tenis') || b.includes('tennis');
+    if (s === 'padel')      return b.includes('padel');
+    if (s === 'football')   return b.includes('futbol') || b.includes('hali') || b.includes('halı');
+    if (s === 'basketball') return b.includes('basketbol') || b.includes('basket');
+    if (s === 'volleyball') return b.includes('voleybol') || b.includes('volley');
+    if (s === 'badminton')  return b.includes('badminton');
+    return b.includes(s);
+}
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const LEVEL_COLORS = { BEGINNER:'#4ade80', INTERMEDIATE:'#facc15', ADVANCED:'#fb923c', PRO:'#f87171' };
 
@@ -1369,6 +1387,7 @@ export default function ProfileScreen({ route, navigation }) {
     const [profile, setProfile] = useState(null);
     const [interests, setInterests] = useState([]);
     const [cardModalItem, setCardModalItem] = useState(null);
+    const [myReservations, setMyReservations] = useState([]);
     const [posts, setPosts] = useState([]);
     const [postCount, setPostCount] = useState(0);
     const [friendCount, setFriendCount] = useState(0);
@@ -1743,7 +1762,7 @@ export default function ProfileScreen({ route, navigation }) {
     useEffect(() => {
         const load = async () => {
             try {
-                const [profileRes, intRes, storiesRes, reelsRes, postsRes, upcomingRes, historyRes] = await Promise.all([
+                const [profileRes, intRes, storiesRes, reelsRes, postsRes, upcomingRes, historyRes, reservationsRes] = await Promise.all([
                     api.get(isOwnProfile ? '/auth/me' : `/users/${userId}`),
                     api.get(isOwnProfile ? '/interests/my' : `/interests/user/${userId}`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=STORY`).catch(() => ({ data: [] })),
@@ -1751,9 +1770,11 @@ export default function ProfileScreen({ route, navigation }) {
                     api.get(`/posts/user/${userId}?type=POST`).catch(() => ({ data: [] })),
                     isOwnProfile ? api.get('/rivals/my-upcoming').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                     isOwnProfile ? api.get('/rivals/my-history').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    isOwnProfile ? api.get('/venues/reservations/mine').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                 ]);
                 setProfile(profileRes.data);
                 setInterests(intRes.data);
+                if (isOwnProfile) setMyReservations(Array.isArray(reservationsRes.data) ? reservationsRes.data : []);
                 setStories(storiesRes.data);
                 const reelsList = Array.isArray(reelsRes.data) ? reelsRes.data : [];
                 setReels(reelsList);
@@ -2426,6 +2447,7 @@ export default function ProfileScreen({ route, navigation }) {
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 3, paddingVertical: 1 }}>
                             {interests.map(i => {
                                 const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
+                                const reservationCount = isOwnProfile ? myReservations.filter(r => reservationMatchesSport(r, i.subCategory)).length : 0;
                                 return (
                                     <TouchableOpacity
                                         key={i.id}
@@ -2436,6 +2458,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             upcomingCount,
                                             archiveCount: myHistory.filter(m => m.subCategory === i.subCategory).length,
                                             historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
+                                            reservationCount,
                                         })}
                                         style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, gap: 3 }}
                                     >
@@ -2444,6 +2467,9 @@ export default function ProfileScreen({ route, navigation }) {
                                         {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>{i.alias}</Text> : null}
                                         {i.assessmentCompleted && (
                                             <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
+                                        )}
+                                        {reservationCount > 0 && (
+                                            <Text style={{ color: '#60a5fa', fontSize: 9, fontWeight: '700' }}>📅 {reservationCount}</Text>
                                         )}
                                     </TouchableOpacity>
                                 );
@@ -2466,7 +2492,7 @@ export default function ProfileScreen({ route, navigation }) {
                 {/* ── Rezervasyonlarım (tüm kullanıcılar) ── */}
                 {isOwnProfile && (
                     <TouchableOpacity style={ap.reservBtn} onPress={() => navigation.navigate('MyReservations')}>
-                        <Text style={ap.reservBtnText}>📅 Rezervasyonlarım</Text>
+                        <Text style={ap.reservBtnText}>📅 Rezervasyonlarım{myReservations.length > 0 ? ` (${myReservations.length})` : ''}</Text>
                     </TouchableOpacity>
                 )}
 
@@ -2969,6 +2995,7 @@ export default function ProfileScreen({ route, navigation }) {
                 onEditAlias={() => cardModalItem && (setAliasValue(cardModalItem.alias || ''), setAliasEditId(cardModalItem.id))}
                 onUpcoming={() => { setCardModalItem(null); cardModalItem && openMyUpcoming(cardModalItem.subCategory); }}
                 onArchive={() => { setCardModalItem(null); cardModalItem && openMyArchive(cardModalItem.subCategory); }}
+                onReservations={() => { const sub = cardModalItem?.subCategory; setCardModalItem(null); navigation.navigate('MyReservations', { sportFilter: sub }); }}
                 onViewTournament={(achievement) => {
                     setCardModalItem(null);
                     setSelectedArchiveTournament({ id: achievement.tournamentId, name: achievement.name, subCategory: achievement.subCategory, category: achievement.category });

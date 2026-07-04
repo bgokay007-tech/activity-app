@@ -199,7 +199,8 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
     );
 }
 
-export default function MyReservationsScreen({ navigation }) {
+export default function MyReservationsScreen({ navigation, route }) {
+    const { sportFilter } = route?.params || {};
     const [reservations, setRes] = useState([]);
     const [loading, setLoading]   = useState(false);
     const [filter, setFilter]     = useState('upcoming'); // upcoming | past | all
@@ -238,7 +239,11 @@ export default function MyReservationsScreen({ navigation }) {
         new Date(`${r.date}T${r.startTime}:00`) <= now
     ).length;
 
-    const filtered = reservations.filter(r => {
+    const sportFiltered = sportFilter
+        ? reservations.filter(r => branchToSub(r.venue?.branch).sub === sportFilter)
+        : reservations;
+
+    const filtered = sportFiltered.filter(r => {
         if (filter === 'upcoming') return !isPast(r) && r.status === 'CONFIRMED';
         if (filter === 'pending')  return !isPast(r) && r.status === 'PENDING';
         if (filter === 'await')    return r.status === 'PENDING' && r.paymentMethod === 'CASH' && new Date(`${r.date}T${r.startTime}:00`) <= now;
