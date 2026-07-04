@@ -1189,7 +1189,6 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         const from = normalizeTime(newFrom);
         const to   = normalizeTime(newTo);
         if (!isValidTime(from) || !isValidTime(to)) { Alert.alert('Hata', 'Geçerli saat girin (ör: 8, 8:30, 08:00)'); return; }
-        if (from >= to) { Alert.alert('Hata', 'Bitiş saati başlangıçtan büyük olmalı'); return; }
         const next = [...localOpenSlots, { from, to }]
             .sort((a, b) => a.from.localeCompare(b.from));
         setAddingWindow(false);
