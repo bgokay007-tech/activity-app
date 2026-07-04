@@ -421,9 +421,14 @@ export const getMyReservations = async (req, res, next) => {
 export const cancelReservation = async (req, res, next) => {
     try {
         const { resId } = req.params;
-        const res_ = await prisma.courtReservation.findUnique({ where: { id: resId } });
+        const res_ = await prisma.courtReservation.findUnique({
+            where: { id: resId },
+            include: { venue: { select: { userId: true } } },
+        });
         if (!res_) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
-        if (res_.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        const isOwner   = res_.userId === req.userId;
+        const isVenueOwner = res_.venue?.userId === req.userId;
+        if (!isOwner && !isVenueOwner) return res.status(403).json({ message: 'Yetkisiz' });
         await prisma.courtReservation.update({ where: { id: resId }, data: { status: 'CANCELLED' } });
         res.json({ message: 'İptal edildi' });
     } catch (error) { next(error); }

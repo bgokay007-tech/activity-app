@@ -48,7 +48,6 @@ router.get('/:id/menu',                  getVenueMenu);
 router.post('/:id/orders',               placeOrder);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);
 router.post('/:id/courts/:courtId/reserve', makeReservation);
-router.get('/:id', getVenueById);
 
 // Admin
 router.get('/admin/pending',   requireAdmin, getPendingVenues);
