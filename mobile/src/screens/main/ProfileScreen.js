@@ -1206,6 +1206,18 @@ function reservationMatchesSport(reservation, subCategory) {
     if (s === 'badminton')  return b.includes('badminton');
     return b.includes(s);
 }
+
+function isReservActive(r) {
+    if (r.status === 'CANCELLED') return false;
+    const today = new Date().toISOString().slice(0, 10);
+    if (r.date < today) return false;
+    if (r.date === today && r.endTime) {
+        const [h, m] = r.endTime.split(':').map(Number);
+        const end = new Date(`${r.date}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
+        return end > new Date();
+    }
+    return true;
+}
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const LEVEL_COLORS = { BEGINNER:'#4ade80', INTERMEDIATE:'#facc15', ADVANCED:'#fb923c', PRO:'#f87171' };
 
@@ -2447,7 +2459,7 @@ export default function ProfileScreen({ route, navigation }) {
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 3, paddingVertical: 1 }}>
                             {interests.map(i => {
                                 const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
-                                const reservationCount = isOwnProfile ? myReservations.filter(r => reservationMatchesSport(r, i.subCategory)).length : 0;
+                                const reservationCount = isOwnProfile ? myReservations.filter(r => isReservActive(r) && reservationMatchesSport(r, i.subCategory)).length : 0;
                                 return (
                                     <TouchableOpacity
                                         key={i.id}
@@ -2492,7 +2504,7 @@ export default function ProfileScreen({ route, navigation }) {
                 {/* ── Rezervasyonlarım (tüm kullanıcılar) ── */}
                 {isOwnProfile && (
                     <TouchableOpacity style={ap.reservBtn} onPress={() => navigation.navigate('MyReservations')}>
-                        <Text style={ap.reservBtnText}>📅 Rezervasyonlarım{myReservations.length > 0 ? ` (${myReservations.length})` : ''}</Text>
+                        <Text style={ap.reservBtnText}>📅 Rezervasyonlarım{myReservations.filter(isReservActive).length > 0 ? ` (${myReservations.filter(isReservActive).length})` : ''}</Text>
                     </TouchableOpacity>
                 )}
 
