@@ -305,13 +305,42 @@ function VenueCard({ venue, onPress }) {
     );
 }
 
+// Expo/React Native sub anahtarlarını Türkçe'ye çevir
+const BRANCH_MAP = {
+    tennis:     'tenis',
+    padel:      'padel',
+    football:   'futbol',
+    basketball: 'basketbol',
+    volleyball: 'voleybol',
+    handball:   'hentbol',
+    baseball:   'beysbol',
+    swimming:   'yüzme',
+    badminton:  'badminton',
+    tabletennis:'masa tenisi',
+    golf:       'golf',
+    cycling:    'bisiklet',
+    running:    'koşu',
+    fitness:    'fitness',
+    yoga:       'yoga',
+    boxing:     'boks',
+    wrestling:  'güreş',
+    judo:       'judo',
+    karate:     'karate',
+    taekwondo:  'tekvando',
+    hockey:     'hokey',
+    baseball2:  'beysbol',
+};
+
 // ─── Ana Ekran ────────────────────────────────────────────────────────────────
-export default function VenueSearchScreen({ navigation }) {
-    const [city,       setCity]       = useState('');
-    const [branch,     setBranch]     = useState('');
-    const [venues,     setVenues]     = useState([]);
-    const [loading,    setLoading]    = useState(false);
-    const [searched,   setSearched]   = useState(false);
+export default function VenueSearchScreen({ navigation, route }) {
+    const rawBranch   = route?.params?.branch;
+    const lockedBranch = rawBranch ? (BRANCH_MAP[rawBranch] || rawBranch) : null;
+
+    const [city,     setCity]     = useState('');
+    const [venueName, setVenueName] = useState('');
+    const [venues,   setVenues]   = useState([]);
+    const [loading,  setLoading]  = useState(false);
+    const [searched, setSearched] = useState(false);
 
     // Tesis sayfası modalı
     const [activeVenue, setActive] = useState(null);
@@ -320,19 +349,26 @@ export default function VenueSearchScreen({ navigation }) {
     const [pendingRes, setPendingRes] = useState(null); // { venue, court, slot, date }
     const [confirming, setConfirming] = useState(false);
 
-    const search = useCallback(async () => {
+    // Sayfa açılınca (branch parametresi varsa) otomatik ara
+    useEffect(() => {
+        if (lockedBranch) search(lockedBranch);
+    }, [lockedBranch]);
+
+    const search = useCallback(async (branchOverride) => {
         setLoading(true);
         setSearched(true);
         try {
             const params = {};
-            if (city.trim())   params.city   = city.trim();
-            if (branch.trim()) params.branch = branch.trim();
+            if (city.trim())      params.city   = city.trim();
+            const b = branchOverride || lockedBranch;
+            if (b)                params.branch = b;
+            if (venueName.trim()) params.name   = venueName.trim();
             const { data } = await api.get('/venues/search', { params });
             setVenues(data);
         } catch {
             setVenues([]);
         } finally { setLoading(false); }
-    }, [city, branch]);
+    }, [city, venueName, lockedBranch]);
 
     // Slot seçildi → onay modalına geç, sheet kapanır
     const handlePickSlot = (court, slot, date) => {
@@ -391,6 +427,12 @@ export default function VenueSearchScreen({ navigation }) {
             </View>
 
             <View style={s.filters}>
+                {lockedBranch && (
+                    <View style={s.branchBadge}>
+                        <Text style={s.branchBadgeIcon}>🏅</Text>
+                        <Text style={s.branchBadgeText}>{lockedBranch.charAt(0).toUpperCase() + lockedBranch.slice(1)} tesisleri</Text>
+                    </View>
+                )}
                 <TextInput
                     style={s.input}
                     placeholder="Şehir (ör. İstanbul)"
@@ -398,18 +440,18 @@ export default function VenueSearchScreen({ navigation }) {
                     value={city}
                     onChangeText={setCity}
                     returnKeyType="search"
-                    onSubmitEditing={search}
+                    onSubmitEditing={() => search()}
                 />
                 <TextInput
                     style={s.input}
-                    placeholder="Spor Dalı (ör. tenis, padel)"
+                    placeholder="Tesis / Kort Adı"
                     placeholderTextColor={colors.textMuted}
-                    value={branch}
-                    onChangeText={setBranch}
+                    value={venueName}
+                    onChangeText={setVenueName}
                     returnKeyType="search"
-                    onSubmitEditing={search}
+                    onSubmitEditing={() => search()}
                 />
-                <TouchableOpacity style={s.searchBtn} onPress={search} disabled={loading} activeOpacity={0.8}>
+                <TouchableOpacity style={s.searchBtn} onPress={() => search()} disabled={loading} activeOpacity={0.8}>
                     {loading
                         ? <ActivityIndicator size="small" color="#fff" />
                         : <Text style={s.searchBtnText}>Ara</Text>}
@@ -478,6 +520,9 @@ const s = StyleSheet.create({
     infoBannerText: { flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
 
     filters:      { padding: 14, gap: 8 },
+    branchBadge:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#9333ea22', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#9333ea50' },
+    branchBadgeIcon: { fontSize: 14 },
+    branchBadgeText: { color: '#c084fc', fontWeight: '700', fontSize: 13 },
     input:        { backgroundColor: colors.surface, borderRadius: 10, padding: 12, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: colors.border },
     searchBtn:    { backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
     searchBtnText:{ color: '#fff', fontWeight: '900', fontSize: 15 },

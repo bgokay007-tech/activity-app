@@ -264,7 +264,7 @@ export const cancelReservation = async (req, res, next) => {
 
 export const searchVenues = async (req, res, next) => {
     try {
-        const { city, branch } = req.query;
+        const { city, branch, name } = req.query;
 
         // Yalnızca aktif PRO veya PREMIUM aboneliği olan işletmecilerin tesisleri listelenir
         const now = new Date();
@@ -280,6 +280,12 @@ export const searchVenues = async (req, res, next) => {
                 userId: { in: proUserIds },
                 ...(city   ? { city:   { contains: city,   mode: 'insensitive' } } : {}),
                 ...(branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
+                ...(name   ? {
+                    OR: [
+                        { name:   { contains: name, mode: 'insensitive' } },
+                        { courts: { some: { name: { contains: name, mode: 'insensitive' } } } },
+                    ],
+                } : {}),
             },
             include: {
                 courts: true,

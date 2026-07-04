@@ -9067,7 +9067,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <>
                             {/* İlan oluştur + Kort Rezervasyonu + bildirim butonu yan yana */}
                             <CityAlertRow tab="rivals">
-                                <TouchableOpacity style={s.courtResBtn} onPress={() => navigation.navigate('VenueSearch')} activeOpacity={0.8}>
+                                <TouchableOpacity style={s.courtResBtn} onPress={() => navigation.navigate('VenueSearch', { branch: sub })} activeOpacity={0.8}>
                                     <Text style={s.courtResBtnText}>🏟️ Kort Rez.</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
