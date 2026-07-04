@@ -68,7 +68,7 @@ function ReservationCard({ item, onCancel, navigation }) {
                         prefillDate:          item.date,
                         prefillTime:          item.startTime,
                         prefillDuration:      calcDuration(item.startTime, item.endTime),
-                        prefillCourtName:     courtName || undefined,
+                        prefillCourtName:     [venueName, courtName].filter(Boolean).join(' ') || undefined,
                         prefillCity:          item.venue?.city || undefined,
                         prefillVenueId:       item.venueId || undefined,
                         prefillVenueCourtId:  item.courtId || undefined,
