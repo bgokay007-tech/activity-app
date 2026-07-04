@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView, FlatList,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal,
@@ -107,7 +107,7 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
 export default function CourtSlotsScreen({ route, navigation }) {
     const { venue, court } = route.params;
 
-    const dateOptions = Array.from({ length: 14 }, (_, i) => getDateStr(i));
+    const dateOptions = useMemo(() => Array.from({ length: 14 }, (_, i) => getDateStr(i)), []);
     const [selectedDate, setDate] = useState(dateOptions[0]);
     const [slots, setSlots]       = useState(null);
     const [loading, setLoading]   = useState(false);
