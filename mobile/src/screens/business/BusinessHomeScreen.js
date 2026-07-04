@@ -526,12 +526,14 @@ const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef
 const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
 const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: 'Bekliyor (EFT)', CONFIRMED: 'Rezerveli' };
 
+const TIME_COL_W  = 78;
+const COURT_COL_W = 115;
+
 function VenueScheduleModal({ visible, venue, onClose }) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
     const [schedule, setSchedule] = useState(null);
     const [loading, setLoading]   = useState(false);
-    const [selCourt, setSelCourt] = useState(null);
 
     const shiftDate = (n) => {
         const d = new Date(selDate + 'T12:00:00');
@@ -545,22 +547,23 @@ function VenueScheduleModal({ visible, venue, onClose }) {
         if (!visible || !venue?.id) return;
         setLoading(true);
         api.get(`/venues/${venue.id}/schedule?date=${selDate}`)
-            .then(r => {
-                setSchedule(r.data);
-                setSelCourt(prev => {
-                    if (prev && r.data.courts?.find(c => c.courtId === prev)) return prev;
-                    return r.data.courts?.[0]?.courtId || null;
-                });
-            })
+            .then(r => setSchedule(r.data))
             .catch(() => setSchedule(null))
             .finally(() => setLoading(false));
     }, [visible, venue?.id, selDate]);
 
-    const courtData = schedule?.courts?.find(c => c.courtId === selCourt);
+    // Build unified time axis from first court's slots
+    const courts   = schedule?.courts || [];
+    const timeAxis = courts[0]?.slots || [];
+
+    // Lookup helper: get slot status for a given court + row index
+    const getCell = (courtId, idx) =>
+        schedule?.courts?.find(c => c.courtId === courtId)?.slots?.[idx] || null;
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: '#0a0a14' }}>
+
                 {/* Header */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
                     paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom: 14,
@@ -575,11 +578,11 @@ function VenueScheduleModal({ visible, venue, onClose }) {
 
                 {/* Date nav */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                    paddingVertical: 10, gap: 16, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                    paddingVertical: 8, gap: 16, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
                     <TouchableOpacity onPress={() => shiftDate(-1)} style={{ padding: 10 }}>
                         <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700' }}>‹</Text>
                     </TouchableOpacity>
-                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600', minWidth: 200, textAlign: 'center' }}>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600', minWidth: 190, textAlign: 'center' }}>
                         {fmtDate(selDate)}
                     </Text>
                     <TouchableOpacity onPress={() => shiftDate(1)} style={{ padding: 10 }}>
@@ -587,73 +590,91 @@ function VenueScheduleModal({ visible, venue, onClose }) {
                     </TouchableOpacity>
                 </View>
 
-                {/* Court tabs */}
-                {schedule?.courts && schedule.courts.length > 1 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                        style={{ maxHeight: 50, paddingHorizontal: 12, paddingVertical: 8 }}>
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                            {schedule.courts.map(c => (
-                                <TouchableOpacity key={c.courtId}
-                                    style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1,
-                                        borderColor: selCourt === c.courtId ? BIZ_COLOR + '70' : '#ffffff20',
-                                        backgroundColor: selCourt === c.courtId ? BIZ_COLOR + '18' : '#ffffff07' }}
-                                    onPress={() => setSelCourt(c.courtId)}>
-                                    <Text style={{ color: selCourt === c.courtId ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: '600' }}>
-                                        {c.courtName}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </ScrollView>
-                )}
-
                 {/* Legend */}
-                <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                <View style={{ flexDirection: 'row', gap: 16, paddingHorizontal: 16, paddingVertical: 8,
+                    borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
                     {[['FREE','Müsait'],['PENDING','Bekliyor'],['CONFIRMED','Rezerveli']].map(([s, lbl]) => (
                         <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                            <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: SLOT_STATUS_COLOR[s] }} />
-                            <Text style={{ color: '#888', fontSize: 11 }}>{lbl}</Text>
+                            <View style={{ width: 11, height: 11, borderRadius: 3, backgroundColor: SLOT_STATUS_COLOR[s] }} />
+                            <Text style={{ color: '#aaa', fontSize: 11 }}>{lbl}</Text>
                         </View>
                     ))}
                 </View>
 
-                {/* Slot grid */}
                 {loading
-                    ? <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 40 }} />
-                    : (
-                        <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-                            {(!courtData || courtData.slots?.length === 0) && (
-                                <Text style={{ color: '#555', textAlign: 'center', marginTop: 32, fontSize: 13 }}>
-                                    Bu gün için slot bulunamadı
-                                </Text>
-                            )}
-                            {courtData?.slots?.map((slot, i) => (
-                                <View key={i} style={{
-                                    flexDirection: 'row', alignItems: 'stretch',
-                                    backgroundColor: SLOT_STATUS_BG[slot.status],
-                                    borderRadius: 12, marginBottom: 8,
-                                    borderWidth: 1, borderColor: SLOT_STATUS_COLOR[slot.status] + '55',
-                                    overflow: 'hidden',
-                                }}>
-                                    <View style={{ width: 5, backgroundColor: SLOT_STATUS_COLOR[slot.status] }} />
-                                    <View style={{ flex: 1, padding: 12 }}>
-                                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>
-                                            {slot.start} – {slot.end}
-                                        </Text>
-                                        {slot.user
-                                            ? <Text style={{ color: '#60a5fa', fontSize: 12, marginTop: 3 }}>
-                                                @{slot.user.username}{slot.user.fullName ? `  ·  ${slot.user.fullName}` : ''}
-                                              </Text>
-                                            : null}
-                                        <Text style={{ color: SLOT_STATUS_COLOR[slot.status], fontSize: 11, marginTop: 3, fontWeight: '700' }}>
-                                            {SLOT_STATUS_LABEL[slot.status]}
-                                        </Text>
+                    ? <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 48 }} />
+                    : courts.length === 0
+                        ? <Text style={{ color:'#555', textAlign:'center', marginTop:40, fontSize:13 }}>Tesis bulunamadı</Text>
+                        : (
+                            /* Outer vertical scroll */
+                            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                                {/* Inner horizontal scroll (for many courts) */}
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                    <View>
+                                        {/* Header row: time label + court names */}
+                                        <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ffffff18' }}>
+                                            <View style={{ width: TIME_COL_W, padding: 10, justifyContent: 'center' }}>
+                                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700' }}>SAAT</Text>
+                                            </View>
+                                            {courts.map(c => (
+                                                <View key={c.courtId} style={{ width: COURT_COL_W, padding: 10,
+                                                    alignItems: 'center', justifyContent: 'center',
+                                                    borderLeftWidth: 1, borderLeftColor: '#ffffff10' }}>
+                                                    <Text style={{ color: BIZ_LIGHT, fontSize: 12, fontWeight: '800', textAlign: 'center' }}>
+                                                        {c.courtName}
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                        </View>
+
+                                        {/* Data rows: one per time slot */}
+                                        {timeAxis.map((slot, rowIdx) => (
+                                            <View key={rowIdx} style={{ flexDirection: 'row',
+                                                borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                                                {/* Time label */}
+                                                <View style={{ width: TIME_COL_W, paddingVertical: 12, paddingHorizontal: 8,
+                                                    justifyContent: 'center', backgroundColor: '#ffffff05' }}>
+                                                    <Text style={{ color: '#ddd', fontSize: 12, fontWeight: '700' }}>{slot.start}</Text>
+                                                    <Text style={{ color: '#666', fontSize: 10, marginTop: 1 }}>– {slot.end}</Text>
+                                                </View>
+
+                                                {/* Court cells */}
+                                                {courts.map(c => {
+                                                    const cell = getCell(c.courtId, rowIdx);
+                                                    const st = cell?.status || 'FREE';
+                                                    return (
+                                                        <View key={c.courtId} style={{
+                                                            width: COURT_COL_W,
+                                                            paddingVertical: 10, paddingHorizontal: 8,
+                                                            backgroundColor: SLOT_STATUS_BG[st],
+                                                            borderLeftWidth: 1, borderLeftColor: '#ffffff10',
+                                                            justifyContent: 'center', alignItems: 'center',
+                                                        }}>
+                                                            <View style={{ width: 28, height: 28, borderRadius: 14,
+                                                                backgroundColor: SLOT_STATUS_COLOR[st] + '30',
+                                                                borderWidth: 1.5, borderColor: SLOT_STATUS_COLOR[st],
+                                                                alignItems: 'center', justifyContent: 'center',
+                                                                marginBottom: cell?.user ? 4 : 0 }}>
+                                                                <Text style={{ fontSize: 12 }}>
+                                                                    {st === 'FREE' ? '✓' : st === 'PENDING' ? '⏳' : '●'}
+                                                                </Text>
+                                                            </View>
+                                                            {cell?.user && (
+                                                                <Text style={{ color: '#60a5fa', fontSize: 10, textAlign: 'center' }}
+                                                                    numberOfLines={1}>
+                                                                    @{cell.user.username}
+                                                                </Text>
+                                                            )}
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                        ))}
+                                        <View style={{ height: 32 }} />
                                     </View>
-                                </View>
-                            ))}
-                            <View style={{ height: 32 }} />
-                        </ScrollView>
-                    )
+                                </ScrollView>
+                            </ScrollView>
+                        )
                 }
             </View>
         </Modal>
