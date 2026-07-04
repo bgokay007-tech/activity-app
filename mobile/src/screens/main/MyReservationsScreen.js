@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, FlatList, TextInput,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert,
@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import api from '../../services/api';
+import { onSocket } from '../../services/socket';
 
 const STATUS_COLOR = { PENDING: '#eab308', CONFIRMED: '#22c55e', CANCELLED: '#6b7280' };
 const STATUS_LABEL = { PENDING: 'Bekliyor', CONFIRMED: 'Onaylandı', CANCELLED: 'İptal' };
@@ -214,6 +215,12 @@ export default function MyReservationsScreen({ navigation }) {
     }, []);
 
     useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
+
+    useEffect(() => {
+        return onSocket('reservationUpdate', ({ reservationId, status }) => {
+            setRes(prev => prev.map(r => r.id === reservationId ? { ...r, status } : r));
+        });
+    }, []);
 
     const today = new Date().toISOString().slice(0, 10);
     const filtered = reservations.filter(r => {

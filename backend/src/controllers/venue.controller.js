@@ -508,7 +508,10 @@ export const updateReservationStatus = async (req, res, next) => {
         const { action } = req.body; // 'confirm' | 'noshow'
         const res_ = await prisma.courtReservation.findUnique({
             where: { id: resId },
-            include: { venue: { select: { userId: true } } },
+            include: {
+                venue: { select: { userId: true, name: true } },
+                court: { select: { name: true } },
+            },
         });
         if (!res_) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
         if (res_.venue?.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
@@ -518,6 +521,30 @@ export const updateReservationStatus = async (req, res, next) => {
             : { status: 'CANCELLED', noShow: true };
         const updated = await prisma.courtReservation.update({ where: { id: resId }, data });
         res.json({ reservation: updated });
+
+        // Müşteriye bildirim + socket
+        const customerId = res_.userId;
+        const venueName  = res_.venue?.name || 'Tesis';
+        const courtName  = res_.court?.name || 'Kort';
+        const dateStr    = `${res_.date} ${res_.startTime}–${res_.endTime}`;
+
+        if (action === 'confirm') {
+            createNotification(
+                customerId, 'RESERVATION',
+                '✅ Rezervasyonunuz Onaylandı',
+                `${venueName} · ${courtName} — ${dateStr} rezervasyonunuz onaylandı.`,
+                { reservationId: resId }
+            ).catch(() => {});
+            emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CONFIRMED' });
+        } else {
+            createNotification(
+                customerId, 'RESERVATION',
+                '❌ Rezervasyon İptal Edildi',
+                `${venueName} · ${courtName} — ${dateStr} rezervasyonunuz iptal edildi.`,
+                { reservationId: resId }
+            ).catch(() => {});
+            emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CANCELLED' });
+        }
     } catch (e) { next(e); }
 };
 
