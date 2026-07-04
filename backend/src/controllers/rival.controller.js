@@ -401,7 +401,9 @@ export const createRivalRequest = async (req, res, next) => {
         if (!flexibleSchedule && matchDate && matchTime) {
             const [h, m] = matchTime.split(':').map(Number);
             const matchUTC = new Date(new Date(matchDate).getTime() + (h * 60 + m) * 60000 - 3 * 3600000);
-            if (matchUTC <= new Date()) {
+            // Reserved courts: allow posting until 30 min after match start (user may be looking for a last-minute opponent)
+            const deadline = isCourtReserved ? new Date(matchUTC.getTime() + 30 * 60000) : matchUTC;
+            if (deadline <= new Date()) {
                 return res.status(400).json({ message: 'Geçmiş zamanda maç oluşturalamaz.' });
             }
         }
