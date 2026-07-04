@@ -632,7 +632,7 @@ function VenueScheduleModal({ visible, venue, onClose }) {
                                             <View key={rowIdx} style={{ flexDirection: 'row',
                                                 borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
                                                 {/* Time label */}
-                                                <View style={{ width: TIME_COL_W, paddingVertical: 12, paddingHorizontal: 8,
+                                                <View style={{ width: TIME_COL_W, paddingVertical: 12, paddingLeft: 8, paddingRight: 3,
                                                     justifyContent: 'center', backgroundColor: '#ffffff05' }}>
                                                     <Text style={{ color: '#ddd', fontSize: 12, fontWeight: '700' }}>{slot.start}</Text>
                                                     <Text style={{ color: '#666', fontSize: 10, marginTop: 1 }}>– {slot.end}</Text>
