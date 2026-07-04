@@ -1028,10 +1028,17 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const [savingSlot, setSavingSlot]         = useState(false);
 
     const [localOpenSlots, setLocalOpenSlots] = useState(() => {
-        if (venue.openSlots && Array.isArray(venue.openSlots) && venue.openSlots.length > 0)
-            return venue.openSlots.map(w => ({ from: w.from, to: w.to }));
-        return [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
+        const os = venue.openSlots;
+        if (os && !Array.isArray(os) && typeof os === 'object') return os;
+        // Eski array format → tüm günlere uygula
+        if (Array.isArray(os) && os.length > 0) {
+            const obj = {};
+            ['1','2','3','4','5','6','7'].forEach(d => { obj[d] = os.map(w => ({ from: w.from, to: w.to })); });
+            return obj;
+        }
+        return {}; // boş = tüm günler varsayılan saatler
     });
+    const [selectedDay,    setSelectedDay]    = useState(1); // 1=Pzt...7=Paz
     const [addingWindow,   setAddingWindow]   = useState(false);
     const [newFrom,        setNewFrom]        = useState('');
     const [newTo,          setNewTo]          = useState('');
@@ -1040,6 +1047,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
 
     const [localCancelPolicy,     setLocalCancelPolicy]     = useState(venue.cancelHoursBefore     ?? null);
     const [localReschedulePolicy, setLocalReschedulePolicy] = useState(venue.rescheduleHoursBefore ?? null);
+    const [customPolicyHour,      setCustomPolicyHour]      = useState('');
     const [savingPolicy,          setSavingPolicy]          = useState(false);
     const [localAcceptedPayments, setLocalAcceptedPayments] = useState(
         Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT']
@@ -1169,10 +1177,30 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         finally { setSavingWindows(false); }
     };
 
+    const dayKey = String(selectedDay);
+    const dayWindows = localOpenSlots[dayKey] || [];
+
     const handleRemoveWindow = (idx) => {
-        if (localOpenSlots.length <= 1) { Alert.alert('Uyarı', 'En az bir çalışma aralığı olmalı'); return; }
-        const next = localOpenSlots.filter((_, i) => i !== idx);
+        if (dayWindows.length <= 1) {
+            // Özelleşmeyi sil → varsayılana dön
+            const next = { ...localOpenSlots };
+            delete next[dayKey];
+            saveOpenSlots(next);
+            return;
+        }
+        const next = { ...localOpenSlots, [dayKey]: dayWindows.filter((_, i) => i !== idx) };
         saveOpenSlots(next);
+    };
+
+    const handleResetDay = () => {
+        const next = { ...localOpenSlots };
+        delete next[dayKey];
+        saveOpenSlots(next);
+    };
+
+    const handleCustomizeDayFromDefault = () => {
+        const next = { ...localOpenSlots, [dayKey]: [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }] };
+        setLocalOpenSlots(next);
     };
 
     const handleSavePolicy = async (field, value) => {
@@ -1189,8 +1217,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         const from = normalizeTime(newFrom);
         const to   = normalizeTime(newTo);
         if (!isValidTime(from) || !isValidTime(to)) { Alert.alert('Hata', 'Geçerli saat girin (ör: 8, 8:30, 08:00)'); return; }
-        const next = [...localOpenSlots, { from, to }]
-            .sort((a, b) => a.from.localeCompare(b.from));
+        const next = { ...localOpenSlots, [dayKey]: [...dayWindows, { from, to }].sort((a, b) => a.from.localeCompare(b.from)) };
         setAddingWindow(false);
         setNewFrom('');
         setNewTo('');
@@ -1492,25 +1519,68 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 10, letterSpacing: 0.5 }}>
                         ÇALIŞMA SAATLERİ
                     </Text>
-                    {localOpenSlots.map((w, idx) => (
-                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8,
-                            backgroundColor: '#ffffff08', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 }}>
-                            <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 15, flex: 1 }}>
-                                {w.from} – {w.to}
+
+                    {/* Gün seçici */}
+                    <View style={{ flexDirection: 'row', gap: 5, marginBottom: 14, flexWrap: 'wrap' }}>
+                        {[
+                            { d: 1, lbl: 'Pzt' }, { d: 2, lbl: 'Sal' }, { d: 3, lbl: 'Çar' },
+                            { d: 4, lbl: 'Per' }, { d: 5, lbl: 'Cum' }, { d: 6, lbl: 'Cmt' },
+                            { d: 7, lbl: 'Paz' },
+                        ].map(({ d, lbl }) => {
+                            const isActive = selectedDay === d;
+                            const hasCustom = !!(localOpenSlots[String(d)] && localOpenSlots[String(d)].length > 0);
+                            return (
+                                <TouchableOpacity key={d} onPress={() => { setSelectedDay(d); setAddingWindow(false); setNewFrom(''); setNewTo(''); }}
+                                    style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1.5,
+                                        borderColor: isActive ? BIZ_COLOR : hasCustom ? BIZ_COLOR + '40' : '#ffffff15',
+                                        backgroundColor: isActive ? BIZ_COLOR + '28' : 'transparent' }}>
+                                    <Text style={{ color: isActive ? BIZ_LIGHT : hasCustom ? BIZ_COLOR + 'cc' : '#777',
+                                        fontWeight: isActive ? '800' : hasCustom ? '700' : '400', fontSize: 12 }}>
+                                        {lbl}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    {/* Seçili günün saatleri */}
+                    {dayWindows.length > 0 ? (
+                        <>
+                            {dayWindows.map((w, idx) => (
+                                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 7,
+                                    backgroundColor: '#ffffff08', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 }}>
+                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 15, flex: 1 }}>
+                                        {w.from} – {w.to}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => handleRemoveWindow(idx)} style={{ padding: 4 }}>
+                                        <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '700' }}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                            <TouchableOpacity onPress={handleResetDay} style={{ marginBottom: 8, paddingVertical: 4 }}>
+                                <Text style={{ color: '#6b7280', fontSize: 11 }}>↺ Bu günü varsayılana sıfırla</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : (
+                        <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={{ color: '#555', fontSize: 13, flex: 1 }}>
+                                Varsayılan: {venue.openTime || '08:00'} – {venue.closeTime || '22:00'}
                             </Text>
-                            <TouchableOpacity onPress={() => handleRemoveWindow(idx)} style={{ padding: 4 }}>
-                                <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '700' }}>✕</Text>
+                            <TouchableOpacity onPress={handleCustomizeDayFromDefault}
+                                style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '22',
+                                    borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
+                                <Text style={{ color: BIZ_LIGHT, fontSize: 11, fontWeight: '700' }}>Özelleştir</Text>
                             </TouchableOpacity>
                         </View>
-                    ))}
+                    )}
+
                     {savingWindows && <ActivityIndicator color={BIZ_COLOR} style={{ marginVertical: 6 }} size="small" />}
 
                     {addingWindow ? (
                         <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 8 }}>
                             <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 10 }}>Yeni aralık ekle</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                                <TouchableOpacity
-                                    onPress={() => setShowTimePicker('from')}
+                                <TouchableOpacity onPress={() => setShowTimePicker('from')}
                                     style={{ flex: 1, backgroundColor: newFrom ? BIZ_COLOR + '20' : '#ffffff10',
                                         borderRadius: 8, paddingVertical: 10, alignItems: 'center',
                                         borderWidth: 1.5, borderColor: newFrom ? BIZ_COLOR + '60' : '#ffffff20' }}>
@@ -1519,8 +1589,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                     </Text>
                                 </TouchableOpacity>
                                 <Text style={{ color: '#555', fontSize: 18 }}>–</Text>
-                                <TouchableOpacity
-                                    onPress={() => setShowTimePicker('to')}
+                                <TouchableOpacity onPress={() => setShowTimePicker('to')}
                                     style={{ flex: 1, backgroundColor: newTo ? BIZ_COLOR + '20' : '#ffffff10',
                                         borderRadius: 8, paddingVertical: 10, alignItems: 'center',
                                         borderWidth: 1.5, borderColor: newTo ? BIZ_COLOR + '60' : '#ffffff20' }}>
@@ -1541,8 +1610,11 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                             </View>
                         </View>
                     ) : (
-                        <TouchableOpacity onPress={() => setAddingWindow(true)}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20, paddingVertical: 8 }}>
+                        <TouchableOpacity onPress={() => {
+                            if (dayWindows.length === 0) handleCustomizeDayFromDefault();
+                            setAddingWindow(true);
+                        }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingVertical: 6 }}>
                             <Text style={{ color: BIZ_COLOR, fontSize: 20, fontWeight: '700' }}>+</Text>
                             <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '600' }}>Aralık Ekle</Text>
                         </TouchableOpacity>
@@ -1651,18 +1723,24 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                           desc: 'Kullanıcılar rezervasyondan kaç saat öncesine kadar iptal edebilsin?' },
                         { label: 'DEĞİŞİKLİK POLİTİKASI', field: 'rescheduleHoursBefore', current: localReschedulePolicy,
                           desc: 'Kullanıcılar rezervasyondan kaç saat öncesine kadar tarih/saat değiştirebilsin?' },
-                    ].map(pol => (
+                    ].map(pol => {
+                        const quickOpts = [null, 1, 2, 3, 6, 12, 24, 48, 72, -1];
+                        const isCustom  = pol.current !== null && pol.current >= 0 && !quickOpts.includes(pol.current);
+                        return (
                         <View key={pol.field} style={{ marginBottom: 20 }}>
                             <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>{pol.label}</Text>
                             <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>{pol.desc}</Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                                 {[
                                     { val: null, label: 'Her Zaman' },
+                                    { val: 1,    label: '1 Saat' },
                                     { val: 2,    label: '2 Saat' },
+                                    { val: 3,    label: '3 Saat' },
                                     { val: 6,    label: '6 Saat' },
                                     { val: 12,   label: '12 Saat' },
                                     { val: 24,   label: '24 Saat' },
                                     { val: 48,   label: '48 Saat' },
+                                    { val: 72,   label: '72 Saat' },
                                     { val: -1,   label: 'Asla' },
                                 ].map(opt => {
                                     const isActive = pol.current === opt.val;
@@ -1682,8 +1760,42 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                     );
                                 })}
                             </View>
+                            {/* Manuel saat girişi */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <TextInput
+                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12,
+                                        paddingVertical: 7, color: '#fff', fontSize: 14, borderWidth: 1,
+                                        borderColor: isCustom ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                    placeholder="Özel saat (ör: 36)"
+                                    placeholderTextColor="#444"
+                                    keyboardType="number-pad"
+                                    value={isCustom ? String(pol.current) : customPolicyHour}
+                                    onChangeText={setCustomPolicyHour}
+                                    returnKeyType="done"
+                                    onSubmitEditing={() => {
+                                        const h = parseInt(customPolicyHour);
+                                        if (!isNaN(h) && h > 0) { handleSavePolicy(pol.field, h); setCustomPolicyHour(''); }
+                                    }}
+                                />
+                                <TouchableOpacity disabled={savingPolicy}
+                                    onPress={() => {
+                                        const h = parseInt(customPolicyHour);
+                                        if (!isNaN(h) && h > 0) { handleSavePolicy(pol.field, h); setCustomPolicyHour(''); }
+                                        else Alert.alert('Hata', 'Geçerli bir saat sayısı girin');
+                                    }}
+                                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
+                                        backgroundColor: BIZ_COLOR + '28', borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
+                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Uygula</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {isCustom && (
+                                <Text style={{ color: BIZ_COLOR + 'cc', fontSize: 11, marginTop: 5 }}>
+                                    ✓ Aktif: {pol.current} saat öncesine kadar
+                                </Text>
+                            )}
                         </View>
-                    ))}
+                        );
+                    })}
                     {savingPolicy && <ActivityIndicator color={BIZ_COLOR} size="small" />}
 
                     {/* ── Ödeme Yöntemleri (PRO) ── */}

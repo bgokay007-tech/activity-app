@@ -24,10 +24,23 @@ async function autoConfirmPastCash(venueId) {
     }
 }
 
+// openSlots eski format: array → tüm günler için geçerli
+// openSlots yeni format: { "1":[...], "7":[...] } → gün bazlı (1=Pzt...7=Paz)
+function getOpenWindows(venue, date) {
+    const os = venue.openSlots;
+    if (os && !Array.isArray(os) && typeof os === 'object') {
+        const dow = new Date(date + 'T12:00:00').getDay(); // 0=Sun..6=Sat
+        const key = String(dow === 0 ? 7 : dow);           // 1=Pzt..7=Paz
+        const day = os[key];
+        if (Array.isArray(day) && day.length > 0) return day;
+        return [{ from: venue.openTime, to: venue.closeTime }];
+    }
+    if (Array.isArray(os) && os.length > 0) return os;
+    return [{ from: venue.openTime, to: venue.closeTime }];
+}
+
 function computeSlots(venue, reservations, date) {
-    const openWindows = (venue.openSlots && Array.isArray(venue.openSlots) && venue.openSlots.length > 0)
-        ? venue.openSlots
-        : [{ from: venue.openTime, to: venue.closeTime }];
+    const openWindows = getOpenWindows(venue, date);
 
     const taken = reservations
         .filter(r => r.date === date && r.status !== 'CANCELLED')
@@ -354,9 +367,7 @@ export const getOwnerSchedule = async (req, res, next) => {
             include: { user: { select: { id: true, username: true, fullName: true } } },
         });
 
-        const openWindows = (venue.openSlots && Array.isArray(venue.openSlots) && venue.openSlots.length > 0)
-            ? venue.openSlots
-            : [{ from: venue.openTime, to: venue.closeTime }];
+        const openWindows = getOpenWindows(venue, date);
 
         const findRes = (courtId, s, e) =>
             allRes.filter(r => r.courtId === courtId && overlaps(s, e, toMins(r.startTime), toMins(r.endTime)));
