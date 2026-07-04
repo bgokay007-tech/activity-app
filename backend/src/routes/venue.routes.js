@@ -4,6 +4,7 @@ import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
     createVenue, getMyVenues, deleteVenue, updateIban,
     getVenueSlots, makeReservation, getVenueReservations, cancelReservation,
+    updateReservationStatus, rescheduleReservation,
     getMyReservations, getOwnerSchedule, getVenueAnalytics, updateVenueSettings,
     updateCourtSettings, searchVenues, getVenueById,
     getPendingVenues, approveVenue, rejectVenue,
@@ -44,6 +45,8 @@ router.get('/search',                    searchVenues);
 router.get('/reservations/mine',         getMyReservations);
 router.get('/orders/mine',               getUserOrders);
 router.delete('/reservations/:resId',    cancelReservation);
+router.patch('/reservations/:resId/status',     updateReservationStatus);
+router.patch('/reservations/:resId/reschedule', rescheduleReservation);
 router.get('/:id/menu',                  getVenueMenu);
 router.post('/:id/orders',               placeOrder);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);

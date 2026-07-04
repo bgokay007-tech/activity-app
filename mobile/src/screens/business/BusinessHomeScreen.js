@@ -937,6 +937,10 @@ function VenueCard({ venue, sub, onDelete }) {
     const [newTo,          setNewTo]          = useState('');
     const [savingWindows,  setSavingWindows]  = useState(false);
 
+    const [localCancelPolicy,     setLocalCancelPolicy]     = useState(venue.cancelHoursBefore     ?? null);
+    const [localReschedulePolicy, setLocalReschedulePolicy] = useState(venue.rescheduleHoursBefore ?? null);
+    const [savingPolicy,          setSavingPolicy]          = useState(false);
+
     const loadBlocks = async () => {
         try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
         catch {} finally { setBlocksLoaded(true); }
@@ -1011,6 +1015,13 @@ function VenueCard({ venue, sub, onDelete }) {
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İptal edilemedi'); }
     };
 
+    const handleUpdateResStatus = async (resId, action) => {
+        try {
+            const { data } = await api.patch(`/venues/reservations/${resId}/status`, { action });
+            setReservations(p => p.map(r => r.id === resId ? { ...r, status: data.reservation.status, noShow: data.reservation.noShow } : r));
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Güncellenemedi'); }
+    };
+
     const handleUpdateCourtSlotType = async (courtId, type) => {
         if (courtSlotTypes[courtId] === type) return;
         setSavingSlot(true);
@@ -1044,6 +1055,16 @@ function VenueCard({ venue, sub, onDelete }) {
         if (localOpenSlots.length <= 1) { Alert.alert('Uyarı', 'En az bir çalışma aralığı olmalı'); return; }
         const next = localOpenSlots.filter((_, i) => i !== idx);
         saveOpenSlots(next);
+    };
+
+    const handleSavePolicy = async (field, value) => {
+        setSavingPolicy(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { [field]: value });
+            if (field === 'cancelHoursBefore') setLocalCancelPolicy(value);
+            else setLocalReschedulePolicy(value);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingPolicy(false); }
     };
 
     const handleAddWindow = () => {
@@ -1239,19 +1260,44 @@ function VenueCard({ venue, sub, onDelete }) {
                     </TouchableOpacity>
                     {/* Quick today list */}
                     {reservations.filter(r => r.date === new Date().toISOString().slice(0,10) && r.status !== 'CANCELLED').map(r => (
-                        <View key={r.id} style={vc.resCard}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
-                                <Text style={vc.resUser}>@{r.user?.username || '—'}</Text>
-                                <Text style={vc.resMeta}>{r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Kortta Öde'}{r.status === 'PENDING' ? '  · ⏳ Onay Bekleniyor' : ''}</Text>
+                        <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                    <Text style={vc.resUser}>@{r.user?.username || '—'}</Text>
+                                    <Text style={vc.resMeta}>
+                                        {r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Kortta Öde'}
+                                        {r.status === 'PENDING' ? '  · ⏳ Onay Bekleniyor' : r.status === 'CONFIRMED' ? '  · ✅ Onaylandı' : ''}
+                                        {r.noShow ? '  · ❌ Gelmedi' : ''}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity style={vc.resCancelBtn}
+                                    onPress={() => Alert.alert('İptal Et', `${r.user?.username} kişisinin rezervasyonu iptal edilsin mi?`, [
+                                        { text: 'Vazgeç', style: 'cancel' },
+                                        { text: 'İptal Et', style: 'destructive', onPress: () => handleCancelReservation(r.id) },
+                                    ])}>
+                                    <Text style={vc.resCancelTxt}>İptal</Text>
+                                </TouchableOpacity>
                             </View>
-                            <TouchableOpacity style={vc.resCancelBtn}
-                                onPress={() => Alert.alert('İptal Et', `${r.user?.username} kişisinin rezervasyonu iptal edilsin mi?`, [
-                                    { text: 'Vazgeç', style: 'cancel' },
-                                    { text: 'İptal Et', style: 'destructive', onPress: () => handleCancelReservation(r.id) },
-                                ])}>
-                                <Text style={vc.resCancelTxt}>İptal</Text>
-                            </TouchableOpacity>
+                            {r.paymentMethod === 'CASH' && r.status === 'PENDING' && (
+                                <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                                    <TouchableOpacity
+                                        style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7,
+                                            alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                        onPress={() => handleUpdateResStatus(r.id, 'confirm')}>
+                                        <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Ödeme Alındı</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7,
+                                            alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
+                                        onPress={() => Alert.alert('Gelmedi / İptal', 'Müşteri gelmedi olarak işaretlensin mi?', [
+                                            { text: 'Vazgeç', style: 'cancel' },
+                                            { text: 'Gelmedi', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'noshow') },
+                                        ])}>
+                                        <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Gelmedi</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                         </View>
                     ))}
                     {resLoaded && reservations.filter(r => r.date === new Date().toISOString().slice(0,10) && r.status !== 'CANCELLED').length === 0 && (
@@ -1398,6 +1444,48 @@ function VenueCard({ venue, sub, onDelete }) {
                         );
                     })}
                     {savingSlot && <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 10 }} />}
+
+                    {/* ── İptal & Değişiklik Politikası ──── */}
+                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                    {[
+                        { label: 'İPTAL POLİTİKASI', field: 'cancelHoursBefore',     current: localCancelPolicy,
+                          desc: 'Kullanıcılar rezervasyondan kaç saat öncesine kadar iptal edebilsin?' },
+                        { label: 'DEĞİŞİKLİK POLİTİKASI', field: 'rescheduleHoursBefore', current: localReschedulePolicy,
+                          desc: 'Kullanıcılar rezervasyondan kaç saat öncesine kadar tarih/saat değiştirebilsin?' },
+                    ].map(pol => (
+                        <View key={pol.field} style={{ marginBottom: 20 }}>
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>{pol.label}</Text>
+                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>{pol.desc}</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                {[
+                                    { val: null, label: 'Her Zaman' },
+                                    { val: 2,    label: '2 Saat' },
+                                    { val: 6,    label: '6 Saat' },
+                                    { val: 12,   label: '12 Saat' },
+                                    { val: 24,   label: '24 Saat' },
+                                    { val: 48,   label: '48 Saat' },
+                                    { val: -1,   label: 'Asla' },
+                                ].map(opt => {
+                                    const isActive = pol.current === opt.val;
+                                    return (
+                                        <TouchableOpacity key={String(opt.val)} disabled={savingPolicy}
+                                            onPress={() => handleSavePolicy(pol.field, opt.val)}
+                                            style={{
+                                                paddingHorizontal: 11, paddingVertical: 7,
+                                                borderRadius: 8, borderWidth: 1.5,
+                                                borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
+                                                backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
+                                            }}>
+                                            <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 12, fontWeight: isActive ? '700' : '400' }}>
+                                                {opt.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    ))}
+                    {savingPolicy && <ActivityIndicator color={BIZ_COLOR} size="small" />}
                 </View>
             )}
 

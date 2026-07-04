@@ -294,10 +294,13 @@ export const updateVenueSettings = async (req, res, next) => {
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
+        const { cancelHoursBefore, rescheduleHoursBefore } = req.body;
         const data = {};
-        if (slotType !== undefined)     data.slotType     = slotType;
-        if (pricePerSlot !== undefined) data.pricePerSlot = parseInt(pricePerSlot) || 0;
-        if (openSlots !== undefined)    data.openSlots    = openSlots; // [{from:'HH:MM',to:'HH:MM'}]
+        if (slotType !== undefined)             data.slotType             = slotType;
+        if (pricePerSlot !== undefined)         data.pricePerSlot         = parseInt(pricePerSlot) || 0;
+        if (openSlots !== undefined)            data.openSlots            = openSlots;
+        if (cancelHoursBefore !== undefined)    data.cancelHoursBefore    = cancelHoursBefore === null ? null : parseInt(cancelHoursBefore);
+        if (rescheduleHoursBefore !== undefined) data.rescheduleHoursBefore = rescheduleHoursBefore === null ? null : parseInt(rescheduleHoursBefore);
 
         const updated = await prisma.businessVenue.update({ where: { id }, data });
         res.json({ venue: updated });
@@ -461,7 +464,7 @@ export const getMyReservations = async (req, res, next) => {
         const reservations = await prisma.courtReservation.findMany({
             where: { userId: req.userId },
             include: {
-                venue: { select: { id: true, name: true, branch: true, city: true, district: true, address: true, phone: true } },
+                venue: { select: { id: true, name: true, branch: true, city: true, district: true, address: true, phone: true, pricePerSlot: true, cancelHoursBefore: true, rescheduleHoursBefore: true } },
                 court: true,
             },
             orderBy: [{ date: 'desc' }, { startTime: 'asc' }],
@@ -475,14 +478,94 @@ export const cancelReservation = async (req, res, next) => {
         const { resId } = req.params;
         const res_ = await prisma.courtReservation.findUnique({
             where: { id: resId },
+            include: { venue: true },
+        });
+        if (!res_) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
+        const isOwner      = res_.userId === req.userId;
+        const isVenueOwner = res_.venue?.userId === req.userId;
+        if (!isOwner && !isVenueOwner) return res.status(403).json({ message: 'Yetkisiz' });
+
+        // Kullanıcı iptal ediyorsa politika kontrolü
+        if (isOwner && !isVenueOwner) {
+            const cb = res_.venue?.cancelHoursBefore;
+            if (cb !== null && cb !== undefined) {
+                if (cb < 0) return res.status(403).json({ message: 'Bu tesis rezervasyon iptale izin vermiyor' });
+                const resDate = new Date(`${res_.date}T${res_.startTime}:00`);
+                const hoursLeft = (resDate - new Date()) / 3600000;
+                if (hoursLeft < cb)
+                    return res.status(403).json({ message: `Rezervasyondan ${cb} saat öncesine kadar iptal yapılabilir` });
+            }
+        }
+
+        await prisma.courtReservation.update({ where: { id: resId }, data: { status: 'CANCELLED' } });
+        res.json({ message: 'İptal edildi' });
+    } catch (error) { next(error); }
+};
+
+export const updateReservationStatus = async (req, res, next) => {
+    try {
+        const { resId } = req.params;
+        const { action } = req.body; // 'confirm' | 'noshow'
+        const res_ = await prisma.courtReservation.findUnique({
+            where: { id: resId },
             include: { venue: { select: { userId: true } } },
         });
         if (!res_) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
-        const isOwner   = res_.userId === req.userId;
-        const isVenueOwner = res_.venue?.userId === req.userId;
-        if (!isOwner && !isVenueOwner) return res.status(403).json({ message: 'Yetkisiz' });
-        await prisma.courtReservation.update({ where: { id: resId }, data: { status: 'CANCELLED' } });
-        res.json({ message: 'İptal edildi' });
+        if (res_.venue?.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const data = action === 'confirm'
+            ? { status: 'CONFIRMED' }
+            : { status: 'CANCELLED', noShow: true };
+        const updated = await prisma.courtReservation.update({ where: { id: resId }, data });
+        res.json({ reservation: updated });
+    } catch (e) { next(e); }
+};
+
+export const rescheduleReservation = async (req, res, next) => {
+    try {
+        const { resId } = req.params;
+        const { newDate, newStartTime, newEndTime } = req.body;
+        if (!newDate || !newStartTime || !newEndTime)
+            return res.status(400).json({ message: 'newDate, newStartTime ve newEndTime zorunludur' });
+
+        const res_ = await prisma.courtReservation.findUnique({
+            where: { id: resId },
+            include: { venue: true },
+        });
+        if (!res_) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
+        if (res_.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (res_.status === 'CANCELLED') return res.status(400).json({ message: 'İptal edilmiş rezervasyon değiştirilemez' });
+
+        const rb = res_.venue?.rescheduleHoursBefore;
+        if (rb !== null && rb !== undefined) {
+            if (rb < 0) return res.status(403).json({ message: 'Bu tesis rezervasyon değişikliğine izin vermiyor' });
+            const resDate  = new Date(`${res_.date}T${res_.startTime}:00`);
+            const hoursLeft = (resDate - new Date()) / 3600000;
+            if (hoursLeft < rb)
+                return res.status(403).json({ message: `Rezervasyondan ${rb} saat öncesine kadar değişiklik yapılabilir` });
+        }
+
+        // Çakışma kontrolü
+        const existing = await prisma.courtReservation.findMany({
+            where: { venueId: res_.venueId, courtId: res_.courtId, date: newDate, status: { not: 'CANCELLED' }, NOT: { id: resId } },
+        });
+        const hasConflict = existing.some(r =>
+            overlaps(toMins(newStartTime), toMins(newEndTime), toMins(r.startTime), toMins(r.endTime))
+        );
+        if (hasConflict) return res.status(409).json({ message: 'Seçilen saat aralığı dolu' });
+
+        const updated = await prisma.courtReservation.update({
+            where: { id: resId },
+            data: { date: newDate, startTime: newStartTime, endTime: newEndTime, status: 'PENDING' },
+        });
+
+        await createNotification(res_.venue.userId, 'RESERVATION', '📅 Rezervasyon Güncellendi',
+            `Rezervasyon tarihi değiştirildi: ${newDate} ${newStartTime}–${newEndTime}`,
+            { reservationId: resId }
+        ).catch(() => {});
+        emitToUser(res_.venue.userId, 'notification', {});
+
+        res.json({ reservation: updated });
     } catch (error) { next(error); }
 };
 

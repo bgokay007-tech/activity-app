@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
-    View, Text, TouchableOpacity, FlatList,
+    View, Text, TouchableOpacity, FlatList, TextInput,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -28,15 +28,32 @@ function calcDuration(start, end) {
     return String((eh * 60 + em) - (sh * 60 + sm));
 }
 
-function ReservationCard({ item, onCancel, navigation }) {
-    const [cancelling, setCanc] = useState(false);
+function ReservationCard({ item, onCancel, onReschedule, navigation }) {
+    const [cancelling,    setCanc]    = useState(false);
+    const [rescheduling,  setRSched]  = useState(false);
+    const [showReschedule, setShowRS] = useState(false);
+    const [newDate,   setNewDate]   = useState('');
+    const [newStart,  setNewStart]  = useState('');
+    const [newEnd,    setNewEnd]    = useState('');
     const sc = STATUS_COLOR[item.status] || '#9ca3af';
     const sl = STATUS_LABEL[item.status] || item.status;
 
-    const today  = new Date().toISOString().slice(0, 10);
-    const isPast  = item.date < today;
-    const canCancel = item.status !== 'CANCELLED' && !isPast;
-    const canRival  = item.status !== 'CANCELLED' && !isPast; // aynı koşul
+    const today = new Date().toISOString().slice(0, 10);
+    const isPast = item.date < today;
+    const hoursUntil = (new Date(`${item.date}T${item.startTime}:00`) - new Date()) / 3600000;
+
+    const cb = item.venue?.cancelHoursBefore ?? null;
+    const rb = item.venue?.rescheduleHoursBefore ?? null;
+
+    const canCancel = item.status !== 'CANCELLED' && !isPast &&
+        (cb === null || (cb >= 0 && hoursUntil >= cb));
+    const cancelBlocked = item.status !== 'CANCELLED' && !isPast && cb !== null &&
+        (cb < 0 || hoursUntil < cb);
+
+    const canReschedule = item.status !== 'CANCELLED' && !isPast &&
+        (rb === null || (rb >= 0 && hoursUntil >= rb));
+
+    const canRival = item.status !== 'CANCELLED' && !isPast;
 
     const handleCancel = () => {
         Alert.alert('İptal Et', 'Bu rezervasyonu iptal etmek istiyor musunuz?', [
@@ -48,6 +65,19 @@ function ReservationCard({ item, onCancel, navigation }) {
                 finally { setCanc(false); }
             }},
         ]);
+    };
+
+    const handleReschedule = async () => {
+        if (!newDate || !newStart || !newEnd) { Alert.alert('Hata', 'Tüm alanları doldurun'); return; }
+        setRSched(true);
+        try {
+            const { data } = await api.patch(`/venues/reservations/${item.id}/reschedule`, {
+                newDate, newStartTime: newStart, newEndTime: newEnd,
+            });
+            onReschedule(item.id, data.reservation);
+            setShowRS(false);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Değiştirilemedi'); }
+        finally { setRSched(false); }
     };
 
     const handleCreateRival = () => {
@@ -113,12 +143,53 @@ function ReservationCard({ item, onCancel, navigation }) {
                             : <Text style={s.cancelBtnText}>İptal Et</Text>}
                     </TouchableOpacity>
                 )}
+                {cancelBlocked && (
+                    <View style={[s.cancelBtn, { opacity: 0.4 }]}>
+                        <Text style={s.cancelBtnText}>
+                            {cb < 0 ? 'İptal Kapalı' : `İptal: ${cb}s önce`}
+                        </Text>
+                    </View>
+                )}
+                {canReschedule && (
+                    <TouchableOpacity style={s.reschedBtn} onPress={() => setShowRS(v => !v)} activeOpacity={0.8}>
+                        <Text style={s.reschedBtnText}>📅 Değiştir</Text>
+                    </TouchableOpacity>
+                )}
                 {canRival && (
                     <TouchableOpacity style={s.rivalBtn} onPress={handleCreateRival} activeOpacity={0.8}>
                         <Text style={s.rivalBtnText}>🆚 Rakip Bul'da İlan Aç</Text>
                     </TouchableOpacity>
                 )}
             </View>
+
+            {showReschedule && (
+                <View style={s.reschedForm}>
+                    <Text style={s.reschedLabel}>Yeni Tarih & Saat</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <TextInput style={s.reschedInput} placeholder="YYYY-AA-GG" placeholderTextColor="#555"
+                            value={newDate} onChangeText={setNewDate} keyboardType="numbers-and-punctuation" />
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                        <TextInput style={[s.reschedInput, { flex: 1 }]} placeholder="10:00" placeholderTextColor="#555"
+                            value={newStart} onChangeText={setNewStart} keyboardType="numbers-and-punctuation" maxLength={5} />
+                        <Text style={{ color: '#666', alignSelf: 'center' }}>–</Text>
+                        <TextInput style={[s.reschedInput, { flex: 1 }]} placeholder="11:00" placeholderTextColor="#555"
+                            value={newEnd} onChangeText={setNewEnd} keyboardType="numbers-and-punctuation" maxLength={5} />
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity onPress={() => setShowRS(false)}
+                            style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ffffff10', alignItems: 'center' }}>
+                            <Text style={{ color: '#aaa', fontSize: 12 }}>Vazgeç</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleReschedule} disabled={rescheduling}
+                            style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#3b82f630', alignItems: 'center' }}>
+                            {rescheduling
+                                ? <ActivityIndicator size="small" color="#60a5fa" />
+                                : <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>Kaydet</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
         </View>
     );
 }
@@ -196,7 +267,9 @@ export default function MyReservationsScreen({ navigation }) {
                         </View>
                     }
                     renderItem={({ item }) => (
-                        <ReservationCard item={item} navigation={navigation} onCancel={id => setRes(prev => prev.map(r => r.id === id ? { ...r, status: 'CANCELLED' } : r))} />
+                        <ReservationCard item={item} navigation={navigation}
+                            onCancel={id => setRes(prev => prev.map(r => r.id === id ? { ...r, status: 'CANCELLED' } : r))}
+                            onReschedule={(id, updated) => setRes(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r))} />
                     )}
                 />
             )}
@@ -236,6 +309,11 @@ const s = StyleSheet.create({
     actionRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
     cancelBtn: { flex: 1, borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440', backgroundColor: '#ef444408' },
     cancelBtnText: { color: '#f87171', fontWeight: '700', fontSize: 12 },
+    reschedBtn: { flex: 1, borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#3b82f640', backgroundColor: '#3b82f610' },
+    reschedBtnText: { color: '#60a5fa', fontWeight: '700', fontSize: 12 },
+    reschedForm: { marginTop: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 12 },
+    reschedLabel: { color: '#aaa', fontSize: 12, marginBottom: 8, fontWeight: '600' },
+    reschedInput: { borderWidth: 1, borderColor: '#ffffff20', borderRadius: 8, padding: 8, color: '#fff', fontSize: 13, backgroundColor: '#ffffff08' },
     rivalBtn: { flex: 2, borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#9333ea50', backgroundColor: '#9333ea10' },
     rivalBtnText: { color: '#c084fc', fontWeight: '700', fontSize: 12 },
 

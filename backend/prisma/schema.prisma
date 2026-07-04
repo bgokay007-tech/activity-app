@@ -848,8 +848,10 @@ model BusinessVenue {
   closeTime   String   @default("22:00")
   openSlots   Json?
   openDays    Json     @default("[1,2,3,4,5,6,7]")
-  slotType     String   @default("FULL_HOUR") // FULL_HOUR | HALF_HOUR | NINETY_MIN
-  pricePerSlot Int      @default(0)           // TL cinsinden slot başı ücret
+  slotType              String   @default("FULL_HOUR") // FULL_HOUR | HALF_HOUR | NINETY_MIN
+  pricePerSlot          Int      @default(0)           // TL cinsinden slot başı ücret
+  cancelHoursBefore     Int?                           // null=her zaman, -1=asla, N>=0=N saat öncesine kadar
+  rescheduleHoursBefore Int?                           // null=her zaman, -1=asla, N>=0=N saat öncesine kadar
   status       String   @default("PENDING")   // PENDING | APPROVED | REJECTED
   adminNote   String?
   createdAt   DateTime @default(now())
@@ -884,6 +886,7 @@ model CourtReservation {
   endTime       String
   paymentMethod String   @default("CASH")    // EFT | CASH | ONLINE
   status        String   @default("PENDING") // PENDING | CONFIRMED | CANCELLED
+  noShow        Boolean  @default(false)
   receiptUrl    String?
   notes         String?
   createdAt     DateTime @default(now())
