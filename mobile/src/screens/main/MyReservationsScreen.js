@@ -102,6 +102,7 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
                         prefillCity:          item.venue?.city || undefined,
                         prefillVenueId:       item.venueId || undefined,
                         prefillVenueCourtId:  item.courtId || undefined,
+                        prefillCourtFee:      item.venue?.pricePerSlot || undefined,
                     });
                 }},
             ]
@@ -129,6 +130,9 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
                 <Text style={s.locationText}>📍 {item.venue.city}{item.venue.district ? ` / ${item.venue.district}` : ''}</Text>
             )}
 
+            {item.venue?.pricePerSlot > 0 && (
+                <Text style={s.payText}>💰 {item.venue.pricePerSlot} TL / slot</Text>
+            )}
             {item.paymentMethod && (
                 <Text style={s.payText}>
                     {item.paymentMethod === 'CASH' ? '💵 Kort Başında Ödeme' : '💳 Online Ödeme'}
@@ -213,8 +217,9 @@ export default function MyReservationsScreen({ navigation }) {
 
     const today = new Date().toISOString().slice(0, 10);
     const filtered = reservations.filter(r => {
-        if (filter === 'upcoming') return r.date >= today && r.status !== 'CANCELLED';
-        if (filter === 'past')     return r.date < today || r.status === 'CANCELLED';
+        if (filter === 'upcoming') return r.date >= today && r.status === 'CONFIRMED';
+        if (filter === 'pending')  return r.date >= today && r.status === 'PENDING';
+        if (filter === 'past')     return r.date < today  || r.status === 'CANCELLED';
         return true;
     });
 
@@ -232,6 +237,7 @@ export default function MyReservationsScreen({ navigation }) {
             <View style={s.filterRow}>
                 {[
                     { key: 'upcoming', label: 'Yaklaşan' },
+                    { key: 'pending',  label: 'Bekliyor' },
                     { key: 'past',     label: 'Geçmiş' },
                     { key: 'all',      label: 'Tümü' },
                 ].map(f => (
@@ -257,9 +263,11 @@ export default function MyReservationsScreen({ navigation }) {
                         <View style={s.empty}>
                             <Text style={s.emptyIcon}>📭</Text>
                             <Text style={s.emptyText}>
-                                {filter === 'upcoming' ? 'Yaklaşan rezervasyon yok.' : 'Rezervasyon bulunamadı.'}
+                                {filter === 'upcoming' ? 'Onaylanmış yaklaşan rezervasyon yok.'
+                                    : filter === 'pending' ? 'Onay bekleyen rezervasyon yok.'
+                                    : 'Rezervasyon bulunamadı.'}
                             </Text>
-                            {filter === 'upcoming' && (
+                            {(filter === 'upcoming' || filter === 'pending') && (
                                 <TouchableOpacity style={s.newResBtn} onPress={() => navigation.navigate('VenueSearch')} activeOpacity={0.8}>
                                     <Text style={s.newResBtnText}>Tesis Ara →</Text>
                                 </TouchableOpacity>
