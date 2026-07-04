@@ -3724,7 +3724,7 @@ const vb = StyleSheet.create({
 
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
 
-function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
+function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null }) {
     const t = useT();
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isFootball  = sub === 'football';
@@ -3753,7 +3753,27 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated }) {
         venueId: null,
         venueCourtId: null,
     };
-    const [f, setF]               = useState(INIT);
+
+    const buildInitialState = () => {
+        if (!prefill) return INIT;
+        const preCourtObj = prefill.courtName
+            ? { id: null, name: prefill.courtName, city: prefill.city || '' }
+            : null;
+        return {
+            ...INIT,
+            matchDate:        prefill.matchDate ? new Date(prefill.matchDate) : null,
+            matchTime:        prefill.matchTime || '',
+            duration:         prefill.duration  || '60',
+            courtSearchText:  prefill.courtName || '',
+            selectedCourt:    preCourtObj,
+            manualCity:       prefill.city || '',
+            courtReserved:    true,
+            venueId:          prefill.venueId      || null,
+            venueCourtId:     prefill.venueCourtId || null,
+        };
+    };
+
+    const [f, setF]               = useState(() => buildInitialState());
     const [showPartnerSearch, setShowPartnerSearch] = useState(false);
     const [partnerQuery, setPartnerQuery] = useState('');
     const [partnerResults, setPartnerResults] = useState([]);
@@ -7961,7 +7981,8 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
-    const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId } = route.params;
+    const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
+            openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -7979,6 +8000,21 @@ export default function SubCategoryScreen({ route, navigation }) {
             setActiveTab(route.params.initialTab);
         }
     }, [route.params?.initialTab]);
+
+    useEffect(() => {
+        if (!openCreateRival) return;
+        setRivalPrefill({
+            matchDate:    prefillDate,
+            matchTime:    prefillTime,
+            duration:     prefillDuration,
+            courtName:    prefillCourtName,
+            city:         prefillCity,
+            venueId:      prefillVenueId,
+            venueCourtId: prefillVenueCourtId,
+        });
+        setShowCreateRival(true);
+        navigation.setParams({ openCreateRival: undefined });
+    }, [openCreateRival]);
 
     // Tenis sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi" kartını otomatik göster
     const [showSpotlight, setShowSpotlight] = useState(false);
@@ -8096,6 +8132,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [uploadingStandaloneCv, setUploadingStandaloneCv] = useState(false);
 
     const [showCreateRival, setShowCreateRival] = useState(false);
+    const [rivalPrefill, setRivalPrefill] = useState(null);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
@@ -10539,7 +10576,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </ScrollView>
             )}
 
-            {showCreateRival && <CreateRivalModal visible onClose={() => setShowCreateRival(false)} category={category} sub={sub} onCreated={load} />}
+            {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
             {showCreatePW && <CreatePlayerWantedModal visible onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />}
             {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
             {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} onStatusChange={setTournamentPermStatus} />}

@@ -28,9 +28,8 @@ function calcDuration(start, end) {
     return String((eh * 60 + em) - (sh * 60 + sm));
 }
 
-function ReservationCard({ item, onCancel }) {
-    const [cancelling,    setCanc]    = useState(false);
-    const [creatingRival, setCreating] = useState(false);
+function ReservationCard({ item, onCancel, navigation }) {
+    const [cancelling, setCanc] = useState(false);
     const sc = STATUS_COLOR[item.status] || '#9ca3af';
     const sl = STATUS_LABEL[item.status] || item.status;
 
@@ -54,36 +53,26 @@ function ReservationCard({ item, onCancel }) {
     const handleCreateRival = () => {
         const venueName = item.venue?.name || '';
         const courtName = item.court?.name || '';
+        const { sub, cat } = branchToSub(item.venue?.branch);
         Alert.alert(
             '🆚 Rakip Bul\'da İlan Aç',
-            `${venueName} · ${courtName}\n${item.date} · ${item.startTime}–${item.endTime}\n\nBu rezervasyon için rakip arama ilanı oluşturulsun mu?`,
+            `${venueName} · ${courtName}\n${item.date} · ${item.startTime}–${item.endTime}\n\nİlan oluşturma sayfasına yönlendirileceksiniz.`,
             [
                 { text: 'Vazgeç', style: 'cancel' },
-                { text: 'İlan Aç', onPress: async () => {
-                    const { sub, cat } = branchToSub(item.venue?.branch);
-                    const teamSports = new Set(['football', 'volleyball']);
-                    setCreating(true);
-                    try {
-                        await api.post('/rivals', {
-                            category:        cat,
-                            subCategory:     sub,
-                            matchType:       teamSports.has(sub) ? 'FIND_OPPONENT' : 'SINGLE',
-                            matchMode:       'COMPETITIVE',
-                            matchDate:       item.date,
-                            matchTime:       item.startTime,
-                            duration:        calcDuration(item.startTime, item.endTime),
-                            courtName:       courtName || undefined,
-                            courtId:         item.courtId || undefined,
-                            location:        item.venue?.city || undefined,
-                            isCourtReserved: true,
-                            venueId:         item.venueId || undefined,
-                            venueCourtId:    item.courtId || undefined,
-                        });
-                        Alert.alert('✅ İlan Oluşturuldu',
-                            `Rakip bul ilanınız ${item.date} ${item.startTime} için oluşturuldu.`);
-                    } catch (e) {
-                        Alert.alert('Hata', e?.response?.data?.message || 'İlan oluşturulamadı');
-                    } finally { setCreating(false); }
+                { text: 'İlan Aç', onPress: () => {
+                    navigation.navigate('SubCategory', {
+                        category: cat,
+                        sub,
+                        initialTab: 'rivals',
+                        openCreateRival: true,
+                        prefillDate:          item.date,
+                        prefillTime:          item.startTime,
+                        prefillDuration:      calcDuration(item.startTime, item.endTime),
+                        prefillCourtName:     courtName || undefined,
+                        prefillCity:          item.venue?.city || undefined,
+                        prefillVenueId:       item.venueId || undefined,
+                        prefillVenueCourtId:  item.courtId || undefined,
+                    });
                 }},
             ]
         );
@@ -125,10 +114,8 @@ function ReservationCard({ item, onCancel }) {
                     </TouchableOpacity>
                 )}
                 {canRival && (
-                    <TouchableOpacity style={s.rivalBtn} onPress={handleCreateRival} disabled={creatingRival} activeOpacity={0.8}>
-                        {creatingRival
-                            ? <ActivityIndicator size="small" color="#c084fc" />
-                            : <Text style={s.rivalBtnText}>🆚 Rakip Bul'da İlan Aç</Text>}
+                    <TouchableOpacity style={s.rivalBtn} onPress={handleCreateRival} activeOpacity={0.8}>
+                        <Text style={s.rivalBtnText}>🆚 Rakip Bul'da İlan Aç</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -209,7 +196,7 @@ export default function MyReservationsScreen({ navigation }) {
                         </View>
                     }
                     renderItem={({ item }) => (
-                        <ReservationCard item={item} onCancel={id => setRes(prev => prev.map(r => r.id === id ? { ...r, status: 'CANCELLED' } : r))} />
+                        <ReservationCard item={item} navigation={navigation} onCancel={id => setRes(prev => prev.map(r => r.id === id ? { ...r, status: 'CANCELLED' } : r))} />
                     )}
                 />
             )}
