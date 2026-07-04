@@ -50,7 +50,9 @@ const PACKAGES = [
             'Uygulama üzerinden online rezervasyon',
             'Telefon trafiği iş yükü kalkar',
             'Öncelikli destek',
-            'Gelişmiş istatistikler',
+            'Ekstra hizmet menüsü (raket, su, havlu vb.)',
+            'Kullanıcı engelleme özelliği',
+            'Doluluk & gelir raporlama — günlük/haftalık/aylık dönemler, en yoğun saatler ve günler, tahmini gelir özeti',
         ],
     },
     {
@@ -520,6 +522,202 @@ function IbanCard({ iban, ibanHolder, onSave }) {
     );
 }
 
+// ── Venue Analytics Modal ─────────────────────────────────────────────────────
+
+const PRESETS = [
+    { key: 'today',  label: 'Bugün',    getDates: () => { const t = new Date().toISOString().slice(0,10); return [t, t]; } },
+    { key: 'week',   label: 'Bu Hafta', getDates: () => {
+        const now = new Date();
+        const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay()+6)%7));
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+        return [mon.toISOString().slice(0,10), sun.toISOString().slice(0,10)];
+    }},
+    { key: 'month',  label: 'Bu Ay',   getDates: () => {
+        const now = new Date();
+        const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+        const last  = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().slice(0,10);
+        return [first, last];
+    }},
+    { key: 'custom', label: 'Özel',    getDates: () => [null, null] },
+];
+
+function Bar({ value, max, color }) {
+    const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+    return (
+        <View style={{ height: 8, backgroundColor: '#ffffff10', borderRadius: 4, overflow: 'hidden', flex: 1 }}>
+            <View style={{ width: `${pct}%`, height: '100%', backgroundColor: color, borderRadius: 4 }} />
+        </View>
+    );
+}
+
+function VenueAnalyticsModal({ visible, venue, onClose }) {
+    const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const [preset, setPreset]     = useState('week');
+    const [fromDate, setFromDate] = useState('');
+    const [toDate, setToDate]     = useState('');
+    const [data, setData]         = useState(null);
+    const [loading, setLoading]   = useState(false);
+
+    const fetchReport = (from, to) => {
+        if (!from || !to || !venue?.id) return;
+        setLoading(true);
+        setData(null);
+        api.get(`/venues/${venue.id}/analytics?from=${from}&to=${to}`)
+            .then(r => setData(r.data))
+            .catch(() => setData(null))
+            .finally(() => setLoading(false));
+    };
+
+    const selectPreset = (key) => {
+        setPreset(key);
+        if (key === 'custom') return;
+        const [f, t] = PRESETS.find(p => p.key === key).getDates();
+        setFromDate(f); setToDate(t);
+        fetchReport(f, t);
+    };
+
+    useEffect(() => {
+        if (visible) selectPreset('week');
+    }, [visible, venue?.id]);
+
+    const maxHour = Math.max(1, ...(data?.busyHours?.map(h => h.count) || [1]));
+    const maxDay  = Math.max(1, ...(data?.busyDays?.map(d => d.count)  || [1]));
+
+    return (
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: '#0a0a14' }}>
+                {/* Header */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
+                    paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom: 14,
+                    borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}>
+                    <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
+                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1}>
+                        {venue?.name} — Doluluk Raporu
+                    </Text>
+                </View>
+
+                {/* Preset buttons */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                    style={{ paddingHorizontal: 14, paddingVertical: 10, maxHeight: 52, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        {PRESETS.map(p => (
+                            <TouchableOpacity key={p.key}
+                                style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1,
+                                    borderColor: preset === p.key ? BIZ_COLOR + '70' : '#ffffff20',
+                                    backgroundColor: preset === p.key ? BIZ_COLOR + '18' : '#ffffff07' }}
+                                onPress={() => selectPreset(p.key)}>
+                                <Text style={{ color: preset === p.key ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: '600' }}>
+                                    {p.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </ScrollView>
+
+                {/* Custom date inputs */}
+                {preset === 'custom' && (
+                    <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 10,
+                        borderBottomWidth: 1, borderBottomColor: '#ffffff08', alignItems: 'center' }}>
+                        <TextInput style={{ flex: 1, backgroundColor: '#ffffff0c', borderRadius: 8, padding: 9,
+                            color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff18' }}
+                            placeholder="Başlangıç  YYYY-AA-GG" placeholderTextColor="#555"
+                            value={fromDate} onChangeText={setFromDate} />
+                        <Text style={{ color: '#666' }}>–</Text>
+                        <TextInput style={{ flex: 1, backgroundColor: '#ffffff0c', borderRadius: 8, padding: 9,
+                            color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff18' }}
+                            placeholder="Bitiş  YYYY-AA-GG" placeholderTextColor="#555"
+                            value={toDate} onChangeText={setToDate} />
+                        <TouchableOpacity style={{ backgroundColor: BIZ_COLOR, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 }}
+                            onPress={() => fetchReport(fromDate, toDate)}>
+                            <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>Getir</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
+                    {loading && <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 40 }} />}
+
+                    {data && (
+                        <>
+                            {/* KPI cards */}
+                            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
+                                <View style={{ flex: 1, backgroundColor: '#ffffff08', borderRadius: 12, padding: 14,
+                                    borderWidth: 1, borderColor: BIZ_COLOR + '40', alignItems: 'center' }}>
+                                    <Text style={{ color: BIZ_LIGHT, fontSize: 28, fontWeight: '900' }}>{data.occupancyRate}%</Text>
+                                    <Text style={{ color: '#888', fontSize: 11, marginTop: 3, textAlign: 'center' }}>Doluluk Oranı</Text>
+                                </View>
+                                <View style={{ flex: 1, gap: 8 }}>
+                                    <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#ffffff12' }}>
+                                        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>{data.totalBooked}</Text>
+                                        <Text style={{ color: '#888', fontSize: 11 }}>Toplam Rezervasyon</Text>
+                                    </View>
+                                    {data.totalRevenue > 0 && (
+                                        <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#22c55e30' }}>
+                                            <Text style={{ color: '#22c55e', fontSize: 18, fontWeight: '800' }}>{data.totalRevenue}₺</Text>
+                                            <Text style={{ color: '#888', fontSize: 11 }}>Tahmini Gelir</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+
+                            {/* Busiest hours */}
+                            {data.busyHours?.length > 0 && (
+                                <View style={{ backgroundColor: '#ffffff06', borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#ffffff0f' }}>
+                                    <Text style={{ color: BIZ_LIGHT, fontSize: 13, fontWeight: '800', marginBottom: 12 }}>⏰ Saat Bazında Yoğunluk</Text>
+                                    {data.busyHours.slice(0, 8).map((h, i) => (
+                                        <View key={h.hour} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 }}>
+                                            <Text style={{ color: '#ddd', fontSize: 12, fontWeight: '700', width: 44 }}>{h.hour}</Text>
+                                            <Bar value={h.count} max={maxHour} color={i === 0 ? BIZ_COLOR : '#f59e0b80'} />
+                                            <Text style={{ color: '#aaa', fontSize: 12, width: 28, textAlign: 'right' }}>{h.count}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Busiest days of week */}
+                            {data.busyDays?.length > 0 && (
+                                <View style={{ backgroundColor: '#ffffff06', borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#ffffff0f' }}>
+                                    <Text style={{ color: BIZ_LIGHT, fontSize: 13, fontWeight: '800', marginBottom: 12 }}>📅 Gün Bazında Yoğunluk</Text>
+                                    {data.busyDays.map((d, i) => (
+                                        <View key={d.day} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 }}>
+                                            <Text style={{ color: '#ddd', fontSize: 12, fontWeight: '700', width: 76 }}>{d.day}</Text>
+                                            <Bar value={d.count} max={maxDay} color={i === 0 ? '#60a5fa' : '#3b82f660'} />
+                                            <Text style={{ color: '#aaa', fontSize: 12, width: 28, textAlign: 'right' }}>{d.count}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Daily breakdown */}
+                            {data.daily?.length > 0 && (
+                                <View style={{ backgroundColor: '#ffffff06', borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#ffffff0f' }}>
+                                    <Text style={{ color: BIZ_LIGHT, fontSize: 13, fontWeight: '800', marginBottom: 12 }}>📆 Günlük Dağılım</Text>
+                                    {data.daily.map(d => (
+                                        <View key={d.date} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 7, gap: 10 }}>
+                                            <Text style={{ color: '#aaa', fontSize: 12, width: 90 }}>{d.date}</Text>
+                                            <Bar value={d.count} max={Math.max(...data.daily.map(x => x.count))} color='#8b5cf6' />
+                                            <Text style={{ color: '#aaa', fontSize: 12, width: 28, textAlign: 'right' }}>{d.count}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {data.totalBooked === 0 && (
+                                <Text style={{ color: '#555', textAlign: 'center', marginTop: 32, fontSize: 13 }}>
+                                    Bu dönem için rezervasyon bulunamadı
+                                </Text>
+                            )}
+                        </>
+                    )}
+                    <View style={{ height: 32 }} />
+                </ScrollView>
+            </View>
+        </Modal>
+    );
+}
+
 // ── Venue Schedule Modal ──────────────────────────────────────────────────────
 
 const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef4444' };
@@ -715,7 +913,8 @@ function VenueCard({ venue, sub, onDelete }) {
     const [reservations, setReservations]   = useState([]);
     const [resLoaded, setResLoaded]         = useState(false);
     const [resFilter, setResFilter]         = useState('today'); // today | week | all
-    const [scheduleOpen, setScheduleOpen]   = useState(false);
+    const [scheduleOpen, setScheduleOpen]     = useState(false);
+    const [analyticsOpen, setAnalyticsOpen]   = useState(false);
 
     const loadBlocks = async () => {
         try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
@@ -740,6 +939,7 @@ function VenueCard({ venue, sub, onDelete }) {
         if (tab === 'menu'         && !menuLoaded)   loadMenu();
         if (tab === 'orders'       && !ordersLoaded) loadOrders();
         if (tab === 'reservations') { setScheduleOpen(true); if (!resLoaded) loadReservations(); }
+        if (tab === 'analytics')    setAnalyticsOpen(true);
     };
 
     const handleBlock = async () => {
@@ -809,6 +1009,7 @@ function VenueCard({ venue, sub, onDelete }) {
     const TABS = [
         { key: 'info',         label: 'ℹ️ Bilgi' },
         isApproved ? { key: 'reservations', label: '📅 Rezervasyonlar' } : null,
+        isApproved ? { key: 'analytics',    label: '📊 Rapor' }          : null,
         isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
         isApproved && isPro ? { key: 'orders', label: '🛒 Sipariş' } : null,
@@ -995,6 +1196,11 @@ function VenueCard({ venue, sub, onDelete }) {
                 visible={scheduleOpen}
                 venue={venue}
                 onClose={() => setScheduleOpen(false)}
+            />
+            <VenueAnalyticsModal
+                visible={analyticsOpen}
+                venue={venue}
+                onClose={() => setAnalyticsOpen(false)}
             />
         </View>
     );

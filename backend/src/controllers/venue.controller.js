@@ -298,6 +298,78 @@ export const getOwnerSchedule = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const getVenueAnalytics = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { from, to } = req.query;
+        if (!from || !to) return res.status(400).json({ message: 'from ve to parametreleri gerekli (YYYY-MM-DD)' });
+
+        const venue = await prisma.businessVenue.findUnique({
+            where: { id },
+            include: { courts: true },
+        });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const reservations = await prisma.courtReservation.findMany({
+            where: { venueId: id, date: { gte: from, lte: to }, status: { not: 'CANCELLED' } },
+        });
+
+        // Gün sayısı
+        const msPerDay = 86400000;
+        const numDays  = Math.round((new Date(to) - new Date(from)) / msPerDay) + 1;
+        const numCourts = venue.courts.length;
+
+        // Günlük slot sayısı
+        const oMin = toMins(venue.openTime), cMin = toMins(venue.closeTime);
+        let slotsPerDay = 0;
+        if (venue.slotType === 'FULL_HOUR')   slotsPerDay = Math.floor((cMin - oMin) / 60);
+        else if (venue.slotType === 'HALF_HOUR')   slotsPerDay = Math.floor((cMin - oMin) / 60);
+        else if (venue.slotType === 'NINETY_MIN')  slotsPerDay = Math.floor((cMin - oMin) / 120);
+        else slotsPerDay = Math.floor((cMin - oMin) / 60); // FLEXIBLE estimate
+
+        const totalPossible = numCourts * numDays * slotsPerDay;
+        const totalBooked   = reservations.length;
+        const occupancyRate = totalPossible > 0 ? Math.round((totalBooked / totalPossible) * 100) : 0;
+
+        // Saatlere göre yoğunluk
+        const hourMap = {};
+        reservations.forEach(r => {
+            const h = r.startTime.slice(0, 2) + ':00';
+            hourMap[h] = (hourMap[h] || 0) + 1;
+        });
+        const busyHours = Object.entries(hourMap)
+            .map(([hour, count]) => ({ hour, count }))
+            .sort((a, b) => b.count - a.count);
+
+        // Haftanın günlerine göre yoğunluk
+        const DAY_NAMES = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+        const dayMap = {};
+        reservations.forEach(r => {
+            const d = DAY_NAMES[new Date(r.date + 'T12:00:00').getDay()];
+            dayMap[d] = (dayMap[d] || 0) + 1;
+        });
+        const busyDays = Object.entries(dayMap)
+            .map(([day, count]) => ({ day, count }))
+            .sort((a, b) => b.count - a.count);
+
+        // Günlük dağılım
+        const dailyMap = {};
+        reservations.forEach(r => { dailyMap[r.date] = (dailyMap[r.date] || 0) + 1; });
+        const daily = Object.entries(dailyMap)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+        // Tahmini gelir
+        const totalRevenue = totalBooked * (venue.pricePerSlot || 0);
+
+        res.json({
+            occupancyRate, totalBooked, totalPossible, totalRevenue,
+            busyHours, busyDays, daily,
+            meta: { from, to, numDays, numCourts, slotsPerDay },
+        });
+    } catch (error) { next(error); }
+};
+
 export const getMyReservations = async (req, res, next) => {
     try {
         const reservations = await prisma.courtReservation.findMany({
