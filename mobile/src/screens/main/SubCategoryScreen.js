@@ -1847,6 +1847,8 @@ const sc = StyleSheet.create({
     radioLabel:   { color:'#fff', fontSize:14, fontWeight:'700', flex:1 },
     warningText:  { color:'#facc15', fontSize:12, fontWeight:'600', backgroundColor:'#facc1510', borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor:'#facc1540' },
     lockedTxt:    { color: colors.textMuted, fontSize:11, textAlign:'center', marginTop:6 },
+    drawBtn:      { flexDirection:'row', justifyContent:'center', alignItems:'center', paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#facc1540', backgroundColor:'#facc1510', marginBottom:4 },
+    drawBtnTxt:   { color:'#facc15', fontSize:13, fontWeight:'700' },
 });
 
 function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
@@ -2731,6 +2733,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <TouchableOpacity style={sc.addBtn} onPress={addSet}>
                                 <Text style={sc.addBtnTxt}>+ {t.addSet}</Text>
                             </TouchableOpacity>
+                            {sets.some(r => r.my !== '') && (
+                                <TouchableOpacity style={sc.drawBtn} onPress={() => setSets(prev => prev.map(row => ({ ...row, opp: row.my })))}>
+                                    <Text style={sc.drawBtnTxt}>🤝 Beraberlik</Text>
+                                </TouchableOpacity>
+                            )}
                             {hasAnyInput && (
                                 <>
                                     <View style={sc.divider} />
