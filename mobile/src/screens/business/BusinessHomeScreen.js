@@ -736,9 +736,9 @@ const SURFACE_ICON = {
     CLAY: '🟤', HARD: '🩶', CARPET: '🟥', GRASS: '🟢', PARQUET: '🟫', SYNTHETIC: '🟩',
 };
 
-const SCHED_COURT_W = 130;
+const SCHED_COURT_W = 90;
 
-function VenueScheduleModal({ visible, venue, onClose }) {
+function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
     const [schedule, setSchedule] = useState(null);
@@ -816,20 +816,17 @@ function VenueScheduleModal({ visible, venue, onClose }) {
                                         {courts.map(court => (
                                             <View key={court.courtId} style={{ width: SCHED_COURT_W }}>
                                                 {/* Court header */}
-                                                <View style={{ backgroundColor: BIZ_COLOR + '22', borderRadius: 10,
-                                                    padding: 10, marginBottom: 8, alignItems: 'center',
+                                                <View style={{ backgroundColor: BIZ_COLOR + '22', borderRadius: 8,
+                                                    paddingVertical: 7, paddingHorizontal: 6, marginBottom: 6, alignItems: 'center',
                                                     borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
-                                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 13, textAlign: 'center' }}>
+                                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 11, textAlign: 'center' }} numberOfLines={1}>
                                                         {court.courtName}
                                                     </Text>
                                                     {court.surface ? (
-                                                        <Text style={{ color: '#aaa', fontSize: 10, marginTop: 3 }}>
+                                                        <Text style={{ color: '#aaa', fontSize: 9, marginTop: 2 }} numberOfLines={1}>
                                                             {SURFACE_ICON[court.surface]} {SURFACE_LABEL[court.surface]}
                                                         </Text>
                                                     ) : null}
-                                                    <Text style={{ color: '#666', fontSize: 10, marginTop: 2 }}>
-                                                        {court.slots.length} slot
-                                                    </Text>
                                                 </View>
 
                                                 {/* Slot cells */}
@@ -844,23 +841,25 @@ function VenueScheduleModal({ visible, venue, onClose }) {
                                                     return (
                                                         <View key={si} style={{
                                                             backgroundColor: bg,
-                                                            borderRadius: 8, padding: 10, marginBottom: 6,
+                                                            borderRadius: 8, padding: 7, marginBottom: 5,
                                                             borderWidth: 1, borderColor: color + '55',
-                                                            minHeight: 60,
+                                                            minHeight: 48,
                                                         }}>
-                                                            <Text style={{ color: color, fontSize: 12, fontWeight: '800' }}>
+                                                            <Text style={{ color: color, fontSize: 11, fontWeight: '800' }}>
                                                                 {slot.start}
                                                             </Text>
-                                                            <Text style={{ color: color + 'aa', fontSize: 11, marginTop: 1 }}>
+                                                            <Text style={{ color: color + 'aa', fontSize: 10, marginTop: 1 }}>
                                                                 – {slot.end}
                                                             </Text>
                                                             {slot.user ? (
-                                                                <Text style={{ color: '#60a5fa', fontSize: 11, marginTop: 5,
-                                                                    fontWeight: '600' }} numberOfLines={1}>
-                                                                    @{slot.user.username}
-                                                                </Text>
+                                                                <TouchableOpacity onPress={() => onUserPress?.(slot.user)}>
+                                                                    <Text style={{ color: '#60a5fa', fontSize: 10, marginTop: 4,
+                                                                        fontWeight: '700', textDecorationLine: 'underline' }} numberOfLines={1}>
+                                                                        @{slot.user.username}
+                                                                    </Text>
+                                                                </TouchableOpacity>
                                                             ) : (
-                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 5 }}>
+                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 4 }}>
                                                                     {SLOT_STATUS_LABEL[st]}
                                                                 </Text>
                                                             )}
@@ -889,7 +888,7 @@ const MENU_CATS = [
 const ORDER_COLORS = { PENDING:'#eab308', CONFIRMED:'#3b82f6', READY:'#22c55e', CANCELLED:'#ef4444' };
 const ORDER_LABELS = { PENDING:'⏳ Bekliyor', CONFIRMED:'✅ Onaylandı', READY:'🟢 Hazır', CANCELLED:'❌ İptal' };
 
-function VenueCard({ venue, sub, onDelete }) {
+function VenueCard({ venue, sub, onDelete, navigation }) {
     const isApproved = venue.status === 'APPROVED';
     const isPro = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
     const [activeTab, setActiveTab] = useState('info');
@@ -1608,6 +1607,10 @@ function VenueCard({ venue, sub, onDelete }) {
                 visible={scheduleOpen}
                 venue={venue}
                 onClose={() => setScheduleOpen(false)}
+                onUserPress={(user) => {
+                    setScheduleOpen(false);
+                    navigation?.navigate('Profile', { userId: user.id });
+                }}
             />
             <VenueAnalyticsModal
                 visible={analyticsOpen}
@@ -1780,7 +1783,7 @@ export default function BusinessHomeScreen({ navigation }) {
                         </View>
                     ) : (
                         venues.map(v => (
-                            <VenueCard key={v.id} venue={v} sub={sub} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} />
+                            <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} />
                         ))
                     )}
 
