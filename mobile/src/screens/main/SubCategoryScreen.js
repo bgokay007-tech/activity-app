@@ -3535,7 +3535,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
     return (
         <>
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
             <View style={vb.overlay}>
                 <View style={vb.sheet}>
                     {/* Header */}
@@ -3552,7 +3552,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                     {loadingV && <ActivityIndicator color="#22c55e" style={{ marginVertical: 28 }} />}
 
                     {!loadingV && venue && (
-                        <>
+                        <View style={{ flex:1 }}>
                             {/* Tarih Seçici */}
                             <View style={vb.dateRow}>
                                 <TouchableOpacity onPress={() => shiftDate(-1)} style={vb.dateArrow}>
@@ -3578,8 +3578,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
                             {/* Tüm kortlar yan yana */}
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={vb.courtsRow}
-                                style={{ flexGrow: 0, height: 270, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch' }]}
+                                style={{ flex:1, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                                 {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                             </ScrollView>
 
@@ -3657,7 +3657,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                     <Text style={vb.continueBtnTxt}>📌 Kaldığın yerden devam et</Text>
                                 </TouchableOpacity>
                             )}
-                        </>
+                        </View>
                     )}
                 </View>
             </View>
@@ -3672,8 +3672,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 }
 
 const vb = StyleSheet.create({
-    overlay:      { flex:1, backgroundColor:'#000b', justifyContent:'flex-end' },
-    sheet:        { backgroundColor:'#12121e', borderTopLeftRadius:20, borderTopRightRadius:20, maxHeight:'90%' },
+    overlay:      { flex:1, backgroundColor:'#12121e' },
+    sheet:        { flex:1, backgroundColor:'#12121e' },
     header:       { flexDirection:'row', alignItems:'flex-start', padding:16, borderBottomWidth:1, borderBottomColor:'#ffffff12' },
     title:        { color:'#fff', fontSize:16, fontWeight:'800' },
     subtitle:     { color:'#888', fontSize:12, marginTop:2 },
