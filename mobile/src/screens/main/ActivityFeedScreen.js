@@ -247,6 +247,70 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
     );
 }
 
+// ── Dal seçim modalı ──
+function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) {
+    const [tmp, setTmp] = useState(selSubs);
+    useEffect(() => { if (visible) setTmp(selSubs); }, [visible]);
+
+    const toggle = (key) => setTmp(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+
+    const visibleCats = categories.filter(c => selCats.length === 0 || selCats.includes(c.key));
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={m.overlay}>
+                <View style={[m.sheet, { maxHeight: '85%' }]}>
+                    <View style={m.handle} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={m.title}>⚡ Dal Seç</Text>
+                        {tmp.length > 0 && (
+                            <TouchableOpacity onPress={() => setTmp([])} activeOpacity={0.8}>
+                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Tümünü Kaldır</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                    <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                        {visibleCats.map(cat => {
+                            if (!cat.subs || cat.subs.length === 0) return null;
+                            return (
+                                <View key={cat.key} style={{ marginBottom: 12 }}>
+                                    <Text style={[m.subLabel, { marginBottom: 6 }]}>{cat.emoji} {cat.label}</Text>
+                                    <View style={m.subGrid}>
+                                        {cat.subs.map(sub => {
+                                            const active = tmp.includes(sub.key);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={sub.key}
+                                                    style={[m.subChip, active && { backgroundColor: cat.color + '28', borderColor: cat.color }]}
+                                                    onPress={() => toggle(sub.key)}
+                                                    activeOpacity={0.8}
+                                                >
+                                                    <Text style={m.subChipEmoji}>{sub.emoji}</Text>
+                                                    <Text style={[m.subChipText, active && { color: cat.color }]}>{sub.label}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            );
+                        })}
+                    </ScrollView>
+                    <View style={m.btnRow}>
+                        <TouchableOpacity style={m.clearBtn} onPress={() => { setTmp([]); onApply([]); }} activeOpacity={0.8}>
+                            <Text style={m.clearBtnText}>Temizle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={m.applyBtn} onPress={() => onApply(tmp)} activeOpacity={0.8}>
+                            <Text style={m.applyBtnText}>
+                                Uygula{tmp.length > 0 ? ` (${tmp.length})` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 // ── Konum girişi + öneri ──
 function LocationInput({ placeholder, value, onChange, type }) {
     const [suggestions, setSuggestions] = useState([]);
@@ -373,6 +437,7 @@ export default function ActivityFeedScreen({ navigation }) {
     // Modal state
     const [showDateModal, setShowDateModal] = useState(false);
     const [showTimeModal, setShowTimeModal] = useState(false);
+    const [showSubsModal, setShowSubsModal] = useState(false);
 
     // Backend'den ekstra subCategory'leri çek (static listede yoksa)
     useEffect(() => {
@@ -531,27 +596,18 @@ export default function ActivityFeedScreen({ navigation }) {
                         })}
                     </ScrollView>
 
-                    {/* Alt dallar */}
-                    {visibleSubs.length > 0 && (
-                        <>
-                            <Text style={s.sectionLabel}>⚡ Dallar</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow} nestedScrollEnabled>
-                                {visibleSubs.map(sub => {
-                                    const catKey   = SUB_MAP[sub.key]?.catKey || selCats[0] || '';
-                                    const catColor = (CAT_MAP[catKey] || categories.find(c => c.key === catKey))?.color || colors.purple;
-                                    const active   = selSubs.includes(sub.key);
-                                    return (
-                                        <TouchableOpacity key={sub.key}
-                                            style={[s.chip, active && { backgroundColor: catColor + '28', borderColor: catColor }]}
-                                            onPress={() => toggleSub(sub.key)} activeOpacity={0.8}>
-                                            <Text style={s.chipEmoji}>{sub.emoji}</Text>
-                                            <Text style={[s.chipText, active && { color: catColor }]}>{sub.label}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
-                        </>
-                    )}
+                    {/* Dal seçici — form alanı */}
+                    <Text style={s.sectionLabel}>⚡ Dallar</Text>
+                    <TouchableOpacity
+                        style={[s.pickerField, selSubs.length > 0 && s.pickerFieldActive]}
+                        onPress={() => setShowSubsModal(true)}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[s.pickerFieldText, selSubs.length > 0 && { color: colors.purpleLight }]} numberOfLines={1}>
+                            {selSubs.length > 0 ? selSubs.map(k => SUB_MAP[k]?.label || k).join(', ') : 'Dal seç…'}
+                        </Text>
+                        <Text style={s.pickerArrow}>›</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* ── Sonuçlar ── */}
@@ -587,6 +643,16 @@ export default function ActivityFeedScreen({ navigation }) {
                 timeFrom={timeFrom} timeTo={timeTo}
                 onApply={(f, t) => { setTimeFrom(f); setTimeTo(t); setShowTimeModal(false); }}
                 onClose={() => setShowTimeModal(false)}
+            />
+
+            {/* Dal seçim modalı */}
+            <SubsModal
+                visible={showSubsModal}
+                categories={categories}
+                selCats={selCats}
+                selSubs={selSubs}
+                onApply={(subs) => { setSelSubs(subs); setShowSubsModal(false); }}
+                onClose={() => setShowSubsModal(false)}
             />
         </View>
     );
@@ -690,6 +756,10 @@ const m = StyleSheet.create({
     tabLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 2 },
     tabValue: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
 
+    subGrid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+    subChip:          { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    subChipEmoji:     { fontSize: 14 },
+    subChipText:      { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
     hourGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
     hourChip:         { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
     hourChipActive:   { backgroundColor: colors.purple + '28', borderColor: colors.purple },
