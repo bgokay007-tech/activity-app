@@ -13,11 +13,11 @@ import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 
-const PASSWORD_RULES = [
-    { id: 'len',     label: '8-16 karakter',        test: p => p.length >= 8 && p.length <= 16 },
-    { id: 'upper',   label: 'Büyük harf (A-Z)',      test: p => /[A-Z]/.test(p) },
-    { id: 'lower',   label: 'Küçük harf (a-z)',      test: p => /[a-z]/.test(p) },
-    { id: 'special', label: 'Özel karakter (!@#…)',  test: p => /[^a-zA-Z0-9]/.test(p) },
+const PASSWORD_TESTS = [
+    { id: 'len',     key: 'passRuleLen',     test: p => p.length >= 8 && p.length <= 16 },
+    { id: 'upper',   key: 'passRuleUpper',   test: p => /[A-Z]/.test(p) },
+    { id: 'lower',   key: 'passRuleLower',   test: p => /[a-z]/.test(p) },
+    { id: 'special', key: 'passRuleSpecial', test: p => /[^a-zA-Z0-9]/.test(p) },
 ];
 
 const COUNTRIES = [
@@ -25,6 +25,30 @@ const COUNTRIES = [
     'Belçika','Fransa','Hollanda','İngiltere','İspanya','İsveç','İsviçre',
     'İtalya','Japonya','Kanada','Norveç','Polonya','Portekiz','Rusya',
     'Suudi Arabistan','Yunanistan','Diğer',
+];
+
+const DIAL_CODES = [
+    { flag: '🇹🇷', name: 'Türkiye', dial: '+90' },
+    { flag: '🇺🇸', name: 'USA', dial: '+1' },
+    { flag: '🇬🇧', name: 'UK', dial: '+44' },
+    { flag: '🇩🇪', name: 'Almanya', dial: '+49' },
+    { flag: '🇫🇷', name: 'Fransa', dial: '+33' },
+    { flag: '🇮🇹', name: 'İtalya', dial: '+39' },
+    { flag: '🇪🇸', name: 'İspanya', dial: '+34' },
+    { flag: '🇳🇱', name: 'Hollanda', dial: '+31' },
+    { flag: '🇧🇪', name: 'Belçika', dial: '+32' },
+    { flag: '🇵🇱', name: 'Polonya', dial: '+48' },
+    { flag: '🇵🇹', name: 'Portekiz', dial: '+351' },
+    { flag: '🇸🇪', name: 'İsveç', dial: '+46' },
+    { flag: '🇨🇭', name: 'İsviçre', dial: '+41' },
+    { flag: '🇦🇹', name: 'Avusturya', dial: '+43' },
+    { flag: '🇳🇴', name: 'Norveç', dial: '+47' },
+    { flag: '🇬🇷', name: 'Yunanistan', dial: '+30' },
+    { flag: '🇷🇺', name: 'Rusya', dial: '+7' },
+    { flag: '🇸🇦', name: 'Suudi Arabistan', dial: '+966' },
+    { flag: '🇯🇵', name: 'Japonya', dial: '+81' },
+    { flag: '🇦🇺', name: 'Avustralya', dial: '+61' },
+    { flag: '🇨🇦', name: 'Kanada', dial: '+1 CA' },
 ];
 
 const LEGAL = {
@@ -209,6 +233,8 @@ export default function RegisterScreen({ navigation }) {
         gender: '', bDay: '', bMonth: '', bYear: '',
         country: '', city: '', password: '',
     });
+    const [dialCode, setDialCode] = useState(DIAL_CODES[0]);
+    const [showDialPicker, setShowDialPicker] = useState(false);
     const [showPass, setShowPass] = useState(false);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
     const [showCityPicker, setShowCityPicker] = useState(false);
@@ -229,8 +255,9 @@ export default function RegisterScreen({ navigation }) {
 
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
     const age = calcAge(form.bDay, form.bMonth, form.bYear);
-    const passwordValid = PASSWORD_RULES.every(r => r.test(form.password));
-    const contactValue = (otpMethod === 'email' ? form.email : form.phone).trim();
+    const passwordValid = PASSWORD_TESTS.every(r => r.test(form.password));
+    const fullPhone = form.phone.trim() ? dialCode.dial + form.phone.trim() : '';
+    const contactValue = (otpMethod === 'email' ? form.email : fullPhone).trim();
 
     const verifyCaptcha = () => {
         if (captchaInput.trim() === captcha.ans) {
@@ -269,7 +296,7 @@ export default function RegisterScreen({ navigation }) {
                 value: contactValue,
                 username: form.username.trim(),
                 email: form.email.trim() || undefined,
-                phone: form.phone.trim() || undefined,
+                phone: fullPhone || undefined,
             });
             setOtpSent(true);
             startTimer();
@@ -278,14 +305,14 @@ export default function RegisterScreen({ navigation }) {
             }
             setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
         } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Doğrulama kodu gönderilemedi');
+            Alert.alert(t.error, e?.response?.data?.message || t.otpSendFailed);
         } finally {
             setLoading(false);
         }
     };
 
     const handleVerify = async () => {
-        if (otp.length !== 6) return Alert.alert('Hata', '6 haneli kodu girin');
+        if (otp.length !== 6) return Alert.alert(t.error, t.otpSixDigits);
         setLoading(true);
         try {
             await api.post('/auth/verify-otp', { method: otpMethod, value: contactValue, code: otp });
@@ -299,7 +326,7 @@ export default function RegisterScreen({ navigation }) {
                 password: form.password,
                 fullName: form.fullName.trim() || undefined,
                 email: form.email.trim() || undefined,
-                phone: form.phone.trim() || undefined,
+                phone: fullPhone || undefined,
                 gender: form.gender || undefined,
                 birthDate,
                 country: form.country || undefined,
@@ -307,7 +334,7 @@ export default function RegisterScreen({ navigation }) {
             });
             dispatch(setCredentials({ user: data.user, token: data.token }));
         } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Doğrulama başarısız');
+            Alert.alert(t.error, e?.response?.data?.message || t.otpVerifyFailed);
         } finally {
             setLoading(false);
         }
@@ -337,6 +364,37 @@ export default function RegisterScreen({ navigation }) {
                         >
                             <Text style={s.btnText}>Kapat</Text>
                         </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Ülke Kodu (Dial) Seçici Modal */}
+            <Modal visible={showDialPicker} transparent animationType="slide" onRequestClose={() => setShowDialPicker(false)}>
+                <View style={s.pickerOverlay}>
+                    <View style={s.pickerBox}>
+                        <View style={s.pickerHeader}>
+                            <Text style={s.pickerTitle}>{t.dialCodeLabel}</Text>
+                            <TouchableOpacity onPress={() => setShowDialPicker(false)}>
+                                <Text style={s.pickerClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <FlatList
+                            data={DIAL_CODES}
+                            keyExtractor={i => i.dial + i.name}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    style={[s.pickerItem, dialCode.dial === item.dial && dialCode.name === item.name && s.pickerItemActive]}
+                                    onPress={() => { setDialCode(item); setShowDialPicker(false); }}
+                                >
+                                    <Text style={{ fontSize: 22, marginRight: 10 }}>{item.flag}</Text>
+                                    <Text style={[s.pickerItemText, { flex: 1 }]}>{item.name}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: '700' }}>{item.dial}</Text>
+                                    {dialCode.dial === item.dial && dialCode.name === item.name && (
+                                        <Text style={{ color: colors.purple, fontSize: 16, marginLeft: 8 }}>✓</Text>
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                        />
                     </View>
                 </View>
             </Modal>
@@ -402,23 +460,39 @@ export default function RegisterScreen({ navigation }) {
                     {/* Full Name */}
                     <Text style={s.label}>{t.fullName}</Text>
                     <TextInput style={s.input} value={form.fullName} onChangeText={v => set('fullName', v)}
-                        placeholder="Adın Soyadın" placeholderTextColor={colors.textMuted} />
+                        placeholder={t.fullNamePh} placeholderTextColor={colors.textMuted} />
 
                     {/* Username */}
                     <Text style={s.label}>{t.username}</Text>
                     <TextInput style={s.input} value={form.username} onChangeText={v => set('username', v)}
-                        placeholder="kullanici_adi" placeholderTextColor={colors.textMuted} autoCapitalize="none" />
+                        placeholder={t.usernamePh} placeholderTextColor={colors.textMuted} autoCapitalize="none" />
 
                     {/* Email */}
                     <Text style={s.label}>{t.email}</Text>
                     <TextInput style={s.input} value={form.email} onChangeText={v => set('email', v)}
-                        placeholder="email@ornek.com" placeholderTextColor={colors.textMuted}
+                        placeholder={t.emailPh} placeholderTextColor={colors.textMuted}
                         keyboardType="email-address" autoCapitalize="none" />
 
                     {/* Phone */}
                     <Text style={s.label}>{t.phone}</Text>
-                    <TextInput style={s.input} value={form.phone} onChangeText={v => set('phone', v)}
-                        placeholder="+90 555 000 00 00" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity
+                            style={[s.input, s.dialBtn]}
+                            onPress={() => setShowDialPicker(true)}
+                        >
+                            <Text style={{ fontSize: 18 }}>{dialCode.flag}</Text>
+                            <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }}>{dialCode.dial}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize: 11 }}>▾</Text>
+                        </TouchableOpacity>
+                        <TextInput
+                            style={[s.input, { flex: 1 }]}
+                            value={form.phone}
+                            onChangeText={v => set('phone', v.replace(/\D/g, ''))}
+                            placeholder={t.phonePh}
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="phone-pad"
+                        />
+                    </View>
 
                     {/* OTP Method */}
                     <Text style={s.label}>{t.otpMethodLabel} *</Text>
@@ -479,7 +553,7 @@ export default function RegisterScreen({ navigation }) {
                     <Text style={s.label}>{t.city}</Text>
                     <TouchableOpacity style={[s.input, s.selectBtn]} onPress={() => setShowCityPicker(true)}>
                         <Text style={form.city ? s.selectText : s.selectPlaceholder}>
-                            {form.city || 'İl seçin...'}
+                            {form.city || t.selectCity}
                         </Text>
                         <Text style={{ color: colors.textMuted, fontSize: 16 }}>▾</Text>
                     </TouchableOpacity>
@@ -500,9 +574,9 @@ export default function RegisterScreen({ navigation }) {
                     </View>
                     {form.password.length > 0 && (
                         <View style={s.rulesBox}>
-                            {PASSWORD_RULES.map(r => (
+                            {PASSWORD_TESTS.map(r => (
                                 <Text key={r.id} style={r.test(form.password) ? s.ruleOk : s.ruleFail}>
-                                    {r.test(form.password) ? '✓' : '✗'} {r.label}
+                                    {r.test(form.password) ? '✓' : '✗'} {t[r.key]}
                                 </Text>
                             ))}
                         </View>
@@ -662,6 +736,9 @@ const s = StyleSheet.create({
     birthCellYear: { flex: 1.6, textAlign: 'center' },
     ageBadge: { backgroundColor: colors.purple + '25', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 6, borderWidth: 1, borderColor: colors.purple + '60' },
     ageText: { color: colors.purpleLight, fontWeight: '800', fontSize: 12 },
+
+    // Dial code button
+    dialBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minWidth: 80 },
 
     // Country select
     selectBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
