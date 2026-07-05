@@ -3224,10 +3224,7 @@ const TENNIS_SURFACES = [
     { id: 'CARPET', emoji: '🟥' },
 ];
 const PADEL_SURFACES = [
-    { id: 'ARTIFICIAL', emoji: '🟩' },
-    { id: 'HARD',       emoji: '🔵' },
-    { id: 'GLASS',      emoji: '⬜' },
-    { id: 'INDOOR',     emoji: '🏛️' },
+    { id: 'ARTIFICIAL', emoji: '🟩', label: 'Suni Çim' },
 ];
 
 // ─── Venue Menu Order Modal ───────────────────────────────────────────────────
@@ -3955,7 +3952,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtId:   f.selectedCourt?.id || undefined,
                 location:  f.selectedCourt?.city || f.manualCity || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
-                surface:   f.surface || undefined,
+                surface:   isPadel ? 'ARTIFICIAL' : (f.surface || undefined),
                 venueType: f.venueType || undefined,
                 isCourtReserved: f.courtReserved,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? parseInt(f.courtFeePerPerson, 10) : undefined,
@@ -4354,14 +4351,22 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
                                     {/* Kort Zemini */}
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
-                                    <View style={s.chipRow}>
-                                        {courtSurfaces.map(sf => (
-                                            <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
-                                                style={[s.chipBtn, f.surface===sf.id && s.chipBtnActive]}>
-                                                <Text style={[s.chipBtnText, f.surface===sf.id && s.chipBtnTextActive]}>{sf.emoji} {sf.label || getSurface(t, sf.id)}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
+                                    {isPadel ? (
+                                        <View style={[s.chipRow, { marginBottom:14 }]}>
+                                            <View style={[s.chipBtn, s.chipBtnActive]}>
+                                                <Text style={[s.chipBtnText, s.chipBtnTextActive]}>🟩 Suni Çim</Text>
+                                            </View>
+                                        </View>
+                                    ) : (
+                                        <View style={s.chipRow}>
+                                            {courtSurfaces.map(sf => (
+                                                <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
+                                                    style={[s.chipBtn, f.surface===sf.id && s.chipBtnActive]}>
+                                                    <Text style={[s.chipBtnText, f.surface===sf.id && s.chipBtnTextActive]}>{sf.emoji} {sf.label || getSurface(t, sf.id)}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
 
                                     {/* Mekan Tipi */}
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:14 }}>
