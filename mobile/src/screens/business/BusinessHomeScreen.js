@@ -723,7 +723,7 @@ function VenueAnalyticsModal({ visible, venue, onClose }) {
 
 const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef4444' };
 const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
-const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: 'Bekliyor (EFT)', CONFIRMED: 'Rezerveli' };
+const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: '⏳ Onay Bekliyor', CONFIRMED: 'Rezerveli' };
 
 const SURFACE_LABEL = {
     CLAY:      'Toprak',
@@ -845,6 +845,7 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
     const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
     const [schedule, setSchedule] = useState(null);
     const [loading, setLoading]   = useState(false);
+    const [refreshTick, setRefreshTick] = useState(0);
 
     const shiftDate = (n) => {
         const d = new Date(selDate + 'T12:00:00');
@@ -854,6 +855,28 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
     const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString('tr-TR',
         { weekday: 'long', day: 'numeric', month: 'long' });
 
+    const handleSlotPress = (slot) => {
+        if (slot.status !== 'PENDING' || !slot.reservationId) return;
+        const payLabel = slot.paymentMethod === 'EFT' ? '🏦 EFT' : slot.paymentMethod === 'ONLINE' ? '💳 Online' : '💵 Nakit';
+        Alert.alert(
+            '⏳ Onay Bekliyor',
+            `@${slot.user?.username || '?'}\n${slot.start}–${slot.end}  ${payLabel}`,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: '✅ Onayla', onPress: () =>
+                    api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'confirm' })
+                        .then(() => setRefreshTick(t => t + 1))
+                        .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Onaylanamadı'))
+                },
+                { text: '❌ Reddet', style: 'destructive', onPress: () =>
+                    api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'reject' })
+                        .then(() => setRefreshTick(t => t + 1))
+                        .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Reddedilemedi'))
+                },
+            ]
+        );
+    };
+
     useEffect(() => {
         if (!visible || !venue?.id) return;
         setLoading(true);
@@ -861,7 +884,7 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
             .then(r => setSchedule(r.data))
             .catch(() => setSchedule(null))
             .finally(() => setLoading(false));
-    }, [visible, venue?.id, selDate]);
+    }, [visible, venue?.id, selDate, refreshTick]);
 
     const courts = [...(schedule?.courts || [])].sort((a, b) => {
         const nA = parseInt(a.courtName?.match(/\d+/)?.[0] ?? '', 10);
@@ -950,13 +973,18 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                     const st = slot.status || 'FREE';
                                                     const color = SLOT_STATUS_COLOR[st];
                                                     const bg    = SLOT_STATUS_BG[st];
+                                                    const isPending = st === 'PENDING' && slot.reservationId;
                                                     return (
-                                                        <View key={si} style={{
-                                                            backgroundColor: bg,
-                                                            borderRadius: 8, padding: 7, marginBottom: 5,
-                                                            borderWidth: 1, borderColor: color + '55',
-                                                            minHeight: 48,
-                                                        }}>
+                                                        <TouchableOpacity key={si}
+                                                            onPress={() => isPending && handleSlotPress(slot)}
+                                                            activeOpacity={isPending ? 0.7 : 1}
+                                                            style={{
+                                                                backgroundColor: bg,
+                                                                borderRadius: 8, padding: 7, marginBottom: 5,
+                                                                borderWidth: isPending ? 1.5 : 1,
+                                                                borderColor: isPending ? color : color + '55',
+                                                                minHeight: 48,
+                                                            }}>
                                                             <Text style={{ color: color, fontSize: 11, fontWeight: '800' }}>
                                                                 {slot.start}
                                                             </Text>
@@ -975,7 +1003,12 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                                     {SLOT_STATUS_LABEL[st]}
                                                                 </Text>
                                                             )}
-                                                        </View>
+                                                            {isPending && (
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 3, fontWeight: '700' }}>
+                                                                    Onayla / Reddet →
+                                                                </Text>
+                                                            )}
+                                                        </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
@@ -1555,11 +1588,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
             {activeTab === 'reservations' && (() => {
                 const nowRes = new Date();
                 const todayResStr = nowRes.toISOString().slice(0, 10);
-                const pendingApproval = reservations.filter(r => {
-                    if (r.status !== 'PENDING' || r.paymentMethod !== 'CASH') return false;
-                    const resStart = new Date(`${r.date}T${r.startTime}:00`);
-                    return resStart <= nowRes;
-                });
+                const pendingApproval = reservations.filter(r => r.status === 'PENDING');
                 const todayList = reservations.filter(r => r.date === todayResStr && r.status !== 'CANCELLED');
                 return (
                 <View style={vc.panel}>
@@ -1573,43 +1602,44 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                             <Text style={{ color: '#eab308', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                 ⏳ ONAY BEKLİYOR ({pendingApproval.length})
                             </Text>
-                            {pendingApproval.map(r => (
+                            {pendingApproval.map(r => {
+                                const isPast = new Date(`${r.date}T${r.startTime}:00`) <= nowRes;
+                                const payLabel = r.paymentMethod === 'EFT' ? '🏦 EFT' : r.paymentMethod === 'ONLINE' ? '💳 Online' : '💵 Nakit';
+                                return (
                                 <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#eab30840', borderWidth: 1 }]}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
-                                            <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
-                                            <Text style={vc.resMeta}>💵 Kortta Nakit · ⏳ Ödeme Bekleniyor</Text>
-                                            <Text style={{ color: '#eab308', fontSize: 10, marginTop: 3 }}>
-                                                4 saat içinde işlem yapmazsanız sistem otomatik onaylar
-                                            </Text>
-                                        </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
+                                        <Text style={vc.resMeta}>{payLabel} · ⏳ Onay Bekliyor</Text>
                                     </View>
                                     <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
                                         <TouchableOpacity
                                             style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
                                             onPress={() => handleUpdateResStatus(r.id, 'confirm')}>
-                                            <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Ödeme Alındı</Text>
+                                            <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Onayla</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
-                                            onPress={() => Alert.alert('Gelmedi / İptal', 'Müşteri gelmedi olarak işaretlensin mi?', [
+                                            onPress={() => Alert.alert(isPast ? 'Gelmedi / İptal' : 'Reddet', isPast ? 'Müşteri gelmedi olarak işaretlensin mi?' : 'Rezervasyon reddedilsin mi?', [
                                                 { text: 'Vazgeç', style: 'cancel' },
-                                                { text: 'Gelmedi', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'noshow') },
+                                                { text: isPast ? 'Gelmedi' : 'Reddet', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, isPast ? 'noshow' : 'reject') },
                                             ])}>
-                                            <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Gelmedi</Text>
+                                            <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>{isPast ? '❌ Gelmedi' : '❌ Reddet'}</Text>
                                         </TouchableOpacity>
+                                        {isPast && r.paymentMethod === 'CASH' && (
                                         <TouchableOpacity
                                             style={{ backgroundColor: '#7c3aed18', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#7c3aed40' }}
                                             onPress={() => Alert.alert('Admine Bildir', 'Ödeme alınmadı olarak admine yüksek öncelikli bildirim gönderilsin mi?', [
                                                 { text: 'Vazgeç', style: 'cancel' },
                                                 { text: 'Bildir', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'no_payment') },
                                             ])}>
-                                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700' }}>🚨 Bildir</Text>
+                                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700' }}>🚨</Text>
                                         </TouchableOpacity>
+                                        )}
                                     </View>
                                 </View>
-                            ))}
+                                );
+                            })}
                         </View>
                     )}
 
@@ -1637,26 +1667,6 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                     <Text style={vc.resCancelTxt}>İptal</Text>
                                 </TouchableOpacity>
                             </View>
-                            {r.paymentMethod === 'CASH' && r.status === 'PENDING' && (() => {
-                                const resStart = new Date(`${r.date}T${r.startTime}:00`);
-                                return resStart > nowRes;
-                            })() && (
-                                <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                                    <TouchableOpacity
-                                        style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
-                                        onPress={() => handleUpdateResStatus(r.id, 'confirm')}>
-                                        <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Ödeme Alındı</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
-                                        onPress={() => Alert.alert('Gelmedi / İptal', 'Müşteri gelmedi olarak işaretlensin mi?', [
-                                            { text: 'Vazgeç', style: 'cancel' },
-                                            { text: 'Gelmedi', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'noshow') },
-                                        ])}>
-                                        <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Gelmedi</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
                         </View>
                     ))}
                     {resLoaded && todayList.length === 0 && pendingApproval.length === 0 && (

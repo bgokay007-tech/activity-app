@@ -343,8 +343,6 @@ export const getVenueReservations = async (req, res, next) => {
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
-        await autoConfirmPastCash(id);
-
         const reservations = await prisma.courtReservation.findMany({
             where: { venueId: id },
             include: {
@@ -418,19 +416,19 @@ export const getOwnerSchedule = async (req, res, next) => {
                 if (effectiveSlotType === 'FULL_HOUR') {
                     for (let t = open; t + 60 <= close; t += 60) {
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null });
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
                     if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
                     for (let t = start; t + 60 <= close; t += 60) {
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
                         const rs = findRes(court.id, t, t + 90);
-                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null });
+                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null });
                     }
                 } else {
                     // VAR_DURATION / FLEXIBLE
@@ -442,7 +440,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                         const rStart = toMins(r.startTime);
                         if (rStart > prev && rStart - prev >= 60)
                             slots.push({ start: toTime(prev), end: toTime(rStart), status: 'FREE', user: null });
-                        slots.push({ start: r.startTime, end: r.endTime, status: r.status, user: r.user });
+                        slots.push({ start: r.startTime, end: r.endTime, status: r.status, user: r.user, reservationId: r.id, paymentMethod: r.paymentMethod });
                         prev = Math.max(prev, toMins(r.endTime));
                     }
                     if (prev < close && close - prev >= 60)
@@ -622,6 +620,18 @@ export const updateReservationStatus = async (req, res, next) => {
             }
             createNotification(customerId, 'RESERVATION', '❌ Rezervasyon İptal Edildi',
                 `${venueName} · ${courtName} — ${dateStr} rezervasyonunuz iptal edildi (ödeme alınamadı).`,
+                { reservationId: resId }
+            ).catch(() => {});
+            emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CANCELLED' });
+            return;
+        }
+
+        if (action === 'reject') {
+            const updated = await prisma.courtReservation.update({ where: { id: resId }, data: { status: 'CANCELLED' } });
+            res.json({ reservation: updated });
+            createNotification(customerId, 'RESERVATION',
+                '❌ Rezervasyon Reddedildi',
+                `${venueName} · ${courtName} — ${dateStr} rezervasyonunuz reddedildi.`,
                 { reservationId: resId }
             ).catch(() => {});
             emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CANCELLED' });
