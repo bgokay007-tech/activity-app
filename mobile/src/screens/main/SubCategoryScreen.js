@@ -3394,7 +3394,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
     const [payMethod,   setPayMethod]   = useState('CASH');
     const [booking,     setBooking]     = useState(false);
     const [booked,      setBooked]      = useState(false);
-    const [menuVisible, setMenuVisible] = useState(false);
 
     // Tesis verisi yükle
     useEffect(() => {
@@ -3465,10 +3464,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             const courtObj = { name: activeCourt?.name || '', venueId, courtId, id: courtId, city: venue?.city };
             onBooked?.(courtObj, selDate, slot.start, endTime, reservationId);
             setBooked(true);
-            try {
-                const menuRes = await api.get(`/venues/${venueId}/menu`);
-                if (menuRes.data?.hasMenu) { setMenuVisible(true); }
-            } catch {}
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon yapılamadı');
         } finally { setBooking(false); }
@@ -3664,11 +3659,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                 </View>
             </View>
         </Modal>
-        <VenueMenuOrderModal
-            visible={menuVisible}
-            venueId={venueId}
-            onClose={() => { setMenuVisible(false); onClose(); }}
-        />
         </>
     );
 }
