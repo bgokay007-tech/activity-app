@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
-    View, Text, TouchableOpacity, FlatList,
+    View, Text, TouchableOpacity, Modal,
     StyleSheet, StatusBar, Platform, ActivityIndicator,
     TextInput, ScrollView,
 } from 'react-native';
@@ -10,68 +10,95 @@ import colors from '../../theme/colors';
 import api from '../../services/api';
 import RainbowLogo from '../../components/RainbowLogo';
 
-// ── Sabit görsel bilgiler (backend'den gelen sub için emoji/renk) ──
-const CAT_META = {
-    SPORTS: { label: 'Spor',    emoji: '⚽', color: '#22c55e' },
-    SOCIAL: { label: 'Sosyal',  emoji: '🤝', color: '#60a5fa' },
-    ARTS:   { label: 'Sanat',   emoji: '🎨', color: '#f472b6' },
-    GAMES:  { label: 'Oyunlar', emoji: '🎮', color: '#fb923c' },
-};
-const SUB_META = {
-    football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', volleyball:'🏐',
-    swimming:'🏊', running:'🏃', cycling:'🚴', boxing:'🥊', martial_arts:'🥋', wellness:'🧘',
-    music:'🎵', painting:'🎨', dance:'💃', photography:'📸', theater:'🎭',
-    writing:'✍️', sculpture:'🗿', cinema:'🎬', poetry:'📜', illustration:'🖼️',
-    fps:'🎯', rpg:'⚔️', strategy:'♟️', sports_games:'🎮', moba:'🏆',
-    battle_royale:'💥', simulation:'🌍', puzzle:'🧩', racing:'🏎️', card_games:'🃏',
-};
-const SUB_LABEL = {
-    football:'Futbol', basketball:'Basketbol', tennis:'Tenis', padel:'Padel',
-    volleyball:'Voleybol', swimming:'Yüzme', running:'Koşu', cycling:'Bisiklet',
-    boxing:'Boks', martial_arts:'Dövüş Sanatı', wellness:'Wellness',
-    music:'Müzik', painting:'Resim', dance:'Dans', photography:'Fotoğraf',
-    theater:'Tiyatro', writing:'Yazarlık', cinema:'Sinema',
-    fps:'FPS', rpg:'RPG', strategy:'Strateji', moba:'MOBA',
-    battle_royale:'Battle Royale', puzzle:'Bulmaca', card_games:'Kart',
-};
+// ── Statik kategori + dal tanımları (her zaman gösterilir) ──
+const STATIC_CATS = [
+    {
+        key: 'SPORTS', label: 'Spor', emoji: '⚽', color: '#22c55e',
+        subs: [
+            { key: 'football',    label: 'Futbol',        emoji: '⚽' },
+            { key: 'basketball',  label: 'Basketbol',     emoji: '🏀' },
+            { key: 'tennis',      label: 'Tenis',         emoji: '🎾' },
+            { key: 'padel',       label: 'Padel',         emoji: '🏓' },
+            { key: 'volleyball',  label: 'Voleybol',      emoji: '🏐' },
+            { key: 'swimming',    label: 'Yüzme',         emoji: '🏊' },
+            { key: 'running',     label: 'Koşu',          emoji: '🏃' },
+            { key: 'cycling',     label: 'Bisiklet',      emoji: '🚴' },
+            { key: 'boxing',      label: 'Boks',          emoji: '🥊' },
+            { key: 'martial_arts',label: 'Dövüş Sanatı',  emoji: '🥋' },
+            { key: 'wellness',    label: 'Wellness',      emoji: '🧘' },
+        ],
+    },
+    {
+        key: 'SOCIAL', label: 'Sosyal', emoji: '🤝', color: '#60a5fa',
+        subs: [],
+    },
+    {
+        key: 'ARTS', label: 'Sanat', emoji: '🎨', color: '#f472b6',
+        subs: [
+            { key: 'music',       label: 'Müzik',         emoji: '🎵' },
+            { key: 'painting',    label: 'Resim',         emoji: '🎨' },
+            { key: 'dance',       label: 'Dans',          emoji: '💃' },
+            { key: 'photography', label: 'Fotoğraf',      emoji: '📸' },
+            { key: 'theater',     label: 'Tiyatro',       emoji: '🎭' },
+            { key: 'writing',     label: 'Yazarlık',      emoji: '✍️' },
+            { key: 'cinema',      label: 'Sinema',        emoji: '🎬' },
+        ],
+    },
+    {
+        key: 'GAMES', label: 'Oyunlar', emoji: '🎮', color: '#fb923c',
+        subs: [
+            { key: 'fps',          label: 'FPS',          emoji: '🎯' },
+            { key: 'rpg',          label: 'RPG',          emoji: '⚔️' },
+            { key: 'strategy',     label: 'Strateji',     emoji: '♟️' },
+            { key: 'moba',         label: 'MOBA',         emoji: '🏆' },
+            { key: 'battle_royale',label: 'Battle Royale', emoji: '💥' },
+            { key: 'puzzle',       label: 'Bulmaca',      emoji: '🧩' },
+            { key: 'card_games',   label: 'Kart Oyunu',   emoji: '🃏' },
+        ],
+    },
+];
 
-const DAYS_TR = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+// hızlı lookup
+const CAT_MAP  = Object.fromEntries(STATIC_CATS.map(c => [c.key, c]));
+const SUB_MAP  = Object.fromEntries(STATIC_CATS.flatMap(c => c.subs.map(s => [s.key, { ...s, catKey: c.key }])));
+
+const HOURS = Array.from({ length: 18 }, (_, i) => `${String(i + 6).padStart(2, '0')}:00`);
+const DAYS_TR   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
 const MONTHS_TR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-const HOURS = Array.from({ length: 18 }, (_, i) => `${String(i + 6).padStart(2,'0')}:00`); // 06:00–23:00
 
-function pad(n) { return String(n).padStart(2,'0'); }
+function pad(n) { return String(n).padStart(2, '0'); }
 function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
-function formatDateLabel(str) {
+function labelDate(str) {
     if (!str) return '';
-    const [y,m,d] = str.split('-').map(Number);
-    const dt = new Date(y, m-1, d);
-    return `${DAYS_TR[dt.getDay()]} ${d} ${MONTHS_TR[m-1]}`;
+    const [y, m, d] = str.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return `${DAYS_TR[dt.getDay()]} ${d} ${MONTHS_TR[m - 1]}`;
 }
 
-// ── Mini takvim bileşeni ──
-function MiniCalendar({ selected, onSelect }) {
+// ── Mini takvim (modal içi) ──
+function MiniCalendar({ selected, onSelect, minDate }) {
     const today = new Date();
-    const [view, setView] = useState({ y: today.getFullYear(), m: today.getMonth() });
+    const initDate = selected ? (() => { const [y,m] = selected.split('-').map(Number); return { y, m: m-1 }; })()
+                              : { y: today.getFullYear(), m: today.getMonth() };
+    const [view, setView] = useState(initDate);
 
-    const firstDay = new Date(view.y, view.m, 1).getDay(); // 0=Sun
+    const firstDay   = new Date(view.y, view.m, 1).getDay();
     const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
-    const todayStr = toDateStr(today);
+    const todayStr   = toDateStr(today);
+    const minStr     = minDate || todayStr;
 
     const cells = [];
     for (let i = 0; i < firstDay; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
-    const prevMonth = () => setView(v => v.m === 0 ? { y: v.y-1, m: 11 } : { y: v.y, m: v.m-1 });
-    const nextMonth = () => setView(v => v.m === 11 ? { y: v.y+1, m: 0 } : { y: v.y, m: v.m+1 });
-
     return (
         <View style={cal.root}>
             <View style={cal.nav}>
-                <TouchableOpacity onPress={prevMonth} style={cal.navBtn}>
+                <TouchableOpacity onPress={() => setView(v => v.m === 0 ? { y: v.y-1, m: 11 } : { y: v.y, m: v.m-1 })} style={cal.navBtn}>
                     <Text style={cal.navArrow}>‹</Text>
                 </TouchableOpacity>
                 <Text style={cal.navTitle}>{MONTHS_TR[view.m]} {view.y}</Text>
-                <TouchableOpacity onPress={nextMonth} style={cal.navBtn}>
+                <TouchableOpacity onPress={() => setView(v => v.m === 11 ? { y: v.y+1, m: 0 } : { y: v.y, m: v.m+1 })} style={cal.navBtn}>
                     <Text style={cal.navArrow}>›</Text>
                 </TouchableOpacity>
             </View>
@@ -81,73 +108,142 @@ function MiniCalendar({ selected, onSelect }) {
             <View style={cal.grid}>
                 {cells.map((day, idx) => {
                     if (!day) return <View key={`e${idx}`} style={cal.cell} />;
-                    const str = `${view.y}-${pad(view.m+1)}-${pad(day)}`;
+                    const str     = `${view.y}-${pad(view.m+1)}-${pad(day)}`;
                     const isSelected = str === selected;
+                    const isPast  = str < minStr;
                     const isToday = str === todayStr;
-                    const isPast = str < todayStr;
                     return (
                         <TouchableOpacity
                             key={str}
                             style={[cal.cell, isSelected && cal.cellSelected, isToday && !isSelected && cal.cellToday]}
-                            onPress={() => !isPast && onSelect(isSelected ? '' : str)}
+                            onPress={() => !isPast && onSelect(str)}
                             disabled={isPast}
                             activeOpacity={0.7}
                         >
-                            <Text style={[cal.cellText, isSelected && cal.cellTextSelected, isPast && cal.cellTextPast]}>
-                                {day}
-                            </Text>
+                            <Text style={[cal.cellText, isSelected && cal.cellTextSelected, isPast && cal.cellTextPast]}>{day}</Text>
                         </TouchableOpacity>
                     );
                 })}
             </View>
-            {selected && (
-                <TouchableOpacity onPress={() => onSelect('')} style={cal.clearDate}>
-                    <Text style={cal.clearDateText}>✕ Tarihi Temizle</Text>
-                </TouchableOpacity>
-            )}
         </View>
     );
 }
 
-// ── Saat seçici ──
-function TimePicker({ valueFrom, valueTo, onChangeFrom, onChangeTo }) {
+// ── Tarih aralığı modal ──
+function DateRangeModal({ visible, dateFrom, dateTo, onApply, onClose }) {
+    const [from, setFrom] = useState(dateFrom);
+    const [to,   setTo]   = useState(dateTo);
+    const [picking, setPicking] = useState('from'); // 'from' | 'to'
+
+    useEffect(() => { if (visible) { setFrom(dateFrom); setTo(dateTo); setPicking('from'); } }, [visible]);
+
+    const handleSelect = (str) => {
+        if (picking === 'from') {
+            setFrom(str);
+            if (to && str > to) setTo('');
+            setPicking('to');
+        } else {
+            if (str < from) { setFrom(str); setPicking('to'); }
+            else { setTo(str); }
+        }
+    };
+
     return (
-        <View style={tp.root}>
-            <View style={tp.row}>
-                <Text style={tp.label}>Başlangıç</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tp.chips}>
-                    {HOURS.map(h => (
-                        <TouchableOpacity
-                            key={`f${h}`}
-                            style={[tp.chip, valueFrom === h && tp.chipActive]}
-                            onPress={() => onChangeFrom(valueFrom === h ? '' : h)}
-                            activeOpacity={0.8}
-                        >
-                            <Text style={[tp.chipText, valueFrom === h && tp.chipTextActive]}>{h}</Text>
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={m.overlay}>
+                <View style={m.sheet}>
+                    <View style={m.handle} />
+                    <Text style={m.title}>📅 Tarih Aralığı</Text>
+
+                    <View style={m.tabRow}>
+                        <TouchableOpacity style={[m.tab, picking === 'from' && m.tabActive]} onPress={() => setPicking('from')}>
+                            <Text style={m.tabLabel}>Başlangıç</Text>
+                            <Text style={[m.tabValue, from && { color: colors.purpleLight }]}>{from ? labelDate(from) : 'Seç'}</Text>
                         </TouchableOpacity>
-                    ))}
-                </ScrollView>
+                        <Text style={m.tabSep}>→</Text>
+                        <TouchableOpacity style={[m.tab, picking === 'to' && m.tabActive]} onPress={() => setPicking('to')}>
+                            <Text style={m.tabLabel}>Bitiş</Text>
+                            <Text style={[m.tabValue, to && { color: colors.purpleLight }]}>{to ? labelDate(to) : 'Seç'}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <MiniCalendar
+                        selected={picking === 'from' ? from : to}
+                        onSelect={handleSelect}
+                        minDate={picking === 'to' ? from : undefined}
+                    />
+
+                    <View style={m.btnRow}>
+                        <TouchableOpacity style={m.clearBtn} onPress={() => { setFrom(''); setTo(''); }} activeOpacity={0.8}>
+                            <Text style={m.clearBtnText}>Temizle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={m.applyBtn} onPress={() => onApply(from, to)} activeOpacity={0.8}>
+                            <Text style={m.applyBtnText}>Uygula</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
-            <View style={tp.row}>
-                <Text style={tp.label}>Bitiş</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tp.chips}>
-                    {HOURS.map(h => {
-                        const disabled = !!valueFrom && h <= valueFrom;
-                        return (
+        </Modal>
+    );
+}
+
+// ── Saat aralığı modal ──
+function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
+    const [from, setFrom] = useState(timeFrom);
+    const [to,   setTo]   = useState(timeTo);
+
+    useEffect(() => { if (visible) { setFrom(timeFrom); setTo(timeTo); } }, [visible]);
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={m.overlay}>
+                <View style={m.sheet}>
+                    <View style={m.handle} />
+                    <Text style={m.title}>🕐 Saat Aralığı</Text>
+
+                    <Text style={m.subLabel}>Başlangıç{from ? ` — ${from}` : ''}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={m.hourRow}>
+                        {HOURS.map(h => (
                             <TouchableOpacity
-                                key={`t${h}`}
-                                style={[tp.chip, valueTo === h && tp.chipActive, disabled && tp.chipDisabled]}
-                                onPress={() => !disabled && onChangeTo(valueTo === h ? '' : h)}
-                                disabled={disabled}
+                                key={`f${h}`}
+                                style={[m.hourChip, from === h && m.hourChipActive]}
+                                onPress={() => { setFrom(h === from ? '' : h); if (to && h >= to) setTo(''); }}
                                 activeOpacity={0.8}
                             >
-                                <Text style={[tp.chipText, valueTo === h && tp.chipTextActive, disabled && tp.chipTextDisabled]}>{h}</Text>
+                                <Text style={[m.hourText, from === h && m.hourTextActive]}>{h}</Text>
                             </TouchableOpacity>
-                        );
-                    })}
-                </ScrollView>
+                        ))}
+                    </ScrollView>
+
+                    <Text style={[m.subLabel, { marginTop: 12 }]}>Bitiş{to ? ` — ${to}` : ''}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={m.hourRow}>
+                        {HOURS.map(h => {
+                            const disabled = !!from && h <= from;
+                            return (
+                                <TouchableOpacity
+                                    key={`t${h}`}
+                                    style={[m.hourChip, to === h && m.hourChipActive, disabled && m.hourChipDisabled]}
+                                    onPress={() => !disabled && setTo(h === to ? '' : h)}
+                                    disabled={disabled}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={[m.hourText, to === h && m.hourTextActive, disabled && m.hourTextDisabled]}>{h}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+
+                    <View style={[m.btnRow, { marginTop: 16 }]}>
+                        <TouchableOpacity style={m.clearBtn} onPress={() => { setFrom(''); setTo(''); }} activeOpacity={0.8}>
+                            <Text style={m.clearBtnText}>Temizle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={m.applyBtn} onPress={() => onApply(from, to)} activeOpacity={0.8}>
+                            <Text style={m.applyBtnText}>Uygula</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
-        </View>
+        </Modal>
     );
 }
 
@@ -181,12 +277,8 @@ function LocationInput({ placeholder, value, onChange, type }) {
             {suggestions.length > 0 && (
                 <View style={s.suggBox}>
                     {suggestions.map(sg => (
-                        <TouchableOpacity
-                            key={sg}
-                            style={s.suggItem}
-                            onPress={() => { onChange(sg); setSuggestions([]); }}
-                            activeOpacity={0.8}
-                        >
+                        <TouchableOpacity key={sg} style={s.suggItem}
+                            onPress={() => { onChange(sg); setSuggestions([]); }} activeOpacity={0.8}>
                             <Text style={s.suggText}>📍 {sg}</Text>
                         </TouchableOpacity>
                     ))}
@@ -198,43 +290,38 @@ function LocationInput({ placeholder, value, onChange, type }) {
 
 // ── Aktivite kartı ──
 function ActivityCard({ item, navigation, onJoin, joining }) {
-    const catColor = CAT_META[item.category]?.color || colors.purple;
-    const emoji = SUB_META[item.subCategory] || '🏅';
-    const spots = (item.teamSize * 2) - 1 - (item.participants?.length || 0);
+    const catMeta  = CAT_MAP[item.category]  || { color: colors.purple, label: item.category, emoji: '🏅' };
+    const subEmoji = SUB_MAP[item.subCategory]?.emoji || '🏅';
+    const spots    = (item.teamSize * 2) - 1 - (item.participants?.length || 0);
 
-    const formatDate = (dt) => {
+    const fmtDate = (dt) => {
         if (!dt) return '';
         const d = new Date(dt);
         return `${DAYS_TR[d.getDay()]} ${d.getDate()} ${MONTHS_TR[d.getMonth()]}`;
     };
 
     return (
-        <TouchableOpacity
-            style={s.card}
-            activeOpacity={0.85}
+        <TouchableOpacity style={s.card} activeOpacity={0.85}
             onPress={() => navigation.navigate('HomeTab', {
                 screen: 'SubCategory',
                 params: { category: item.category, sub: item.subCategory, highlightRivalId: item.id },
-            })}
-        >
-            <View style={[s.cardStripe, { backgroundColor: catColor }]} />
+            })}>
+            <View style={[s.cardStripe, { backgroundColor: catMeta.color }]} />
             <View style={s.cardBody}>
                 <View style={s.cardTop}>
-                    <Text style={s.cardEmoji}>{emoji}</Text>
+                    <Text style={s.cardEmoji}>{subEmoji}</Text>
                     <View style={{ flex: 1 }}>
                         <Text style={s.cardSub} numberOfLines={1}>
                             {item.subCategory?.toUpperCase()}{item.matchMode === 'COMPETITIVE' ? ' · Rekabetçi' : ''}
                         </Text>
-                        <Text style={s.cardUser} numberOfLines={1}>
-                            {item.sender?.fullName || item.sender?.username || '—'}
-                        </Text>
+                        <Text style={s.cardUser} numberOfLines={1}>{item.sender?.fullName || item.sender?.username || '—'}</Text>
                     </View>
-                    <View style={[s.catBadge, { backgroundColor: catColor + '22', borderColor: catColor + '55' }]}>
-                        <Text style={[s.catBadgeText, { color: catColor }]}>{CAT_META[item.category]?.emoji} {CAT_META[item.category]?.label}</Text>
+                    <View style={[s.catBadge, { backgroundColor: catMeta.color + '22', borderColor: catMeta.color + '55' }]}>
+                        <Text style={[s.catBadgeText, { color: catMeta.color }]}>{catMeta.emoji} {catMeta.label}</Text>
                     </View>
                 </View>
                 <View style={s.infoRow}>
-                    {item.matchDate && <Text style={s.infoChip}>📅 {formatDate(item.matchDate)}{item.matchTime ? ` · ${item.matchTime}` : ''}</Text>}
+                    {item.matchDate && <Text style={s.infoChip}>📅 {fmtDate(item.matchDate)}{item.matchTime ? ` · ${item.matchTime}` : ''}</Text>}
                     {(item.location || item.courtAddress) && <Text style={s.infoChip} numberOfLines={1}>📍 {item.location || item.courtAddress}</Text>}
                     {item.duration && <Text style={s.infoChip}>⏱ {item.duration} dk</Text>}
                     {item.level && <Text style={s.infoChip}>🎯 {item.level}</Text>}
@@ -246,11 +333,12 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
                     {item._myJoinStatus === 'PENDING' ? (
                         <View style={s.pendingBadge}><Text style={s.pendingText}>⏳ Bekliyor</Text></View>
                     ) : item._myJoinStatus === 'ACCEPTED' ? (
-                        <View style={[s.pendingBadge, { backgroundColor: colors.green + '22', borderColor: colors.green + '55' }]}>
+                        <View style={[s.pendingBadge, { backgroundColor: colors.green+'22', borderColor: colors.green+'55' }]}>
                             <Text style={[s.pendingText, { color: colors.greenLight }]}>✓ Katıldın</Text>
                         </View>
                     ) : spots > 0 ? (
-                        <TouchableOpacity style={[s.joinBtn, joining && { opacity: 0.5 }]} onPress={() => onJoin(item)} disabled={joining} activeOpacity={0.8}>
+                        <TouchableOpacity style={[s.joinBtn, joining && { opacity: 0.5 }]}
+                            onPress={() => onJoin(item)} disabled={joining} activeOpacity={0.8}>
                             {joining ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.joinBtnText}>Katıl</Text>}
                         </TouchableOpacity>
                     ) : null}
@@ -262,35 +350,58 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
 
 // ── Ana ekran ──
 export default function ActivityFeedScreen({ navigation }) {
-    const lang = useSelector(s => s.lang?.lang || 'en');
+    const lang     = useSelector(s => s.lang?.lang || 'en');
     const logoText = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
 
-    const [items, setItems]         = useState([]);
-    const [loading, setLoading]     = useState(false);
+    const [items,     setItems]     = useState([]);
+    const [loading,   setLoading]   = useState(false);
     const [joiningId, setJoiningId] = useState(null);
 
-    // Dinamik sub listesi
-    const [subList, setSubList] = useState([]); // [{subCategory, category}]
+    // Dinamik sub listesi (static + DB'den ekstralar)
+    const [extraSubs, setExtraSubs] = useState([]);
 
     // Filtreler
     const [city,     setCity]     = useState('');
     const [district, setDistrict] = useState('');
-    const [date,     setDate]     = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo,   setDateTo]   = useState('');
     const [timeFrom, setTimeFrom] = useState('');
     const [timeTo,   setTimeTo]   = useState('');
     const [selCats,  setSelCats]  = useState([]);
     const [selSubs,  setSelSubs]  = useState([]);
 
-    // subCategory listesini backend'den çek
+    // Modal state
+    const [showDateModal, setShowDateModal] = useState(false);
+    const [showTimeModal, setShowTimeModal] = useState(false);
+
+    // Backend'den ekstra subCategory'leri çek (static listede yoksa)
     useEffect(() => {
-        api.get('/rivals/sub-categories').then(r => setSubList(r.data || [])).catch(() => {});
+        api.get('/rivals/sub-categories').then(r => {
+            const known = new Set(STATIC_CATS.flatMap(c => c.subs.map(s => s.key)));
+            const extras = (r.data || []).filter(item => !known.has(item.subCategory));
+            setExtraSubs(extras);
+        }).catch(() => {});
     }, []);
+
+    // Tüm kategori listesi = static + DB'den gelen kategoriler
+    const allCats = STATIC_CATS.map(c => {
+        const extraSubsForCat = extraSubs.filter(e => e.category === c.key)
+            .map(e => ({ key: e.subCategory, label: e.subCategory, emoji: '🏅' }));
+        return { ...c, subs: [...c.subs, ...extraSubsForCat] };
+    });
+    // DB'de static'te olmayan kategori varsa ekle
+    const extraCatKeys = [...new Set(extraSubs.map(e => e.category))].filter(k => !CAT_MAP[k]);
+    const dynamicCats = extraCatKeys.map(k => ({
+        key: k, label: k, emoji: '🔹', color: colors.purple,
+        subs: extraSubs.filter(e => e.category === k).map(e => ({ key: e.subCategory, label: e.subCategory, emoji: '🏅' })),
+    }));
+    const categories = [...allCats, ...dynamicCats];
 
     const toggleCat = (key) => {
         setSelCats(prev => {
             const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
             if (!next.includes(key)) {
-                const catSubs = subList.filter(s => s.category === key).map(s => s.subCategory);
+                const catSubs = (categories.find(c => c.key === key)?.subs || []).map(s => s.key);
                 setSelSubs(p => p.filter(s => !catSubs.includes(s)));
             }
             return next;
@@ -298,28 +409,28 @@ export default function ActivityFeedScreen({ navigation }) {
     };
     const toggleSub = (key) => setSelSubs(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
 
-    // Görünen alt dallar: seçili kategorilerin altdal listesi (yoksa tümü)
-    const visibleSubs = subList.filter(s =>
-        selCats.length === 0 || selCats.includes(s.category)
-    );
+    const visibleSubs = categories
+        .filter(c => selCats.length === 0 || selCats.includes(c.key))
+        .flatMap(c => c.subs);
 
-    const fetchFeed = useCallback(async (c, dist, d, tf, tt, cats, subs) => {
+    const fetchFeed = useCallback(async (c, dist, df, dt, tf, tt, cats, subs) => {
         setLoading(true);
         try {
             const catKeys = cats.length > 0 ? cats : [''];
             const subKeys = subs.length > 0 ? subs : [''];
-            const pairs = catKeys.flatMap(cat => subKeys.map(sub => ({ cat, sub })));
+            const pairs   = catKeys.flatMap(cat => subKeys.map(sub => ({ cat, sub })));
 
             const results = await Promise.all(
                 pairs.map(({ cat, sub }) => {
                     const params = {};
                     if (cat)  params.category    = cat;
-                    if (sub)  params.subCategory = sub;
-                    if (c)    params.city         = c;
-                    if (dist) params.district     = dist;
-                    if (d)    params.date         = d;
-                    if (tf)   params.timeFrom     = tf;
-                    if (tt)   params.timeTo       = tt;
+                    if (sub)  params.subCategory  = sub;
+                    if (c)    params.city          = c;
+                    if (dist) params.district      = dist;
+                    if (df)   params.dateFrom      = df;
+                    if (dt)   params.dateTo        = dt;
+                    if (tf)   params.timeFrom      = tf;
+                    if (tt)   params.timeTo        = tt;
                     return api.get('/rivals', { params }).then(r => r.data).catch(() => []);
                 })
             );
@@ -335,8 +446,8 @@ export default function ActivityFeedScreen({ navigation }) {
     }, []);
 
     useFocusEffect(useCallback(() => {
-        fetchFeed(city, district, date, timeFrom, timeTo, selCats, selSubs);
-    }, [city, district, date, timeFrom, timeTo, selCats, selSubs]));
+        fetchFeed(city, district, dateFrom, dateTo, timeFrom, timeTo, selCats, selSubs);
+    }, [city, district, dateFrom, dateTo, timeFrom, timeTo, selCats, selSubs]));
 
     const handleJoin = async (item) => {
         setJoiningId(item.id);
@@ -347,21 +458,24 @@ export default function ActivityFeedScreen({ navigation }) {
         finally { setJoiningId(null); }
     };
 
-    const hasFilter = city || district || date || timeFrom || timeTo || selCats.length > 0 || selSubs.length > 0;
+    const hasFilter = city || district || dateFrom || dateTo || timeFrom || timeTo || selCats.length > 0 || selSubs.length > 0;
 
     const clearAll = () => {
-        setCity(''); setDistrict(''); setDate(''); setTimeFrom(''); setTimeTo('');
-        setSelCats([]); setSelSubs([]);
+        setCity(''); setDistrict(''); setDateFrom(''); setDateTo('');
+        setTimeFrom(''); setTimeTo(''); setSelCats([]); setSelSubs([]);
     };
 
-    // Unique kategoriler mevcut ilanlardan
-    const activeCats = [...new Set(subList.map(s => s.category))];
+    const dateLabel = dateFrom || dateTo
+        ? [dateFrom && labelDate(dateFrom), dateTo && labelDate(dateTo)].filter(Boolean).join(' – ')
+        : null;
+    const timeLabel = timeFrom || timeTo
+        ? [timeFrom || '?', timeTo || '?'].join(' – ')
+        : null;
 
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
 
-            {/* Header */}
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
                 <RainbowLogo text={logoText} style={{ fontSize: 22, fontWeight: '900', letterSpacing: 2 }} />
                 {hasFilter && (
@@ -371,78 +485,67 @@ export default function ActivityFeedScreen({ navigation }) {
                 )}
             </View>
 
-            <ScrollView
-                style={{ flex: 1 }}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled
-            >
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+
                 {/* ── Filtre paneli ── */}
                 <View style={s.filterPanel}>
 
-                    {/* İl / İlçe */}
+                    {/* Konum */}
                     <Text style={s.sectionLabel}>📍 Konum</Text>
                     <View style={s.filterRow}>
                         <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" />
                         <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" />
                     </View>
 
-                    {/* Takvim */}
-                    <Text style={s.sectionLabel}>
-                        📅 Tarih{date ? ` — ${formatDateLabel(date)}` : ''}
-                    </Text>
-                    <MiniCalendar selected={date} onSelect={setDate} />
+                    {/* Tarih aralığı — form alanı */}
+                    <Text style={s.sectionLabel}>📅 Tarih Aralığı</Text>
+                    <TouchableOpacity style={[s.pickerField, dateLabel && s.pickerFieldActive]} onPress={() => setShowDateModal(true)} activeOpacity={0.8}>
+                        <Text style={[s.pickerFieldText, dateLabel && { color: colors.purpleLight }]}>
+                            {dateLabel || 'Tarih seç…'}
+                        </Text>
+                        <Text style={s.pickerArrow}>›</Text>
+                    </TouchableOpacity>
 
-                    {/* Saat seçici */}
-                    <Text style={s.sectionLabel}>
-                        🕐 Saat Aralığı{(timeFrom || timeTo) ? ` — ${timeFrom || '?'} – ${timeTo || '?'}` : ''}
-                    </Text>
-                    <TimePicker
-                        valueFrom={timeFrom} valueTo={timeTo}
-                        onChangeFrom={setTimeFrom} onChangeTo={setTimeTo}
-                    />
+                    {/* Saat aralığı — form alanı */}
+                    <Text style={s.sectionLabel}>🕐 Saat Aralığı</Text>
+                    <TouchableOpacity style={[s.pickerField, timeLabel && s.pickerFieldActive]} onPress={() => setShowTimeModal(true)} activeOpacity={0.8}>
+                        <Text style={[s.pickerFieldText, timeLabel && { color: colors.purpleLight }]}>
+                            {timeLabel || 'Saat aralığı seç…'}
+                        </Text>
+                        <Text style={s.pickerArrow}>›</Text>
+                    </TouchableOpacity>
 
                     {/* Kategoriler */}
-                    {activeCats.length > 0 && (
-                        <>
-                            <Text style={s.sectionLabel}>🏷 Kategori</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow} nestedScrollEnabled>
-                                {activeCats.map(catKey => {
-                                    const meta = CAT_META[catKey] || { label: catKey, emoji: '🔹', color: colors.purple };
-                                    const active = selCats.includes(catKey);
-                                    return (
-                                        <TouchableOpacity
-                                            key={catKey}
-                                            style={[s.chip, active && { backgroundColor: meta.color + '28', borderColor: meta.color }]}
-                                            onPress={() => toggleCat(catKey)}
-                                            activeOpacity={0.8}
-                                        >
-                                            <Text style={s.chipEmoji}>{meta.emoji}</Text>
-                                            <Text style={[s.chipText, active && { color: meta.color }]}>{meta.label}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
-                        </>
-                    )}
+                    <Text style={s.sectionLabel}>🏷 Kategori</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow} nestedScrollEnabled>
+                        {categories.map(cat => {
+                            const active = selCats.includes(cat.key);
+                            return (
+                                <TouchableOpacity key={cat.key}
+                                    style={[s.chip, active && { backgroundColor: cat.color + '28', borderColor: cat.color }]}
+                                    onPress={() => toggleCat(cat.key)} activeOpacity={0.8}>
+                                    <Text style={s.chipEmoji}>{cat.emoji}</Text>
+                                    <Text style={[s.chipText, active && { color: cat.color }]}>{cat.label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
 
                     {/* Alt dallar */}
                     {visibleSubs.length > 0 && (
                         <>
                             <Text style={s.sectionLabel}>⚡ Dallar</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow} nestedScrollEnabled>
-                                {visibleSubs.map(({ subCategory, category }) => {
-                                    const catColor = CAT_META[category]?.color || colors.purple;
-                                    const active = selSubs.includes(subCategory);
+                                {visibleSubs.map(sub => {
+                                    const catKey   = SUB_MAP[sub.key]?.catKey || selCats[0] || '';
+                                    const catColor = (CAT_MAP[catKey] || categories.find(c => c.key === catKey))?.color || colors.purple;
+                                    const active   = selSubs.includes(sub.key);
                                     return (
-                                        <TouchableOpacity
-                                            key={subCategory}
+                                        <TouchableOpacity key={sub.key}
                                             style={[s.chip, active && { backgroundColor: catColor + '28', borderColor: catColor }]}
-                                            onPress={() => toggleSub(subCategory)}
-                                            activeOpacity={0.8}
-                                        >
-                                            <Text style={s.chipEmoji}>{SUB_META[subCategory] || '🏅'}</Text>
-                                            <Text style={[s.chipText, active && { color: catColor }]}>{SUB_LABEL[subCategory] || subCategory}</Text>
+                                            onPress={() => toggleSub(sub.key)} activeOpacity={0.8}>
+                                            <Text style={s.chipEmoji}>{sub.emoji}</Text>
+                                            <Text style={[s.chipText, active && { color: catColor }]}>{sub.label}</Text>
                                         </TouchableOpacity>
                                     );
                                 })}
@@ -453,9 +556,7 @@ export default function ActivityFeedScreen({ navigation }) {
 
                 {/* ── Sonuçlar ── */}
                 {loading ? (
-                    <View style={s.center}>
-                        <ActivityIndicator size="large" color={colors.purple} />
-                    </View>
+                    <View style={s.center}><ActivityIndicator size="large" color={colors.purple} /></View>
                 ) : items.length === 0 ? (
                     <View style={s.center}>
                         <Text style={s.emptyEmoji}>🔍</Text>
@@ -465,123 +566,141 @@ export default function ActivityFeedScreen({ navigation }) {
                 ) : (
                     <View style={{ padding: 12, gap: 10 }}>
                         {items.map(item => (
-                            <ActivityCard
-                                key={item.id}
-                                item={item}
-                                navigation={navigation}
-                                onJoin={handleJoin}
-                                joining={joiningId === item.id}
-                            />
+                            <ActivityCard key={item.id} item={item} navigation={navigation}
+                                onJoin={handleJoin} joining={joiningId === item.id} />
                         ))}
                     </View>
                 )}
             </ScrollView>
+
+            {/* Tarih modal */}
+            <DateRangeModal
+                visible={showDateModal}
+                dateFrom={dateFrom} dateTo={dateTo}
+                onApply={(f, t) => { setDateFrom(f); setDateTo(t); setShowDateModal(false); }}
+                onClose={() => setShowDateModal(false)}
+            />
+
+            {/* Saat modal */}
+            <TimeRangeModal
+                visible={showTimeModal}
+                timeFrom={timeFrom} timeTo={timeTo}
+                onApply={(f, t) => { setTimeFrom(f); setTimeTo(t); setShowTimeModal(false); }}
+                onClose={() => setShowTimeModal(false)}
+            />
         </View>
     );
 }
 
 // ── Stiller ──
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bg },
+    root:   { flex: 1, backgroundColor: colors.bg },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 16, paddingBottom: 12,
         backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border,
     },
-    clearBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
+    clearBtn:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
     clearBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
 
     filterPanel: {
         backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border,
-        paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10, gap: 8,
+        paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12, gap: 8,
     },
     sectionLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
-    filterRow: { flexDirection: 'row', gap: 8 },
-    filterInput: {
+    filterRow:    { flexDirection: 'row', gap: 8 },
+    filterInput:  {
         flex: 1, backgroundColor: colors.surface2, borderRadius: 10,
         paddingHorizontal: 10, paddingVertical: 8, color: '#fff', fontSize: 13,
         borderWidth: 1, borderColor: colors.border,
     },
-    suggBox: {
-        position: 'absolute', top: 40, left: 0, right: 0, zIndex: 99,
-        backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
-        overflow: 'hidden',
+
+    pickerField: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11,
+        borderWidth: 1, borderColor: colors.border,
     },
+    pickerFieldActive: { borderColor: colors.purple, backgroundColor: colors.purple + '12' },
+    pickerFieldText:   { color: colors.textMuted, fontSize: 13 },
+    pickerArrow:       { color: colors.textMuted, fontSize: 18 },
+
+    chipRow:   { gap: 6, paddingVertical: 2 },
+    chip:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    chipEmoji: { fontSize: 14 },
+    chipText:  { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
+
+    suggBox:  { position: 'absolute', top: 40, left: 0, right: 0, zIndex: 99, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
     suggItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.border },
     suggText: { color: '#fff', fontSize: 13 },
 
-    chipRow: { gap: 6, paddingVertical: 2 },
-    chip: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-        backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border,
-    },
-    chipEmoji: { fontSize: 14 },
-    chipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
-
-    center: { paddingTop: 60, alignItems: 'center', gap: 8 },
-    emptyEmoji: { fontSize: 40 },
+    center:    { paddingTop: 60, alignItems: 'center', gap: 8 },
+    emptyEmoji:{ fontSize: 40 },
     emptyText: { color: '#fff', fontSize: 16, fontWeight: '700' },
     emptyHint: { color: colors.textMuted, fontSize: 13 },
 
-    card: {
-        flexDirection: 'row', backgroundColor: colors.surface,
-        borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: 'hidden',
-    },
-    cardStripe: { width: 4 },
-    cardBody: { flex: 1, padding: 12, gap: 6 },
-    cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    card:      { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+    cardStripe:{ width: 4 },
+    cardBody:  { flex: 1, padding: 12, gap: 6 },
+    cardTop:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
     cardEmoji: { fontSize: 26 },
-    cardSub: { color: '#fff', fontSize: 13, fontWeight: '900' },
-    cardUser: { color: colors.textSecondary, fontSize: 11, marginTop: 1 },
-    catBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
+    cardSub:   { color: '#fff', fontSize: 13, fontWeight: '900' },
+    cardUser:  { color: colors.textSecondary, fontSize: 11, marginTop: 1 },
+    catBadge:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
     catBadgeText: { fontSize: 9, fontWeight: '800' },
-    infoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    infoChip: { color: colors.textSecondary, fontSize: 11, backgroundColor: colors.surface2, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-    cardMsg: { color: colors.textMuted, fontSize: 12, fontStyle: 'italic' },
-    cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+    infoRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    infoChip:  { color: colors.textSecondary, fontSize: 11, backgroundColor: colors.surface2, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+    cardMsg:   { color: colors.textMuted, fontSize: 12, fontStyle: 'italic' },
+    cardFooter:{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
     spotsText: { flex: 1, color: colors.textMuted, fontSize: 11 },
-    feeText: { color: colors.yellow, fontSize: 11, fontWeight: '700' },
-    pendingBadge: {
-        paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
-        backgroundColor: colors.yellow + '22', borderWidth: 1, borderColor: colors.yellow + '55',
-    },
-    pendingText: { color: colors.yellow, fontSize: 11, fontWeight: '700' },
-    joinBtn: { backgroundColor: colors.purple, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
-    joinBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+    feeText:   { color: colors.yellow, fontSize: 11, fontWeight: '700' },
+    pendingBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: colors.yellow+'22', borderWidth: 1, borderColor: colors.yellow+'55' },
+    pendingText:  { color: colors.yellow, fontSize: 11, fontWeight: '700' },
+    joinBtn:      { backgroundColor: colors.purple, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
+    joinBtnText:  { color: '#fff', fontSize: 12, fontWeight: '800' },
 });
 
 const cal = StyleSheet.create({
-    root: { backgroundColor: colors.surface2, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border },
-    nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    navBtn: { padding: 6 },
-    navArrow: { color: '#fff', fontSize: 22, fontWeight: '300', lineHeight: 24 },
-    navTitle: { color: '#fff', fontSize: 14, fontWeight: '800' },
-    dayHeaders: { flexDirection: 'row', marginBottom: 4 },
-    dayHeader: { flex: 1, textAlign: 'center', color: colors.textMuted, fontSize: 10, fontWeight: '700' },
-    grid: { flexDirection: 'row', flexWrap: 'wrap' },
-    cell: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+    root:         { backgroundColor: colors.surface2, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border },
+    nav:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    navBtn:       { padding: 6 },
+    navArrow:     { color: '#fff', fontSize: 22, fontWeight: '300', lineHeight: 24 },
+    navTitle:     { color: '#fff', fontSize: 14, fontWeight: '800' },
+    dayHeaders:   { flexDirection: 'row', marginBottom: 4 },
+    dayHeader:    { flex: 1, textAlign: 'center', color: colors.textMuted, fontSize: 10, fontWeight: '700' },
+    grid:         { flexDirection: 'row', flexWrap: 'wrap' },
+    cell:         { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
     cellSelected: { backgroundColor: colors.purple, borderRadius: 20 },
-    cellToday: { borderWidth: 1, borderColor: colors.purple, borderRadius: 20 },
-    cellText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-    cellTextSelected: { color: '#fff', fontWeight: '900' },
-    cellTextPast: { color: colors.textMuted },
-    clearDate: { alignItems: 'center', marginTop: 6 },
-    clearDateText: { color: colors.textMuted, fontSize: 11 },
+    cellToday:    { borderWidth: 1, borderColor: colors.purple, borderRadius: 20 },
+    cellText:        { color: '#fff', fontSize: 12, fontWeight: '600' },
+    cellTextSelected:{ color: '#fff', fontWeight: '900' },
+    cellTextPast:    { color: colors.textMuted },
 });
 
-const tp = StyleSheet.create({
-    root: { gap: 6 },
-    row: { gap: 4 },
-    label: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
-    chips: { gap: 6, paddingVertical: 2 },
-    chip: {
-        paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
-        backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border,
-    },
-    chipActive: { backgroundColor: colors.purple + '28', borderColor: colors.purple },
-    chipDisabled: { opacity: 0.3 },
-    chipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
-    chipTextActive: { color: colors.purpleLight },
-    chipTextDisabled: { color: colors.textMuted },
+const m = StyleSheet.create({
+    overlay:  { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
+    sheet:    { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 24, gap: 10 },
+    handle:   { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 6 },
+    title:    { color: '#fff', fontSize: 17, fontWeight: '900' },
+    subLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
+
+    tabRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+    tab:      { flex: 1, backgroundColor: colors.surface2, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: colors.border },
+    tabActive:{ borderColor: colors.purple, backgroundColor: colors.purple + '18' },
+    tabSep:   { color: colors.textMuted, fontSize: 16 },
+    tabLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 2 },
+    tabValue: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
+
+    hourRow:          { gap: 6, paddingVertical: 2 },
+    hourChip:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    hourChipActive:   { backgroundColor: colors.purple + '28', borderColor: colors.purple },
+    hourChipDisabled: { opacity: 0.25 },
+    hourText:         { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+    hourTextActive:   { color: colors.purpleLight },
+    hourTextDisabled: { color: colors.textMuted },
+
+    btnRow:      { flexDirection: 'row', gap: 10 },
+    clearBtn:    { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    clearBtnText:{ color: colors.textSecondary, fontWeight: '700' },
+    applyBtn:    { flex: 2, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: colors.purple },
+    applyBtnText:{ color: '#fff', fontWeight: '900', fontSize: 15 },
 });

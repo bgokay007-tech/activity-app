@@ -599,7 +599,7 @@ export const createRivalRequest = async (req, res, next) => {
 
 export const getRivalRequests = async (req, res, next) => {
     try {
-        const { category, subCategory, matchType, city, district, date, timeFrom, timeTo } = req.query;
+        const { category, subCategory, matchType, city, district, date, dateFrom, dateTo, timeFrom, timeTo } = req.query;
         const cat = category ? category.toUpperCase() : null;
         const catWhere = cat ? { category: cat } : {};
 
@@ -635,12 +635,15 @@ export const getRivalRequests = async (req, res, next) => {
         if (city)     locFilters.push({ location: { contains: city, mode: 'insensitive' } }, { courtAddress: { contains: city, mode: 'insensitive' } });
         if (district) locFilters.push({ location: { contains: district, mode: 'insensitive' } }, { courtAddress: { contains: district, mode: 'insensitive' } });
 
-        // Date filter
+        // Date filter — single date OR range
         let dateWhere = {};
-        if (date) {
-            const from = new Date(`${date}T00:00:00.000Z`);
-            const to   = new Date(`${date}T23:59:59.999Z`);
-            dateWhere = { matchDate: { gte: from, lte: to } };
+        const effectiveDateFrom = dateFrom || date;
+        const effectiveDateTo   = dateTo   || date;
+        if (effectiveDateFrom || effectiveDateTo) {
+            const matchDateFilter = {};
+            if (effectiveDateFrom) matchDateFilter.gte = new Date(`${effectiveDateFrom}T00:00:00.000Z`);
+            if (effectiveDateTo)   matchDateFilter.lte = new Date(`${effectiveDateTo}T23:59:59.999Z`);
+            dateWhere = { matchDate: matchDateFilter };
         }
 
         // Time range filter
