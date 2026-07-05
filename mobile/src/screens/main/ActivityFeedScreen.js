@@ -323,9 +323,6 @@ function LocationInput({ placeholder, value, onChange, type, province }) {
     const [submitted, setSubmitted] = useState(false);
     const debounce = useRef(null);
 
-    const clearSuggestions = useCallback(() => { setSuggestions([]); setSearched(false); }, []);
-    useFocusEffect(useCallback(() => () => clearSuggestions(), [clearSuggestions]));
-
     const handleChange = (text) => {
         onChange(text);
         setSubmitted(false);
@@ -361,9 +358,9 @@ function LocationInput({ placeholder, value, onChange, type, province }) {
                 placeholderTextColor={colors.textMuted}
                 value={value}
                 onChangeText={handleChange}
-                onBlur={() => setTimeout(() => { setSuggestions([]); setSearched(false); }, 150)}
+                onBlur={() => setTimeout(() => { setSuggestions([]); setSearched(false); }, 250)}
                 autoCorrect={false}
-                autoCapitalize="words"
+                autoCapitalize="none"
             />
             {suggestions.map(sg => (
                 <TouchableOpacity key={sg} style={s.suggItem}
