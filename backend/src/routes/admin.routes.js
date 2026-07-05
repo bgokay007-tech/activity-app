@@ -3,7 +3,7 @@ import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
     getStats, getUsers, updateUser, deleteUser,
-    getDisputes, resolveDispute,
+    getDisputes, resolveDispute, resolveAppeal,
     getAllCourts, deleteCourt,
     getAllPosts, deletePost,
     getTournamentPermissionRequests, approveTournamentPermission, rejectTournamentPermission, revokeTournamentPermission,
@@ -22,6 +22,7 @@ router.patch('/users/:id',        updateUser);
 router.delete('/users/:id',       deleteUser);
 router.get('/disputes',           getDisputes);
 router.patch('/disputes/:id/resolve', resolveDispute);
+router.patch('/disputes/:id/resolve-appeal', resolveAppeal);
 router.get('/courts',             getAllCourts);
 router.delete('/courts/:id',      deleteCourt);
 router.get('/posts',              getAllPosts);

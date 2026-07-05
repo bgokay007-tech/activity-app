@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
+import { emitToUser } from '../config/socket.js';
 
 export const getStats = async (req, res, next) => {
     try {
@@ -56,7 +57,7 @@ export const deleteUser = async (req, res, next) => {
 export const getDisputes = async (req, res, next) => {
     try {
         const disputes = await prisma.activityRequest.findMany({
-            where: { scoreStatus: 'DISPUTED' },
+            where: { OR: [{ scoreStatus: 'DISPUTED' }, { scoreAppeal: true }] },
             include: {
                 sender: { select: { id: true, username: true, fullName: true } },
                 receiver: { select: { id: true, username: true, fullName: true } },
@@ -79,6 +80,44 @@ export const resolveDispute = async (req, res, next) => {
             where: { id },
             data: { scoreStatus: 'CONFIRMED', score: updatedScore },
         });
+        res.json(updated);
+    } catch (e) { next(e); }
+};
+
+export const resolveAppeal = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { resolution } = req.body; // 'RESET' | 'REJECTED'
+        const match = await prisma.activityRequest.findUnique({
+            where: { id },
+            include: { sender: { select: { id: true } } },
+        });
+        if (!match) return res.status(404).json({ message: 'Maç bulunamadı' });
+
+        let data;
+        if (resolution === 'RESET') {
+            data = { score: null, scoreStatus: 'NONE', scoreAppeal: false, scoreAppealReason: null, archived: false };
+        } else {
+            data = { scoreAppeal: false, scoreAppealReason: null };
+        }
+
+        const updated = await prisma.activityRequest.update({ where: { id }, data });
+
+        const participants = Array.isArray(match.participants) ? match.participants : [];
+        const allIds = [...new Set([match.senderId, ...participants.map(p => p.id)])];
+        for (const uid of allIds) {
+            emitToUser(uid, 'rivalUpdate', updated);
+            const msg = resolution === 'RESET'
+                ? 'Admin inceledi, skor sıfırlandı. Skoru yeniden girebilirsiniz.'
+                : 'Admin inceledi, itirazınız reddedildi. Skor geçerli sayıldı.';
+            createNotification(
+                uid, 'SCORE_CONFIRMED',
+                resolution === 'RESET' ? '🔄 Skor Sıfırlandı' : '❌ İtiraz Reddedildi',
+                msg,
+                { rivalId: id, category: match.category, subCategory: match.subCategory }
+            ).catch(() => {});
+        }
+
         res.json(updated);
     } catch (e) { next(e); }
 };

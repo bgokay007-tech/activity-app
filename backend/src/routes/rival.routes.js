@@ -3,7 +3,7 @@ import {
     createRivalRequest, getRivalRequests, getRivalById, swapMatchPositions,
     sendJoinRequest, respondToJoin, confirmLateJoin, inviteToRival, setRivalJoinPartner,
     getUpcomingMatches, getMyRequests,
-    cancelRequest, enterScore, confirmScore, disputeScore, reportDispute,
+    cancelRequest, enterScore, confirmScore, disputeScore, reportDispute, appealScore,
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
     extendScoreDeadline, getCountsBySubCategory, getActiveSubCategories, getLocationSuggestions,
     abandonMatch, cancelMatch, removeRivalParticipant,
@@ -38,6 +38,7 @@ router.patch('/:id/score',           authenticate, enterScore);
 router.patch('/:id/confirm-score',   authenticate, confirmScore);
 router.patch('/:id/dispute-score',   authenticate, disputeScore);
 router.post('/:id/report-dispute',   authenticate, reportDispute);
+router.post('/:id/appeal-score',     authenticate, appealScore);
 router.patch('/:id/archive',         authenticate, archiveMatch);
 router.patch('/:id/extend-score',    authenticate, extendScoreDeadline);
 router.patch('/:id/abandon',         authenticate, abandonMatch);

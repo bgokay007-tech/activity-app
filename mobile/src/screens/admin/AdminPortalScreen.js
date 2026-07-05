@@ -301,7 +301,17 @@ function DisputesTab() {
         } catch { Alert.alert('Hata', 'Çözüm kaydedilemedi.'); }
     };
 
+    const resolveAppeal = async (id, resolution) => {
+        try {
+            await api.patch(`/admin/disputes/${id}/resolve-appeal`, { resolution });
+            setDisputes(prev => prev.filter(d => d.id !== id));
+        } catch { Alert.alert('Hata', 'İtiraz çözülemedi.'); }
+    };
+
     if (loading) return <LoadingView />;
+
+    const appeals = disputes.filter(d => d.scoreAppeal);
+    const regularDisputes = disputes.filter(d => !d.scoreAppeal && d.scoreStatus === 'DISPUTED');
 
     return (
         <FlatList
@@ -311,24 +321,47 @@ function DisputesTab() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.purple} />}
             renderItem={({ item: d }) => {
                 const sets = d.score?.sets || [];
+                const isAppeal = d.scoreAppeal;
                 return (
-                    <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
-                        <Text style={s.cardTitle}>{d.subCategory || d.category || 'Maç'}</Text>
+                    <View style={[s.card, { flexDirection: 'column', gap: 8 }, isAppeal && { borderLeftWidth: 3, borderLeftColor: '#f97316' }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={s.cardTitle}>{d.subCategory || d.category || 'Maç'}</Text>
+                            {isAppeal && (
+                                <View style={{ backgroundColor: '#f9731620', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                    <Text style={{ color: '#f97316', fontSize: 11, fontWeight: '700' }}>⚠️ İtiraz</Text>
+                                </View>
+                            )}
+                        </View>
+                        <Text style={s.cardMeta}>Maç ID: {d.id?.slice(0, 8)}...</Text>
                         <Text style={s.cardMeta}>Gönderen: @{d.sender?.username || '?'}</Text>
-                        <Text style={s.cardMeta}>Alıcı: @{d.receiver?.username || (d.participants?.[0]?.user?.username) || '?'}</Text>
+                        <Text style={s.cardMeta}>Alıcı: @{d.receiver?.username || (d.participants?.[0]?.username) || '?'}</Text>
                         {sets.length > 0 && (
                             <Text style={s.cardMeta}>Skor: {sets.map(st => `${st.sender ?? st.p1 ?? 0}-${st.opponent ?? st.p2 ?? 0}`).join(', ')}</Text>
                         )}
-                        <Text style={s.cardMeta}>İddia: {d.score?.winner === 'sender' ? 'Gönderen kazandı' : 'Alıcı kazandı'}</Text>
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                            <Btn label="🏆 Gönderen" onPress={() => resolve(d.id, 'sender')} color="#10b981" small />
-                            <Btn label="🤝 Berabere" onPress={() => resolve(d.id, 'draw')} color="#6366f1" small />
-                            <Btn label="🏆 Alıcı" onPress={() => resolve(d.id, 'receiver')} color="#3b82f6" small />
-                        </View>
+                        {isAppeal ? (
+                            <>
+                                {d.scoreAppealReason ? (
+                                    <Text style={[s.cardMeta, { color: '#f97316' }]}>İtiraz Nedeni: {d.scoreAppealReason}</Text>
+                                ) : null}
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <Btn label="🔄 Sıfırla" onPress={() => resolveAppeal(d.id, 'RESET')} color="#f97316" small />
+                                    <Btn label="❌ Reddet" onPress={() => resolveAppeal(d.id, 'REJECTED')} color="#6b7280" small />
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={s.cardMeta}>İddia: {d.score?.winner === 'sender' ? 'Gönderen kazandı' : 'Alıcı kazandı'}</Text>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <Btn label="🏆 Gönderen" onPress={() => resolve(d.id, 'sender')} color="#10b981" small />
+                                    <Btn label="🤝 Berabere" onPress={() => resolve(d.id, 'draw')} color="#6366f1" small />
+                                    <Btn label="🏆 Alıcı" onPress={() => resolve(d.id, 'receiver')} color="#3b82f6" small />
+                                </View>
+                            </>
+                        )}
                     </View>
                 );
             }}
-            ListEmptyComponent={<EmptyView text="Bekleyen anlaşmazlık yok. ✅" />}
+            ListEmptyComponent={<EmptyView text="Bekleyen anlaşmazlık veya itiraz yok. ✅" />}
         />
     );
 }

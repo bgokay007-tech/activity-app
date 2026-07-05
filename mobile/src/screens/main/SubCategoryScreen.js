@@ -8333,6 +8333,29 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
     }, []);
 
+    const handleAppeal = useCallback((match) => {
+        Alert.alert(
+            '⚠️ Skora İtiraz Et',
+            'Otomatik onaylanan skora itiraz etmek istediğinizden emin misiniz? Admin konuya el atacak.',
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                    text: 'İtiraz Et',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await api.post(`/rivals/${match.id}/appeal-score`, {});
+                            setArchiveRivals(prev => prev.map(m => m.id === match.id ? { ...m, scoreAppeal: true } : m));
+                            Alert.alert('✅ İtiraz İletildi', 'Admin konuya en kısa sürede el atacak.');
+                        } catch (e) {
+                            Alert.alert('Hata', e?.response?.data?.message || 'İtiraz gönderilemedi');
+                        }
+                    }
+                }
+            ]
+        );
+    }, []);
+
     // Real-time new comment for upcoming match modal
     useEffect(() => {
         if (!commentMatch?.id) return;
@@ -10077,7 +10100,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                         const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
                                         return (
-                                            <View key={m.id} style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0 }]}>
+                                            <View key={m.id} style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, m.id === highlightRivalId && { borderColor:'#f97316', borderWidth:2 }]}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
                                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
                                                     {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
@@ -10119,6 +10142,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         );
                                                     })}
                                                 </View>
+                                                {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && (
+                                                    <TouchableOpacity
+                                                        onPress={() => handleAppeal(m)}
+                                                        style={{ marginTop:4, backgroundColor:'#f9731620', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor:'#f9731650', alignSelf:'flex-start' }}>
+                                                        <Text style={{ color:'#f97316', fontSize:10, fontWeight:'700' }}>⚠️ İtiraz Et</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                {m.scoreAppeal && (
+                                                    <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:4 }}>⏳ İtiraz İnceleniyor</Text>
+                                                )}
                                             </View>
                                         );
                                     })}

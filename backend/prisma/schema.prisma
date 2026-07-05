@@ -422,6 +422,8 @@ model ActivityRequest {
   score           Json?                           // {sets:[{sender:6,opponent:3},...], winner:"sender"|"opponent"}
   scoreStatus     String       @default("NONE")   // NONE | PENDING | CONFIRMED | DISPUTED
   scoreEnteredBy  String?
+  scoreAppeal       Boolean  @default(false)
+  scoreAppealReason String?
   completedAt     DateTime?
   archived        Boolean      @default(false)
   expiresAt            DateTime?

@@ -1850,6 +1850,42 @@ export const reportDispute = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const appealScore = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+        const request = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!request) return res.status(404).json({ message: 'Maç bulunamadı' });
+
+        const participants = Array.isArray(request.participants) ? request.participants : [];
+        const isInvolved = request.senderId === req.userId || participants.some(p => p.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Yetkisiz' });
+        if (request.scoreStatus !== 'CONFIRMED') return res.status(400).json({ message: 'Yalnızca onaylanmış skorlara itiraz edilebilir' });
+        if (request.scoreAppeal) return res.status(400).json({ message: 'Bu maç için zaten itiraz yapılmış' });
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: { scoreAppeal: true, scoreAppealReason: reason || null },
+        });
+
+        emitToUser(req.userId, 'rivalUpdate', updated);
+
+        const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        for (const admin of admins) {
+            createNotification(
+                admin.id, 'SCORE_DISPUTED',
+                '⚠️ Skor İtirazı',
+                `${me?.username} otomatik onaylanan skora itiraz etti${reason ? `: ${reason}` : '.'}`,
+                { rivalId: id, scoreAppeal: true, category: request.category, subCategory: request.subCategory }
+            ).catch(() => {});
+            emitToUser(admin.id, 'notification', {});
+        }
+
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
 export const archiveMatch = async (req, res, next) => {
     try {
         const { id } = req.params;
