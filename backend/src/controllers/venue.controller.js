@@ -506,7 +506,7 @@ export const getVenueAnalytics = async (req, res, next) => {
             totalPossible += numCourts * Math.max(0, daySlots);
         }
         const totalBooked   = reservations.length;
-        const occupancyRate = totalPossible > 0 ? Math.round((totalBooked / totalPossible) * 100) : 0;
+        const occupancyRate = totalPossible > 0 ? Math.round((totalBooked / totalPossible) * 1000) / 10 : 0;
 
         // Saatlere göre yoğunluk
         const hourMap = {};

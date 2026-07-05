@@ -646,7 +646,7 @@ function VenueAnalyticsModal({ visible, venue, onClose }) {
                             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
                                 <View style={{ flex: 1, backgroundColor: '#ffffff08', borderRadius: 12, padding: 14,
                                     borderWidth: 1, borderColor: BIZ_COLOR + '40', alignItems: 'center' }}>
-                                    <Text style={{ color: BIZ_LIGHT, fontSize: 28, fontWeight: '900' }}>{data.occupancyRate}%</Text>
+                                    <Text style={{ color: BIZ_LIGHT, fontSize: 28, fontWeight: '900' }}>{Number(data.occupancyRate).toFixed(1)}%</Text>
                                     <Text style={{ color: '#888', fontSize: 11, marginTop: 3, textAlign: 'center' }}>Doluluk Oranı</Text>
                                 </View>
                                 <View style={{ flex: 1, gap: 8 }}>
