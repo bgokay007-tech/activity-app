@@ -526,19 +526,18 @@ function IbanCard({ iban, ibanHolder, onSave }) {
 
 // ── Venue Analytics Modal ─────────────────────────────────────────────────────
 
+const ld = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const PRESETS = [
-    { key: 'today',  label: 'Bugün',    getDates: () => { const t = new Date().toISOString().slice(0,10); return [t, t]; } },
+    { key: 'today',  label: 'Bugün',    getDates: () => { const t = ld(new Date()); return [t, t]; } },
     { key: 'week',   label: 'Bu Hafta', getDates: () => {
         const now = new Date();
         const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay()+6)%7));
         const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-        return [mon.toISOString().slice(0,10), sun.toISOString().slice(0,10)];
+        return [ld(mon), ld(sun)];
     }},
     { key: 'month',  label: 'Bu Ay',   getDates: () => {
         const now = new Date();
-        const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
-        const last  = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().slice(0,10);
-        return [first, last];
+        return [ld(new Date(now.getFullYear(), now.getMonth(), 1)), ld(new Date(now.getFullYear(), now.getMonth()+1, 0))];
     }},
     { key: 'custom', label: 'Özel',    getDates: () => [null, null] },
 ];
