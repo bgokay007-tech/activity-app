@@ -53,6 +53,7 @@ const PACKAGES = [
             'Ekstra hizmet menüsü (raket, su, havlu vb.)',
             'Kullanıcı engelleme özelliği',
             'Doluluk & gelir raporlama — günlük/haftalık/aylık dönemler, en yoğun saatler ve günler, tahmini gelir özeti',
+            'Resmi tatil & dini bayram hatırlatıcısı — tatilden 1 ay önce başlar, 3 günde bir bildirim gelir; "Bu tarihte çalışıyor olacak mısınız? Saatlerinizi güncelleyin" şeklinde hatırlatır',
         ],
     },
     {
@@ -69,6 +70,7 @@ const PACKAGES = [
             'Özel marka sayfası',
             'API entegrasyonu',
             'Dedicated destek hattı',
+            'Resmi tatil & dini bayram hatırlatıcısı — tatilden 1 ay önce başlar, 3 günde bir bildirim gelir; "Bu tarihte çalışıyor olacak mısınız? Saatlerinizi güncelleyin" şeklinde hatırlatır',
         ],
     },
 ];

@@ -8,6 +8,7 @@ import { startAutoCompleteJob } from './jobs/autoCompleteMatches.js';
 import { startTournamentCleanupJob } from './jobs/cleanupTournaments.js';
 import { startTournamentAutoStartJob } from './jobs/autoStartTournaments.js';
 import { startSubscriptionExpiryJob } from './jobs/subscriptionExpiry.js';
+import { startHolidayReminderJob } from './jobs/holidayReminder.js';
 import prisma from './config/prisma.js';
 
 async function ensureTables() {
@@ -54,5 +55,6 @@ ensureTables().then(() => {
         startTournamentCleanupJob();
         startTournamentAutoStartJob();
         startSubscriptionExpiryJob();
+        startHolidayReminderJob();
     });
 });
