@@ -3397,12 +3397,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
     const [flexDur,     setFlexDur]     = useState(60);
     const [payMethod,   setPayMethod]   = useState('CASH');
     const [booking,     setBooking]     = useState(false);
+    const [booked,      setBooked]      = useState(false);
     const [menuVisible, setMenuVisible] = useState(false);
 
     // Tesis verisi yükle
     useEffect(() => {
         if (!visible || !venueId) return;
-        setVenue(null); setSlotsData(null); setSelSlot(null); setSelDate(todayStr());
+        setVenue(null); setSlotsData(null); setSelSlot(null); setSelDate(todayStr()); setBooked(false);
         setLoadingV(true);
         api.get(`/venues/${venueId}`)
             .then(r => {
@@ -3444,13 +3445,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             });
             const courtObj = { name: activeCourt?.name || '', venueId, courtId, id: courtId, city: venue?.city };
             onBooked?.(courtObj, selDate, selSlot.start, endTime);
+            setBooked(true);
             try {
                 const menuRes = await api.get(`/venues/${venueId}/menu`);
-                if (menuRes.data?.hasMenu) { setMenuVisible(true); return; }
+                if (menuRes.data?.hasMenu) { setMenuVisible(true); }
             } catch {}
-            Alert.alert('✅ Rezervasyon Yapıldı',
-                `${activeCourt?.name || ''}\n${selDate} · ${selSlot.start}–${endTime}`);
-            onClose();
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon yapılamadı');
         } finally { setBooking(false); }
@@ -3682,6 +3681,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                 )}
                                 <View style={{ height: 24 }} />
                             </ScrollView>
+                            {booked && (
+                                <TouchableOpacity style={vb.continueBtn} onPress={onClose} activeOpacity={0.85}>
+                                    <Text style={vb.continueBtnTxt}>📌 Kaldığın yerden devam et</Text>
+                                </TouchableOpacity>
+                            )}
                         </>
                     )}
                 </View>
@@ -3753,6 +3757,8 @@ const vb = StyleSheet.create({
     ibanVal:      { color:'#fff', fontWeight:'600' },
     bookBtn:      { backgroundColor:'#22c55e', borderRadius:10, padding:14, alignItems:'center', marginTop:4 },
     bookBtnTxt:   { color:'#fff', fontSize:15, fontWeight:'700' },
+    continueBtn:  { backgroundColor:'#7c3aed', borderRadius:10, padding:14, alignItems:'center', margin:16, marginTop:8 },
+    continueBtnTxt: { color:'#fff', fontSize:15, fontWeight:'700' },
 });
 
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
@@ -3846,7 +3852,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         setSearching(true);
         try {
             const { data } = await api.get('/courts/search', { params: { q: text, sport: sub } });
-            set('courtResults', Array.isArray(data) ? data : []);
+            const raw = Array.isArray(data) ? data : [];
+            const seenVenues = new Set();
+            const deduped = raw.filter(c => {
+                if (!c.isBusinessVenue) return true;
+                if (seenVenues.has(c.venueId)) return false;
+                seenVenues.add(c.venueId);
+                return true;
+            }).map(c => c.isBusinessVenue ? { ...c, name: c.name.split(' — ')[0] } : c);
+            set('courtResults', deduped);
         } catch { set('courtResults', []); }
         finally { setSearching(false); }
     };
@@ -4400,7 +4414,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     venueId: court.venueId || null,
                     venueCourtId: court.courtId || null,
                 }));
-                setVenueBooking({ visible: false, venueId: null, initialCourtId: null });
             }}
         />
         <VenueMenuOrderModal
