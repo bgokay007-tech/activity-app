@@ -316,21 +316,39 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
 }
 
 // ── Konum girişi + öneri ──
-function LocationInput({ placeholder, value, onChange, type }) {
+function LocationInput({ placeholder, value, onChange, type, province }) {
     const [suggestions, setSuggestions] = useState([]);
+    const [searched, setSearched] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
     const debounce = useRef(null);
 
     const handleChange = (text) => {
         onChange(text);
+        setSubmitted(false);
         clearTimeout(debounce.current);
-        if (text.length < 2) { setSuggestions([]); return; }
+        if (text.length < 2) { setSuggestions([]); setSearched(false); return; }
         debounce.current = setTimeout(async () => {
             try {
                 const { data } = await api.get('/rivals/location-suggestions', { params: { q: text, type } });
                 setSuggestions(Array.isArray(data) ? data : []);
             } catch { setSuggestions([]); }
+            setSearched(true);
         }, 300);
     };
+
+    const sendApproval = async () => {
+        if (!value.trim()) return;
+        setSubmitting(true);
+        try {
+            await api.post('/cities', { province: province || '', district: value.trim() });
+            setSubmitted(true);
+            setSuggestions([]);
+        } catch {}
+        setSubmitting(false);
+    };
+
+    const showApprovalBtn = type === 'district' && searched && suggestions.length === 0 && value.length >= 2 && !submitted;
 
     return (
         <View style={{ flex: 1 }}>
@@ -341,14 +359,26 @@ function LocationInput({ placeholder, value, onChange, type }) {
                 value={value}
                 onChangeText={handleChange}
                 autoCorrect={false}
-                autoCapitalize="none"
+                autoCapitalize="words"
             />
             {suggestions.map(sg => (
                 <TouchableOpacity key={sg} style={s.suggItem}
-                    onPress={() => { onChange(sg); setSuggestions([]); }} activeOpacity={0.8}>
+                    onPress={() => { onChange(sg); setSuggestions([]); setSearched(false); }} activeOpacity={0.8}>
                     <Text style={s.suggText}>📍 {sg}</Text>
                 </TouchableOpacity>
             ))}
+            {showApprovalBtn && (
+                <TouchableOpacity style={s.approvalBtn} onPress={sendApproval} disabled={submitting} activeOpacity={0.8}>
+                    <Text style={s.approvalText}>
+                        {submitting ? '⏳ Gönderiliyor…' : `📨 "${value}" için onay gönder`}
+                    </Text>
+                </TouchableOpacity>
+            )}
+            {submitted && (
+                <View style={s.approvalSent}>
+                    <Text style={s.approvalSentText}>✅ Gönderildi — admin onaylayınca listeye eklenir.</Text>
+                </View>
+            )}
         </View>
     );
 }
@@ -560,7 +590,7 @@ export default function ActivityFeedScreen({ navigation }) {
                     <Text style={s.sectionLabel}>📍 Konum</Text>
                     <View style={s.filterRow}>
                         <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" />
-                        <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" />
+                        <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} />
                     </View>
 
                     {/* Tarih aralığı — form alanı */}
@@ -696,8 +726,12 @@ const s = StyleSheet.create({
     chipEmoji: { fontSize: 14 },
     chipText:  { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
 
-    suggItem: { paddingHorizontal: 12, paddingVertical: 9, marginTop: 3, backgroundColor: colors.surface2, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
-    suggText: { color: '#fff', fontSize: 13 },
+    suggItem:        { paddingHorizontal: 12, paddingVertical: 9, marginTop: 3, backgroundColor: colors.surface2, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+    suggText:        { color: '#fff', fontSize: 13 },
+    approvalBtn:     { marginTop: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.purple + '22', borderRadius: 8, borderWidth: 1, borderColor: colors.purple },
+    approvalText:    { color: colors.purpleLight || colors.purple, fontSize: 12, fontWeight: '700' },
+    approvalSent:    { marginTop: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#10b98122', borderRadius: 8, borderWidth: 1, borderColor: '#10b981' },
+    approvalSentText:{ color: '#10b981', fontSize: 12 },
 
     center:    { paddingTop: 60, alignItems: 'center', gap: 8 },
     emptyEmoji:{ fontSize: 40 },
