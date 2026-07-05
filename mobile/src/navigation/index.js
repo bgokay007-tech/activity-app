@@ -76,6 +76,7 @@ import VenueSearchScreen from '../screens/main/VenueSearchScreen';
 import VenueDetailScreen from '../screens/main/VenueDetailScreen';
 import CourtSlotsScreen from '../screens/main/CourtSlotsScreen';
 import MyReservationsScreen from '../screens/main/MyReservationsScreen';
+import ActivityFeedScreen from '../screens/main/ActivityFeedScreen';
 import colors from '../theme/colors';
 
 const Stack = createNativeStackNavigator();
@@ -84,6 +85,7 @@ const HomeStack = createNativeStackNavigator();
 const MessagesStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 const NotificationsStack = createNativeStackNavigator();
+const ActivityStack = createNativeStackNavigator();
 
 function HomeStackNav() {
     return (
@@ -129,6 +131,16 @@ function ProfileStackNav() {
     );
 }
 
+function ActivityStackNav() {
+    return (
+        <ActivityStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+            <ActivityStack.Screen name="ActivityFeed" component={ActivityFeedScreen} />
+            <ActivityStack.Screen name="SubCategory" component={SubCategoryScreen} />
+            <ActivityStack.Screen name="Profile" component={ProfileScreen} />
+        </ActivityStack.Navigator>
+    );
+}
+
 function NotificationsStackNav() {
     return (
         <NotificationsStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
@@ -142,10 +154,11 @@ function NotificationsStackNav() {
 
 function TabIcon({ label, active }) {
     const icons = {
-        Home: active ? '🏠' : '🏡',
-        Messages: active ? '💬' : '💬',
-        Notifications: active ? '🔔' : '🔕',
-        Profile: active ? '👤' : '👤',
+        Home:         active ? '🏠' : '🏡',
+        Messages:     active ? '💬' : '💬',
+        Activity:     active ? '🌟' : '⭐',
+        Notifications:active ? '🔔' : '🔕',
+        Profile:      active ? '👤' : '👤',
     };
     return (
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -238,6 +251,11 @@ function AppTabs() {
                     tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
                     tabBarBadgeStyle: { backgroundColor: colors.purple, color: '#fff', fontSize: 10 },
                 }}
+            />
+            <Tab.Screen
+                name="ActivityTab"
+                component={ActivityStackNav}
+                options={{ tabBarLabel: 'Aktivite', tabBarIcon: ({ focused }) => <TabIcon label="Activity" active={focused} /> }}
             />
             <Tab.Screen
                 name="NotificationsTab"

@@ -561,7 +561,7 @@ export const createRivalRequest = async (req, res, next) => {
 
 export const getRivalRequests = async (req, res, next) => {
     try {
-        const { category, subCategory, matchType } = req.query;
+        const { category, subCategory, matchType, city, district, date, timeFrom, timeTo } = req.query;
         const cat = category ? category.toUpperCase() : null;
         const catWhere = cat ? { category: cat } : {};
 
@@ -592,15 +592,35 @@ export const getRivalRequests = async (req, res, next) => {
             }
         }
 
+        // Location filter — matches city/district against location or courtAddress
+        const locFilters = [];
+        if (city)     locFilters.push({ location: { contains: city, mode: 'insensitive' } }, { courtAddress: { contains: city, mode: 'insensitive' } });
+        if (district) locFilters.push({ location: { contains: district, mode: 'insensitive' } }, { courtAddress: { contains: district, mode: 'insensitive' } });
+
+        // Date filter
+        let dateWhere = {};
+        if (date) {
+            const from = new Date(`${date}T00:00:00.000Z`);
+            const to   = new Date(`${date}T23:59:59.999Z`);
+            dateWhere = { matchDate: { gte: from, lte: to } };
+        }
+
+        // Time range filter
+        let timeWhere = {};
+        if (timeFrom) timeWhere = { ...timeWhere, matchTime: { gte: timeFrom } };
+        if (timeTo)   timeWhere = { ...timeWhere, matchTime: { lte: timeTo } };
+
         const requests = await prisma.activityRequest.findMany({
             where: {
                 ...catWhere,
                 ...(subCategory && { subCategory }),
                 ...(matchType   && { matchType: matchType.toUpperCase() }),
+                ...dateWhere,
+                ...timeWhere,
+                ...(locFilters.length > 0 && { OR: locFilters }),
                 status: 'OPEN',
-                OR: [
-                    { expiresAt: null },
-                    { expiresAt: { gt: new Date() } },
+                AND: [
+                    { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
                 ],
             },
             include: {
