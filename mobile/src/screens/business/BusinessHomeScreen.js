@@ -1184,11 +1184,15 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const isValidTime = isValidTimeStr;
 
     const saveOpenSlots = async (slots) => {
+        setLocalOpenSlots(slots); // optimistic
         setSavingWindows(true);
         try {
             await api.patch(`/venues/${venue.id}/settings`, { openSlots: slots });
-            setLocalOpenSlots(slots);
-        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        } catch (e) {
+            setLocalOpenSlots(localOpenSlots); // rollback on error
+            const msg = e?.response?.data?.message || e?.message || 'Sunucuya ulaşılamadı, tekrar dene';
+            Alert.alert('Kayıt Hatası', msg);
+        }
         finally { setSavingWindows(false); }
     };
 
@@ -1215,7 +1219,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
 
     const handleCustomizeDayFromDefault = () => {
         const next = { ...localOpenSlots, [dayKey]: [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }] };
-        saveOpenSlots(next);
+        setLocalOpenSlots(next);
     };
 
     const handleSavePolicy = async (field, value) => {
