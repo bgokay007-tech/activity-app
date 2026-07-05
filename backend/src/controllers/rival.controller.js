@@ -314,53 +314,53 @@ export const getLocationSuggestions = async (req, res, next) => {
         if (!q || q.length < 1) return res.json([]);
 
         const ilike = { contains: q, mode: 'insensitive' };
-        const notNull = { not: null };
 
         if (type === 'district') {
-            const [venueRows, rivalRows] = await Promise.all([
-                prisma.businessVenue.findMany({
-                    where: { district: { ...ilike, ...notNull } },
-                    select: { district: true }, distinct: ['district'], take: 10,
+            const [cityRows, venueRows] = await Promise.all([
+                prisma.city.findMany({
+                    where: { district: { ...ilike, not: null } },
+                    select: { district: true }, distinct: ['district'], take: 12,
                 }),
-                prisma.activityRequest.findMany({
-                    where: { courtAddress: { ...ilike, ...notNull } },
-                    select: { courtAddress: true }, distinct: ['courtAddress'], take: 10,
+                prisma.businessVenue.findMany({
+                    where: { district: { ...ilike, not: null } },
+                    select: { district: true }, distinct: ['district'], take: 8,
                 }),
             ]);
             const raw = [
+                ...cityRows.map(r => r.district),
                 ...venueRows.map(r => r.district),
-                ...rivalRows.map(r => r.courtAddress),
             ];
             const suggestions = [...new Set(raw.filter(Boolean).map(v => v.trim()))]
                 .filter(v => v.toLowerCase().includes(q.toLowerCase()))
-                .slice(0, 6);
+                .sort()
+                .slice(0, 8);
             return res.json(suggestions);
         }
 
-        // type === 'city'
-        const [userRows, venueRows, rivalRows] = await Promise.all([
-            prisma.user.findMany({
-                where: { city: { ...ilike, ...notNull } },
-                select: { city: true }, distinct: ['city'], take: 10,
+        // type === 'city' — önce City tablosu (ana kaynak), sonra diğerleri
+        const [cityRows, venueRows, userRows] = await Promise.all([
+            prisma.city.findMany({
+                where: { province: { ...ilike } },
+                select: { province: true }, distinct: ['province'], take: 15,
             }),
             prisma.businessVenue.findMany({
                 where: { city: { ...ilike } },
-                select: { city: true }, distinct: ['city'], take: 10,
+                select: { city: true }, distinct: ['city'], take: 8,
             }),
-            prisma.activityRequest.findMany({
-                where: { location: { ...ilike, ...notNull } },
-                select: { location: true }, distinct: ['location'], take: 10,
+            prisma.user.findMany({
+                where: { city: { ...ilike, not: null } },
+                select: { city: true }, distinct: ['city'], take: 8,
             }),
         ]);
         const raw = [
-            ...userRows.map(r => r.city),
+            ...cityRows.map(r => r.province),
             ...venueRows.map(r => r.city),
-            ...rivalRows.map(r => r.location),
+            ...userRows.map(r => r.city),
         ];
         const suggestions = [...new Set(raw.filter(Boolean).map(v => v.trim()))]
             .filter(v => v.toLowerCase().includes(q.toLowerCase()))
             .sort()
-            .slice(0, 6);
+            .slice(0, 8);
         res.json(suggestions);
     } catch (error) { next(error); }
 };
