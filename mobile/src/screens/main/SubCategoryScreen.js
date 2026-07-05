@@ -3633,12 +3633,18 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                                 <Text style={[vb.ibanRow, { color:'#a78bfa' }]}>💳 Online ödeme yakında aktif olacak.</Text>
                                             </View>
                                         )}
-                                        {payMethod === 'EFT' && venue?.user?.businessIban && (
+                                        {payMethod === 'EFT' && (
                                             <View style={vb.ibanBox}>
-                                                {venue.user.businessIbanHolder && (
-                                                    <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.user.businessIbanHolder}</Text></Text>
+                                                {venue?.user?.businessIban ? (
+                                                    <>
+                                                        {venue.user.businessIbanHolder && (
+                                                            <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.user.businessIbanHolder}</Text></Text>
+                                                        )}
+                                                        <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.user.businessIban}</Text></Text>
+                                                    </>
+                                                ) : (
+                                                    <Text style={[vb.ibanRow, { color:'#f59e0b' }]}>📞 EFT bilgisi için lütfen tesis ile iletişime geçin.</Text>
                                                 )}
-                                                <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.user.businessIban}</Text></Text>
                                             </View>
                                         )}
                                         <TouchableOpacity style={vb.bookBtn} onPress={confirmBooking} disabled={booking}>
@@ -3889,6 +3895,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         } catch (e) {
             Alert.alert('İptal Edilemiyor', e?.response?.data?.message || 'Rezervasyon iptal edilemedi');
         }
+    };
+
+    const changeCourt = async () => {
+        const vid = f.venueId;
+        if (f.reservationId) {
+            try {
+                await api.delete(`/venues/reservations/${f.reservationId}`);
+            } catch (e) {
+                Alert.alert('Değiştirilemiyor', e?.response?.data?.message || 'Mevcut rezervasyon iptal edilemedi');
+                return;
+            }
+        }
+        setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueCourtId: null }));
+        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: null });
     };
 
     const submit = async () => {
@@ -4216,13 +4236,22 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>📅 Rezervasyon yapıldı</Text>
                                                 )}
                                             </View>
-                                            <TouchableOpacity
-                                                onPress={cancelCourt}
-                                                style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ef444450' }}>
-                                                <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>
-                                                    {f.reservationId ? '🗑 İptal Et' : '✕'}
-                                                </Text>
-                                            </TouchableOpacity>
+                                            <View style={{ flexDirection:'row', gap:6 }}>
+                                                {f.venueId && (
+                                                    <TouchableOpacity
+                                                        onPress={changeCourt}
+                                                        style={{ backgroundColor:'#3b82f620', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#3b82f650' }}>
+                                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>🔄 Değiştir</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                <TouchableOpacity
+                                                    onPress={cancelCourt}
+                                                    style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ef444450' }}>
+                                                    <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>
+                                                        {f.reservationId ? '🗑 Sil' : '✕'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                     )}
 
