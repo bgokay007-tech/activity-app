@@ -542,7 +542,7 @@ export const getVenueAnalytics = async (req, res, next) => {
         res.json({
             occupancyRate, totalBooked, totalPossible, totalRevenue,
             busyHours, busyDays, daily,
-            meta: { from, to, numDays, numCourts, slotsPerDay },
+            meta: { from, to, numDays, numCourts },
         });
     } catch (error) { next(error); }
 };
