@@ -41,25 +41,27 @@ function splitOvernight(windows) {
     return result.length > 0 ? result : [{ from: '00:00', to: '24:00' }];
 }
 
-// openSlots eski format: array → tüm günler için geçerli
-// openSlots yeni format: { "0":[şablon], "1":[...], "7":[...] } → 0=global şablon, 1=Pzt..7=Paz
-// Gün kapalıysa: os[key] = []  (boş dizi)
-function getOpenWindows(venue, date) {
+// openSlots format: { "0":[global şablon], "1":[Pzt override], "courtId_1":[Pzt+Kort override] }
+// Öncelik: kort+gün > gün > global şablon('0') > tesis varsayılanı
+// Kapalı: ilgili key = [] (boş dizi)
+function getOpenWindows(venue, date, courtId = null) {
     const os = venue.openSlots;
     let raw;
     if (os && !Array.isArray(os) && typeof os === 'object') {
-        const dow = new Date(date + 'T12:00:00').getDay(); // 0=Sun..6=Sat
-        const key = String(dow === 0 ? 7 : dow);           // 1=Pzt..7=Paz
-        const day = os[key];
-        if (Array.isArray(day)) {
-            if (day.length === 0) return []; // Kapalı gün → slot yok
-            raw = day;
+        const dow = new Date(date + 'T12:00:00').getDay();
+        const key = String(dow === 0 ? 7 : dow);
+        const courtDayKey = courtId ? `${courtId}_${key}` : null;
+
+        let entry;
+        if (courtDayKey && os[courtDayKey] !== undefined) entry = os[courtDayKey];
+        else if (os[key] !== undefined)                   entry = os[key];
+        else if (os['0'] !== undefined)                   entry = os['0'];
+
+        if (entry !== undefined) {
+            if (Array.isArray(entry) && entry.length === 0) return []; // Kapalı
+            raw = (Array.isArray(entry) && entry.length > 0) ? entry : [{ from: venue.openTime, to: venue.closeTime }];
         } else {
-            // Gün özelleştirilmemiş → global şablona bak (key '0')
-            const tmpl = os['0'];
-            raw = (Array.isArray(tmpl) && tmpl.length > 0)
-                ? tmpl
-                : [{ from: venue.openTime, to: venue.closeTime }];
+            raw = [{ from: venue.openTime, to: venue.closeTime }];
         }
     } else if (Array.isArray(os) && os.length > 0) {
         raw = os;
@@ -69,8 +71,8 @@ function getOpenWindows(venue, date) {
     return splitOvernight(raw);
 }
 
-function computeSlots(venue, reservations, date) {
-    const openWindows = getOpenWindows(venue, date);
+function computeSlots(venue, reservations, date, courtId = null) {
+    const openWindows = getOpenWindows(venue, date, courtId);
 
     const taken = reservations
         .filter(r => r.date === date && r.status !== 'CANCELLED')
@@ -206,7 +208,7 @@ export const getMyVenues = async (req, res, next) => {
     try {
         const venues = await prisma.businessVenue.findMany({
             where: { userId: req.userId },
-            include: { courts: true },
+            include: { courts: { orderBy: { name: 'asc' } } },
             orderBy: { createdAt: 'desc' },
         });
         res.json(venues);
@@ -255,7 +257,7 @@ export const getVenueSlots = async (req, res, next) => {
         });
 
         const effectiveVenue = { ...venue, slotType: court?.slotType || venue.slotType };
-        const slotsResult = computeSlots(effectiveVenue, reservations, date);
+        const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId);
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
         res.json({ ...slotsResult, acceptedPayments: accepted });
     } catch (error) { next(error); }
@@ -400,16 +402,15 @@ export const getOwnerSchedule = async (req, res, next) => {
             include: { user: { select: { id: true, username: true, fullName: true } } },
         });
 
-        const openWindows = getOpenWindows(venue, date);
-
         const findRes = (courtId, s, e) =>
             allRes.filter(r => r.courtId === courtId && overlaps(s, e, toMins(r.startTime), toMins(r.endTime)));
 
         const buildSlots = (court) => {
             const effectiveSlotType = court.slotType || venue.slotType;
+            const courtWindows = getOpenWindows(venue, date, court.id); // kort bazlı windows
             const slots = [];
 
-            for (const w of openWindows) {
+            for (const w of courtWindows) {
                 const open = toMins(w.from), close = toMins(w.to);
 
                 if (effectiveSlotType === 'FULL_HOUR') {

@@ -1034,6 +1034,8 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     });
     const [showLightsPicker, setShowLightsPicker] = useState(null); // courtId | null
     const [savingSlot, setSavingSlot]         = useState(false);
+    const sortedCourts = [...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    const [selectedCourt, setSelectedCourt]   = useState(null); // null=tüm kortlar, string=courtId
 
     const [localOpenSlots, setLocalOpenSlots] = useState(() => {
         const os = venue.openSlots;
@@ -1206,13 +1208,17 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     };
 
     const dayKey          = String(selectedDay);
-    const dayEntry        = localOpenSlots[dayKey];  // undefined | [] | [{from,to}...]
+    const effectiveKey    = selectedCourt ? `${selectedCourt}_${dayKey}` : dayKey;
+    const dayEntry        = localOpenSlots[effectiveKey]; // undefined | [] | [{from,to}...]
     const isClosed        = Array.isArray(dayEntry) && dayEntry.length === 0;
     const isCustomized    = Array.isArray(dayEntry) && dayEntry.length > 0;
+    // Fallback: kort+gün → gün (kort modunda) → global şablon → tesis default
+    const _dayOnlyEntry   = selectedCourt ? localOpenSlots[dayKey] : null;
     const _globalDef      = localOpenSlots['0'];
-    const defaultWindows  = (Array.isArray(_globalDef) && _globalDef.length > 0)
-        ? _globalDef
-        : [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
+    const defaultWindows  =
+        (Array.isArray(_dayOnlyEntry) && _dayOnlyEntry.length > 0) ? _dayOnlyEntry :
+        (Array.isArray(_globalDef)    && _globalDef.length    > 0) ? _globalDef    :
+        [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
     const dayWindows      = isCustomized ? dayEntry : [];
     const displayWindows  = isClosed ? [] : isCustomized ? dayWindows : defaultWindows;
 
@@ -1238,38 +1244,38 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         if (!isCustomized) return;
         if (dayWindows.length <= 1) {
             const next = { ...localOpenSlots };
-            delete next[dayKey];
+            delete next[effectiveKey];
             saveOpenSlots(next);
             return;
         }
-        const next = { ...localOpenSlots, [dayKey]: dayWindows.filter((_, i) => i !== idx) };
+        const next = { ...localOpenSlots, [effectiveKey]: dayWindows.filter((_, i) => i !== idx) };
         saveOpenSlots(next);
     };
 
     const handleResetDay = () => {
         const next = { ...localOpenSlots };
-        delete next[dayKey];
+        delete next[effectiveKey];
         saveOpenSlots(next);
     };
 
     const handleCustomizeDayFromDefault = () => {
-        const next = { ...localOpenSlots, [dayKey]: defaultWindows.map(w => ({ from: w.from, to: w.to })) };
+        const next = { ...localOpenSlots, [effectiveKey]: defaultWindows.map(w => ({ from: w.from, to: w.to })) };
         setLocalOpenSlots(next);
     };
 
     const handleMarkClosed = () => {
-        const next = { ...localOpenSlots, [dayKey]: [] };
+        const next = { ...localOpenSlots, [effectiveKey]: [] };
         saveOpenSlots(next);
     };
 
     const handleMarkOpen = () => {
         const next = { ...localOpenSlots };
-        delete next[dayKey];
+        delete next[effectiveKey];
         saveOpenSlots(next);
     };
 
     const handleSetAsDefault = () => {
-        if (!isCustomized) return;
+        if (!isCustomized || selectedCourt) return; // Sadece "Tüm Kortlar" modunda
         const next = { ...localOpenSlots, '0': dayWindows };
         saveOpenSlots(next);
     };
@@ -1289,7 +1295,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         const to   = normalizeTime(newTo);
         if (!isValidTime(from) || !isValidTime(to)) { Alert.alert('Hata', 'Geçerli saat girin (ör: 8, 8:30, 08:00)'); return; }
         const existing = isCustomized ? dayWindows : []; // Varsayılan günde "+" → sıfırdan başla
-        const next = { ...localOpenSlots, [dayKey]: [...existing, { from, to }].sort((a, b) => a.from.localeCompare(b.from)) };
+        const next = { ...localOpenSlots, [effectiveKey]: [...existing, { from, to }].sort((a, b) => a.from.localeCompare(b.from)) };
         setAddingWindow(false);
         setNewFrom('');
         setNewTo('');
@@ -1592,6 +1598,30 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                         ÇALIŞMA SAATLERİ
                     </Text>
 
+                    {/* Kort seçici */}
+                    {sortedCourts.length > 1 && (
+                        <View style={{ flexDirection: 'row', gap: 5, marginBottom: 10, flexWrap: 'wrap' }}>
+                            <TouchableOpacity onPress={() => { setSelectedCourt(null); setAddingWindow(false); setNewFrom(''); setNewTo(''); }}
+                                style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, borderWidth: 1.5,
+                                    borderColor: !selectedCourt ? BIZ_COLOR : '#ffffff15',
+                                    backgroundColor: !selectedCourt ? BIZ_COLOR + '28' : 'transparent' }}>
+                                <Text style={{ color: !selectedCourt ? BIZ_LIGHT : '#777', fontSize: 11, fontWeight: !selectedCourt ? '800' : '400' }}>
+                                    Tüm Kortlar
+                                </Text>
+                            </TouchableOpacity>
+                            {sortedCourts.map(c => (
+                                <TouchableOpacity key={c.id} onPress={() => { setSelectedCourt(c.id); setAddingWindow(false); setNewFrom(''); setNewTo(''); }}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, borderWidth: 1.5,
+                                        borderColor: selectedCourt === c.id ? BIZ_COLOR : '#ffffff15',
+                                        backgroundColor: selectedCourt === c.id ? BIZ_COLOR + '28' : 'transparent' }}>
+                                    <Text style={{ color: selectedCourt === c.id ? BIZ_LIGHT : '#777', fontSize: 11, fontWeight: selectedCourt === c.id ? '800' : '400' }}>
+                                        {c.name}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+
                     {/* Gün seçici */}
                     <View style={{ flexDirection: 'row', gap: 5, marginBottom: 14, flexWrap: 'wrap' }}>
                         {[
@@ -1600,7 +1630,8 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                             { d: 7, lbl: 'Paz' },
                         ].map(({ d, lbl }) => {
                             const isActive    = selectedDay === d;
-                            const entry       = localOpenSlots[String(d)];
+                            const eKey        = selectedCourt ? `${selectedCourt}_${d}` : String(d);
+                            const entry       = localOpenSlots[eKey];
                             const isDayClosed = Array.isArray(entry) && entry.length === 0;
                             const isDayCustom = Array.isArray(entry) && entry.length > 0;
                             const borderClr   = isActive ? BIZ_COLOR : isDayClosed ? '#ef444460' : isDayCustom ? BIZ_COLOR + '40' : '#ffffff15';
@@ -1663,11 +1694,13 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                         borderWidth: 1, borderColor: '#ffffff15' }}>
                                     <Text style={{ color: '#6b7280', fontSize: 11 }}>↺ Varsayılana sıfırla</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={handleSetAsDefault}
-                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '15',
-                                        borderWidth: 1, borderColor: BIZ_COLOR + '35' }}>
-                                    <Text style={{ color: BIZ_COLOR, fontSize: 11, fontWeight: '700' }}>⊙ Tüm günlere uygula</Text>
-                                </TouchableOpacity>
+                                {!selectedCourt && (
+                                    <TouchableOpacity onPress={handleSetAsDefault}
+                                        style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '15',
+                                            borderWidth: 1, borderColor: BIZ_COLOR + '35' }}>
+                                        <Text style={{ color: BIZ_COLOR, fontSize: 11, fontWeight: '700' }}>⊙ Tüm günlere uygula</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </>
                     ) : (
@@ -1763,7 +1796,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                     <Text style={{ color: '#888', fontSize: 12, marginBottom: 14, lineHeight: 17 }}>
                         Her kort için rezervasyon tipini ayrı ayrı seçebilirsiniz. Değişiklik anında uygulanır.
                     </Text>
-                    {(venue.courts || []).map(court => {
+                    {sortedCourts.map(court => {
                         const currentType    = courtSlotTypes[court.id] || 'FULL_HOUR';
                         const currentSurface = courtSurfaces[court.id] || null;
                         const currentLights  = courtLights[court.id]   || null;
