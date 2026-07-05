@@ -42,7 +42,8 @@ function splitOvernight(windows) {
 }
 
 // openSlots eski format: array → tüm günler için geçerli
-// openSlots yeni format: { "1":[...], "7":[...] } → gün bazlı (1=Pzt...7=Paz)
+// openSlots yeni format: { "0":[şablon], "1":[...], "7":[...] } → 0=global şablon, 1=Pzt..7=Paz
+// Gün kapalıysa: os[key] = []  (boş dizi)
 function getOpenWindows(venue, date) {
     const os = venue.openSlots;
     let raw;
@@ -50,7 +51,16 @@ function getOpenWindows(venue, date) {
         const dow = new Date(date + 'T12:00:00').getDay(); // 0=Sun..6=Sat
         const key = String(dow === 0 ? 7 : dow);           // 1=Pzt..7=Paz
         const day = os[key];
-        raw = (Array.isArray(day) && day.length > 0) ? day : [{ from: venue.openTime, to: venue.closeTime }];
+        if (Array.isArray(day)) {
+            if (day.length === 0) return []; // Kapalı gün → slot yok
+            raw = day;
+        } else {
+            // Gün özelleştirilmemiş → global şablona bak (key '0')
+            const tmpl = os['0'];
+            raw = (Array.isArray(tmpl) && tmpl.length > 0)
+                ? tmpl
+                : [{ from: venue.openTime, to: venue.closeTime }];
+        }
     } else if (Array.isArray(os) && os.length > 0) {
         raw = os;
     } else {

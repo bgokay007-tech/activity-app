@@ -1205,12 +1205,38 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         Alert.alert('Kayıt Hatası', msg);
     };
 
-    const dayKey = String(selectedDay);
-    const dayWindows = localOpenSlots[dayKey] || [];
+    const dayKey          = String(selectedDay);
+    const dayEntry        = localOpenSlots[dayKey];  // undefined | [] | [{from,to}...]
+    const isClosed        = Array.isArray(dayEntry) && dayEntry.length === 0;
+    const isCustomized    = Array.isArray(dayEntry) && dayEntry.length > 0;
+    const _globalDef      = localOpenSlots['0'];
+    const defaultWindows  = (Array.isArray(_globalDef) && _globalDef.length > 0)
+        ? _globalDef
+        : [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
+    const dayWindows      = isCustomized ? dayEntry : [];
+    const displayWindows  = isClosed ? [] : isCustomized ? dayWindows : defaultWindows;
+
+    // Slot önizleme: verilen pencerelerden FULL_HOUR slotlarını hesapla
+    const previewSlots = (windows) => {
+        const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        const toT = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+        const expanded = [];
+        for (const w of windows) {
+            const o = toM(w.from), c = toM(w.to);
+            if (c <= o) { if (o < 1440) expanded.push({ from: w.from, to: '24:00' }); if (c > 0) expanded.push({ from: '00:00', to: w.to }); }
+            else expanded.push(w);
+        }
+        const slots = [];
+        for (const w of expanded) {
+            const o = toM(w.from), c = toM(w.to);
+            for (let t = o; t + 60 <= c; t += 60) slots.push(`${toT(t)}–${toT(t + 60)}`);
+        }
+        return slots;
+    };
 
     const handleRemoveWindow = (idx) => {
+        if (!isCustomized) return;
         if (dayWindows.length <= 1) {
-            // Özelleşmeyi sil → varsayılana dön
             const next = { ...localOpenSlots };
             delete next[dayKey];
             saveOpenSlots(next);
@@ -1227,8 +1253,25 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     };
 
     const handleCustomizeDayFromDefault = () => {
-        const next = { ...localOpenSlots, [dayKey]: [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }] };
+        const next = { ...localOpenSlots, [dayKey]: defaultWindows.map(w => ({ from: w.from, to: w.to })) };
         setLocalOpenSlots(next);
+    };
+
+    const handleMarkClosed = () => {
+        const next = { ...localOpenSlots, [dayKey]: [] };
+        saveOpenSlots(next);
+    };
+
+    const handleMarkOpen = () => {
+        const next = { ...localOpenSlots };
+        delete next[dayKey];
+        saveOpenSlots(next);
+    };
+
+    const handleSetAsDefault = () => {
+        if (!isCustomized) return;
+        const next = { ...localOpenSlots, '0': dayWindows };
+        saveOpenSlots(next);
     };
 
     const handleSavePolicy = async (field, value) => {
@@ -1245,7 +1288,8 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         const from = normalizeTime(newFrom);
         const to   = normalizeTime(newTo);
         if (!isValidTime(from) || !isValidTime(to)) { Alert.alert('Hata', 'Geçerli saat girin (ör: 8, 8:30, 08:00)'); return; }
-        const next = { ...localOpenSlots, [dayKey]: [...dayWindows, { from, to }].sort((a, b) => a.from.localeCompare(b.from)) };
+        const existing = isCustomized ? dayWindows : []; // Varsayılan günde "+" → sıfırdan başla
+        const next = { ...localOpenSlots, [dayKey]: [...existing, { from, to }].sort((a, b) => a.from.localeCompare(b.from)) };
         setAddingWindow(false);
         setNewFrom('');
         setNewTo('');
@@ -1555,16 +1599,19 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                             { d: 4, lbl: 'Per' }, { d: 5, lbl: 'Cum' }, { d: 6, lbl: 'Cmt' },
                             { d: 7, lbl: 'Paz' },
                         ].map(({ d, lbl }) => {
-                            const isActive = selectedDay === d;
-                            const hasCustom = !!(localOpenSlots[String(d)] && localOpenSlots[String(d)].length > 0);
+                            const isActive    = selectedDay === d;
+                            const entry       = localOpenSlots[String(d)];
+                            const isDayClosed = Array.isArray(entry) && entry.length === 0;
+                            const isDayCustom = Array.isArray(entry) && entry.length > 0;
+                            const borderClr   = isActive ? BIZ_COLOR : isDayClosed ? '#ef444460' : isDayCustom ? BIZ_COLOR + '40' : '#ffffff15';
+                            const bgClr       = isActive ? BIZ_COLOR + '28' : isDayClosed ? '#ef444412' : 'transparent';
+                            const txtClr      = isActive ? BIZ_LIGHT : isDayClosed ? '#ef4444aa' : isDayCustom ? BIZ_COLOR + 'cc' : '#777';
                             return (
                                 <TouchableOpacity key={d} onPress={() => { setSelectedDay(d); setAddingWindow(false); setNewFrom(''); setNewTo(''); }}
                                     style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1.5,
-                                        borderColor: isActive ? BIZ_COLOR : hasCustom ? BIZ_COLOR + '40' : '#ffffff15',
-                                        backgroundColor: isActive ? BIZ_COLOR + '28' : 'transparent' }}>
-                                    <Text style={{ color: isActive ? BIZ_LIGHT : hasCustom ? BIZ_COLOR + 'cc' : '#777',
-                                        fontWeight: isActive ? '800' : hasCustom ? '700' : '400', fontSize: 12 }}>
-                                        {lbl}
+                                        borderColor: borderClr, backgroundColor: bgClr }}>
+                                    <Text style={{ color: txtClr, fontWeight: isActive || isDayCustom ? '800' : '400', fontSize: 12 }}>
+                                        {isDayClosed ? `${lbl} ✕` : lbl}
                                     </Text>
                                 </TouchableOpacity>
                             );
@@ -1572,39 +1619,95 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                     </View>
 
                     {/* Seçili günün saatleri */}
-                    {dayWindows.length > 0 ? (
-                        <>
-                            {dayWindows.map((w, idx) => (
-                                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 7,
-                                    backgroundColor: '#ffffff08', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 }}>
-                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 15, flex: 1 }}>
-                                        {w.from} – {w.to}
-                                    </Text>
-                                    <TouchableOpacity onPress={() => handleRemoveWindow(idx)} style={{ padding: 4 }}>
-                                        <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '700' }}>✕</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
-                            <TouchableOpacity onPress={handleResetDay} style={{ marginBottom: 8, paddingVertical: 4 }}>
-                                <Text style={{ color: '#6b7280', fontSize: 11 }}>↺ Bu günü varsayılana sıfırla</Text>
-                            </TouchableOpacity>
-                        </>
-                    ) : (
-                        <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={{ color: '#555', fontSize: 13, flex: 1 }}>
-                                Varsayılan: {venue.openTime || '08:00'} – {venue.closeTime || '22:00'}
+                    {isClosed ? (
+                        /* ── KAPALI GÜN ── */
+                        <View style={{ backgroundColor: '#ef444415', borderRadius: 10, padding: 14, marginBottom: 8,
+                            borderWidth: 1, borderColor: '#ef444430', alignItems: 'center' }}>
+                            <Text style={{ color: '#ef4444', fontWeight: '800', fontSize: 14, marginBottom: 10 }}>
+                                Bu gün kapalı
                             </Text>
-                            <TouchableOpacity onPress={handleCustomizeDayFromDefault}
-                                style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '22',
-                                    borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
-                                <Text style={{ color: BIZ_LIGHT, fontSize: 11, fontWeight: '700' }}>Özelleştir</Text>
+                            <TouchableOpacity onPress={handleMarkOpen}
+                                style={{ paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8, backgroundColor: '#ffffff15',
+                                    borderWidth: 1, borderColor: '#ffffff25' }}>
+                                <Text style={{ color: '#ccc', fontSize: 12, fontWeight: '700' }}>↺ Varsayılana Dön</Text>
                             </TouchableOpacity>
                         </View>
+                    ) : isCustomized ? (
+                        /* ── ÖZEL SAATLER ── */
+                        <>
+                            {dayWindows.map((w, idx) => {
+                                const slots = previewSlots([w]);
+                                return (
+                                    <View key={idx} style={{ marginBottom: 7, backgroundColor: '#ffffff08', borderRadius: 10,
+                                        paddingHorizontal: 14, paddingVertical: 10 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 15, flex: 1 }}>
+                                                {w.from} – {w.to}
+                                            </Text>
+                                            <TouchableOpacity onPress={() => handleRemoveWindow(idx)} style={{ padding: 4 }}>
+                                                <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '700' }}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        {slots.length > 0 && (
+                                            <Text style={{ color: '#4ade8099', fontSize: 10, marginTop: 4 }}>
+                                                {slots.slice(0, 6).join('  ')}{slots.length > 6 ? `  …+${slots.length - 6}` : ''}
+                                                {'  '}({slots.length} slot)
+                                            </Text>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                                <TouchableOpacity onPress={handleResetDay}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: '#ffffff0a',
+                                        borderWidth: 1, borderColor: '#ffffff15' }}>
+                                    <Text style={{ color: '#6b7280', fontSize: 11 }}>↺ Varsayılana sıfırla</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleSetAsDefault}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '15',
+                                        borderWidth: 1, borderColor: BIZ_COLOR + '35' }}>
+                                    <Text style={{ color: BIZ_COLOR, fontSize: 11, fontWeight: '700' }}>⊙ Tüm günlere uygula</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    ) : (
+                        /* ── VARSAYILAN / ŞABLON SAATLER ── */
+                        <>
+                            {defaultWindows.map((w, i) => {
+                                const slots = previewSlots([w]);
+                                return (
+                                    <View key={i} style={{ marginBottom: 7, backgroundColor: '#ffffff05', borderRadius: 10,
+                                        paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: '#ffffff0a' }}>
+                                        <Text style={{ color: '#888', fontSize: 14 }}>
+                                            {w.from} – {w.to}
+                                        </Text>
+                                        {slots.length > 0 && (
+                                            <Text style={{ color: '#4ade8055', fontSize: 10, marginTop: 4 }}>
+                                                {slots.slice(0, 6).join('  ')}{slots.length > 6 ? `  …+${slots.length - 6}` : ''}
+                                                {'  '}({slots.length} slot)
+                                            </Text>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                                <TouchableOpacity onPress={handleCustomizeDayFromDefault}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '22',
+                                        borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
+                                    <Text style={{ color: BIZ_LIGHT, fontSize: 11, fontWeight: '700' }}>Özelleştir</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleMarkClosed}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: '#ef444415',
+                                        borderWidth: 1, borderColor: '#ef444430' }}>
+                                    <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700' }}>Kapalı</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
                     )}
 
                     {savingWindows && <ActivityIndicator color={BIZ_COLOR} style={{ marginVertical: 6 }} size="small" />}
 
-                    {addingWindow ? (
+                    {!isClosed && (addingWindow ? (
                         <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 8 }}>
                             <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 10 }}>Yeni aralık ekle</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -1643,7 +1746,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                             <Text style={{ color: BIZ_COLOR, fontSize: 20, fontWeight: '700' }}>+</Text>
                             <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '600' }}>Aralık Ekle</Text>
                         </TouchableOpacity>
-                    )}
+                    ))}
 
                     <TimePickerModal
                         visible={showTimePicker !== null}
