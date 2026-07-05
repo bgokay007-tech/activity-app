@@ -308,60 +308,44 @@ export const getRivalById = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+const TR_PROVINCES = [
+    'Adana','Adıyaman','Afyonkarahisar','Ağrı','Aksaray','Amasya','Ankara','Antalya',
+    'Ardahan','Artvin','Aydın','Balıkesir','Bartın','Batman','Bayburt','Bilecik',
+    'Bingöl','Bitlis','Bolu','Burdur','Bursa','Çanakkale','Çankırı','Çorum',
+    'Denizli','Diyarbakır','Düzce','Edirne','Elazığ','Erzincan','Erzurum','Eskişehir',
+    'Gaziantep','Giresun','Gümüşhane','Hakkari','Hatay','Iğdır','Isparta','İstanbul',
+    'İzmir','Kahramanmaraş','Karabük','Karaman','Kars','Kastamonu','Kayseri','Kilis',
+    'Kırıkkale','Kırklareli','Kırşehir','Kocaeli','Konya','Kütahya','Malatya','Manisa',
+    'Mardin','Mersin','Muğla','Muş','Nevşehir','Niğde','Ordu','Osmaniye','Rize',
+    'Sakarya','Samsun','Siirt','Sinop','Sivas','Şanlıurfa','Şırnak','Tekirdağ',
+    'Tokat','Trabzon','Tunceli','Uşak','Van','Yalova','Yozgat','Zonguldak',
+];
+
 export const getLocationSuggestions = async (req, res, next) => {
     try {
         const { q = '', type = 'city' } = req.query;
-        if (!q || q.length < 1) return res.json([]);
+        if (!q || q.length < 2) return res.json([]);
+        const ql = q.toLowerCase();
 
-        const ilike = { contains: q, mode: 'insensitive' };
-
-        if (type === 'district') {
-            const [cityRows, venueRows] = await Promise.all([
-                prisma.city.findMany({
-                    where: { district: { ...ilike, not: null } },
-                    select: { district: true }, distinct: ['district'], take: 12,
-                }),
-                prisma.businessVenue.findMany({
-                    where: { district: { ...ilike, not: null } },
-                    select: { district: true }, distinct: ['district'], take: 8,
-                }),
-            ]);
-            const raw = [
-                ...cityRows.map(r => r.district),
-                ...venueRows.map(r => r.district),
-            ];
-            const suggestions = [...new Set(raw.filter(Boolean).map(v => v.trim()))]
-                .filter(v => v.toLowerCase().includes(q.toLowerCase()))
+        if (type === 'city') {
+            const matches = TR_PROVINCES
+                .filter(p => p.toLowerCase().includes(ql))
                 .sort()
                 .slice(0, 8);
-            return res.json(suggestions);
+            return res.json(matches);
         }
 
-        // type === 'city' — önce City tablosu (ana kaynak), sonra diğerleri
-        const [cityRows, venueRows, userRows] = await Promise.all([
-            prisma.city.findMany({
-                where: { province: { ...ilike } },
-                select: { province: true }, distinct: ['province'], take: 15,
-            }),
-            prisma.businessVenue.findMany({
-                where: { city: { ...ilike } },
-                select: { city: true }, distinct: ['city'], take: 8,
-            }),
-            prisma.user.findMany({
-                where: { city: { ...ilike, not: null } },
-                select: { city: true }, distinct: ['city'], take: 8,
-            }),
-        ]);
-        const raw = [
-            ...cityRows.map(r => r.province),
-            ...venueRows.map(r => r.city),
-            ...userRows.map(r => r.city),
-        ];
-        const suggestions = [...new Set(raw.filter(Boolean).map(v => v.trim()))]
-            .filter(v => v.toLowerCase().includes(q.toLowerCase()))
+        // type === 'district' — DB'den çek
+        const ilike = { contains: q, mode: 'insensitive' };
+        const venueRows = await prisma.businessVenue.findMany({
+            where: { district: { ...ilike } },
+            select: { district: true }, distinct: ['district'], take: 12,
+        });
+        const suggestions = [...new Set(venueRows.map(r => r.district).filter(Boolean).map(v => v.trim()))]
+            .filter(v => v.toLowerCase().includes(ql))
             .sort()
             .slice(0, 8);
-        res.json(suggestions);
+        return res.json(suggestions);
     } catch (error) { next(error); }
 };
 
