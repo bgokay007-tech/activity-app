@@ -452,13 +452,18 @@ export const getOwnerSchedule = async (req, res, next) => {
             return slots;
         };
 
-        const courts = venue.courts.map(court => ({
-            courtId:   court.id,
-            courtName: court.name,
-            slotType:  (VALID_SLOT_TYPES.includes(court.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR',
-            surface:   court.surface || null,
-            slots:     buildSlots(court),
-        }));
+        const courts = venue.courts.map(court => {
+            const courtWindows = getOpenWindows(venue, date, court.id);
+            const closed = courtWindows.length === 0;
+            return {
+                courtId:   court.id,
+                courtName: court.name,
+                slotType:  (VALID_SLOT_TYPES.includes(court.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR',
+                surface:   court.surface || null,
+                closed,
+                slots:     closed ? [] : buildSlots(court),
+            };
+        });
 
         res.json({ slotType: venue.slotType, openTime: venue.openTime, closeTime: venue.closeTime, courts });
     } catch (error) { next(error); }

@@ -938,7 +938,12 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                 </View>
 
                                                 {/* Slot cells */}
-                                                {court.slots.length === 0 ? (
+                                                {court.closed ? (
+                                                    <View style={{ backgroundColor: '#ef444412', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#ef444430' }}>
+                                                        <Text style={{ fontSize: 14, marginBottom: 3 }}>🔒</Text>
+                                                        <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700', textAlign: 'center' }}>Rezervasyona kapalı</Text>
+                                                    </View>
+                                                ) : court.slots.length === 0 ? (
                                                     <View style={{ backgroundColor: '#ffffff08', borderRadius: 8, padding: 10, alignItems: 'center' }}>
                                                         <Text style={{ color: '#555', fontSize: 11 }}>Slot yok</Text>
                                                     </View>
