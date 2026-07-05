@@ -579,7 +579,7 @@ function VenueAnalyticsModal({ visible, venue, onClose }) {
     };
 
     useEffect(() => {
-        if (visible) selectPreset('week');
+        if (visible) selectPreset('today');
     }, [visible, venue?.id]);
 
     const maxHour = Math.max(1, ...(data?.busyHours?.map(h => h.count) || [1]));

@@ -490,15 +490,21 @@ export const getVenueAnalytics = async (req, res, next) => {
         const numDays  = Math.round((new Date(to) - new Date(from)) / msPerDay) + 1;
         const numCourts = venue.courts.length;
 
-        // Günlük slot sayısı
-        const oMin = toMins(venue.openTime), cMin = toMins(venue.closeTime);
-        let slotsPerDay = 0;
-        if (venue.slotType === 'FULL_HOUR')   slotsPerDay = Math.floor((cMin - oMin) / 60);
-        else if (venue.slotType === 'HALF_HOUR')   slotsPerDay = Math.floor((cMin - oMin) / 60);
-        else if (venue.slotType === 'NINETY_MIN')  slotsPerDay = Math.floor((cMin - oMin) / 120);
-        else slotsPerDay = Math.floor((cMin - oMin) / 60); // FLEXIBLE estimate
-
-        const totalPossible = numCourts * numDays * slotsPerDay;
+        // Her gün için gerçek slot kapasitesini hesapla (openSlots + kapalı günler dikkate alınır)
+        const slotMins = venue.slotType === 'NINETY_MIN' ? 120 : 60;
+        let totalPossible = 0;
+        for (let i = 0; i < numDays; i++) {
+            const d = new Date(new Date(from + 'T12:00:00').getTime() + i * msPerDay);
+            const dayStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const windows = getOpenWindows(venue, dayStr); // venue-wide windows for this day
+            if (windows.length === 0) continue; // kapalı gün
+            let daySlots = 0;
+            for (const w of windows) {
+                const wOpen = toMins(w.from), wClose = toMins(w.to);
+                daySlots += Math.floor((wClose - wOpen) / slotMins);
+            }
+            totalPossible += numCourts * Math.max(0, daySlots);
+        }
         const totalBooked   = reservations.length;
         const occupancyRate = totalPossible > 0 ? Math.round((totalBooked / totalPossible) * 100) : 0;
 
