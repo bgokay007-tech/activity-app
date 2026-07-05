@@ -3486,42 +3486,49 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             <View key={court.id} style={vb.courtCol}>
                 <Text style={vb.courtColTitle}>{court.name}</Text>
                 {court.lightsFrom && (
-                    <Text style={vb.courtColLight}>💡 {court.lightsFrom}+</Text>
+                    <TouchableOpacity style={vb.lightsRow} activeOpacity={0.7}
+                        onPress={() => Alert.alert('💡 Gece Işıkları', `Bu kortta gece ışıkları ${court.lightsFrom} itibarıyla açılır.\nGündüz saatlerinde ışık olmayabilir.`)}>
+                        <Text style={vb.courtColLight}>💡 {court.lightsFrom}</Text>
+                        <View style={vb.lightsInfoBtn}><Text style={vb.lightsInfoTxt}>i</Text></View>
+                    </TouchableOpacity>
                 )}
-                {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop: 12 }} />}
+                {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop: 8 }} size="small" />}
                 {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
 
-                {!cs?.loading && isStructured && cData.slots.map((sl, i) => {
-                    const isSel = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
-                    return (
-                        <TouchableOpacity key={i} disabled={!sl.free}
-                            style={[vb.colSlot, sl.free ? vb.colSlotFree : vb.colSlotTaken, isSel && vb.colSlotSel]}
-                            onPress={() => selectSlot(court.id, sl)} activeOpacity={0.75}>
-                            <Text style={[vb.colSlotT, !sl.free && { color:'#ef4444' }, isSel && { color:'#fff' }]}>
-                                {sl.start}
-                            </Text>
-                            <Text style={[vb.colSlotSub, !sl.free && { color:'#ef444466' }, isSel && { color:'#fff', opacity:0.8 }]}>
-                                {sl.end}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
+                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                    {!cs?.loading && isStructured && cData.slots.map((sl, i) => {
+                        const isSel = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
+                        return (
+                            <TouchableOpacity key={i} disabled={!sl.free}
+                                style={[vb.colSlot, sl.free ? vb.colSlotFree : vb.colSlotTaken, isSel && vb.colSlotSel]}
+                                onPress={() => selectSlot(court.id, sl)} activeOpacity={0.75}>
+                                <Text style={[vb.colSlotT, !sl.free && { color:'#ef4444' }, isSel && { color:'#fff' }]}>
+                                    {sl.start}
+                                </Text>
+                                <Text style={[vb.colSlotSub, !sl.free && { color:'#ef444466' }, isSel && { color:'#fff', opacity:0.8 }]}>
+                                    {sl.end}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
 
-                {!cs?.loading && isWindow && (
-                    cData.windows?.length === 0
-                        ? <Text style={vb.colEmpty}>Müsait yok</Text>
-                        : cData.windows.map((w, i) => {
-                            const isSel = selSlot?.courtId === court.id && selSlot?.slot?.start === w.start;
-                            return (
-                                <TouchableOpacity key={i}
-                                    style={[vb.colSlot, vb.colSlotFree, isSel && vb.colSlotSel]}
-                                    onPress={() => selectSlot(court.id, w)} activeOpacity={0.75}>
-                                    <Text style={[vb.colSlotT, isSel && { color:'#fff' }]}>{w.start}</Text>
-                                    <Text style={[vb.colSlotSub, isSel && { color:'#fff', opacity:0.8 }]}>{w.end}</Text>
-                                </TouchableOpacity>
-                            );
-                        })
-                )}
+                    {!cs?.loading && isWindow && (
+                        cData.windows?.length === 0
+                            ? <Text style={vb.colEmpty}>Müsait yok</Text>
+                            : cData.windows.map((w, i) => {
+                                const isSel = selSlot?.courtId === court.id && selSlot?.slot?.start === w.start;
+                                return (
+                                    <TouchableOpacity key={i}
+                                        style={[vb.colSlot, vb.colSlotFree, isSel && vb.colSlotSel]}
+                                        onPress={() => selectSlot(court.id, w)} activeOpacity={0.75}>
+                                        <Text style={[vb.colSlotT, isSel && { color:'#fff' }]}>{w.start}</Text>
+                                        <Text style={[vb.colSlotSub, isSel && { color:'#fff', opacity:0.8 }]}>{w.end}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })
+                    )}
+                    <View style={{ height: 8 }} />
+                </ScrollView>
             </View>
         );
     };
@@ -3572,8 +3579,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             {/* Tüm kortlar yan yana */}
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}
                                 contentContainerStyle={vb.courtsRow}
-                                style={{ flexGrow: 0, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
-                                {(venue.courts || []).map(c => renderCourtCol(c))}
+                                style={{ flexGrow: 0, height: 270, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                                {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                             </ScrollView>
 
                             {/* Seçim + Ödeme + Rezervasyon */}
@@ -3725,17 +3732,20 @@ const vb = StyleSheet.create({
     continueBtnTxt: { color:'#fff', fontSize:15, fontWeight:'700' },
 
     // Çok sütunlu kort görünümü
-    courtsRow:    { flexDirection:'row', alignItems:'flex-start', paddingHorizontal:8, paddingVertical:10, gap:8 },
-    courtCol:     { width:120, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
-    courtColTitle:{ color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center', marginBottom:6, letterSpacing:0.3 },
-    courtColLight:{ color:'#fbbf24', fontSize:10, textAlign:'center', marginBottom:4 },
-    colSlot:      { borderRadius:7, paddingVertical:6, paddingHorizontal:4, marginBottom:4, alignItems:'center', borderWidth:1 },
+    courtsRow:    { flexDirection:'row', alignItems:'flex-start', paddingHorizontal:8, paddingVertical:8, gap:6 },
+    courtCol:     { width:110, flex:1, backgroundColor:'#ffffff08', borderRadius:10, padding:6, borderWidth:1, borderColor:'#ffffff12' },
+    courtColTitle:{ color:'#fff', fontSize:11, fontWeight:'800', textAlign:'center', marginBottom:4, letterSpacing:0.3 },
+    lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, marginBottom:4 },
+    courtColLight:{ color:'#fbbf24', fontSize:9 },
+    lightsInfoBtn:{ width:14, height:14, borderRadius:7, backgroundColor:'#fbbf2430', borderWidth:1, borderColor:'#fbbf2460', alignItems:'center', justifyContent:'center' },
+    lightsInfoTxt:{ color:'#fbbf24', fontSize:9, fontWeight:'800', lineHeight:12 },
+    colSlot:      { borderRadius:5, paddingVertical:2, paddingHorizontal:2, marginBottom:2, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#450a0a', borderColor:'#7f1d1d', opacity:0.7 },
     colSlotSel:   { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2 },
-    colSlotT:     { color:'#4ade80', fontSize:12, fontWeight:'700' },
-    colSlotSub:   { color:'#4ade80', fontSize:10, opacity:0.7 },
-    colEmpty:     { color:'#555', fontSize:11, textAlign:'center', marginTop:8 },
+    colSlotT:     { color:'#4ade80', fontSize:10, fontWeight:'700' },
+    colSlotSub:   { color:'#4ade80', fontSize:8, opacity:0.7 },
+    colEmpty:     { color:'#555', fontSize:10, textAlign:'center', marginTop:8 },
     selSummary:   { backgroundColor:'#22c55e18', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor:'#22c55e40' },
     selSummaryTxt:{ color:'#4ade80', fontSize:13, fontWeight:'700', textAlign:'center' },
 });
