@@ -4,7 +4,7 @@ import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
-    InteractionManager, PanResponder, Animated, Dimensions,
+    InteractionManager, PanResponder, Animated,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -3578,79 +3578,77 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
                             {/* Tüm kortlar yan yana */}
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch' }]}
+                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', flexGrow:1 }]}
                                 style={{ flex:1, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                                 {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                             </ScrollView>
 
-                            {/* Seçim + Ödeme + Rezervasyon */}
-                            <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
-                                {selSlot && (() => {
-                                    const courtData = courtsSlots[selSlot.courtId]?.data;
-                                    const needsDur = courtData?.type === 'FLEXIBLE' || courtData?.type === 'VAR_DURATION';
-                                    const selCourt = venue.courts?.find(c => c.id === selSlot.courtId);
-                                    return (
-                                        <View>
-                                            <View style={vb.selSummary}>
-                                                <Text style={vb.selSummaryTxt}>
-                                                    ✅ {selCourt?.name} · {selSlot.slot.start}{selSlot.slot.end ? ` – ${selSlot.slot.end}` : ''}
-                                                </Text>
-                                            </View>
-                                            {needsDur && (
-                                                <>
-                                                    <Text style={vb.sectionLabel}>Süre Seçin</Text>
-                                                    <View style={vb.durRow}>
-                                                        {[60,90,120,150,180].filter(m => m <= selSlot.slot.durationMins).map(m => (
-                                                            <TouchableOpacity key={m}
-                                                                style={[vb.durBtn, selSlot.flexDur===m && vb.durBtnSel]}
-                                                                onPress={() => setSelSlot(p => ({ ...p, flexDur: m }))}>
-                                                                <Text style={[vb.durTxt, selSlot.flexDur===m && vb.durTxtSel]}>
-                                                                    {m<60?m+'dk':m===60?'1s':m===90?'1.5s':m===120?'2s':m===150?'2.5s':'3s'}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        ))}
-                                                    </View>
-                                                </>
-                                            )}
-                                            <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
-                                            <View style={vb.payRow}>
-                                                {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['ONLINE','💳 Online']].filter(([m]) => {
-                                                    const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : ['CASH','EFT'];
-                                                    return acc.includes(m);
-                                                }).map(([m, label]) => (
-                                                    <TouchableOpacity key={m}
-                                                        style={[vb.payBtn, payMethod===m && vb.payBtnSel]}
-                                                        onPress={() => setPayMethod(m)}>
-                                                        <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
-                                            {payMethod === 'ONLINE' && (
-                                                <View style={vb.ibanBox}>
-                                                    <Text style={[vb.ibanRow, { color:'#a78bfa' }]}>💳 Online ödeme yakında aktif olacak.</Text>
-                                                </View>
-                                            )}
-                                            {payMethod === 'EFT' && venue?.user?.businessIban && (
-                                                <View style={vb.ibanBox}>
-                                                    {venue.user.businessIbanHolder && (
-                                                        <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.user.businessIbanHolder}</Text></Text>
-                                                    )}
-                                                    <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.user.businessIban}</Text></Text>
-                                                </View>
-                                            )}
-                                            <TouchableOpacity style={vb.bookBtn} onPress={confirmBooking} disabled={booking}>
-                                                {booking
-                                                    ? <ActivityIndicator color="#fff" />
-                                                    : <Text style={vb.bookBtnTxt}>Rezervasyon Yap</Text>}
-                                            </TouchableOpacity>
+                            {/* Seçim + Ödeme + Rezervasyon — sadece slot seçiliyken */}
+                            {!selSlot && !booked && (
+                                <Text style={[vb.emptyTxt, { textAlign:'center', paddingVertical:10 }]}>Yukarıdan bir saat seçin</Text>
+                            )}
+                            {selSlot && (() => {
+                                const courtData = courtsSlots[selSlot.courtId]?.data;
+                                const needsDur = courtData?.type === 'FLEXIBLE' || courtData?.type === 'VAR_DURATION';
+                                const selCourt = venue.courts?.find(c => c.id === selSlot.courtId);
+                                return (
+                                    <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
+                                        <View style={vb.selSummary}>
+                                            <Text style={vb.selSummaryTxt}>
+                                                ✅ {selCourt?.name} · {selSlot.slot.start}{selSlot.slot.end ? ` – ${selSlot.slot.end}` : ''}
+                                            </Text>
                                         </View>
-                                    );
-                                })()}
-                                {!selSlot && (
-                                    <Text style={[vb.emptyTxt, { marginTop:16 }]}>Yukarıdan bir saat seçin</Text>
-                                )}
-                                <View style={{ height: 24 }} />
-                            </ScrollView>
+                                        {needsDur && (
+                                            <>
+                                                <Text style={vb.sectionLabel}>Süre Seçin</Text>
+                                                <View style={vb.durRow}>
+                                                    {[60,90,120,150,180].filter(m => m <= selSlot.slot.durationMins).map(m => (
+                                                        <TouchableOpacity key={m}
+                                                            style={[vb.durBtn, selSlot.flexDur===m && vb.durBtnSel]}
+                                                            onPress={() => setSelSlot(p => ({ ...p, flexDur: m }))}>
+                                                            <Text style={[vb.durTxt, selSlot.flexDur===m && vb.durTxtSel]}>
+                                                                {m<60?m+'dk':m===60?'1s':m===90?'1.5s':m===120?'2s':m===150?'2.5s':'3s'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </>
+                                        )}
+                                        <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
+                                        <View style={vb.payRow}>
+                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['ONLINE','💳 Online']].filter(([m]) => {
+                                                const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : ['CASH','EFT'];
+                                                return acc.includes(m);
+                                            }).map(([m, label]) => (
+                                                <TouchableOpacity key={m}
+                                                    style={[vb.payBtn, payMethod===m && vb.payBtnSel]}
+                                                    onPress={() => setPayMethod(m)}>
+                                                    <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                        {payMethod === 'ONLINE' && (
+                                            <View style={vb.ibanBox}>
+                                                <Text style={[vb.ibanRow, { color:'#a78bfa' }]}>💳 Online ödeme yakında aktif olacak.</Text>
+                                            </View>
+                                        )}
+                                        {payMethod === 'EFT' && venue?.user?.businessIban && (
+                                            <View style={vb.ibanBox}>
+                                                {venue.user.businessIbanHolder && (
+                                                    <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.user.businessIbanHolder}</Text></Text>
+                                                )}
+                                                <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.user.businessIban}</Text></Text>
+                                            </View>
+                                        )}
+                                        <TouchableOpacity style={vb.bookBtn} onPress={confirmBooking} disabled={booking}>
+                                            {booking
+                                                ? <ActivityIndicator color="#fff" />
+                                                : <Text style={vb.bookBtnTxt}>Rezervasyon Yap</Text>}
+                                        </TouchableOpacity>
+                                        <View style={{ height: 24 }} />
+                                    </ScrollView>
+                                );
+                            })()}
 
                             {booked && (
                                 <TouchableOpacity style={vb.continueBtn} onPress={onClose} activeOpacity={0.85}>
@@ -3733,13 +3731,13 @@ const vb = StyleSheet.create({
 
     // Çok sütunlu kort görünümü
     courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:8, paddingVertical:8, gap:8 },
-    courtCol:     { width:150, height: Dimensions.get('window').height - 220, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
+    courtCol:     { width:150, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
     courtColTitle:{ color:'#fff', fontSize:13, fontWeight:'800', textAlign:'center', marginBottom:5, letterSpacing:0.3 },
     lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, marginBottom:5 },
     courtColLight:{ color:'#fbbf24', fontSize:10 },
     lightsInfoBtn:{ width:15, height:15, borderRadius:8, backgroundColor:'#fbbf2430', borderWidth:1, borderColor:'#fbbf2460', alignItems:'center', justifyContent:'center' },
     lightsInfoTxt:{ color:'#fbbf24', fontSize:9, fontWeight:'800', lineHeight:13 },
-    colSlot:      { borderRadius:5, padding:3, marginBottom:3, alignItems:'center', borderWidth:1 },
+    colSlot:      { borderRadius:5, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:3, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#450a0a', borderColor:'#7f1d1d', opacity:0.7 },
     colSlotSel:   { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2 },
