@@ -3854,12 +3854,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             const { data } = await api.get('/courts/search', { params: { q: text, sport: sub } });
             const raw = Array.isArray(data) ? data : [];
             const seenVenues = new Set();
-            const deduped = raw.filter(c => {
-                if (!c.isBusinessVenue) return true;
-                if (seenVenues.has(c.venueId)) return false;
-                seenVenues.add(c.venueId);
-                return true;
-            }).map(c => c.isBusinessVenue ? { ...c, name: c.name.split(' — ')[0] } : c);
+            const deduped = [];
+            for (const c of raw) {
+                if (c.isBusinessVenue && c.venueId) {
+                    if (seenVenues.has(c.venueId)) continue;
+                    seenVenues.add(c.venueId);
+                    deduped.push({ ...c, name: c.venueName || c.name });
+                } else {
+                    deduped.push(c);
+                }
+            }
             set('courtResults', deduped);
         } catch { set('courtResults', []); }
         finally { setSearching(false); }

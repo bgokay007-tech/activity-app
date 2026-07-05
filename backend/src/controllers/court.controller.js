@@ -100,6 +100,7 @@ export const searchCourts = async (req, res, next) => {
             v.courts.map(c => ({
                 id: `venue_${v.id}_court_${c.id}`,
                 name: `${v.name} — ${c.name}`,
+                venueName: v.name,
                 address: v.address || null,
                 city: v.city,
                 country: null,
