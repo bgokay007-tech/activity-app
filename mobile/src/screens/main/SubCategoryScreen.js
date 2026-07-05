@@ -3461,11 +3461,12 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             : slot.end;
         setBooking(true);
         try {
-            await api.post(`/venues/${venueId}/courts/${courtId}/reserve`, {
+            const resResp = await api.post(`/venues/${venueId}/courts/${courtId}/reserve`, {
                 date: selDate, startTime: slot.start, endTime, paymentMethod: payMethod,
             });
+            const reservationId = resResp.data?.reservation?.id || null;
             const courtObj = { name: activeCourt?.name || '', venueId, courtId, id: courtId, city: venue?.city };
-            onBooked?.(courtObj, selDate, slot.start, endTime);
+            onBooked?.(courtObj, selDate, slot.start, endTime, reservationId);
             setBooked(true);
             try {
                 const menuRes = await api.get(`/venues/${venueId}/menu`);
@@ -3778,6 +3779,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         opp2GenderReq: 'MIX',
         venueId: null,
         venueCourtId: null,
+        reservationId: null,
     };
 
     const buildInitialState = () => {
@@ -3875,6 +3877,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const reset = () => setF(INIT);
+
+    const cancelCourt = async () => {
+        if (!f.reservationId) {
+            setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null }));
+            return;
+        }
+        try {
+            await api.delete(`/venues/reservations/${f.reservationId}`);
+            setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null }));
+        } catch (e) {
+            Alert.alert('İptal Edilemiyor', e?.response?.data?.message || 'Rezervasyon iptal edilemedi');
+        }
+    };
 
     const submit = async () => {
         if (!f.flexibleSchedule) {
@@ -4195,9 +4210,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {/* Seçilen kort */}
                                     {f.selectedCourt && (
                                         <View style={s.selectedCourtBox}>
-                                            <Text style={s.selectedCourtText}>✅ {f.selectedCourt.name}</Text>
-                                            <TouchableOpacity onPress={() => setF(p => ({ ...p, selectedCourt:null, courtSearchText:'', courtResults:[] }))}>
-                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={s.selectedCourtText}>✅ {f.selectedCourt.name}</Text>
+                                                {f.reservationId && (
+                                                    <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>📅 Rezervasyon yapıldı</Text>
+                                                )}
+                                            </View>
+                                            <TouchableOpacity
+                                                onPress={cancelCourt}
+                                                style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ef444450' }}>
+                                                <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>
+                                                    {f.reservationId ? '🗑 İptal Et' : '✕'}
+                                                </Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
@@ -4394,7 +4418,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             venueId={venueBooking.venueId}
             initialCourtId={venueBooking.initialCourtId}
             onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null })}
-            onBooked={(court, date, startTime) => {
+            onBooked={(court, date, startTime, endTime, reservationId) => {
                 setF(p => ({
                     ...p,
                     selectedCourt: court,
@@ -4404,6 +4428,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     matchTime: startTime,
                     venueId: court.venueId || null,
                     venueCourtId: court.courtId || null,
+                    reservationId: reservationId || null,
                 }));
             }}
         />
