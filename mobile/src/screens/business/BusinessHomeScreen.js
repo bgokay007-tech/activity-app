@@ -461,7 +461,7 @@ function IbanCard({ iban, ibanHolder, onSave }) {
         try {
             await onSave(ibanVal.trim(), holderVal.trim());
             setEditing(false);
-        } catch { Alert.alert('Hata', 'IBAN kaydedilemedi'); }
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || e?.message || 'IBAN kaydedilemedi'); }
         finally { setSaving(false); }
     };
 
