@@ -4292,6 +4292,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     )}
 
+                                    {/* Kort Rezerve Edildi */}
+                                    <TouchableOpacity style={[s.checkRow, { marginBottom:10 }]} onPress={() => set('courtReserved', !f.courtReserved)}>
+                                        <View style={[s.checkbox, f.courtReserved && s.checkboxChecked]}>
+                                            {f.courtReserved && <Text style={{ color:'#fff', fontSize:12 }}>✓</Text>}
+                                        </View>
+                                        <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
+                                    </TouchableOpacity>
+
                                     {/* Kişi Başı Kort Ücreti */}
                                     {!f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)) && (
                                         <View style={{ marginBottom:10 }}>
@@ -4349,45 +4357,53 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         onClose={() => set('showDurationPicker', false)}
                                     />
 
-                                    {/* Kort Zemini */}
-                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
+                                    {/* Zemin + Mekan Tipi */}
                                     {isPadel ? (
-                                        <View style={[s.chipRow, { marginBottom:14 }]}>
-                                            <View style={[s.chipBtn, s.chipBtnActive]}>
-                                                <Text style={[s.chipBtnText, s.chipBtnTextActive]}>🟩 Suni Çim</Text>
+                                        <View style={{ flexDirection:'row', alignItems:'flex-start', gap:12, marginBottom:14 }}>
+                                            <View>
+                                                <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
+                                                <View style={[s.chipRow, { marginBottom:0 }]}>
+                                                    <View style={[s.chipBtn, s.chipBtnActive]}>
+                                                        <Text style={[s.chipBtnText, s.chipBtnTextActive]}>🟩 Suni Çim</Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.venueLabel}</Text>
+                                                <View style={[s.chipRow, { marginBottom:0, flexWrap:'wrap' }]}>
+                                                    {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor},{id:'INDOOR_AC',label:t.indoorAc}].map(vt => (
+                                                        <TouchableOpacity key={vt.id} onPress={() => set('venueType', vt.id)}
+                                                            style={[s.chipBtn, f.venueType===vt.id && s.chipBtnActive]}>
+                                                            <Text style={[s.chipBtnText, f.venueType===vt.id && s.chipBtnTextActive]}>{vt.label}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
                                             </View>
                                         </View>
                                     ) : (
-                                        <View style={s.chipRow}>
-                                            {courtSurfaces.map(sf => (
-                                                <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
-                                                    style={[s.chipBtn, f.surface===sf.id && s.chipBtnActive]}>
-                                                    <Text style={[s.chipBtnText, f.surface===sf.id && s.chipBtnTextActive]}>{sf.emoji} {sf.label || getSurface(t, sf.id)}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    )}
-
-                                    {/* Mekan Tipi */}
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:14 }}>
-                                        <View>
-                                            <Text style={[s.fieldLabel, { marginTop:-6 }]}>{t.venueLabel}</Text>
-                                            <View style={[s.chipRow, { marginBottom:0 }]}>
-                                                {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor},...(isPadel ? [{id:'INDOOR_AC',label:t.indoorAc}] : [])].map(vt => (
-                                                    <TouchableOpacity key={vt.id} onPress={() => set('venueType', vt.id)}
-                                                        style={[s.chipBtn, f.venueType===vt.id && s.chipBtnActive]}>
-                                                        <Text style={[s.chipBtnText, f.venueType===vt.id && s.chipBtnTextActive]}>{vt.label}</Text>
+                                        <>
+                                            <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
+                                            <View style={s.chipRow}>
+                                                {courtSurfaces.map(sf => (
+                                                    <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
+                                                        style={[s.chipBtn, f.surface===sf.id && s.chipBtnActive]}>
+                                                        <Text style={[s.chipBtnText, f.surface===sf.id && s.chipBtnTextActive]}>{sf.emoji} {sf.label || getSurface(t, sf.id)}</Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
-                                        </View>
-                                        <TouchableOpacity style={[s.checkRow, { marginBottom:0, flex:1 }]} onPress={() => set('courtReserved', !f.courtReserved)}>
-                                            <View style={[s.checkbox, f.courtReserved && s.checkboxChecked]}>
-                                                {f.courtReserved && <Text style={{ color:'#fff', fontSize:12 }}>✓</Text>}
+                                            <View style={{ marginBottom:14 }}>
+                                                <Text style={[s.fieldLabel, { marginTop:0 }]}>{t.venueLabel}</Text>
+                                                <View style={[s.chipRow, { marginBottom:0 }]}>
+                                                    {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor}].map(vt => (
+                                                        <TouchableOpacity key={vt.id} onPress={() => set('venueType', vt.id)}
+                                                            style={[s.chipBtn, f.venueType===vt.id && s.chipBtnActive]}>
+                                                            <Text style={[s.chipBtnText, f.venueType===vt.id && s.chipBtnTextActive]}>{vt.label}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
                                             </View>
-                                            <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
-                                        </TouchableOpacity>
-                                    </View>
+                                        </>
+                                    )}
 
                                 </>
                             )}
