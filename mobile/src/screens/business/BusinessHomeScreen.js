@@ -1184,16 +1184,25 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const isValidTime = isValidTimeStr;
 
     const saveOpenSlots = async (slots) => {
-        setLocalOpenSlots(slots); // optimistic
+        const prev = localOpenSlots;
+        setLocalOpenSlots(slots);
         setSavingWindows(true);
-        try {
-            await api.patch(`/venues/${venue.id}/settings`, { openSlots: slots });
-        } catch (e) {
-            setLocalOpenSlots(localOpenSlots); // rollback on error
-            const msg = e?.response?.data?.message || e?.message || 'Sunucuya ulaşılamadı, tekrar dene';
-            Alert.alert('Kayıt Hatası', msg);
+        let lastErr;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
+                await api.patch(`/venues/${venue.id}/settings`, { openSlots: slots });
+                setSavingWindows(false);
+                return;
+            } catch (e) {
+                lastErr = e;
+                if (e.response) break; // HTTP hatası → retry yok
+            }
         }
-        finally { setSavingWindows(false); }
+        setSavingWindows(false);
+        setLocalOpenSlots(prev);
+        const msg = lastErr?.response?.data?.message || lastErr?.message || 'Sunucuya ulaşılamadı, tekrar dene';
+        Alert.alert('Kayıt Hatası', msg);
     };
 
     const dayKey = String(selectedDay);
