@@ -83,7 +83,12 @@ export default function VenueDetailScreen({ route, navigation }) {
                 <Text style={s.sectionTitle}>🎾 Kortlar / Sahalar</Text>
                 <Text style={s.sectionHint}>Rezervasyon yapmak istediğiniz kortu seçin</Text>
 
-                {(venue.courts || []).map(court => (
+                {[...(venue.courts || [])].sort((a, b) => {
+                    const nA = parseInt(a.name?.match(/\d+/)?.[0] ?? '', 10);
+                    const nB = parseInt(b.name?.match(/\d+/)?.[0] ?? '', 10);
+                    if (!isNaN(nA) && !isNaN(nB) && nA !== nB) return nA - nB;
+                    return (a.name ?? '') < (b.name ?? '') ? -1 : (a.name ?? '') > (b.name ?? '') ? 1 : 0;
+                }).map(court => (
                     <TouchableOpacity
                         key={court.id}
                         style={[s.courtCard, selectedCourt?.id === court.id && s.courtCardActive]}

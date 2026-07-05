@@ -256,7 +256,8 @@ export const getVenueSlots = async (req, res, next) => {
             where: { venueId: id, courtId },
         });
 
-        const effectiveVenue = { ...venue, slotType: court?.slotType || venue.slotType };
+        const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN'];
+        const effectiveVenue = { ...venue, slotType: (VALID_SLOT_TYPES.includes(court?.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR' };
         const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId);
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
         res.json({ ...slotsResult, acceptedPayments: accepted });
@@ -406,7 +407,8 @@ export const getOwnerSchedule = async (req, res, next) => {
             allRes.filter(r => r.courtId === courtId && overlaps(s, e, toMins(r.startTime), toMins(r.endTime)));
 
         const buildSlots = (court) => {
-            const effectiveSlotType = court.slotType || venue.slotType;
+            const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN'];
+            const effectiveSlotType = (VALID_SLOT_TYPES.includes(court.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR';
             const courtWindows = getOpenWindows(venue, date, court.id); // kort bazlı windows
             const slots = [];
 
@@ -453,7 +455,7 @@ export const getOwnerSchedule = async (req, res, next) => {
         const courts = venue.courts.map(court => ({
             courtId:   court.id,
             courtName: court.name,
-            slotType:  court.slotType || venue.slotType,
+            slotType:  (VALID_SLOT_TYPES.includes(court.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR',
             surface:   court.surface || null,
             slots:     buildSlots(court),
         }));
@@ -715,7 +717,7 @@ export const searchVenues = async (req, res, next) => {
                 } : {}),
             },
             include: {
-                courts: true,
+                courts: { orderBy: { name: 'asc' } },
                 user: { select: { id: true, username: true, businessName: true, businessIban: true } },
             },
             orderBy: { createdAt: 'desc' },

@@ -1023,8 +1023,11 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const [scheduleOpen, setScheduleOpen]     = useState(false);
     const [analyticsOpen, setAnalyticsOpen]   = useState(false);
     const [courtSlotTypes, setCourtSlotTypes] = useState(() => {
+        const VALID = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN'];
         const init = {};
-        (venue.courts || []).forEach(c => { init[c.id] = c.slotType || venue.slotType || 'FULL_HOUR'; });
+        (venue.courts || []).forEach(c => {
+            init[c.id] = (VALID.includes(c.slotType) ? c.slotType : null) || venue.slotType || 'FULL_HOUR';
+        });
         return init;
     });
     const [courtSurfaces, setCourtSurfaces] = useState(() => {
