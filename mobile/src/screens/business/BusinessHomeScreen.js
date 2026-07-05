@@ -2145,7 +2145,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
 }
 
 // ── Ana Ekran ─────────────────────────────────────────────────────────────────
-export default function BusinessHomeScreen({ navigation }) {
+export default function BusinessHomeScreen({ navigation, route }) {
     const dispatch = useDispatch();
     const user     = useSelector(s => s.auth.user);
 
@@ -2176,6 +2176,13 @@ export default function BusinessHomeScreen({ navigation }) {
     }, []);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
+
+    useEffect(() => {
+        if (route?.params?.openReservations && venues.length > 0) {
+            setScheduleOpen(true);
+            if (!resLoaded) loadReservations();
+        }
+    }, [route?.params?.openReservations, venues.length]);
 
     const handlePurchase = async (packageType) => {
         setSubmitting(true);

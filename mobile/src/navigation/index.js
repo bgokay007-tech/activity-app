@@ -37,6 +37,8 @@ function navigateFromNotif(data) {
         } else {
             navigationRef.navigate('ProfileTab');
         }
+    } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'VENUE_ORDER' || type === 'PAYMENT_ALERT') {
+        navigationRef.navigate('BusinessApp', { openReservations: true });
     } else if (data.category && data.subCategory) {
         let initialTab = 'rivals';
         if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') initialTab = 'tournaments';
