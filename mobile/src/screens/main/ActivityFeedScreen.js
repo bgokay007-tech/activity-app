@@ -132,7 +132,7 @@ function TimePicker({ valueFrom, valueTo, onChangeFrom, onChangeTo }) {
                 <Text style={tp.label}>Bitiş</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tp.chips}>
                     {HOURS.map(h => {
-                        const disabled = valueFrom && h <= valueFrom;
+                        const disabled = !!valueFrom && h <= valueFrom;
                         return (
                             <TouchableOpacity
                                 key={`t${h}`}
