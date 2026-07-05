@@ -864,7 +864,12 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
             .finally(() => setLoading(false));
     }, [visible, venue?.id, selDate]);
 
-    const courts = schedule?.courts || [];
+    const courts = [...(schedule?.courts || [])].sort((a, b) => {
+        const nA = parseInt(a.courtName?.match(/\d+/)?.[0] ?? '', 10);
+        const nB = parseInt(b.courtName?.match(/\d+/)?.[0] ?? '', 10);
+        if (!isNaN(nA) && !isNaN(nB) && nA !== nB) return nA - nB;
+        return (a.courtName ?? '') < (b.courtName ?? '') ? -1 : (a.courtName ?? '') > (b.courtName ?? '') ? 1 : 0;
+    });
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -1034,7 +1039,12 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     });
     const [showLightsPicker, setShowLightsPicker] = useState(null); // courtId | null
     const [savingSlot, setSavingSlot]         = useState(false);
-    const sortedCourts = [...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    const sortedCourts = [...(venue.courts || [])].sort((a, b) => {
+        const nA = parseInt(a.name.match(/\d+/)?.[0] ?? '', 10);
+        const nB = parseInt(b.name.match(/\d+/)?.[0] ?? '', 10);
+        if (!isNaN(nA) && !isNaN(nB) && nA !== nB) return nA - nB;
+        return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    });
     const [selectedCourt, setSelectedCourt]   = useState(null); // null=tüm kortlar, string=courtId
 
     const [localOpenSlots, setLocalOpenSlots] = useState(() => {
