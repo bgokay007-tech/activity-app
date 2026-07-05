@@ -1392,18 +1392,56 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                 </View>
             </ScrollView>
 
-            {activeTab === 'info' && (
-                <>
-                    <View style={vc.infoRow}>
-                        <Text style={vc.infoItem}>🏟️ {venue.courts?.length || 0} kort</Text>
-                        <Text style={vc.infoItem}>⏰ {venue.openTime}–{venue.closeTime}</Text>
-                        <Text style={vc.infoItem}>📅 {slotLabel}</Text>
-                    </View>
-                    <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting} activeOpacity={0.8}>
-                        {deleting ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={vc.deleteBtnText}>Tesisi Sil</Text>}
-                    </TouchableOpacity>
-                </>
-            )}
+            {activeTab === 'info' && (() => {
+                const getDayW = (d) => {
+                    if (!(venue.openDays || [1,2,3,4,5,6,7]).includes(d)) return null;
+                    const os = venue.openSlots;
+                    if (os && !Array.isArray(os) && typeof os === 'object') {
+                        const entry = os[String(d)] !== undefined ? os[String(d)] : os['0'];
+                        if (entry !== undefined) {
+                            if (Array.isArray(entry) && entry.length === 0) return null;
+                            if (Array.isArray(entry) && entry.length > 0) return entry;
+                        }
+                    }
+                    return [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
+                };
+                const dayNames = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+                const groups = [];
+                for (let d = 1; d <= 7; d++) {
+                    const w = getDayW(d);
+                    const key = w === null ? 'CLOSED' : w.map(x => `${x.from}-${x.to}`).join(',');
+                    const last = groups[groups.length - 1];
+                    if (last && last.key === key) last.days.push(d);
+                    else groups.push({ key, days: [d], windows: w });
+                }
+                return (
+                    <>
+                        <View style={vc.infoRow}>
+                            <Text style={vc.infoItem}>🏟️ {venue.courts?.length || 0} kort</Text>
+                            <Text style={vc.infoItem}>📅 {slotLabel}</Text>
+                        </View>
+                        <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
+                            {groups.map((g, i) => {
+                                const label = g.days.length === 1
+                                    ? dayNames[g.days[0]]
+                                    : `${dayNames[g.days[0]]}–${dayNames[g.days[g.days.length - 1]]}`;
+                                const hours = g.windows === null
+                                    ? 'Kapalı'
+                                    : g.windows.map(x => `${x.from}–${x.to}`).join('  ');
+                                return (
+                                    <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                                        <Text style={{ color: '#aaa', fontSize: 12, fontWeight: '700', minWidth: 60 }}>{label}</Text>
+                                        <Text style={{ color: g.windows === null ? '#ef4444' : '#fff', fontSize: 12, fontWeight: g.windows === null ? '700' : '400' }}>{hours}</Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                        <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting} activeOpacity={0.8}>
+                            {deleting ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={vc.deleteBtnText}>Tesisi Sil</Text>}
+                        </TouchableOpacity>
+                    </>
+                );
+            })()}
 
             {activeTab === 'blocks' && (
                 <View style={vc.panel}>
