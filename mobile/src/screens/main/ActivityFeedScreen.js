@@ -62,7 +62,7 @@ const STATIC_CATS = [
 const CAT_MAP  = Object.fromEntries(STATIC_CATS.map(c => [c.key, c]));
 const SUB_MAP  = Object.fromEntries(STATIC_CATS.flatMap(c => c.subs.map(s => [s.key, { ...s, catKey: c.key }])));
 
-const HOURS = Array.from({ length: 18 }, (_, i) => `${String(i + 6).padStart(2, '0')}:00`);
+const HOURS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
 const DAYS_TR   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
 const MONTHS_TR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 
@@ -202,7 +202,7 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
                     <Text style={m.title}>🕐 Saat Aralığı</Text>
 
                     <Text style={m.subLabel}>Başlangıç{from ? ` — ${from}` : ''}</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={m.hourRow}>
+                    <View style={m.hourGrid}>
                         {HOURS.map(h => (
                             <TouchableOpacity
                                 key={`f${h}`}
@@ -213,10 +213,10 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
                                 <Text style={[m.hourText, from === h && m.hourTextActive]}>{h}</Text>
                             </TouchableOpacity>
                         ))}
-                    </ScrollView>
+                    </View>
 
-                    <Text style={[m.subLabel, { marginTop: 12 }]}>Bitiş{to ? ` — ${to}` : ''}</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={m.hourRow}>
+                    <Text style={[m.subLabel, { marginTop: 10 }]}>Bitiş{to ? ` — ${to}` : ''}</Text>
+                    <View style={m.hourGrid}>
                         {HOURS.map(h => {
                             const disabled = !!from && h <= from;
                             return (
@@ -231,7 +231,7 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
                                 </TouchableOpacity>
                             );
                         })}
-                    </ScrollView>
+                    </View>
 
                     <View style={[m.btnRow, { marginTop: 16 }]}>
                         <TouchableOpacity style={m.clearBtn} onPress={() => { setFrom(''); setTo(''); }} activeOpacity={0.8}>
@@ -678,7 +678,7 @@ const cal = StyleSheet.create({
 
 const m = StyleSheet.create({
     overlay:  { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
-    sheet:    { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 24, gap: 10 },
+    sheet:    { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 24, gap: 10, maxHeight: '90%' },
     handle:   { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 6 },
     title:    { color: '#fff', fontSize: 17, fontWeight: '900' },
     subLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
@@ -690,11 +690,11 @@ const m = StyleSheet.create({
     tabLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 2 },
     tabValue: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
 
-    hourRow:          { gap: 6, paddingVertical: 2 },
-    hourChip:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    hourGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+    hourChip:         { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
     hourChipActive:   { backgroundColor: colors.purple + '28', borderColor: colors.purple },
     hourChipDisabled: { opacity: 0.25 },
-    hourText:         { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+    hourText:         { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     hourTextActive:   { color: colors.purpleLight },
     hourTextDisabled: { color: colors.textMuted },
 
