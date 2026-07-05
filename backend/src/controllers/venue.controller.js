@@ -24,19 +24,39 @@ async function autoConfirmPastCash(venueId) {
     }
 }
 
+// Gece yarısını geçen pencereleri (ör: 16:00–04:00) gece yarısında ikiye böler
+function splitOvernight(windows) {
+    const result = [];
+    for (const w of windows) {
+        const open  = toMins(w.from);
+        const close = toMins(w.to);
+        if (close < open) {
+            // 16:00→1440(24:00) + 00:00→close
+            if (open < 1440)  result.push({ from: w.from,  to: '24:00' });
+            if (close > 0)    result.push({ from: '00:00', to: w.to });
+        } else {
+            result.push(w);
+        }
+    }
+    return result.length > 0 ? result : [{ from: '00:00', to: '24:00' }];
+}
+
 // openSlots eski format: array → tüm günler için geçerli
 // openSlots yeni format: { "1":[...], "7":[...] } → gün bazlı (1=Pzt...7=Paz)
 function getOpenWindows(venue, date) {
     const os = venue.openSlots;
+    let raw;
     if (os && !Array.isArray(os) && typeof os === 'object') {
         const dow = new Date(date + 'T12:00:00').getDay(); // 0=Sun..6=Sat
         const key = String(dow === 0 ? 7 : dow);           // 1=Pzt..7=Paz
         const day = os[key];
-        if (Array.isArray(day) && day.length > 0) return day;
-        return [{ from: venue.openTime, to: venue.closeTime }];
+        raw = (Array.isArray(day) && day.length > 0) ? day : [{ from: venue.openTime, to: venue.closeTime }];
+    } else if (Array.isArray(os) && os.length > 0) {
+        raw = os;
+    } else {
+        raw = [{ from: venue.openTime, to: venue.closeTime }];
     }
-    if (Array.isArray(os) && os.length > 0) return os;
-    return [{ from: venue.openTime, to: venue.closeTime }];
+    return splitOvernight(raw);
 }
 
 function computeSlots(venue, reservations, date) {

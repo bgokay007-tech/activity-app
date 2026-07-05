@@ -1213,7 +1213,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
 
     const handleCustomizeDayFromDefault = () => {
         const next = { ...localOpenSlots, [dayKey]: [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }] };
-        setLocalOpenSlots(next);
+        saveOpenSlots(next);
     };
 
     const handleSavePolicy = async (field, value) => {
@@ -1623,10 +1623,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                             </View>
                         </View>
                     ) : (
-                        <TouchableOpacity onPress={() => {
-                            if (dayWindows.length === 0) handleCustomizeDayFromDefault();
-                            setAddingWindow(true);
-                        }}
+                        <TouchableOpacity onPress={() => { setAddingWindow(true); }}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingVertical: 6 }}>
                             <Text style={{ color: BIZ_COLOR, fontSize: 20, fontWeight: '700' }}>+</Text>
                             <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '600' }}>Aralık Ekle</Text>
