@@ -358,7 +358,6 @@ function LocationInput({ placeholder, value, onChange, type, province }) {
                 placeholderTextColor={colors.textMuted}
                 value={value}
                 onChangeText={handleChange}
-                onBlur={() => setTimeout(() => { setSuggestions([]); setSearched(false); }, 250)}
                 autoCorrect={false}
                 autoCapitalize="none"
             />
