@@ -69,6 +69,17 @@ export default function ForgotPasswordScreen({ navigation }) {
 
                     {step === 1 && (
                         <>
+                            <Text style={s.label}>{t.otpMethodLabel}</Text>
+                            <View style={s.methodRow}>
+                                <TouchableOpacity style={[s.methodBtn, s.methodBtnActive]}>
+                                    <Text style={[s.methodText, s.methodTextActive]}>{t.viaEmail}</Text>
+                                </TouchableOpacity>
+                                <View style={[s.methodBtn, { opacity: 0.4 }]}>
+                                    <Text style={s.methodText}>{t.viaPhone}</Text>
+                                    <Text style={s.comingSoon}>{t.comingSoon}</Text>
+                                </View>
+                            </View>
+
                             <Text style={s.label}>{t.fpEmailLabel}</Text>
                             <TextInput
                                 style={s.input}
@@ -154,6 +165,13 @@ const s = StyleSheet.create({
     stepNumActive: { color: colors.purple },
     label: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
     hint: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginBottom: 4, marginTop: 4 },
+    methodRow: { flexDirection: 'row', gap: 3 },
+    methodBtn: { flex: 1, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center' },
+    methodBtnActive: { borderColor: colors.purple, backgroundColor: colors.purple + '22' },
+    methodText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+    methodTextActive: { color: colors.purpleLight, fontWeight: '800' },
+    comingSoon: { color: colors.textMuted, fontSize: 9, fontWeight: '700', marginTop: 2 },
+
     input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
     codeInput: { fontSize: 22, fontWeight: '800', textAlign: 'center', letterSpacing: 10 },
     btn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 11, alignItems: 'center', marginTop: 20 },
