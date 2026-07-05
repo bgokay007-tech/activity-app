@@ -3508,6 +3508,22 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
                                 {loadingS && <ActivityIndicator color="#22c55e" style={{ marginVertical: 24 }} />}
 
+                                {/* Kortun ışık saati bilgisi */}
+                                {!loadingS && (() => {
+                                    const activeCourt = venue?.courts?.find(c => c.id === courtId);
+                                    if (!activeCourt?.lightsFrom) return null;
+                                    return (
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                                            backgroundColor: '#fbbf2412', borderRadius: 8, paddingHorizontal: 12,
+                                            paddingVertical: 7, marginBottom: 10, borderWidth: 1, borderColor: '#fbbf2430' }}>
+                                            <Text style={{ fontSize: 14 }}>💡</Text>
+                                            <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '600' }}>
+                                                Gece ışıkları {activeCourt.lightsFrom}'dan itibaren açık
+                                            </Text>
+                                        </View>
+                                    );
+                                })()}
+
                                 {/* Renk Açıklaması */}
                                 {!loadingS && isStructured && (
                                     <View style={vb.legend}>

@@ -1025,6 +1025,12 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         (venue.courts || []).forEach(c => { init[c.id] = c.surface || null; });
         return init;
     });
+    const [courtLights, setCourtLights] = useState(() => {
+        const init = {};
+        (venue.courts || []).forEach(c => { init[c.id] = c.lightsFrom || null; });
+        return init;
+    });
+    const [showLightsPicker, setShowLightsPicker] = useState(null); // courtId | null
     const [savingSlot, setSavingSlot]         = useState(false);
 
     const [localOpenSlots, setLocalOpenSlots] = useState(() => {
@@ -1163,6 +1169,13 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         try {
             await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { surface: next });
             setCourtSurfaces(prev => ({ ...prev, [courtId]: next }));
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+    };
+
+    const handleUpdateCourtLights = async (courtId, lightsFrom) => {
+        try {
+            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { lightsFrom: lightsFrom || null });
+            setCourtLights(prev => ({ ...prev, [courtId]: lightsFrom || null }));
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
     };
 
@@ -1638,6 +1651,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                     {(venue.courts || []).map(court => {
                         const currentType    = courtSlotTypes[court.id] || 'FULL_HOUR';
                         const currentSurface = courtSurfaces[court.id] || null;
+                        const currentLights  = courtLights[court.id]   || null;
                         return (
                             <View key={court.id} style={{ marginBottom: 28 }}>
                                 <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>
@@ -1710,6 +1724,40 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                     <Text style={{ color: '#555', fontSize: 11, marginTop: 6 }}>
                                         Seçili: {SURFACE_ICON[currentSurface]} {SURFACE_LABEL[currentSurface]} · Seçili zemine tekrar tıklayarak kaldırabilirsin
                                     </Text>
+                                )}
+
+                                {/* Işık saati — PRO */}
+                                {isPro && (
+                                    <>
+                                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 6, letterSpacing: 0.5 }}>
+                                            GECE IŞIKLARI
+                                        </Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                            <TouchableOpacity
+                                                onPress={() => setShowLightsPicker(court.id)}
+                                                style={{ flex: 1, backgroundColor: currentLights ? '#fbbf2418' : '#ffffff08',
+                                                    borderRadius: 8, paddingVertical: 9, paddingHorizontal: 14,
+                                                    borderWidth: 1.5, borderColor: currentLights ? '#fbbf2440' : '#ffffff18',
+                                                    flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                <Text style={{ fontSize: 15 }}>💡</Text>
+                                                <Text style={{ color: currentLights ? '#fbbf24' : '#555', fontWeight: currentLights ? '700' : '400', fontSize: 14 }}>
+                                                    {currentLights ? `${currentLights}'dan itibaren açık` : 'Belirlenmedi'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            {currentLights && (
+                                                <TouchableOpacity onPress={() => handleUpdateCourtLights(court.id, null)}
+                                                    style={{ padding: 8 }}>
+                                                    <Text style={{ color: '#6b7280', fontSize: 16 }}>✕</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                        <TimePickerModal
+                                            visible={showLightsPicker === court.id}
+                                            value={currentLights || ''}
+                                            onSelect={t => { handleUpdateCourtLights(court.id, t); setShowLightsPicker(null); }}
+                                            onClose={() => setShowLightsPicker(null)}
+                                        />
+                                    </>
                                 )}
                             </View>
                         );

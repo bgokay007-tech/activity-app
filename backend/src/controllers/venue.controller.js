@@ -234,20 +234,23 @@ export const getVenueSlots = async (req, res, next) => {
 export const updateCourtSettings = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
-        const { slotType, surface } = req.body;
+        const { slotType, surface, lightsFrom } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_SURFACES = ['CLAY', 'HARD', 'CARPET', 'GRASS', 'PARQUET', 'SYNTHETIC'];
         if (slotType && !VALID_TYPES.includes(slotType))
             return res.status(400).json({ message: 'Geçersiz slot tipi' });
         if (surface && !VALID_SURFACES.includes(surface))
             return res.status(400).json({ message: 'Geçersiz zemin tipi' });
+        if (lightsFrom !== undefined && lightsFrom !== null && !/^\d{2}:\d{2}$/.test(lightsFrom))
+            return res.status(400).json({ message: 'Geçersiz ışık saati formatı (HH:MM)' });
 
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
         const data = {};
-        if (slotType !== undefined) data.slotType = slotType || null;
-        if (surface  !== undefined) data.surface  = surface  || null;
+        if (slotType    !== undefined) data.slotType    = slotType    || null;
+        if (surface     !== undefined) data.surface     = surface     || null;
+        if (lightsFrom  !== undefined) data.lightsFrom  = lightsFrom  || null;
 
         const court = await prisma.venueCourt.update({ where: { id: courtId }, data });
         res.json({ court });

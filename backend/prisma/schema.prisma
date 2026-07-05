@@ -867,11 +867,12 @@ model BusinessVenue {
 }
 
 model VenueCourt {
-  id       String  @id @default(uuid())
-  venueId  String
-  name     String
-  slotType String?
-  surface  String?
+  id         String  @id @default(uuid())
+  venueId    String
+  name       String
+  slotType   String?
+  surface    String?
+  lightsFrom String?
 
   venue        BusinessVenue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
   reservations CourtReservation[]
