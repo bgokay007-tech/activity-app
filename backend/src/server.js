@@ -11,6 +11,33 @@ import { startSubscriptionExpiryJob } from './jobs/subscriptionExpiry.js';
 import { startHolidayReminderJob } from './jobs/holidayReminder.js';
 import prisma from './config/prisma.js';
 
+const PROVINCES = [
+    'Adana','Adıyaman','Afyonkarahisar','Ağrı','Aksaray','Amasya','Ankara','Antalya',
+    'Ardahan','Artvin','Aydın','Balıkesir','Bartın','Batman','Bayburt','Bilecik',
+    'Bingöl','Bitlis','Bolu','Burdur','Bursa','Çanakkale','Çankırı','Çorum',
+    'Denizli','Diyarbakır','Düzce','Edirne','Elazığ','Erzincan','Erzurum','Eskişehir',
+    'Gaziantep','Giresun','Gümüşhane','Hakkari','Hatay','Iğdır','Isparta','İstanbul',
+    'İzmir','Kahramanmaraş','Karabük','Karaman','Kars','Kastamonu','Kayseri','Kilis',
+    'Kırıkkale','Kırklareli','Kırşehir','Kocaeli','Konya','Kütahya','Malatya','Manisa',
+    'Mardin','Mersin','Muğla','Muş','Nevşehir','Niğde','Ordu','Osmaniye','Rize',
+    'Sakarya','Samsun','Siirt','Sinop','Sivas','Şanlıurfa','Şırnak','Tekirdağ',
+    'Tokat','Trabzon','Tunceli','Uşak','Van','Yalova','Yozgat','Zonguldak',
+];
+
+async function seedCitiesIfEmpty() {
+    try {
+        const count = await prisma.city.count();
+        if (count > 0) { console.log(`✅ City tablosu mevcut (${count} kayıt)`); return; }
+        const result = await prisma.city.createMany({
+            data: PROVINCES.map(province => ({ province, status: 'APPROVED' })),
+            skipDuplicates: true,
+        });
+        console.log(`✅ ${result.count} il seed edildi`);
+    } catch (e) {
+        console.error('❌ seedCities error:', e.message);
+    }
+}
+
 async function ensureTables() {
     try {
         await prisma.$executeRawUnsafe(`
@@ -47,7 +74,7 @@ io.on('connection', (socket) => {
     }
 });
 
-ensureTables().then(() => {
+Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
     httpServer.listen(PORT, () => {
         console.log(`🎯 AcTiViTy API running on http://localhost:${PORT}`);
         startCleanupJob();
