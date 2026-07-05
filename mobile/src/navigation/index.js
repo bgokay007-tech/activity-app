@@ -8,6 +8,7 @@ import { setCredentials, setUser } from '../store/slices/authSlice';
 import { setLang } from '../store/slices/langSlice';
 import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform } from 'react-native';
+import RainbowLogo from '../components/RainbowLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
@@ -172,6 +173,8 @@ function AppTabs() {
     const tabBarHeight = 56 + insets.bottom;
     const t = useT();
     const userId = useSelector(s => s.auth.user?.id);
+    const lang = useSelector(s => s.lang?.lang || 'en');
+    const activityLogoText = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
     const [unreadNotifs, setUnreadNotifs] = useState(0);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
@@ -255,7 +258,12 @@ function AppTabs() {
             <Tab.Screen
                 name="ActivityTab"
                 component={ActivityStackNav}
-                options={{ tabBarLabel: 'Aktivite', tabBarIcon: ({ focused }) => <TabIcon label="Activity" active={focused} /> }}
+                options={{
+                    tabBarLabel: () => (
+                        <RainbowLogo text={activityLogoText} style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.5 }} />
+                    ),
+                    tabBarIcon: ({ focused }) => <TabIcon label="Activity" active={focused} />,
+                }}
             />
             <Tab.Screen
                 name="NotificationsTab"

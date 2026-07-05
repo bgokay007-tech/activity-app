@@ -1,12 +1,14 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import {
     View, Text, TouchableOpacity, FlatList,
     StyleSheet, StatusBar, Platform, ActivityIndicator,
     TextInput, Modal, ScrollView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
 import api from '../../services/api';
+import RainbowLogo from '../../components/RainbowLogo';
 
 const CATEGORY_TABS = [
     { key: '',       label: 'Tümü',   emoji: '🌟' },
@@ -130,6 +132,9 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
 }
 
 export default function ActivityFeedScreen({ navigation }) {
+    const lang = useSelector(s => s.lang?.lang || 'en');
+    const logoText = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
+
     const [items, setItems]       = useState([]);
     const [loading, setLoading]   = useState(false);
     const [category, setCategory] = useState('');
@@ -206,7 +211,7 @@ export default function ActivityFeedScreen({ navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <Text style={s.headerTitle}>🌟 Aktiviteler</Text>
+                <RainbowLogo text={logoText} style={{ fontSize: 22, fontWeight: '900', letterSpacing: 2 }} />
                 <TouchableOpacity style={[s.filterToggle, activeFilterCount > 0 && s.filterToggleActive]} onPress={openFilter} activeOpacity={0.8}>
                     <Text style={[s.filterToggleText, activeFilterCount > 0 && { color: colors.purple }]}>
                         {activeFilterCount > 0 ? `Filtre (${activeFilterCount})` : '⚙ Filtre'}

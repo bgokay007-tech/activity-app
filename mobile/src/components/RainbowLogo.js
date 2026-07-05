@@ -5,7 +5,7 @@ const COLORS = ['#FF0000','#FF6600','#FFD700','#00CC00','#00CED1','#0099FF','#7B
 const N = COLORS.length; // 8
 const CYCLE_MS = 2400;   // matches web
 
-export default function RainbowLogo({ style }) {
+export default function RainbowLogo({ style, text = 'AcTiViTy' }) {
     const anim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -20,7 +20,7 @@ export default function RainbowLogo({ style }) {
         return () => anim.stopAnimation();
     }, []);
 
-    const letters = 'AcTiViTy'.split('');
+    const letters = text.split('');
 
     return (
         <Text style={[{ fontSize: 28, fontWeight: '900', letterSpacing: 2, textAlign: 'center' }, style]}>
