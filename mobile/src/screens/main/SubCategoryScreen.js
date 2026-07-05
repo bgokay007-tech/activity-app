@@ -4220,7 +4220,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {f.selectedCourt && (
                                         <View style={s.selectedCourtBox}>
                                             <View style={{ flex:1 }}>
-                                                <Text style={s.selectedCourtText}>✅ {f.selectedCourt.venueName ? `${f.selectedCourt.venueName} · ` : ''}{f.selectedCourt.name}</Text>
+                                                <Text style={s.selectedCourtText}>✅ {[f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ')}</Text>
                                                 {f.reservationId && f.matchDate && (
                                                     <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>
                                                         📅 {f.matchDate.toLocaleDateString('tr-TR')} · {f.matchTime}{f.reservationEndTime ? `–${f.reservationEndTime}` : ''}{f.selectedCourt.totalPrice ? `  💰 ${f.selectedCourt.totalPrice}₺` : ''}
@@ -4466,7 +4466,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 setF(p => ({
                     ...p,
                     selectedCourt: court,
-                    courtSearchText: court.name,
+                    courtSearchText: [court.venueName, court.name].filter(Boolean).join(' '),
                     courtResults: [],
                     matchDate: new Date(date + 'T12:00:00'),
                     matchTime: startTime,
