@@ -5,7 +5,8 @@ import {
     getUpcomingMatches, getMyRequests,
     cancelRequest, enterScore, confirmScore, disputeScore, reportDispute,
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
-    extendScoreDeadline, getCountsBySubCategory, abandonMatch, cancelMatch, removeRivalParticipant,
+    extendScoreDeadline, getCountsBySubCategory, getActiveSubCategories, getLocationSuggestions,
+    abandonMatch, cancelMatch, removeRivalParticipant,
     getMatchComments, addMatchComment, deleteMatchComment,
     getMyUpcomingMatches, getMyMatchHistory,
     proposeSchedule, acceptSchedule, updateRivalRequest,
@@ -17,6 +18,8 @@ const router = Router();
 
 router.get('/',                      authenticate, getRivalRequests);
 router.get('/counts',                authenticate, getCountsBySubCategory);
+router.get('/sub-categories',        authenticate, getActiveSubCategories);
+router.get('/location-suggestions',  authenticate, getLocationSuggestions);
 router.post('/',                     authenticate, createRivalRequest);
 router.patch('/:id',                 authenticate, updateRivalRequest);
 router.get('/upcoming',              authenticate, getUpcomingMatches);

@@ -308,6 +308,44 @@ export const getRivalById = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const getLocationSuggestions = async (req, res, next) => {
+    try {
+        const { q = '', type = 'city' } = req.query;
+        const field = type === 'district' ? 'courtAddress' : 'location';
+        const now = new Date();
+        const rows = await prisma.activityRequest.findMany({
+            where: {
+                status: 'OPEN',
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+                [field]: { contains: q, mode: 'insensitive', not: null },
+            },
+            select: { [field]: true },
+            distinct: [field],
+            take: 8,
+        });
+        const suggestions = [...new Set(
+            rows.map(r => r[field]).filter(Boolean).map(v => v.trim())
+        )].filter(v => v.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
+        res.json(suggestions);
+    } catch (error) { next(error); }
+};
+
+export const getActiveSubCategories = async (req, res, next) => {
+    try {
+        const now = new Date();
+        const rows = await prisma.activityRequest.groupBy({
+            by: ['subCategory', 'category'],
+            where: { status: 'OPEN', OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+            _count: { id: true },
+        });
+        // Return distinct [{ subCategory, category }] sorted by count desc
+        const result = rows
+            .sort((a, b) => b._count.id - a._count.id)
+            .map(r => ({ subCategory: r.subCategory, category: r.category }));
+        res.json(result);
+    } catch (error) { next(error); }
+};
+
 export const getCountsBySubCategory = async (req, res, next) => {
     try {
         const { category } = req.query;
