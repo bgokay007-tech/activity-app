@@ -4,7 +4,7 @@ import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
-    InteractionManager, PanResponder, Animated,
+    InteractionManager, PanResponder, Animated, Dimensions,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -3733,18 +3733,18 @@ const vb = StyleSheet.create({
 
     // Çok sütunlu kort görünümü
     courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:8, paddingVertical:8, gap:8 },
-    courtCol:     { width:150, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
+    courtCol:     { width:150, height: Dimensions.get('window').height - 220, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
     courtColTitle:{ color:'#fff', fontSize:13, fontWeight:'800', textAlign:'center', marginBottom:5, letterSpacing:0.3 },
     lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, marginBottom:5 },
     courtColLight:{ color:'#fbbf24', fontSize:10 },
     lightsInfoBtn:{ width:15, height:15, borderRadius:8, backgroundColor:'#fbbf2430', borderWidth:1, borderColor:'#fbbf2460', alignItems:'center', justifyContent:'center' },
     lightsInfoTxt:{ color:'#fbbf24', fontSize:9, fontWeight:'800', lineHeight:13 },
-    colSlot:      { borderRadius:7, paddingVertical:6, paddingHorizontal:4, marginBottom:4, alignItems:'center', borderWidth:1 },
+    colSlot:      { borderRadius:5, padding:3, marginBottom:3, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#450a0a', borderColor:'#7f1d1d', opacity:0.7 },
     colSlotSel:   { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2 },
-    colSlotT:     { color:'#4ade80', fontSize:13, fontWeight:'700' },
-    colSlotSub:   { color:'#4ade80', fontSize:10, opacity:0.7 },
+    colSlotT:     { color:'#4ade80', fontSize:12, fontWeight:'700' },
+    colSlotSub:   { color:'#4ade80', fontSize:9, opacity:0.7 },
     colEmpty:     { color:'#555', fontSize:11, textAlign:'center', marginTop:8 },
     selSummary:   { backgroundColor:'#22c55e18', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor:'#22c55e40' },
     selSummaryTxt:{ color:'#4ade80', fontSize:13, fontWeight:'700', textAlign:'center' },
