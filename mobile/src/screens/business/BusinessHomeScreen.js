@@ -1284,9 +1284,27 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         saveOpenSlots(next);
     };
 
+    // "Tüm günlere uygula" — Tüm Kortlar modunda: tüm 7 gün key'ine yaz + global şablon('0')
     const handleSetAsDefault = () => {
-        if (!isCustomized || selectedCourt) return; // Sadece "Tüm Kortlar" modunda
+        if (!isCustomized || selectedCourt) return;
         const next = { ...localOpenSlots, '0': dayWindows };
+        ['1','2','3','4','5','6','7'].forEach(d => { next[d] = [...dayWindows]; });
+        saveOpenSlots(next);
+    };
+
+    // "Tüm günlere uygula" — Belirli kort modunda: bu kortun bu günkü saatlerini tüm günlere yaz
+    const handleApplyCourtAllDays = () => {
+        if (!isCustomized || !selectedCourt) return;
+        const next = { ...localOpenSlots };
+        ['1','2','3','4','5','6','7'].forEach(d => { next[`${selectedCourt}_${d}`] = [...dayWindows]; });
+        saveOpenSlots(next);
+    };
+
+    // "Tüm kortlara uygula" — Bu günkü saatleri tüm kortların bu günü için yaz
+    const handleApplyToAllCourts = () => {
+        if (!isCustomized || !selectedCourt) return;
+        const next = { ...localOpenSlots };
+        sortedCourts.forEach(c => { next[`${c.id}_${dayKey}`] = [...dayWindows]; });
         saveOpenSlots(next);
     };
 
@@ -1698,18 +1716,33 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                     </View>
                                 );
                             })}
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
                                 <TouchableOpacity onPress={handleResetDay}
                                     style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: '#ffffff0a',
                                         borderWidth: 1, borderColor: '#ffffff15' }}>
-                                    <Text style={{ color: '#6b7280', fontSize: 11 }}>↺ Varsayılana sıfırla</Text>
+                                    <Text style={{ color: '#6b7280', fontSize: 11 }}>↺ Sıfırla</Text>
                                 </TouchableOpacity>
-                                {!selectedCourt && (
+                                {!selectedCourt ? (
+                                    /* Tüm Kortlar modunda: tüm günlere uygula */
                                     <TouchableOpacity onPress={handleSetAsDefault}
                                         style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '15',
                                             borderWidth: 1, borderColor: BIZ_COLOR + '35' }}>
                                         <Text style={{ color: BIZ_COLOR, fontSize: 11, fontWeight: '700' }}>⊙ Tüm günlere uygula</Text>
                                     </TouchableOpacity>
+                                ) : (
+                                    /* Belirli kort modunda: tüm kortlara + tüm günlere */
+                                    <>
+                                        <TouchableOpacity onPress={handleApplyToAllCourts}
+                                            style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '15',
+                                                borderWidth: 1, borderColor: BIZ_COLOR + '35' }}>
+                                            <Text style={{ color: BIZ_COLOR, fontSize: 11, fontWeight: '700' }}>↔ Tüm kortlara uygula</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={handleApplyCourtAllDays}
+                                            style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '15',
+                                                borderWidth: 1, borderColor: BIZ_COLOR + '35' }}>
+                                            <Text style={{ color: BIZ_COLOR, fontSize: 11, fontWeight: '700' }}>↕ Tüm günlere uygula</Text>
+                                        </TouchableOpacity>
+                                    </>
                                 )}
                             </View>
                         </>
