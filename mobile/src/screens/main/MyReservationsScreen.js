@@ -7,11 +7,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
+import useT from '../../hooks/useT';
 
 const STATUS_COLOR = { PENDING: '#eab308', CONFIRMED: '#22c55e', CANCELLED: '#6b7280' };
-const STATUS_LABEL = { PENDING: 'Bekliyor', CONFIRMED: 'Onaylandı', CANCELLED: 'İptal' };
 
-// Tesisteki Türkçe spor dalını SubCategoryScreen sub anahtarına çevir
 function branchToSub(branch) {
     const b = (branch || '').toLowerCase();
     if (b.includes('padel'))                             return { sub: 'padel',      cat: 'SPORTS' };
@@ -30,14 +29,20 @@ function calcDuration(start, end) {
 }
 
 function ReservationCard({ item, onCancel, onReschedule, navigation }) {
-    const [cancelling,    setCanc]    = useState(false);
-    const [rescheduling,  setRSched]  = useState(false);
+    const t = useT();
+    const [cancelling,   setCanc]   = useState(false);
+    const [rescheduling, setRSched] = useState(false);
     const [showReschedule, setShowRS] = useState(false);
-    const [newDate,   setNewDate]   = useState('');
-    const [newStart,  setNewStart]  = useState('');
-    const [newEnd,    setNewEnd]    = useState('');
+    const [newDate,  setNewDate]  = useState('');
+    const [newStart, setNewStart] = useState('');
+    const [newEnd,   setNewEnd]   = useState('');
+
     const sc = STATUS_COLOR[item.status] || '#9ca3af';
-    const sl = STATUS_LABEL[item.status] || item.status;
+    const sl = {
+        PENDING:   t.resStatusPending,
+        CONFIRMED: t.resStatusConfirmed,
+        CANCELLED: t.resStatusCancelled,
+    }[item.status] || item.status;
 
     const today = new Date().toISOString().slice(0, 10);
     const isPast = item.date < today;
@@ -57,19 +62,19 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
     const canRival = item.status !== 'CANCELLED' && !isPast;
 
     const handleCancel = () => {
-        Alert.alert('İptal Et', 'Bu rezervasyonu iptal etmek istiyor musunuz?', [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: 'İptal Et', style: 'destructive', onPress: async () => {
+        Alert.alert(t.resCancelTitle, t.resCancelMsg, [
+            { text: t.cancelBtn, style: 'cancel' },
+            { text: t.resCancelBtn, style: 'destructive', onPress: async () => {
                 setCanc(true);
                 try { await api.delete(`/venues/reservations/${item.id}`); onCancel(item.id); }
-                catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İptal edilemedi'); }
+                catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.resCancelBtn); }
                 finally { setCanc(false); }
             }},
         ]);
     };
 
     const handleReschedule = async () => {
-        if (!newDate || !newStart || !newEnd) { Alert.alert('Hata', 'Tüm alanları doldurun'); return; }
+        if (!newDate || !newStart || !newEnd) { Alert.alert(t.error, t.resReschedAllFields); return; }
         setRSched(true);
         try {
             const { data } = await api.patch(`/venues/reservations/${item.id}/reschedule`, {
@@ -77,7 +82,7 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
             });
             onReschedule(item.id, data.reservation);
             setShowRS(false);
-        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Değiştirilemedi'); }
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.resRescheduleFailed); }
         finally { setRSched(false); }
     };
 
@@ -86,24 +91,24 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
         const courtName = item.court?.name || '';
         const { sub, cat } = branchToSub(item.venue?.branch);
         Alert.alert(
-            '🆚 Rakip Bul\'da İlan Aç',
-            `${venueName} · ${courtName}\n${item.date} · ${item.startTime}–${item.endTime}\n\nİlan oluşturma sayfasına yönlendirileceksiniz.`,
+            t.resCreateRivalTitle,
+            t.resCreateRivalMsg(venueName, courtName, item.date, item.startTime, item.endTime),
             [
-                { text: 'Vazgeç', style: 'cancel' },
-                { text: 'İlan Aç', onPress: () => {
+                { text: t.cancelBtn, style: 'cancel' },
+                { text: t.resCreateRivalGoBtn, onPress: () => {
                     navigation.navigate('SubCategory', {
                         category: cat,
                         sub,
                         initialTab: 'rivals',
                         openCreateRival: true,
-                        prefillDate:          item.date,
-                        prefillTime:          item.startTime,
-                        prefillDuration:      calcDuration(item.startTime, item.endTime),
-                        prefillCourtName:     [venueName, courtName].filter(Boolean).join(' ') || undefined,
-                        prefillCity:          item.venue?.city || undefined,
-                        prefillVenueId:       item.venueId || undefined,
-                        prefillVenueCourtId:  item.courtId || undefined,
-                        prefillCourtFee:      item.venue?.pricePerSlot || undefined,
+                        prefillDate:         item.date,
+                        prefillTime:         item.startTime,
+                        prefillDuration:     calcDuration(item.startTime, item.endTime),
+                        prefillCourtName:    [venueName, courtName].filter(Boolean).join(' ') || undefined,
+                        prefillCity:         item.venue?.city || undefined,
+                        prefillVenueId:      item.venueId || undefined,
+                        prefillVenueCourtId: item.courtId || undefined,
+                        prefillCourtFee:     item.venue?.pricePerSlot || undefined,
                     });
                 }},
             ]
@@ -136,7 +141,7 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
             )}
             {item.paymentMethod && (
                 <Text style={s.payText}>
-                    {item.paymentMethod === 'CASH' ? '💵 Kort Başında Ödeme' : '💳 Online Ödeme'}
+                    {item.paymentMethod === 'CASH' ? t.resPayCash : t.resPayOnline}
                 </Text>
             )}
 
@@ -145,33 +150,33 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
                     <TouchableOpacity style={s.cancelBtn} onPress={handleCancel} disabled={cancelling} activeOpacity={0.8}>
                         {cancelling
                             ? <ActivityIndicator size="small" color="#f87171" />
-                            : <Text style={s.cancelBtnText}>İptal Et</Text>}
+                            : <Text style={s.cancelBtnText}>{t.resCancelBtn}</Text>}
                     </TouchableOpacity>
                 )}
                 {cancelBlocked && (
                     <View style={[s.cancelBtn, { opacity: 0.4 }]}>
                         <Text style={s.cancelBtnText}>
-                            {cb < 0 ? 'İptal Kapalı' : `İptal: ${cb}s önce`}
+                            {cb < 0 ? t.resCancelDisabled : t.resCancelBeforeHours(cb)}
                         </Text>
                     </View>
                 )}
                 {canReschedule && (
                     <TouchableOpacity style={s.reschedBtn} onPress={() => setShowRS(v => !v)} activeOpacity={0.8}>
-                        <Text style={s.reschedBtnText}>📅 Değiştir</Text>
+                        <Text style={s.reschedBtnText}>{t.resReschedBtn}</Text>
                     </TouchableOpacity>
                 )}
                 {canRival && (
                     <TouchableOpacity style={s.rivalBtn} onPress={handleCreateRival} activeOpacity={0.8}>
-                        <Text style={s.rivalBtnText}>🆚 Rakip Bul'da İlan Aç</Text>
+                        <Text style={s.rivalBtnText}>{t.resCreateRivalBtn}</Text>
                     </TouchableOpacity>
                 )}
             </View>
 
             {showReschedule && (
                 <View style={s.reschedForm}>
-                    <Text style={s.reschedLabel}>Yeni Tarih & Saat</Text>
+                    <Text style={s.reschedLabel}>{t.resReschedDateLabel}</Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                        <TextInput style={s.reschedInput} placeholder="YYYY-AA-GG" placeholderTextColor="#555"
+                        <TextInput style={s.reschedInput} placeholder={t.resReschedDatePh} placeholderTextColor="#555"
                             value={newDate} onChangeText={setNewDate} keyboardType="numbers-and-punctuation" />
                     </View>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
@@ -184,13 +189,13 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                         <TouchableOpacity onPress={() => setShowRS(false)}
                             style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ffffff10', alignItems: 'center' }}>
-                            <Text style={{ color: '#aaa', fontSize: 12 }}>Vazgeç</Text>
+                            <Text style={{ color: '#aaa', fontSize: 12 }}>{t.cancelBtn}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={handleReschedule} disabled={rescheduling}
                             style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#3b82f630', alignItems: 'center' }}>
                             {rescheduling
                                 ? <ActivityIndicator size="small" color="#60a5fa" />
-                                : <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>Kaydet</Text>}
+                                : <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>{t.resReschedSaveBtn}</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -200,10 +205,11 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
 }
 
 export default function MyReservationsScreen({ navigation, route }) {
+    const t = useT();
     const { sportFilter } = route?.params || {};
     const [reservations, setRes] = useState([]);
-    const [loading, setLoading]   = useState(false);
-    const [filter, setFilter]     = useState('upcoming'); // upcoming | past | all
+    const [loading, setLoading]  = useState(false);
+    const [filter, setFilter]    = useState('upcoming');
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
@@ -211,7 +217,7 @@ export default function MyReservationsScreen({ navigation, route }) {
             const { data } = await api.get('/venues/reservations/mine');
             setRes(data);
         } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Yüklenemedi');
+            Alert.alert(t.error, e?.response?.data?.message || t.resLoadFailed);
         } finally { setLoading(false); }
     }, []);
 
@@ -223,9 +229,9 @@ export default function MyReservationsScreen({ navigation, route }) {
         });
     }, []);
 
-    const now     = new Date();
-    const today   = now.toISOString().slice(0, 10);
-    const isPast  = (r) => {
+    const now    = new Date();
+    const today  = now.toISOString().slice(0, 10);
+    const isPast = (r) => {
         if (r.date < today) return true;
         if (r.date === today && r.endTime) {
             const [h, m] = r.endTime.split(':').map(Number);
@@ -234,6 +240,7 @@ export default function MyReservationsScreen({ navigation, route }) {
         }
         return false;
     };
+
     const awaitCount = reservations.filter(r =>
         r.status === 'PENDING' && r.paymentMethod === 'CASH' &&
         new Date(`${r.date}T${r.startTime}:00`) <= now
@@ -247,9 +254,14 @@ export default function MyReservationsScreen({ navigation, route }) {
         if (filter === 'upcoming') return !isPast(r) && r.status === 'CONFIRMED';
         if (filter === 'pending')  return !isPast(r) && r.status === 'PENDING';
         if (filter === 'await')    return r.status === 'PENDING' && r.paymentMethod === 'CASH' && new Date(`${r.date}T${r.startTime}:00`) <= now;
-        if (filter === 'past')     return isPast(r)  || r.status === 'CANCELLED';
+        if (filter === 'past')     return isPast(r) || r.status === 'CANCELLED';
         return true;
     });
+
+    const emptyText = filter === 'upcoming' ? t.resEmptyUpcoming
+        : filter === 'pending' ? t.resEmptyPending
+        : filter === 'await'   ? t.resEmptyAwait
+        : t.resEmpty;
 
     return (
         <View style={s.root}>
@@ -258,17 +270,16 @@ export default function MyReservationsScreen({ navigation, route }) {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
                 </TouchableOpacity>
-                <Text style={s.title}>📅 Rezervasyonlarım</Text>
+                <Text style={s.title}>{t.resTitle}</Text>
             </View>
 
-            {/* Filtre */}
             <View style={s.filterRow}>
                 {[
-                    { key: 'upcoming', label: 'Yaklaşan' },
-                    { key: 'pending',  label: 'Bekliyor' },
-                    { key: 'await',    label: awaitCount > 0 ? `Onay Bekliyor (${awaitCount})` : 'Onay Bekliyor' },
-                    { key: 'past',     label: 'Geçmiş' },
-                    { key: 'all',      label: 'Tümü' },
+                    { key: 'upcoming', label: t.resFilterUpcoming },
+                    { key: 'pending',  label: t.resFilterPending },
+                    { key: 'await',    label: awaitCount > 0 ? t.resFilterAwaitCount(awaitCount) : t.resFilterAwait },
+                    { key: 'past',     label: t.resFilterPast },
+                    { key: 'all',      label: t.resFilterAll },
                 ].map(f => (
                     <TouchableOpacity
                         key={f.key}
@@ -291,15 +302,10 @@ export default function MyReservationsScreen({ navigation, route }) {
                     ListEmptyComponent={
                         <View style={s.empty}>
                             <Text style={s.emptyIcon}>📭</Text>
-                            <Text style={s.emptyText}>
-                                {filter === 'upcoming' ? 'Onaylanmış yaklaşan rezervasyon yok.'
-                                    : filter === 'pending' ? 'Onay bekleyen rezervasyon yok.'
-                                    : filter === 'await' ? 'Onay bekleyen geçmiş rezervasyon yok.'
-                                    : 'Rezervasyon bulunamadı.'}
-                            </Text>
+                            <Text style={s.emptyText}>{emptyText}</Text>
                             {(filter === 'upcoming' || filter === 'pending') && (
                                 <TouchableOpacity style={s.newResBtn} onPress={() => navigation.navigate('VenueSearch')} activeOpacity={0.8}>
-                                    <Text style={s.newResBtnText}>Tesis Ara →</Text>
+                                    <Text style={s.newResBtnText}>{t.resSearchVenue}</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
