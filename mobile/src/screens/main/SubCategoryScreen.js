@@ -4368,7 +4368,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         <View>
                                             <Text style={[s.fieldLabel, { marginTop:-6 }]}>{t.venueLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:0 }]}>
-                                                {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor}].map(vt => (
+                                                {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor},...(isPadel ? [{id:'INDOOR_AC',label:t.indoorAc}] : [])].map(vt => (
                                                     <TouchableOpacity key={vt.id} onPress={() => set('venueType', vt.id)}
                                                         style={[s.chipBtn, f.venueType===vt.id && s.chipBtnActive]}>
                                                         <Text style={[s.chipBtnText, f.venueType===vt.id && s.chipBtnTextActive]}>{vt.label}</Text>
