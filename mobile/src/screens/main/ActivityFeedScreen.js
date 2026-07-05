@@ -252,14 +252,18 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
     const [tmp, setTmp] = useState(selSubs);
     useEffect(() => { if (visible) setTmp(selSubs); }, [visible]);
 
-    const toggle = (key) => setTmp(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+    // Seçili kategorilere göre gösterilecek dallar
+    // selCats boşsa tüm kategoriler, doluysa sadece seçilenler
+    const visibleCats = selCats.length === 0
+        ? categories
+        : categories.filter(c => selCats.includes(c.key));
 
-    const visibleCats = categories.filter(c => selCats.length === 0 || selCats.includes(c.key));
+    const toggle = (key) => setTmp(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={m.overlay}>
-                <View style={[m.sheet, { maxHeight: '85%' }]}>
+                <View style={[m.sheet, { height: '85%' }]}>
                     <View style={m.handle} />
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Text style={m.title}>⚡ Dal Seç</Text>
@@ -269,7 +273,7 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
                             </TouchableOpacity>
                         )}
                     </View>
-                    <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                    <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
                         {visibleCats.map(cat => {
                             if (!cat.subs || cat.subs.length === 0) return null;
                             return (
@@ -744,7 +748,7 @@ const cal = StyleSheet.create({
 
 const m = StyleSheet.create({
     overlay:  { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
-    sheet:    { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 24, gap: 10, maxHeight: '90%' },
+    sheet:    { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 24, gap: 10, maxHeight: '90%', flexDirection: 'column' },
     handle:   { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 6 },
     title:    { color: '#fff', fontSize: 17, fontWeight: '900' },
     subLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
