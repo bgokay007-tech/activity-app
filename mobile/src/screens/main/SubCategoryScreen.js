@@ -3461,7 +3461,9 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                 date: selDate, startTime: slot.start, endTime, paymentMethod: payMethod,
             });
             const reservationId = resResp.data?.reservation?.id || null;
-            const courtObj = { name: activeCourt?.name || '', venueId, courtId, id: courtId, city: venue?.city };
+            const slotDurMins = (courtData?.type === 'FLEXIBLE' || courtData?.type === 'VAR_DURATION') ? flexDur : 60;
+            const courtTotalPrice = venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0;
+            const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice };
             onBooked?.(courtObj, selDate, slot.start, endTime, reservationId);
             setBooked(true);
         } catch (e) {
@@ -4218,9 +4220,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {f.selectedCourt && (
                                         <View style={s.selectedCourtBox}>
                                             <View style={{ flex:1 }}>
-                                                <Text style={s.selectedCourtText}>✅ {f.selectedCourt.name}</Text>
-                                                {f.reservationId && (
-                                                    <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>📅 Rezervasyon yapıldı</Text>
+                                                <Text style={s.selectedCourtText}>✅ {f.selectedCourt.venueName ? `${f.selectedCourt.venueName} · ` : ''}{f.selectedCourt.name}</Text>
+                                                {f.reservationId && f.matchDate && (
+                                                    <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>
+                                                        📅 {f.matchDate.toLocaleDateString('tr-TR')} · {f.matchTime}{f.reservationEndTime ? `–${f.reservationEndTime}` : ''}{f.selectedCourt.totalPrice ? `  💰 ${f.selectedCourt.totalPrice}₺` : ''}
+                                                    </Text>
                                                 )}
                                             </View>
                                             <View style={{ flexDirection:'row', gap:6 }}>
@@ -4466,6 +4470,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     courtResults: [],
                     matchDate: new Date(date + 'T12:00:00'),
                     matchTime: startTime,
+                    reservationEndTime: endTime || null,
                     venueId: court.venueId || null,
                     venueCourtId: court.courtId || null,
                     reservationId: reservationId || null,
