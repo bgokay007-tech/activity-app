@@ -855,6 +855,7 @@ model BusinessVenue {
   cancelHoursBefore     Int?                           // null=her zaman, -1=asla, N>=0=N saat öncesine kadar
   rescheduleHoursBefore Int?                           // null=her zaman, -1=asla, N>=0=N saat öncesine kadar
   acceptedPayments      Json     @default("[\"CASH\",\"EFT\"]") // kabul edilen ödeme yöntemleri
+  pricingWindows        Json?                              // [{from,to,price,courtId?}] saat aralığı fiyatları
   status       String   @default("PENDING")   // PENDING | APPROVED | REJECTED
   adminNote   String?
   createdAt   DateTime @default(now())
@@ -872,9 +873,10 @@ model VenueCourt {
   id         String  @id @default(uuid())
   venueId    String
   name       String
-  slotType   String?
-  surface    String?
-  lightsFrom String?
+  slotType     String?
+  surface      String?
+  lightsFrom   String?
+  pricePerSlot Int?    // null = tesis varsayılanı kullan
 
   venue        BusinessVenue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
   reservations CourtReservation[]

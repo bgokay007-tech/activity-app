@@ -23,6 +23,7 @@ function formatDateLabel(dateStr) {
 }
 
 function SlotBubble({ slot, selected, onPress }) {
+    const priceLabel = slot.price != null ? (slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz') : null;
     return (
         <TouchableOpacity
             style={[ss.bubble, !slot.free && ss.bubbleTaken, selected && ss.bubbleSelected]}
@@ -36,6 +37,9 @@ function SlotBubble({ slot, selected, onPress }) {
             <Text style={[ss.bubbleDash, !slot.free && ss.bubbleTimeTaken, selected && ss.bubbleTimeSelected]}>
                 –{slot.end}
             </Text>
+            {priceLabel && slot.free !== false && (
+                <Text style={[ss.bubblePrice, selected && ss.bubblePriceSelected]}>{priceLabel}</Text>
+            )}
         </TouchableOpacity>
     );
 }
@@ -56,7 +60,7 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
                             { label: 'Tesis', value: venue.name },
                             { label: 'Kort', value: court.name },
                             { label: 'Saat', value: `${slot.start} – ${slot.end}` },
-                            { label: 'Ücret', value: venue.pricePerSlot > 0 ? `${venue.pricePerSlot}₺` : 'Ücretsiz' },
+                            { label: 'Ücret', value: (() => { const p = slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() },
                         ].map(row => (
                             <View key={row.label} style={cm.infoRow}>
                                 <Text style={cm.infoLabel}>{row.label}</Text>
@@ -278,6 +282,8 @@ const ss = StyleSheet.create({
     bubbleDash: { color: colors.purple + '99', fontSize: 11, marginTop: 2 },
     bubbleTimeTaken: { color: colors.textMuted },
     bubbleTimeSelected: { color: '#fff' },
+    bubblePrice: { color: colors.purple, fontSize: 10, fontWeight: '800', marginTop: 4 },
+    bubblePriceSelected: { color: '#ffffffcc' },
 });
 
 const cm = StyleSheet.create({

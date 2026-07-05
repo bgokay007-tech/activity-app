@@ -1077,6 +1077,27 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     );
     const [showVenueLightsPicker, setShowVenueLightsPicker] = useState(false);
     const [savingSlot, setSavingSlot]         = useState(false);
+
+    // ── Fiyatlandırma state ───────────────────────────────────────────────────
+    const [localPricingWindows, setLocalPricingWindows] = useState(
+        () => Array.isArray(venue.pricingWindows) ? venue.pricingWindows : []
+    );
+    const [courtPrices, setCourtPrices] = useState(() => {
+        const init = {};
+        (venue.courts || []).forEach(c => { init[c.id] = c.pricePerSlot != null ? String(c.pricePerSlot) : ''; });
+        return init;
+    });
+    const [defaultPrice, setDefaultPrice] = useState(String(venue.pricePerSlot || 0));
+    const [editDefaultPrice, setEditDefaultPrice] = useState(false);
+    const [addingPriceRule, setAddingPriceRule] = useState(false);
+    const [newRuleFrom, setNewRuleFrom] = useState('');
+    const [newRuleTo, setNewRuleTo]     = useState('');
+    const [newRulePrice, setNewRulePrice] = useState('');
+    const [newRuleCourtId, setNewRuleCourtId] = useState(null);
+    const [savingPrice, setSavingPrice] = useState(false);
+    const [showPriceFromPicker, setShowPriceFromPicker] = useState(false);
+    const [showPriceToPicker, setShowPriceToPicker]     = useState(false);
+
     const sortedCourts = [...(venue.courts || [])].sort((a, b) => {
         const nA = parseInt(a.name.match(/\d+/)?.[0] ?? '', 10);
         const nB = parseInt(b.name.match(/\d+/)?.[0] ?? '', 10);
@@ -1233,6 +1254,54 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
             );
             setVenueLights(lightsFrom || null);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+    };
+
+    const handleSaveDefaultPrice = async () => {
+        const p = parseInt(defaultPrice);
+        if (isNaN(p) || p < 0) { Alert.alert('Hata', 'Geçerli bir fiyat giriniz'); return; }
+        setSavingPrice(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { pricePerSlot: p });
+            setEditDefaultPrice(false);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingPrice(false); }
+    };
+
+    const handleSaveCourtPrice = async (courtId) => {
+        const raw = courtPrices[courtId];
+        const p = raw === '' ? null : parseInt(raw);
+        if (raw !== '' && (isNaN(p) || p < 0)) { Alert.alert('Hata', 'Geçerli bir fiyat giriniz'); return; }
+        setSavingPrice(true);
+        try {
+            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { pricePerSlot: p });
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingPrice(false); }
+    };
+
+    const handleAddPricingRule = async () => {
+        if (!newRuleFrom || !newRuleTo || newRulePrice === '') { Alert.alert('Hata', 'Saat aralığı ve fiyat giriniz'); return; }
+        const price = parseInt(newRulePrice);
+        if (isNaN(price) || price < 0) { Alert.alert('Hata', 'Geçerli fiyat giriniz'); return; }
+        const rule = { from: newRuleFrom, to: newRuleTo, price, courtId: newRuleCourtId || null };
+        const next = [...localPricingWindows, rule];
+        setSavingPrice(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { pricingWindows: next });
+            setLocalPricingWindows(next);
+            setAddingPriceRule(false);
+            setNewRuleFrom(''); setNewRuleTo(''); setNewRulePrice(''); setNewRuleCourtId(null);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingPrice(false); }
+    };
+
+    const handleDeletePricingRule = async (idx) => {
+        const next = localPricingWindows.filter((_, i) => i !== idx);
+        setSavingPrice(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { pricingWindows: next });
+            setLocalPricingWindows(next);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingPrice(false); }
     };
 
     const isValidTime = isValidTimeStr;
@@ -2009,10 +2078,235 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                     </Text>
                                 )}
 
+                                {/* Kort başına fiyat override */}
+                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 4, letterSpacing: 0.5 }}>
+                                    KORT ÜCRETI (OPSİYONEL)
+                                </Text>
+                                <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
+                                    Boş bırakırsanız tesis varsayılan fiyatı geçerli olur.
+                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <TextInput
+                                        style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                            paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
+                                            fontSize: 14, borderWidth: 1,
+                                            borderColor: courtPrices[court.id] !== '' ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                        placeholder="Tesis varsayılanı"
+                                        placeholderTextColor="#444"
+                                        keyboardType="number-pad"
+                                        value={courtPrices[court.id] ?? ''}
+                                        onChangeText={v => setCourtPrices(prev => ({ ...prev, [court.id]: v }))}
+                                        returnKeyType="done"
+                                    />
+                                    <Text style={{ color: '#555', fontSize: 14 }}>₺</Text>
+                                    <TouchableOpacity disabled={savingPrice}
+                                        onPress={() => handleSaveCourtPrice(court.id)}
+                                        style={{ backgroundColor: BIZ_COLOR + '25', borderRadius: 8,
+                                            paddingHorizontal: 12, paddingVertical: 7,
+                                            borderWidth: 1, borderColor: BIZ_COLOR + '50' }}>
+                                        <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Kaydet</Text>
+                                    </TouchableOpacity>
+                                </View>
+
                             </View>
                         );
                     })}
                     {savingSlot && <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 10 }} />}
+
+                    {/* ── Fiyatlandırma ──── */}
+                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 12, letterSpacing: 0.5 }}>
+                        FİYATLANDIRMA
+                    </Text>
+
+                    {/* Varsayılan fiyat */}
+                    <View style={{ marginBottom: 14 }}>
+                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                            SLOT BAŞI VARSAYILAN ÜCRET
+                        </Text>
+                        {editDefaultPrice ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                                <TextInput
+                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                        paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
+                                        fontSize: 14, borderWidth: 1, borderColor: BIZ_COLOR + '60' }}
+                                    keyboardType="number-pad"
+                                    value={defaultPrice}
+                                    onChangeText={setDefaultPrice}
+                                    autoFocus
+                                    returnKeyType="done"
+                                    onSubmitEditing={handleSaveDefaultPrice}
+                                />
+                                <Text style={{ color: '#555', fontSize: 14 }}>₺</Text>
+                                <TouchableOpacity disabled={savingPrice} onPress={handleSaveDefaultPrice}
+                                    style={{ backgroundColor: BIZ_COLOR + '25', borderRadius: 8,
+                                        paddingHorizontal: 12, paddingVertical: 7,
+                                        borderWidth: 1, borderColor: BIZ_COLOR + '50' }}>
+                                    {savingPrice
+                                        ? <ActivityIndicator size="small" color={BIZ_COLOR} />
+                                        : <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Kaydet</Text>}
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setEditDefaultPrice(false)}>
+                                    <Text style={{ color: '#555', fontSize: 13 }}>İptal</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <TouchableOpacity onPress={() => setEditDefaultPrice(true)}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                                <Text style={{ color: BIZ_LIGHT, fontSize: 20, fontWeight: '900' }}>
+                                    {parseInt(defaultPrice) > 0 ? `${defaultPrice}₺` : 'Ücretsiz'}
+                                </Text>
+                                <Text style={{ color: '#555', fontSize: 12 }}>· Düzenle</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {/* Saat aralığı kuralları */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
+                            SAAT ARALIĞI KURALLARI
+                        </Text>
+                        {!addingPriceRule && (
+                            <TouchableOpacity onPress={() => setAddingPriceRule(true)}
+                                style={{ backgroundColor: BIZ_COLOR + '20', borderRadius: 6,
+                                    paddingHorizontal: 10, paddingVertical: 4,
+                                    borderWidth: 1, borderColor: BIZ_COLOR + '40' }}>
+                                <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 12 }}>+ Ekle</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 15 }}>
+                        Belirli saat aralıklarına özel fiyat tanımlayın. Önce kort+aralık eşleşmesi, sonra tüm kortlar için aralık, sonra kort fiyatı, en son varsayılan geçerli olur.
+                    </Text>
+
+                    {localPricingWindows.length === 0 && !addingPriceRule && (
+                        <Text style={{ color: '#444', fontSize: 12, marginBottom: 10 }}>Henüz saat aralığı kuralı yok.</Text>
+                    )}
+
+                    {localPricingWindows.map((rule, idx) => {
+                        const courtName = rule.courtId
+                            ? (venue.courts || []).find(c => c.id === rule.courtId)?.name || 'Bilinmeyen Kort'
+                            : 'Tüm Kortlar';
+                        return (
+                            <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                                backgroundColor: '#ffffff08', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9,
+                                marginBottom: 6, borderWidth: 1, borderColor: '#ffffff12' }}>
+                                <View>
+                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>
+                                        {rule.from} – {rule.to} · {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}
+                                    </Text>
+                                    <Text style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{courtName}</Text>
+                                </View>
+                                <TouchableOpacity disabled={savingPrice} onPress={() => handleDeletePricingRule(idx)}
+                                    style={{ padding: 4 }}>
+                                    <Text style={{ color: '#cc4444', fontSize: 16 }}>🗑</Text>
+                                </TouchableOpacity>
+                            </View>
+                        );
+                    })}
+
+                    {addingPriceRule && (
+                        <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12,
+                            marginBottom: 10, borderWidth: 1, borderColor: BIZ_COLOR + '30' }}>
+                            <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13, marginBottom: 10 }}>
+                                Yeni Kural
+                            </Text>
+
+                            {/* Saat aralığı */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                <TouchableOpacity onPress={() => setShowPriceFromPicker(true)}
+                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                        paddingHorizontal: 12, paddingVertical: 9, borderWidth: 1,
+                                        borderColor: newRuleFrom ? BIZ_COLOR + '60' : '#ffffff15', alignItems: 'center' }}>
+                                    <Text style={{ color: newRuleFrom ? BIZ_LIGHT : '#444', fontWeight: '700' }}>
+                                        {newRuleFrom || 'Başlangıç'}
+                                    </Text>
+                                </TouchableOpacity>
+                                <Text style={{ color: '#444' }}>–</Text>
+                                <TouchableOpacity onPress={() => setShowPriceToPicker(true)}
+                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                        paddingHorizontal: 12, paddingVertical: 9, borderWidth: 1,
+                                        borderColor: newRuleTo ? BIZ_COLOR + '60' : '#ffffff15', alignItems: 'center' }}>
+                                    <Text style={{ color: newRuleTo ? BIZ_LIGHT : '#444', fontWeight: '700' }}>
+                                        {newRuleTo || 'Bitiş'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Fiyat */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                <TextInput
+                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                        paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
+                                        fontSize: 14, borderWidth: 1,
+                                        borderColor: newRulePrice !== '' ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                    placeholder="Fiyat"
+                                    placeholderTextColor="#444"
+                                    keyboardType="number-pad"
+                                    value={newRulePrice}
+                                    onChangeText={setNewRulePrice}
+                                />
+                                <Text style={{ color: '#555', fontSize: 14 }}>₺</Text>
+                            </View>
+
+                            {/* Kort seçimi */}
+                            <Text style={{ color: '#666', fontSize: 11, marginBottom: 6 }}>Kort (boş = tüm kortlar)</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                                <TouchableOpacity onPress={() => setNewRuleCourtId(null)}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+                                        borderWidth: 1.5,
+                                        borderColor: !newRuleCourtId ? BIZ_COLOR + '80' : '#ffffff15',
+                                        backgroundColor: !newRuleCourtId ? BIZ_COLOR + '18' : 'transparent' }}>
+                                    <Text style={{ color: !newRuleCourtId ? BIZ_LIGHT : '#888', fontSize: 12, fontWeight: '700' }}>
+                                        Tüm Kortlar
+                                    </Text>
+                                </TouchableOpacity>
+                                {(venue.courts || []).map(c => (
+                                    <TouchableOpacity key={c.id} onPress={() => setNewRuleCourtId(c.id)}
+                                        style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+                                            borderWidth: 1.5,
+                                            borderColor: newRuleCourtId === c.id ? BIZ_COLOR + '80' : '#ffffff15',
+                                            backgroundColor: newRuleCourtId === c.id ? BIZ_COLOR + '18' : 'transparent' }}>
+                                        <Text style={{ color: newRuleCourtId === c.id ? BIZ_LIGHT : '#888', fontSize: 12, fontWeight: '700' }}>
+                                            {c.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <TouchableOpacity disabled={savingPrice} onPress={handleAddPricingRule}
+                                    style={{ flex: 1, backgroundColor: BIZ_COLOR + '30', borderRadius: 8,
+                                        paddingVertical: 10, alignItems: 'center',
+                                        borderWidth: 1, borderColor: BIZ_COLOR + '60' }}>
+                                    {savingPrice
+                                        ? <ActivityIndicator size="small" color={BIZ_COLOR} />
+                                        : <Text style={{ color: BIZ_LIGHT, fontWeight: '700' }}>Kaydet</Text>}
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => {
+                                    setAddingPriceRule(false);
+                                    setNewRuleFrom(''); setNewRuleTo(''); setNewRulePrice(''); setNewRuleCourtId(null);
+                                }}
+                                    style={{ flex: 1, borderRadius: 8, paddingVertical: 10,
+                                        alignItems: 'center', borderWidth: 1, borderColor: '#ffffff15' }}>
+                                    <Text style={{ color: '#666', fontWeight: '700' }}>İptal</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
+                    <TimePickerModal
+                        visible={showPriceFromPicker}
+                        value={newRuleFrom || ''}
+                        onSelect={t => { setNewRuleFrom(t); setShowPriceFromPicker(false); }}
+                        onClose={() => setShowPriceFromPicker(false)}
+                    />
+                    <TimePickerModal
+                        visible={showPriceToPicker}
+                        value={newRuleTo || ''}
+                        onSelect={t => { setNewRuleTo(t); setShowPriceToPicker(false); }}
+                        onClose={() => setShowPriceToPicker(false)}
+                    />
 
                     {/* ── İptal & Değişiklik Politikası ──── */}
                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />

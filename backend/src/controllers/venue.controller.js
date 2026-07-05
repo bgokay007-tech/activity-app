@@ -71,6 +71,20 @@ function getOpenWindows(venue, date, courtId = null) {
     return splitOvernight(raw);
 }
 
+// Öncelik: kort+saat aralığı > tüm kurtlar saat aralığı > kort varsayılanı > tesis varsayılanı
+function getSlotPrice(venue, court, startTime) {
+    const sm = toMins(startTime);
+    const pw = venue.pricingWindows;
+    if (Array.isArray(pw) && pw.length > 0) {
+        const cw = pw.find(w => w.courtId === court?.id && sm >= toMins(w.from) && sm < toMins(w.to));
+        if (cw) return cw.price;
+        const vw = pw.find(w => !w.courtId && sm >= toMins(w.from) && sm < toMins(w.to));
+        if (vw) return vw.price;
+    }
+    if (court?.pricePerSlot != null) return court.pricePerSlot;
+    return venue.pricePerSlot || 0;
+}
+
 function computeSlots(venue, reservations, date, courtId = null) {
     const openWindows = getOpenWindows(venue, date, courtId);
 
@@ -259,15 +273,19 @@ export const getVenueSlots = async (req, res, next) => {
         const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN'];
         const effectiveVenue = { ...venue, slotType: (VALID_SLOT_TYPES.includes(court?.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR' };
         const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId);
+        const addPrice = arr => (arr || []).map(s => ({ ...s, price: getSlotPrice(venue, court, s.start) }));
+        const resultWithPrice = slotsResult.slots
+            ? { ...slotsResult, slots: addPrice(slotsResult.slots) }
+            : { ...slotsResult, windows: addPrice(slotsResult.windows) };
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
-        res.json({ ...slotsResult, acceptedPayments: accepted });
+        res.json({ ...resultWithPrice, acceptedPayments: accepted });
     } catch (error) { next(error); }
 };
 
 export const updateCourtSettings = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
-        const { slotType, surface, lightsFrom } = req.body;
+        const { slotType, surface, lightsFrom, pricePerSlot } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_SURFACES = ['CLAY', 'HARD', 'CARPET', 'GRASS', 'PARQUET', 'SYNTHETIC'];
         if (slotType && !VALID_TYPES.includes(slotType))
@@ -281,9 +299,10 @@ export const updateCourtSettings = async (req, res, next) => {
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
         const data = {};
-        if (slotType    !== undefined) data.slotType    = slotType    || null;
-        if (surface     !== undefined) data.surface     = surface     || null;
-        if (lightsFrom  !== undefined) data.lightsFrom  = lightsFrom  || null;
+        if (slotType     !== undefined) data.slotType     = slotType     || null;
+        if (surface      !== undefined) data.surface      = surface      || null;
+        if (lightsFrom   !== undefined) data.lightsFrom   = lightsFrom   || null;
+        if (pricePerSlot !== undefined) data.pricePerSlot = pricePerSlot === null ? null : (parseInt(pricePerSlot) || 0);
 
         const court = await prisma.venueCourt.update({ where: { id: courtId }, data });
         res.json({ court });
@@ -358,7 +377,7 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments } = req.body;
+        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows } = req.body;
         const VALID_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_PAY   = ['CASH', 'EFT', 'ONLINE'];
         if (slotType && !VALID_TYPES.includes(slotType))
@@ -376,6 +395,7 @@ export const updateVenueSettings = async (req, res, next) => {
         if (pricePerSlot !== undefined)          data.pricePerSlot         = parseInt(pricePerSlot) || 0;
         if (openSlots !== undefined)             data.openSlots            = openSlots;
         if (acceptedPayments !== undefined)      data.acceptedPayments     = acceptedPayments;
+        if (pricingWindows !== undefined)        data.pricingWindows       = pricingWindows;
         if (cancelHoursBefore !== undefined)     data.cancelHoursBefore    = cancelHoursBefore === null ? null : parseInt(cancelHoursBefore);
         if (rescheduleHoursBefore !== undefined) data.rescheduleHoursBefore = rescheduleHoursBefore === null ? null : parseInt(rescheduleHoursBefore);
 
@@ -416,19 +436,19 @@ export const getOwnerSchedule = async (req, res, next) => {
                 if (effectiveSlotType === 'FULL_HOUR') {
                     for (let t = open; t + 60 <= close; t += 60) {
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
                     if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
                     for (let t = start; t + 60 <= close; t += 60) {
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
                         const rs = findRes(court.id, t, t + 90);
-                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null });
+                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
                     }
                 } else {
                     // VAR_DURATION / FLEXIBLE
