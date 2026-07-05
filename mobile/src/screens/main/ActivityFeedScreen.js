@@ -327,7 +327,7 @@ function LocationInput({ placeholder, value, onChange, type }) {
         debounce.current = setTimeout(async () => {
             try {
                 const { data } = await api.get('/rivals/location-suggestions', { params: { q: text, type } });
-                setSuggestions(data || []);
+                setSuggestions(Array.isArray(data) ? data : []);
             } catch { setSuggestions([]); }
         }, 300);
     };
@@ -341,17 +341,14 @@ function LocationInput({ placeholder, value, onChange, type }) {
                 value={value}
                 onChangeText={handleChange}
                 autoCorrect={false}
+                autoCapitalize="none"
             />
-            {suggestions.length > 0 && (
-                <View style={s.suggBox}>
-                    {suggestions.map(sg => (
-                        <TouchableOpacity key={sg} style={s.suggItem}
-                            onPress={() => { onChange(sg); setSuggestions([]); }} activeOpacity={0.8}>
-                            <Text style={s.suggText}>📍 {sg}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-            )}
+            {suggestions.map(sg => (
+                <TouchableOpacity key={sg} style={s.suggItem}
+                    onPress={() => { onChange(sg); setSuggestions([]); }} activeOpacity={0.8}>
+                    <Text style={s.suggText}>📍 {sg}</Text>
+                </TouchableOpacity>
+            ))}
         </View>
     );
 }
@@ -699,8 +696,7 @@ const s = StyleSheet.create({
     chipEmoji: { fontSize: 14 },
     chipText:  { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
 
-    suggBox:  { position: 'absolute', top: 40, left: 0, right: 0, zIndex: 99, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-    suggItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.border },
+    suggItem: { paddingHorizontal: 12, paddingVertical: 9, marginTop: 3, backgroundColor: colors.surface2, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
     suggText: { color: '#fff', fontSize: 13 },
 
     center:    { paddingTop: 60, alignItems: 'center', gap: 8 },
