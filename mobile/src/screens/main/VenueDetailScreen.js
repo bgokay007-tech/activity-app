@@ -23,6 +23,21 @@ export default function VenueDetailScreen({ route, navigation }) {
         Linking.openURL(`tel:${venue.phone}`);
     };
 
+    const getDayWindows = (dayNum) => {
+        const openDays = venue.openDays || [1,2,3,4,5,6,7];
+        if (!openDays.includes(dayNum)) return null;
+        const os = venue.openSlots;
+        if (os && !Array.isArray(os) && typeof os === 'object') {
+            const key = String(dayNum);
+            const entry = os[key] !== undefined ? os[key] : os['0'];
+            if (entry !== undefined) {
+                if (Array.isArray(entry) && entry.length === 0) return null;
+                if (Array.isArray(entry) && entry.length > 0) return entry;
+            }
+        }
+        return [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
+    };
+
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
@@ -49,15 +64,24 @@ export default function VenueDetailScreen({ route, navigation }) {
                             </Text>
                         </TouchableOpacity>
                     </View>
-                    <View style={s.infoRow}>
-                        <Text style={s.infoLabel}>Saatler</Text>
-                        <Text style={s.infoValue}>{venue.openTime} – {venue.closeTime}</Text>
-                    </View>
-                    <View style={s.infoRow}>
-                        <Text style={s.infoLabel}>Açık Günler</Text>
-                        <Text style={s.infoValue}>
-                            {(venue.openDays || [1,2,3,4,5,6,7]).map(d => DAYS_TR[d]).join(' · ')}
-                        </Text>
+                    <View style={[s.infoRow, { alignItems: 'flex-start' }]}>
+                        <Text style={s.infoLabel}>Çalışma{'\n'}Saatleri</Text>
+                        <View style={{ flex: 1 }}>
+                            {[1,2,3,4,5,6,7].map(dayNum => {
+                                const windows = getDayWindows(dayNum);
+                                return (
+                                    <View key={dayNum} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                        <Text style={[s.infoLabel, { minWidth: 36, marginBottom: 0 }]}>{DAYS_TR[dayNum]}</Text>
+                                        {windows === null
+                                            ? <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '600' }}>Kapalı</Text>
+                                            : <Text style={[s.infoValue, { textAlign: 'right', flex: 1 }]}>
+                                                {windows.map(w => `${w.from}–${w.to}`).join('  ')}
+                                              </Text>
+                                        }
+                                    </View>
+                                );
+                            })}
+                        </View>
                     </View>
                     <View style={s.infoRow}>
                         <Text style={s.infoLabel}>Rezervasyon</Text>
