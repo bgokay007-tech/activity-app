@@ -406,8 +406,8 @@ export const getOwnerSchedule = async (req, res, next) => {
         const findRes = (courtId, s, e) =>
             allRes.filter(r => r.courtId === courtId && overlaps(s, e, toMins(r.startTime), toMins(r.endTime)));
 
+        const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN'];
         const buildSlots = (court) => {
-            const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN'];
             const effectiveSlotType = (VALID_SLOT_TYPES.includes(court.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR';
             const courtWindows = getOpenWindows(venue, date, court.id); // kort bazlı windows
             const slots = [];
