@@ -281,6 +281,35 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                 </View>
                             )}
 
+                            {/* Contact buttons */}
+                            {(profile.contactPhone || profile.contactTelegram || profile.contactEmail || profile.contactInstagram) && (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10, paddingHorizontal:2 }}>
+                                    {profile.contactPhone && (<>
+                                        <TouchableOpacity onPress={() => Linking.openURL(`tel:${profile.contactPhone}`)} style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📞 Ara</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => Linking.openURL(`whatsapp://send?phone=${profile.contactPhone.replace(/\D/g,'')}`)} style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>💬 WhatsApp</Text>
+                                        </TouchableOpacity>
+                                    </>)}
+                                    {profile.contactTelegram && (
+                                        <TouchableOpacity onPress={() => Linking.openURL(`https://t.me/${profile.contactTelegram.replace(/^@/,'')}`)} style={{ backgroundColor:'#1d4ed820', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#1d4ed850' }}>
+                                            <Text style={{ color:'#60a5fa', fontSize:12, fontWeight:'700' }}>✈️ Telegram</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {profile.contactEmail && (
+                                        <TouchableOpacity onPress={() => Linking.openURL(`mailto:${profile.contactEmail}`)} style={{ backgroundColor:'#78350f20', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#78350f50' }}>
+                                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>✉️ E-Posta</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {profile.contactInstagram && (
+                                        <TouchableOpacity onPress={() => { const u = profile.contactInstagram.replace(/^@/,''); Linking.openURL(`instagram://user?username=${u}`).catch(() => Linking.openURL(`https://instagram.com/${u}`)); }} style={{ backgroundColor:'#be185d20', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#be185d50' }}>
+                                            <Text style={{ color:'#f472b6', fontSize:12, fontWeight:'700' }}>📸 Instagram</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )}
+
                             {/* Message button */}
                             <TouchableOpacity
                                 style={[s.submitBtn, { backgroundColor: '#2563eb', marginTop: 8 }]}
@@ -8996,7 +9025,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 },
             })),
             { text: 'İptal', style: 'cancel' },
-        ]);
+        ], { cancelable: true });
     };
 
     const handleJoinTournament = useCallback(async (item, partnerId) => {
