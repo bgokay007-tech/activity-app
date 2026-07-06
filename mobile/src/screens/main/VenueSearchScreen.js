@@ -154,9 +154,30 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                     <View style={bm.tagRow}>
                         <View style={bm.tag}><Text style={bm.tagText}>⏰ {venue.openTime}–{venue.closeTime}</Text></View>
                         <View style={bm.tag}><Text style={bm.tagText}>📅 {SLOT_LABEL[venue.slotType] || venue.slotType}</Text></View>
-                        {venue.pricePerSlot > 0 && <View style={bm.tag}><Text style={bm.tagText}>💰 {venue.pricePerSlot}₺/slot</Text></View>}
                         {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
                     </View>
+
+                    {/* Fiyat politikası özeti */}
+                    {(() => {
+                        const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
+                        if (pw.length === 0) return null;
+                        return (
+                            <View style={{ paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                {pw.map((rule, i) => {
+                                    const courtName = rule.courtId
+                                        ? (venue.courts || []).find(c => c.id === rule.courtId)?.name
+                                        : null;
+                                    return (
+                                        <View key={i} style={bm.priceTag}>
+                                            <Text style={bm.priceTagText}>
+                                                💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{courtName ? ` · ${courtName}` : ''}
+                                            </Text>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        );
+                    })()}
 
                     {/* Tarih Seçici */}
                     <FlatList
@@ -558,9 +579,11 @@ const bm = StyleSheet.create({
     closeBtn:    { paddingHorizontal: 4, paddingVertical: 2 },
     closeBtnText:{ color: colors.textMuted, fontSize: 20 },
 
-    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, marginBottom: 10 },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
     tag:    { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: colors.border },
     tagText:{ color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
+    priceTag:    { backgroundColor: colors.purple + '18', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: colors.purple + '50' },
+    priceTagText:{ color: colors.purple, fontSize: 11, fontWeight: '700' },
 
     dateList:         { paddingHorizontal: 14, paddingVertical: 8, gap: 6 },
     dateBtn:          { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },

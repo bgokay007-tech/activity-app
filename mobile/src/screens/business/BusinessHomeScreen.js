@@ -737,7 +737,7 @@ const SURFACE_ICON = {
     CLAY: '🟤', HARD: '🩶', CARPET: '🟥', GRASS: '🟢', PARQUET: '🟫', SYNTHETIC: '🟩',
 };
 
-const SCHED_COURT_W = 90;
+const SCHED_COURT_W = 72;
 
 // 00:00 → 24:00 arası 30'ar dakikalık seçenekler
 const TIME_OPTIONS = Array.from({ length: 49 }, (_, i) => {
@@ -940,8 +940,8 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                         ? <Text style={{ color:'#555', textAlign:'center', marginTop:40, fontSize:13 }}>Tesis bulunamadı</Text>
                         : (
                             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 40 }}>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={true}
+                                    contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 48 }}>
                                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                                         {courts.map(court => (
                                             <View key={court.courtId} style={{ width: SCHED_COURT_W }}>
