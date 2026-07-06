@@ -233,7 +233,8 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                         const monthNames = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
                         return (
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ paddingHorizontal:14, paddingVertical:8 }}>
+                                style={{ height:48 }}
+                                contentContainerStyle={{ paddingHorizontal:14, alignItems:'center' }}>
                                 {DATE_OPTIONS.map(item => {
                                     const active = item === date;
                                     const [,mo,day] = item.split('-').map(Number);

@@ -227,7 +227,8 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 const monthNames = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
                 return (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ paddingHorizontal:14, paddingVertical:8 }}>
+                        style={{ height:48 }}
+                        contentContainerStyle={{ paddingHorizontal:14, alignItems:'center' }}>
                         {dateOptions.map(item => {
                             const active = item === selectedDate;
                             const [,mo,day] = item.split('-').map(Number);
