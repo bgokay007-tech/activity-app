@@ -87,12 +87,31 @@ export default function VenueDetailScreen({ route, navigation }) {
                         <Text style={s.infoLabel}>Rezervasyon</Text>
                         <Text style={s.infoValue}>{SLOT_LABEL[venue.slotType] || venue.slotType}</Text>
                     </View>
-                    {venue.pricePerSlot > 0 && (
-                        <View style={s.infoRow}>
-                            <Text style={s.infoLabel}>Ücret</Text>
-                            <Text style={[s.infoValue, { color: colors.yellow }]}>{venue.pricePerSlot}₺ / slot</Text>
-                        </View>
-                    )}
+                    {(() => {
+                        const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
+                        const defaultPrice = venue.pricePerSlot || 0;
+                        if (pw.length === 0 && defaultPrice === 0) return null;
+                        return (
+                            <View style={[s.infoRow, { alignItems: 'flex-start' }]}>
+                                <Text style={s.infoLabel}>Ücret{'\n'}Politikası</Text>
+                                <View style={{ flex: 2 }}>
+                                    {pw.map((rule, i) => {
+                                        const courtName = rule.courtId
+                                            ? (venue.courts || []).find(c => c.id === rule.courtId)?.name
+                                            : null;
+                                        return (
+                                            <Text key={i} style={[s.infoValue, { color: colors.yellow, textAlign: 'right', marginBottom: 3 }]}>
+                                                {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{courtName ? ` (${courtName})` : ''}
+                                            </Text>
+                                        );
+                                    })}
+                                    <Text style={[s.infoValue, { color: pw.length > 0 ? colors.textMuted : colors.yellow, textAlign: 'right' }]}>
+                                        {pw.length > 0 ? `Varsayılan: ${defaultPrice > 0 ? `${defaultPrice}₺/slot` : 'Ücretsiz'}` : `${defaultPrice}₺ / slot`}
+                                    </Text>
+                                </View>
+                            </View>
+                        );
+                    })()}
                     {venue.phone && (
                         <View style={s.infoRow}>
                             <Text style={s.infoLabel}>Telefon</Text>

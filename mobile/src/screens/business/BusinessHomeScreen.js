@@ -1003,8 +1003,13 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                                     {SLOT_STATUS_LABEL[st]}
                                                                 </Text>
                                                             )}
+                                                            {slot.price != null && (
+                                                                <Text style={{ color: color + 'cc', fontSize: 9, marginTop: 3, fontWeight: '800' }}>
+                                                                    {slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz'}
+                                                                </Text>
+                                                            )}
                                                             {isPending && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 3, fontWeight: '700' }}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
                                                                     Onayla / Reddet →
                                                                 </Text>
                                                             )}
