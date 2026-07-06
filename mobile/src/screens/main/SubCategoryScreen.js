@@ -8208,6 +8208,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [equipmentMaxPrice, setEquipmentMaxPrice] = useState('');
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [reportingListingId, setReportingListingId] = useState(null);
+    const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
     const [news, setNews] = useState([]);
     const [loadingNews, setLoadingNews] = useState(false);
     const [newPostText, setNewPostText] = useState('');
@@ -9009,23 +9010,21 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const reportListing = (type, id) => {
-        const reasons = ['Yanıltıcı içerik', 'Uygunsuz görsel', 'Sahte ilan', 'Diğer'];
-        Alert.alert('İlanı Bildir', 'Bildiri sebebini seçin:', [
-            ...reasons.map(r => ({
-                text: r,
-                onPress: async () => {
-                    try {
-                        setReportingListingId(id);
-                        await api.post(`/${type}/${id}/report`, { reason: r });
-                        Alert.alert('', 'Bildiriminiz alındı. Teşekkürler.');
-                        if (type === 'equipment') setSelectedEquipment(null);
-                    } catch (e) {
-                        Alert.alert('', e?.response?.data?.message || 'Bir hata oluştu');
-                    } finally { setReportingListingId(null); }
-                },
-            })),
-            { text: 'İptal', style: 'cancel' },
-        ], { cancelable: true });
+        setReportModal({ visible: true, type, id, reason: null, explanation: '' });
+    };
+
+    const submitReport = async () => {
+        const { type, id, reason, explanation } = reportModal;
+        if (!reason) return;
+        try {
+            setReportingListingId(id);
+            await api.post(`/${type}/${id}/report`, { reason, explanation });
+            Alert.alert('', 'Bildiriminiz alındı. Teşekkürler.');
+            setReportModal({ visible: false, type: null, id: null, reason: null, explanation: '' });
+            if (type === 'equipment') setSelectedEquipment(null);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Bir hata oluştu');
+        } finally { setReportingListingId(null); }
     };
 
     const handleJoinTournament = useCallback(async (item, partnerId) => {
@@ -10752,6 +10751,64 @@ export default function SubCategoryScreen({ route, navigation }) {
             {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
             {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} onStatusChange={setTournamentPermStatus} />}
             {!!profileUserId && <UserProfileModal visible userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />}
+
+            {/* ── İlan Bildir Modal ── */}
+            {reportModal.visible && (
+                <Modal visible animationType="slide" transparent onRequestClose={() => setReportModal(p => ({...p, visible:false}))}>
+                    <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                        <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined}>
+                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:34 }}>
+                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🚩 İlanı Bildir</Text>
+                                    <TouchableOpacity onPress={() => setReportModal(p => ({...p, visible:false}))}>
+                                        <Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                {['Yanıltıcı içerik', 'Uygunsuz görsel', 'Sahte ilan', 'Diğer'].map(r => (
+                                    <TouchableOpacity key={r}
+                                        onPress={() => setReportModal(p => ({...p, reason: r, explanation: ''}))}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                        <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: reportModal.reason===r ? '#f59e0b' : '#6b7280', alignItems:'center', justifyContent:'center' }}>
+                                            {reportModal.reason===r && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#f59e0b' }} />}
+                                        </View>
+                                        <Text style={{ color: reportModal.reason===r ? '#fbbf24' : '#fff', fontSize:14, fontWeight: reportModal.reason===r ? '700' : '400' }}>{r}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                                {reportModal.reason && (
+                                    <View style={{ marginTop:12 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:6 }}>
+                                            Açıklama{reportModal.reason === 'Diğer' ? ' *' : ' (isteğe bağlı)'}
+                                        </Text>
+                                        <TextInput
+                                            style={{ backgroundColor: colors.surface2, borderRadius:10, padding:10, color:'#fff', minHeight:72, textAlignVertical:'top', borderWidth:1, borderColor: colors.border }}
+                                            placeholder={reportModal.reason === 'Diğer' ? 'Lütfen açıklayın...' : 'Daha fazla bilgi ekleyebilirsiniz...'}
+                                            placeholderTextColor={colors.textMuted}
+                                            multiline
+                                            value={reportModal.explanation}
+                                            onChangeText={v => setReportModal(p => ({...p, explanation: v}))}
+                                        />
+                                    </View>
+                                )}
+                                <View style={{ flexDirection:'row', gap:10, marginTop:16 }}>
+                                    <TouchableOpacity
+                                        onPress={() => setReportModal(p => ({...p, visible:false}))}
+                                        style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border }}>
+                                        <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Kapat</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={submitReport}
+                                        disabled={!reportModal.reason || (reportModal.reason==='Diğer' && !reportModal.explanation.trim()) || reportingListingId===reportModal.id}
+                                        style={{ flex:2, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: (reportModal.reason && !(reportModal.reason==='Diğer' && !reportModal.explanation.trim())) ? '#f59e0b' : '#f59e0b40' }}>
+                                        <Text style={{ color:'#000', fontWeight:'900', fontSize:14 }}>
+                                            {reportingListingId===reportModal.id ? '...' : 'Yöneticiye Gönder'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </KeyboardAvoidingView>
+                    </View>
+                </Modal>
+            )}
 
             {/* ── Yorumlar — tam ekran modal ── */}
             {(() => {
