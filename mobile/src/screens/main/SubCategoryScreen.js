@@ -3460,14 +3460,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         });
     }, [venue, selDate]);
 
-    const shiftDate = (days) => {
-        const d = new Date(selDate + 'T12:00:00');
-        d.setDate(d.getDate() + days);
-        const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        if (next < todayStr()) return;
-        setSelDate(next);
-    };
-
     const selectSlot = (cId, slot) => {
         setSelSlot(prev =>
             prev?.courtId === cId && prev?.slot?.start === slot.start
@@ -3581,16 +3573,31 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
                     {!loadingV && venue && (
                         <View style={{ flex:1 }}>
-                            {/* Tarih Seçici */}
-                            <View style={vb.dateRow}>
-                                <TouchableOpacity onPress={() => shiftDate(-1)} style={vb.dateArrow}>
-                                    <Text style={vb.dateArrowTxt}>‹</Text>
-                                </TouchableOpacity>
-                                <Text style={vb.dateLabel}>{fmtDate(selDate)}</Text>
-                                <TouchableOpacity onPress={() => shiftDate(1)} style={vb.dateArrow}>
-                                    <Text style={vb.dateArrowTxt}>›</Text>
-                                </TouchableOpacity>
-                            </View>
+                            {/* Tarih Seçici — 14 günlük yatay strip */}
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                                style={vb.dateStrip}
+                                contentContainerStyle={{ paddingHorizontal:10, paddingVertical:8, gap:6 }}>
+                                {Array.from({length:14}, (_,i) => {
+                                    const d = new Date();
+                                    d.setDate(d.getDate() + i);
+                                    const yStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                    const isSel = selDate === yStr;
+                                    return (
+                                        <TouchableOpacity key={yStr} onPress={() => setSelDate(yStr)}
+                                            style={[vb.dateChip, isSel && vb.dateChipSel]}>
+                                            <Text style={[vb.dateChipDay, isSel && vb.dateChipDaySel]}>
+                                                {d.toLocaleDateString('tr-TR', { weekday:'short' })}
+                                            </Text>
+                                            <Text style={[vb.dateChipNum, isSel && vb.dateChipNumSel]}>
+                                                {d.getDate()}
+                                            </Text>
+                                            <Text style={[vb.dateChipMonth, isSel && vb.dateChipMonthSel]}>
+                                                {d.toLocaleDateString('tr-TR', { month:'short' })}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
 
                             {/* Legend */}
                             <View style={[vb.legend, { paddingHorizontal:14, marginBottom:4 }]}>
@@ -3714,10 +3721,15 @@ const vb = StyleSheet.create({
     tabTxt:       { color:'#888', fontSize:13, fontWeight:'600' },
     tabTxtActive: { color:'#c084fc', fontWeight:'700' },
 
-    dateRow:      { flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:10, gap:16, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
-    dateArrow:    { padding:10 },
-    dateArrowTxt: { color:'#fff', fontSize:26, fontWeight:'700' },
-    dateLabel:    { color:'#fff', fontSize:14, fontWeight:'700', minWidth:150, textAlign:'center' },
+    dateStrip:        { borderBottomWidth:1, borderBottomColor:'#ffffff10' },
+    dateChip:         { alignItems:'center', paddingVertical:8, paddingHorizontal:10, borderRadius:12, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:52 },
+    dateChipSel:      { backgroundColor:'#16a34a30', borderColor:'#22c55e' },
+    dateChipDay:      { color:'#888', fontSize:10, fontWeight:'700', textTransform:'uppercase', marginBottom:1 },
+    dateChipDaySel:   { color:'#4ade80' },
+    dateChipNum:      { color:'#fff', fontSize:18, fontWeight:'800', lineHeight:22 },
+    dateChipNumSel:   { color:'#22c55e' },
+    dateChipMonth:    { color:'#888', fontSize:10, marginTop:1 },
+    dateChipMonthSel: { color:'#4ade80' },
 
     body:         { padding:16, maxHeight:420 },
 
