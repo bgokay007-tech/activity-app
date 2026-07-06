@@ -461,20 +461,11 @@ export const getOwnerSchedule = async (req, res, next) => {
                         slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
                     }
                 } else {
-                    // VAR_DURATION / FLEXIBLE
-                    const courtRes = allRes
-                        .filter(r => r.courtId === court.id && toMins(r.startTime) < close && toMins(r.endTime) > open)
-                        .sort((a, b) => toMins(a.startTime) - toMins(b.startTime));
-                    let prev = open;
-                    for (const r of courtRes) {
-                        const rStart = toMins(r.startTime);
-                        if (rStart > prev && rStart - prev >= 60)
-                            slots.push({ start: toTime(prev), end: toTime(rStart), status: 'FREE', user: null });
-                        slots.push({ start: r.startTime, end: r.endTime, status: r.status, user: r.user, reservationId: r.id, paymentMethod: r.paymentMethod });
-                        prev = Math.max(prev, toMins(r.endTime));
+                    // VAR_DURATION: işletme takviminde 1 saatlik grid göster
+                    for (let t = open; t + 60 <= close; t += 60) {
+                        const rs = findRes(court.id, t, t + 60);
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t), 60) });
                     }
-                    if (prev < close && close - prev >= 60)
-                        slots.push({ start: toTime(prev), end: toTime(close), status: 'FREE', user: null });
                 }
             }
             return slots;
