@@ -92,7 +92,8 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
     const [date,        setDate]        = useState(DATE_OPTIONS[0]);
     const [slotsMap,    setSlotsMap]    = useState({});
     const [picked,      setPicked]      = useState(null);
-    const [varStartMap, setVarStartMap] = useState({}); // { [courtId]: startTime | null }
+    const [varStartMap, setVarStartMap] = useState({}); // { [courtId]: { win, customStart } }
+    const [varDurMap,   setVarDurMap]   = useState({}); // { [courtId]: durationMins }
 
     const fetchAllSlots = useCallback(async (d) => {
         if (!venue?.courts?.length) return;
@@ -120,6 +121,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
             setDate(today);
             setPicked(null);
             setVarStartMap({});
+            setVarDurMap({});
             fetchAllSlots(today);
         }
     }, [visible, venue]);
@@ -128,6 +130,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
         setDate(d);
         setPicked(null);
         setVarStartMap({});
+        setVarDurMap({});
         fetchAllSlots(d);
     };
 
@@ -280,51 +283,79 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                         <Text style={bm.errorText}>{entry.error}</Text>
                                     ) : isVar ? (
                                         <>
-                                            <Text style={bv.stepLabel}>Başlangıç Saati</Text>
-                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                                                {entry.windows.length === 0 ? (
-                                                    <Text style={bm.noSlotText}>Müsait pencere yok.</Text>
-                                                ) : entry.windows.map((w, wi) => (
-                                                    <TouchableOpacity key={wi}
-                                                        onPress={() => { setVarStartMap(p => ({ ...p, [court.id]: w.start })); setPicked(null); }}
-                                                        style={[bv.timeBtn, varStart === w.start && bv.timeBtnActive]}
-                                                    >
-                                                        <Text style={[bv.timeBtnText, varStart === w.start && bv.timeBtnTextActive]}>{w.start}</Text>
-                                                        <Text style={[bv.timeBtnSub, varStart === w.start && bv.timeBtnTextActive]}>–{w.end}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
-                                            {varStart && (() => {
-                                                const w = entry.windows.find(win => win.start === varStart);
-                                                if (!w) return null;
-                                                const weM = toM(w.end);
-                                                const opts = [60, 90, 120, 150, 180].filter(d => {
-                                                    const endM = toM(varStart) + d;
-                                                    return endM <= weM && (endM === weM || weM - endM >= 60);
-                                                });
+                                            {entry.windows.length === 0 ? (
+                                                <Text style={bm.noSlotText}>Müsait pencere yok.</Text>
+                                            ) : entry.windows.map((w, wi) => {
+                                                const sel = varStartMap[court.id];
+                                                const isWinSel = sel?.winStart === w.start;
+                                                const customStart = isWinSel ? (sel?.customStart ?? w.start) : w.start;
+                                                const dur = isWinSel ? (varDurMap[court.id] ?? 60) : 60;
+                                                const customStartM = toM(customStart);
+                                                const winEndM = toM(w.end);
+                                                const endT = toT(customStartM + dur);
+                                                const validStart = /^\d{2}:\d{2}$/.test(customStart) && customStartM >= toM(w.start) && customStartM < winEndM;
+                                                const validEnd = validStart && (customStartM + dur) <= winEndM;
+                                                const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (dur / 60)) : venue?.pricePerSlot ?? null;
+                                                const isPicked = picked?.court.id === court.id && picked?.slot.start === customStart && isWinSel;
                                                 return (
-                                                    <>
-                                                        <Text style={bv.stepLabel}>Süre Seçin</Text>
-                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                                                            {opts.map(d => {
-                                                                const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (d / 60)) : null;
-                                                                const endT = toT(toM(varStart) + d);
-                                                                const isPicked = picked?.court.id === court.id && picked?.slot.start === varStart && picked?.slot.end === endT;
-                                                                return (
-                                                                    <TouchableOpacity key={d}
-                                                                        onPress={() => setPicked({ court, slot: { start: varStart, end: endT, free: true, price, durationMins: d } })}
-                                                                        style={[bv.durBtn, isPicked && bv.durBtnPicked]}
-                                                                    >
-                                                                        <Text style={[bv.durBtnDur, isPicked && bv.durBtnTextPicked]}>{d} dk</Text>
-                                                                        <Text style={[bv.durBtnTime, isPicked && bv.durBtnTextPicked]}>{varStart}–{endT}</Text>
-                                                                        {price != null && <Text style={[bv.durBtnPrice, isPicked && bv.durBtnTextPicked]}>{price > 0 ? `${price}₺` : 'Ücretsiz'}</Text>}
+                                                    <View key={wi} style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: isWinSel ? colors.purple : colors.border }}>
+                                                        {/* Pencere başlığı */}
+                                                        <TouchableOpacity onPress={() => { setVarStartMap(p => ({ ...p, [court.id]: { winStart: w.start, winEnd: w.end, customStart: w.start } })); setVarDurMap(p => ({ ...p, [court.id]: 60 })); setPicked(null); }}
+                                                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: isWinSel ? 10 : 0 }}>
+                                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>🕐 {w.start} – {w.end}</Text>
+                                                            <Text style={{ color: isWinSel ? colors.purple : colors.textMuted, fontSize: 11, fontWeight: '700' }}>{isWinSel ? '▲ Seçili' : '▼ Seç'}</Text>
+                                                        </TouchableOpacity>
+
+                                                        {isWinSel && (<>
+                                                            {/* Başlangıç saati girişi */}
+                                                            <Text style={bv.stepLabel}>Başlangıç Saatini Girin</Text>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                                <TextInput
+                                                                    value={sel?.customStart ?? w.start}
+                                                                    onChangeText={v => { setVarStartMap(p => ({ ...p, [court.id]: { ...p[court.id], customStart: v } })); setPicked(null); }}
+                                                                    placeholder={w.start}
+                                                                    placeholderTextColor={colors.textMuted}
+                                                                    keyboardType="numbers-and-punctuation"
+                                                                    maxLength={5}
+                                                                    style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: validStart ? colors.purple : colors.border, textAlign: 'center' }}
+                                                                />
+                                                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>({w.start} – {w.end} arası)</Text>
+                                                            </View>
+
+                                                            {/* Süre seçimi */}
+                                                            {validStart && (<>
+                                                                <Text style={bv.stepLabel}>Süre Seçin</Text>
+                                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                                                    {[60, 90, 120, 150, 180].filter(d => customStartM + d <= winEndM).map(d => {
+                                                                        const et = toT(customStartM + d);
+                                                                        const pr = w.pricePerHour != null ? Math.round(w.pricePerHour * (d / 60)) : null;
+                                                                        const isSel = varDurMap[court.id] === d;
+                                                                        return (
+                                                                            <TouchableOpacity key={d}
+                                                                                onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setPicked(null); }}
+                                                                                style={[bv.durBtn, isSel && bv.durBtnPicked]}>
+                                                                                <Text style={[bv.durBtnDur, isSel && bv.durBtnTextPicked]}>{d < 60 ? `${d}dk` : `${d/60}sa`}</Text>
+                                                                                <Text style={[bv.durBtnTime, isSel && bv.durBtnTextPicked]}>{customStart}–{et}</Text>
+                                                                                {pr != null && <Text style={[bv.durBtnPrice, isSel && bv.durBtnTextPicked]}>{pr > 0 ? `${pr}₺` : 'Ücretsiz'}</Text>}
+                                                                            </TouchableOpacity>
+                                                                        );
+                                                                    })}
+                                                                </View>
+                                                                {/* Rezerve Et butonu */}
+                                                                {validEnd && (
+                                                                    <TouchableOpacity
+                                                                        onPress={() => setPicked({ court, slot: { start: customStart, end: toT(customStartM + dur), free: true, price: w.pricePerHour != null ? Math.round(w.pricePerHour * (dur/60)) : null, durationMins: dur } })}
+                                                                        style={{ backgroundColor: isPicked ? colors.purple : colors.purple+'30', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.purple }}>
+                                                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
+                                                                            {isPicked ? '✅ Seçildi' : `${customStart} – ${toT(customStartM + dur)} Rezerve Et`}
+                                                                        </Text>
                                                                     </TouchableOpacity>
-                                                                );
-                                                            })}
-                                                        </View>
-                                                    </>
+                                                                )}
+                                                            </>)}
+                                                        </>)}
+                                                    </View>
                                                 );
-                                            })()}
+                                            })}
                                         </>
                                     ) : displaySlots.length === 0 ? (
                                         <Text style={bm.noSlotText}>Bu tarihte slot tanımlı değil.</Text>
