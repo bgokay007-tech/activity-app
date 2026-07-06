@@ -234,6 +234,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={bm.dateList}
+                        extraData={date}
                         renderItem={({ item }) => {
                             const active = item === date;
                             const [y, mo, day] = item.split('-').map(Number);

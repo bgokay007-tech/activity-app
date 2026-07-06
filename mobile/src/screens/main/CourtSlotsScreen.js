@@ -227,6 +227,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 keyExtractor={d => d}
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                extraData={selectedDate}
                 contentContainerStyle={s.dateList}
                 renderItem={({ item }) => {
                     const active = item === selectedDate;
