@@ -3940,7 +3940,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 matchDate: f.flexibleSchedule ? undefined : matchDateStr,
                 matchTime: f.flexibleSchedule ? undefined : f.matchTime || undefined,
                 duration:  f.flexibleSchedule ? undefined : f.duration,
-                courtName: f.selectedCourt?.name || (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
+                courtName: f.selectedCourt ? [f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') : (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
                 courtId:   f.selectedCourt?.id || undefined,
                 location:  f.selectedCourt?.city || f.manualCity || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
@@ -7067,7 +7067,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         }
 
         const courtName = f.courtDecidedByPlayers ? null
-            : f.selectedCourt?.name || (f.showManualCourt ? f.manualCourtName : null) || f.courtSearchText || null;
+            : f.selectedCourt ? [f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') : (f.showManualCourt ? f.manualCourtName : null) || f.courtSearchText || null;
 
         if (!f.courtDecidedByPlayers && f.showManualCourt && f.manualCourtName && !f.selectedCourt) {
             try {
