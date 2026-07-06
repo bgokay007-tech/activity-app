@@ -1065,7 +1065,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const [scheduleOpen, setScheduleOpen]     = useState(false);
     const [analyticsOpen, setAnalyticsOpen]   = useState(false);
     const [courtSlotTypes, setCourtSlotTypes] = useState(() => {
-        const VALID = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN'];
+        const VALID = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
         const init = {};
         (venue.courts || []).forEach(c => {
             init[c.id] = (VALID.includes(c.slotType) ? c.slotType : null) || venue.slotType || 'FULL_HOUR';
