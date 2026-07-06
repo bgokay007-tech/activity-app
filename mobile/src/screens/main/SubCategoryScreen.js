@@ -8604,6 +8604,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
             await api.post('/coaches', {
                 ...coachForm,
+                location: coachForm.locationMutual ? 'Ortaklaşa Kararlaştırılır' : coachForm.location,
                 category, subCategory: sub,
                 experience: parseInt(coachForm.experience) || 0,
                 priceIndividual: parseInt(coachForm.priceIndividual) || 0,
