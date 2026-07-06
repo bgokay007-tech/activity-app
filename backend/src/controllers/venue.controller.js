@@ -72,17 +72,20 @@ function getOpenWindows(venue, date, courtId = null) {
 }
 
 // Öncelik: kort+saat aralığı > tüm kurtlar saat aralığı > kort varsayılanı > tesis varsayılanı
-function getSlotPrice(venue, court, startTime) {
+function getSlotPrice(venue, court, startTime, durationMins = 60) {
     const sm = toMins(startTime);
     const pw = venue.pricingWindows;
+    let basePrice;
     if (Array.isArray(pw) && pw.length > 0) {
         const cw = pw.find(w => w.courtId === court?.id && sm >= toMins(w.from) && sm < toMins(w.to));
-        if (cw) return cw.price;
-        const vw = pw.find(w => !w.courtId && sm >= toMins(w.from) && sm < toMins(w.to));
-        if (vw) return vw.price;
+        if (cw) { basePrice = cw.price; }
+        else {
+            const vw = pw.find(w => !w.courtId && sm >= toMins(w.from) && sm < toMins(w.to));
+            if (vw) basePrice = vw.price;
+        }
     }
-    if (court?.pricePerSlot != null) return court.pricePerSlot;
-    return venue.pricePerSlot || 0;
+    if (basePrice == null) basePrice = court?.pricePerSlot ?? venue.pricePerSlot ?? 0;
+    return Math.round(basePrice * (durationMins / 60));
 }
 
 function computeSlots(venue, reservations, date, courtId = null) {
@@ -270,13 +273,20 @@ export const getVenueSlots = async (req, res, next) => {
             where: { venueId: id, courtId },
         });
 
-        const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN'];
+        const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
         const effectiveVenue = { ...venue, slotType: (VALID_SLOT_TYPES.includes(court?.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR' };
         const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId);
-        const addPrice = arr => (arr || []).map(s => ({ ...s, price: getSlotPrice(venue, court, s.start) }));
+        const addSlotPrice = arr => (arr || []).map(s => {
+            const dur = s.start && s.end ? toMins(s.end) - toMins(s.start) : 60;
+            return { ...s, price: getSlotPrice(venue, court, s.start, dur) };
+        });
+        // VAR_DURATION pencereleri için: saatlik baz fiyat döndür, frontend seçilen süreyle çarpar
+        const addWindowPrice = arr => (arr || []).map(s => ({
+            ...s, pricePerHour: getSlotPrice(venue, court, s.start, 60),
+        }));
         const resultWithPrice = slotsResult.slots
-            ? { ...slotsResult, slots: addPrice(slotsResult.slots) }
-            : { ...slotsResult, windows: addPrice(slotsResult.windows) };
+            ? { ...slotsResult, slots: addSlotPrice(slotsResult.slots) }
+            : { ...slotsResult, windows: addWindowPrice(slotsResult.windows) };
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
         res.json({ ...resultWithPrice, acceptedPayments: accepted });
     } catch (error) { next(error); }

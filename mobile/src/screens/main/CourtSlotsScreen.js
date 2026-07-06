@@ -118,11 +118,13 @@ export default function CourtSlotsScreen({ route, navigation }) {
     const [pickedSlot, setPicked] = useState(null);
     const [modalVisible, setModal] = useState(false);
     const [confirming, setConf]   = useState(false);
+    const [varDuration, setVarDuration] = useState(60);
 
     const fetchSlots = useCallback(async (date) => {
         setLoading(true);
         setSlots(null);
         setPicked(null);
+        setVarDuration(60);
         try {
             const { data } = await api.get(`/venues/${venue.id}/courts/${court.id}/slots`, { params: { date } });
             setSlots(data);
@@ -157,7 +159,22 @@ export default function CourtSlotsScreen({ route, navigation }) {
         } finally { setConf(false); }
     };
 
-    const slotList = slots?.slots || slots?.windows || [];
+    const isVarDuration = slots?.type === 'VAR_DURATION';
+
+    const slotList = (() => {
+        if (!isVarDuration) return slots?.slots || slots?.windows || [];
+        const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
+        const generated = [];
+        for (const w of (slots?.windows || [])) {
+            const wStart = toM(w.start), wEnd = toM(w.end);
+            for (let t = wStart; t + varDuration <= wEnd; t += 60) {
+                const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (varDuration / 60)) : null;
+                generated.push({ start: toT(t), end: toT(t + varDuration), free: true, price, durationMins: varDuration });
+            }
+        }
+        return generated;
+    })();
 
     return (
         <View style={s.root}>
@@ -202,6 +219,24 @@ export default function CourtSlotsScreen({ route, navigation }) {
 
                 {!loading && slots && (
                     <>
+                        {isVarDuration && (
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                                {[60, 90, 120].map(d => (
+                                    <TouchableOpacity key={d}
+                                        onPress={() => { setVarDuration(d); setPicked(null); }}
+                                        style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center',
+                                            borderWidth: 1.5,
+                                            borderColor: varDuration === d ? colors.purple : colors.border,
+                                            backgroundColor: varDuration === d ? colors.purple + '20' : colors.surface }}>
+                                        <Text style={{ color: varDuration === d ? colors.purple : colors.textMuted,
+                                            fontWeight: '800', fontSize: 13 }}>
+                                            {d} dk
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+
                         <Text style={s.slotsTitle}>
                             {formatDateLabel(selectedDate)} — {slotList.filter(sl => sl.free !== false).length} müsait slot
                         </Text>

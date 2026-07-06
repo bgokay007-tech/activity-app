@@ -41,7 +41,7 @@ function ConfirmModal({ visible, venue, court, slot, date, onConfirm, onClose, c
                             { label: 'Kort',   value: court.name },
                             { label: 'Tarih',  value: formatDateLabel(date) },
                             { label: 'Saat',   value: `${slot.start} – ${slot.end}` },
-                            { label: 'Ücret',  value: venue.pricePerSlot > 0 ? `${venue.pricePerSlot}₺` : 'Ücretsiz' },
+                            { label: 'Ücret',  value: (() => { const p = slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() },
                         ].map(r => (
                             <View key={r.label} style={cm.infoRow}>
                                 <Text style={cm.infoLabel}>{r.label}</Text>
@@ -84,15 +84,31 @@ function ConfirmModal({ visible, venue, court, slot, date, onConfirm, onClose, c
 }
 
 // ─── Tesis Rezervasyon Sayfası (Bottom Sheet) ─────────────────────────────────
+const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
+
+function genVarSlots(windows, durationMins) {
+    const out = [];
+    for (const w of windows) {
+        const ws = toM(w.start), we = toM(w.end);
+        for (let t = ws; t + durationMins <= we; t += 60) {
+            const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (durationMins / 60)) : null;
+            out.push({ start: toT(t), end: toT(t + durationMins), free: true, price, durationMins });
+        }
+    }
+    return out;
+}
+
 function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
-    const [date,     setDate]     = useState(DATE_OPTIONS[0]);
-    const [slotsMap, setSlotsMap] = useState({});
-    const [picked,   setPicked]   = useState(null); // { court, slot }
+    const [date,        setDate]        = useState(DATE_OPTIONS[0]);
+    const [slotsMap,    setSlotsMap]    = useState({});
+    const [picked,      setPicked]      = useState(null);
+    const [varDurMap,   setVarDurMap]   = useState({}); // { [courtId]: 60|90|120 }
 
     const fetchAllSlots = useCallback(async (d) => {
         if (!venue?.courts?.length) return;
         const init = {};
-        venue.courts.forEach(c => { init[c.id] = { slots: [], loading: true, error: null }; });
+        venue.courts.forEach(c => { init[c.id] = { slots: [], loading: true, error: null, type: null, windows: [] }; });
         setSlotsMap(init);
 
         await Promise.all(venue.courts.map(async (court) => {
@@ -101,10 +117,10 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                     `/venues/${venue.id}/courts/${court.id}/slots`,
                     { params: { date: d } }
                 );
-                const slots = data?.slots || data?.windows || [];
-                setSlotsMap(prev => ({ ...prev, [court.id]: { slots, loading: false, error: null } }));
+                const slots = data?.slots || (data?.type !== 'VAR_DURATION' ? data?.windows : []) || [];
+                setSlotsMap(prev => ({ ...prev, [court.id]: { slots, loading: false, error: null, type: data?.type, windows: data?.windows || [] } }));
             } catch {
-                setSlotsMap(prev => ({ ...prev, [court.id]: { slots: [], loading: false, error: 'Yüklenemedi' } }));
+                setSlotsMap(prev => ({ ...prev, [court.id]: { slots: [], loading: false, error: 'Yüklenemedi', type: null, windows: [] } }));
             }
         }));
     }, [venue]);
@@ -205,8 +221,11 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                     {/* Kortlar + Slotlar */}
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={bm.scroll}>
                         {venue.courts.map(court => {
-                            const entry     = slotsMap[court.id] || { slots: [], loading: true };
-                            const freeCount = entry.slots.filter(sl => sl.free !== false).length;
+                            const entry      = slotsMap[court.id] || { slots: [], loading: true, type: null, windows: [] };
+                            const isVar      = entry.type === 'VAR_DURATION';
+                            const dur        = varDurMap[court.id] || 60;
+                            const displaySlots = isVar ? genVarSlots(entry.windows, dur) : entry.slots;
+                            const freeCount  = displaySlots.filter(sl => sl.free !== false).length;
                             return (
                                 <View key={court.id} style={bm.courtSection}>
                                     <View style={bm.courtHeader}>
@@ -218,18 +237,35 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                         )}
                                     </View>
 
+                                    {isVar && !entry.loading && (
+                                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                                            {[60, 90, 120].map(d => (
+                                                <TouchableOpacity key={d}
+                                                    onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setPicked(null); }}
+                                                    style={{ flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center',
+                                                        borderWidth: 1.5,
+                                                        borderColor: dur === d ? colors.purple : colors.border,
+                                                        backgroundColor: dur === d ? colors.purple + '20' : colors.surface2 }}>
+                                                    <Text style={{ color: dur === d ? colors.purple : colors.textMuted,
+                                                        fontWeight: '800', fontSize: 12 }}>{d} dk</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
+
                                     {entry.loading ? (
                                         <ActivityIndicator size="small" color={colors.purple} style={{ marginVertical: 12 }} />
                                     ) : entry.error ? (
                                         <Text style={bm.errorText}>{entry.error}</Text>
-                                    ) : entry.slots.length === 0 ? (
+                                    ) : displaySlots.length === 0 ? (
                                         <Text style={bm.noSlotText}>Bu tarihte slot tanımlı değil.</Text>
                                     ) : (
                                         <View style={bm.slotGrid}>
-                                            {entry.slots.map((slot, i) => {
+                                            {displaySlots.map((slot, i) => {
                                                 const isPicked =
                                                     picked?.court.id === court.id &&
-                                                    picked?.slot.start === slot.start;
+                                                    picked?.slot.start === slot.start &&
+                                                    picked?.slot.end === slot.end;
                                                 return (
                                                     <TouchableOpacity
                                                         key={i}
@@ -242,20 +278,17 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                                         disabled={!slot.free}
                                                         activeOpacity={0.7}
                                                     >
-                                                        <Text style={[
-                                                            bm.slotTime,
-                                                            !slot.free && bm.slotTimeTaken,
-                                                            isPicked && bm.slotTimePicked,
-                                                        ]}>
+                                                        <Text style={[bm.slotTime, !slot.free && bm.slotTimeTaken, isPicked && bm.slotTimePicked]}>
                                                             {slot.start}
                                                         </Text>
-                                                        <Text style={[
-                                                            bm.slotEnd,
-                                                            !slot.free && bm.slotTimeTaken,
-                                                            isPicked && bm.slotTimePicked,
-                                                        ]}>
+                                                        <Text style={[bm.slotEnd, !slot.free && bm.slotTimeTaken, isPicked && bm.slotTimePicked]}>
                                                             –{slot.end}
                                                         </Text>
+                                                        {slot.price != null && slot.free !== false && (
+                                                            <Text style={{ color: isPicked ? '#ffffffcc' : colors.purple, fontSize: 10, fontWeight: '800', marginTop: 2 }}>
+                                                                {slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz'}
+                                                            </Text>
+                                                        )}
                                                     </TouchableOpacity>
                                                 );
                                             })}
