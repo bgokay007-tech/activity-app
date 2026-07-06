@@ -21,6 +21,11 @@ export const getProfile = async (req, res, next) => {
                 reelsPrivacy: true, reelsExclude: true,
                 friendsListPrivacy: true, friendsListExclude: true,
                 activitiesPrivacy: true, activitiesExclude: true,
+                contactPhone: true, contactTelegram: true, contactEmail: true, contactInstagram: true,
+                phonePrivacy: true, phoneSelected: true,
+                telegramPrivacy: true, telegramSelected: true,
+                cEmailPrivacy: true, cEmailSelected: true,
+                instagramPrivacy: true, instagramSelected: true,
                 interests: {
                     select: { id: true, category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true, assessmentCompleted: true },
                     orderBy: { totalPoints: 'desc' },
@@ -68,6 +73,16 @@ export const getProfile = async (req, res, next) => {
             city:      checkField(user.cityPrivacy,      user.cityExclude)      ? user.city      : null,
             gender:    checkField(user.genderPrivacy,    user.genderExclude)    ? user.gender    : null,
             birthDate: checkField(user.birthDatePrivacy, user.birthDateExclude) ? user.birthDate : null,
+            contactPhone:     checkField(user.phonePrivacy,     user.phoneSelected)     ? user.contactPhone     : null,
+            contactTelegram:  checkField(user.telegramPrivacy,  user.telegramSelected)  ? user.contactTelegram  : null,
+            contactEmail:     checkField(user.cEmailPrivacy,    user.cEmailSelected)    ? user.contactEmail     : null,
+            contactInstagram: checkField(user.instagramPrivacy, user.instagramSelected) ? user.contactInstagram : null,
+            ...(isOwner && {
+                phonePrivacy: user.phonePrivacy, phoneSelected: user.phoneSelected,
+                telegramPrivacy: user.telegramPrivacy, telegramSelected: user.telegramSelected,
+                cEmailPrivacy: user.cEmailPrivacy, cEmailSelected: user.cEmailSelected,
+                instagramPrivacy: user.instagramPrivacy, instagramSelected: user.instagramSelected,
+            }),
         });
     } catch (error) { next(error); }
 };
@@ -82,7 +97,12 @@ export const updateProfile = async (req, res, next) => {
                 postsPrivacy, postsExclude,
                 reelsPrivacy, reelsExclude,
                 friendsListPrivacy, friendsListExclude,
-                activitiesPrivacy, activitiesExclude } = req.body;
+                activitiesPrivacy, activitiesExclude,
+                contactPhone, contactTelegram, contactEmail, contactInstagram,
+                phonePrivacy, phoneSelected,
+                telegramPrivacy, telegramSelected,
+                cEmailPrivacy, cEmailSelected,
+                instagramPrivacy, instagramSelected } = req.body;
 
         // fullName / gender / birthDate sadece yönetici onayıyla değiştirilebilir
         if (req.body.fullName !== undefined || req.body.gender !== undefined || req.body.birthDate !== undefined) {
@@ -119,6 +139,18 @@ export const updateProfile = async (req, res, next) => {
                 ...(friendsListExclude  !== undefined && { friendsListExclude }),
                 ...(activitiesPrivacy   !== undefined && { activitiesPrivacy }),
                 ...(activitiesExclude   !== undefined && { activitiesExclude }),
+                ...(contactPhone     !== undefined && { contactPhone:     contactPhone     || null }),
+                ...(contactTelegram  !== undefined && { contactTelegram:  contactTelegram  || null }),
+                ...(contactEmail     !== undefined && { contactEmail:     contactEmail     || null }),
+                ...(contactInstagram !== undefined && { contactInstagram: contactInstagram || null }),
+                ...(phonePrivacy     !== undefined && { phonePrivacy }),
+                ...(phoneSelected    !== undefined && { phoneSelected }),
+                ...(telegramPrivacy  !== undefined && { telegramPrivacy }),
+                ...(telegramSelected !== undefined && { telegramSelected }),
+                ...(cEmailPrivacy    !== undefined && { cEmailPrivacy }),
+                ...(cEmailSelected   !== undefined && { cEmailSelected }),
+                ...(instagramPrivacy !== undefined && { instagramPrivacy }),
+                ...(instagramSelected !== undefined && { instagramSelected }),
             },
             select: {
                 id: true, username: true, fullName: true,
@@ -132,6 +164,11 @@ export const updateProfile = async (req, res, next) => {
                 reelsPrivacy: true, reelsExclude: true,
                 friendsListPrivacy: true, friendsListExclude: true,
                 activitiesPrivacy: true, activitiesExclude: true,
+                contactPhone: true, contactTelegram: true, contactEmail: true, contactInstagram: true,
+                phonePrivacy: true, phoneSelected: true,
+                telegramPrivacy: true, telegramSelected: true,
+                cEmailPrivacy: true, cEmailSelected: true,
+                instagramPrivacy: true, instagramSelected: true,
             },
         });
         res.json(updated);

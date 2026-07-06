@@ -635,6 +635,19 @@ const en = {
     bizReceiptLimitExpired: '⚠️ Your receipt upload window (24 hours) has expired.',
     yes: 'Yes',
     no: 'No',
+    contactSection: 'Contact',
+    contactPhone: 'Phone',
+    contactPhonePh: 'e.g. +905001234567',
+    contactTelegram: 'Telegram',
+    contactTelegramPh: '@username or phone',
+    contactEmail: 'E-Mail',
+    contactEmailPh: 'contact@email.com',
+    contactInstagram: 'Instagram',
+    contactInstagramPh: '@username',
+    contactPrivacyLabel: 'Who can see this?',
+    contactNobody: 'Nobody',
+    callBtn: 'Call',
+    whatsappBtn: 'WhatsApp',
 };
 
 const tr = {
@@ -1274,6 +1287,19 @@ const tr = {
     bizReceiptLimitExpired: '⚠️ Dekont yükleme süreniz (24 saat) dolmuştur.',
     yes: 'Evet',
     no: 'Hayır',
+    contactSection: 'İletişim',
+    contactPhone: 'Telefon',
+    contactPhonePh: 'örn. +905001234567',
+    contactTelegram: 'Telegram',
+    contactTelegramPh: '@kullanici veya telefon',
+    contactEmail: 'E-Posta',
+    contactEmailPh: 'iletisim@email.com',
+    contactInstagram: 'Instagram',
+    contactInstagramPh: '@kullanici',
+    contactPrivacyLabel: 'Kim görebilir?',
+    contactNobody: 'Kimse',
+    callBtn: 'Ara',
+    whatsappBtn: 'WhatsApp',
 };
 
 export { en, tr };

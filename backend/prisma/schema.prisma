@@ -103,6 +103,18 @@ model User {
   businessIban          String?
   businessIbanHolder    String?
   venues                BusinessVenue[]
+  contactPhone       String?
+  contactTelegram    String?
+  contactEmail       String?
+  contactInstagram   String?
+  phonePrivacy       String  @default("FRIENDS")
+  phoneSelected      Json    @default("[]")
+  telegramPrivacy    String  @default("FRIENDS")
+  telegramSelected   Json    @default("[]")
+  cEmailPrivacy      String  @default("FRIENDS")
+  cEmailSelected     Json    @default("[]")
+  instagramPrivacy   String  @default("PUBLIC")
+  instagramSelected  Json    @default("[]")
   courtReservations     CourtReservation[]
   venueBlocks           VenueBlock[]       @relation("BlockedUser")
   venueOrders           VenueOrder[]

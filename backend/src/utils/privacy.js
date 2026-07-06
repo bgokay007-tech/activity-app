@@ -12,7 +12,7 @@ export async function getRelation(ownerId, viewerId) {
     return { isFriend: !!friendship, isFollower: !!follow };
 }
 
-// mode: PUBLIC | FRIENDS | FOLLOWERS | FRIENDS_EXCEPT | FRIENDS_SELECTED
+// mode: PUBLIC | FRIENDS | FOLLOWERS | FRIENDS_EXCEPT | FRIENDS_SELECTED | NOBODY
 // list anlami moda gore degisir: FRIENDS_EXCEPT -> haric tutulanlar, FRIENDS_SELECTED -> sadece dahil edilenler
 export function canAccess({ ownerId, viewerId, mode, list, isFriend, isFollower }) {
     if (ownerId === viewerId) return true;
@@ -23,6 +23,7 @@ export function canAccess({ ownerId, viewerId, mode, list, isFriend, isFollower 
         case 'FOLLOWERS': return isFollower;
         case 'FRIENDS_EXCEPT': return isFriend && !arr.includes(viewerId);
         case 'FRIENDS_SELECTED': return isFriend && arr.includes(viewerId);
+        case 'NOBODY': return false;
         default: return false;
     }
 }

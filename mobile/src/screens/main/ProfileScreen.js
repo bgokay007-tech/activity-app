@@ -1266,6 +1266,7 @@ const PRIVACY_OPTIONS = [
     { key: 'FOLLOWERS',        label: '🔔 Takipçilerim' },
     { key: 'FRIENDS_EXCEPT',   label: '🚫 Seçili Arkadaşlar Hariç' },
     { key: 'FRIENDS_SELECTED', label: '✅ Sadece Seçili Arkadaşlar' },
+    { key: 'NOBODY',           label: '🔒 Kimseye Gösterme' },
 ];
 
 function privacyEmoji(p) {
@@ -1274,6 +1275,7 @@ function privacyEmoji(p) {
     if (p === 'FOLLOWERS')        return '🔔';
     if (p === 'FRIENDS_EXCEPT')   return '🚫';
     if (p === 'FRIENDS_SELECTED') return '✅';
+    if (p === 'NOBODY')           return '🔒';
     return '🔒';
 }
 
@@ -1516,6 +1518,11 @@ export default function ProfileScreen({ route, navigation }) {
         reelsPrivacy: 'PUBLIC', reelsExclude: [],
         friendsListPrivacy: 'PUBLIC', friendsListExclude: [],
         activitiesPrivacy: 'PUBLIC', activitiesExclude: [],
+        contactPhone: '', contactTelegram: '', contactEmail: '', contactInstagram: '',
+        phonePrivacy: 'FRIENDS', phoneSelected: [],
+        telegramPrivacy: 'FRIENDS', telegramSelected: [],
+        cEmailPrivacy: 'FRIENDS', cEmailSelected: [],
+        instagramPrivacy: 'PUBLIC', instagramSelected: [],
     });
     const [savingInfo, setSavingInfo] = useState(false);
 
@@ -1825,6 +1832,18 @@ export default function ProfileScreen({ route, navigation }) {
                         friendsListExclude: p?.friendsListExclude || [],
                         activitiesPrivacy:  p?.activitiesPrivacy  || 'PUBLIC',
                         activitiesExclude:  p?.activitiesExclude  || [],
+                        contactPhone:    p?.contactPhone    || '',
+                        contactTelegram: p?.contactTelegram || '',
+                        contactEmail:    p?.contactEmail    || '',
+                        contactInstagram:p?.contactInstagram|| '',
+                        phonePrivacy:    p?.phonePrivacy    || 'FRIENDS',
+                        phoneSelected:   p?.phoneSelected   || [],
+                        telegramPrivacy: p?.telegramPrivacy || 'FRIENDS',
+                        telegramSelected:p?.telegramSelected|| [],
+                        cEmailPrivacy:   p?.cEmailPrivacy   || 'FRIENDS',
+                        cEmailSelected:  p?.cEmailSelected  || [],
+                        instagramPrivacy:p?.instagramPrivacy|| 'PUBLIC',
+                        instagramSelected:p?.instagramSelected||[],
                     });
                 }
                 if (isOwnProfile && Array.isArray(upcomingRes.data)) setMyUpcoming(upcomingRes.data);
@@ -2166,6 +2185,18 @@ export default function ProfileScreen({ route, navigation }) {
                 cityExclude:      infoForm.cityExclude,
                 genderExclude:    infoForm.genderExclude,
                 birthDateExclude: infoForm.birthDateExclude,
+                contactPhone:    infoForm.contactPhone    || null,
+                contactTelegram: infoForm.contactTelegram || null,
+                contactEmail:    infoForm.contactEmail    || null,
+                contactInstagram:infoForm.contactInstagram|| null,
+                phonePrivacy:    infoForm.phonePrivacy,
+                phoneSelected:   infoForm.phoneSelected,
+                telegramPrivacy: infoForm.telegramPrivacy,
+                telegramSelected:infoForm.telegramSelected,
+                cEmailPrivacy:   infoForm.cEmailPrivacy,
+                cEmailSelected:  infoForm.cEmailSelected,
+                instagramPrivacy:infoForm.instagramPrivacy,
+                instagramSelected:infoForm.instagramSelected,
             });
             setProfile(p => ({ ...p, ...data }));
             dispatch(setUser({ ...profile, ...data }));
@@ -2451,6 +2482,54 @@ export default function ProfileScreen({ route, navigation }) {
                         </View>
                     )}
                 </View>
+
+                {/* İletişim Butonları */}
+                {(profile?.contactPhone || profile?.contactTelegram || profile?.contactEmail || profile?.contactInstagram) && (
+                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, paddingHorizontal:12, marginBottom:14 }}>
+                        {profile.contactPhone && (
+                            <TouchableOpacity
+                                onPress={() => Linking.openURL(`tel:${profile.contactPhone}`)}
+                                style={s.contactBtn}>
+                                <Text style={s.contactBtnText}>📞 {t.callBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {profile.contactPhone && (
+                            <TouchableOpacity
+                                onPress={() => Linking.openURL(`whatsapp://send?phone=${profile.contactPhone.replace(/\D/g,'')}`)}
+                                style={[s.contactBtn, { backgroundColor:'#25D366' }]}>
+                                <Text style={[s.contactBtnText, { color:'#fff' }]}>💬 {t.whatsappBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {profile.contactTelegram && (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    const tg = profile.contactTelegram.startsWith('@') ? profile.contactTelegram.slice(1) : profile.contactTelegram;
+                                    Linking.openURL(`https://t.me/${tg}`);
+                                }}
+                                style={[s.contactBtn, { backgroundColor:'#2CA5E0' }]}>
+                                <Text style={[s.contactBtnText, { color:'#fff' }]}>✈️ Telegram</Text>
+                            </TouchableOpacity>
+                        )}
+                        {profile.contactEmail && (
+                            <TouchableOpacity
+                                onPress={() => Linking.openURL(`mailto:${profile.contactEmail}`)}
+                                style={s.contactBtn}>
+                                <Text style={s.contactBtnText}>✉️ E-Posta</Text>
+                            </TouchableOpacity>
+                        )}
+                        {profile.contactInstagram && (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    const ig = profile.contactInstagram.replace('@','');
+                                    Linking.openURL(`instagram://user?username=${ig}`).catch(() =>
+                                        Linking.openURL(`https://instagram.com/${ig}`));
+                                }}
+                                style={[s.contactBtn, { backgroundColor:'#E1306C' }]}>
+                                <Text style={[s.contactBtnText, { color:'#fff' }]}>📸 Instagram</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
 
                 {/* ── Activities / Interests ── */}
                 <View style={s.section}>
@@ -3502,6 +3581,37 @@ export default function ProfileScreen({ route, navigation }) {
 
                             <View style={s.divider} />
 
+                            {/* İletişim Bilgileri */}
+                            <Text style={s.menuSectionTitle}>📞 {t.contactSection}</Text>
+
+                            {[
+                                { field:'contactPhone',    label:t.contactPhone,    ph:t.contactPhonePh,    privPrefix:'phone',    kbd:'phone-pad' },
+                                { field:'contactTelegram', label:t.contactTelegram, ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
+                                { field:'contactEmail',    label:t.contactEmail,    ph:t.contactEmailPh,    privPrefix:'cEmail',   kbd:'email-address' },
+                                { field:'contactInstagram',label:t.contactInstagram,ph:t.contactInstagramPh,privPrefix:'instagram',kbd:'default'   },
+                            ].map(({ field, label, ph, privPrefix, kbd }) => (
+                                <View key={field} style={s.contactFieldRow}>
+                                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
+                                        <TextInput
+                                            style={[s.fieldInput, { flex:1, marginBottom:0 }]}
+                                            value={infoForm[field]}
+                                            onChangeText={v => setInfoForm(f => ({ ...f, [field]: v }))}
+                                            placeholder={ph}
+                                            placeholderTextColor={colors.textMuted}
+                                            keyboardType={kbd}
+                                            autoCapitalize="none"
+                                        />
+                                        <TouchableOpacity
+                                            onPress={() => setPrivacyPickerField(privPrefix)}
+                                            style={s.privacyIconBtn}>
+                                            <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm[`${privPrefix}Privacy`])}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+
+                            <View style={s.divider} />
+
                             {/* ── Profile Privacy (general) ── */}
                             <View style={s.infoFieldHeader}>
                                 <Text style={s.fieldLabel}>🔐 Profil Görünürlüğü</Text>
@@ -4136,4 +4246,11 @@ const s = StyleSheet.create({
     friendAvatar:     { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.purple + '60', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
     checkbox:         { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
     checkboxChecked:  { backgroundColor: '#f87171', borderColor: '#f87171' },
+
+    // Contact
+    contactBtn:       { paddingHorizontal:14, paddingVertical:8, borderRadius:20, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    contactBtnText:   { color: colors.text, fontSize:13, fontWeight:'700' },
+    contactFieldRow:  { marginBottom:8 },
+    privacyIconBtn:   { padding:6, borderRadius:8, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    menuSectionTitle: { color: '#fff', fontSize:14, fontWeight:'800', marginBottom:10, marginTop:4 },
 });
