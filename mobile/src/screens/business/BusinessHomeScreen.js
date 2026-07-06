@@ -1303,15 +1303,24 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         finally { setSavingPrice(false); }
     };
 
+    const addCountryCode = (val) => {
+        if (!val) return val;
+        const v = val.trim();
+        if (!v) return v;
+        if (v.startsWith('+')) return v;
+        if (v.startsWith('0')) return '+90' + v.slice(1);
+        return '+90' + v;
+    };
+
     const handleSaveContactLinks = async () => {
         setSavingContactLinks(true);
         try {
             const clean = {};
-            if (localContactLinks.whatsapp?.trim())  clean.whatsapp  = localContactLinks.whatsapp.trim();
+            if (localContactLinks.whatsapp?.trim())  clean.whatsapp  = addCountryCode(localContactLinks.whatsapp);
+            if (localContactLinks.phone?.trim())     clean.phone     = addCountryCode(localContactLinks.phone);
             if (localContactLinks.telegram?.trim())  clean.telegram  = localContactLinks.telegram.trim();
             if (localContactLinks.instagram?.trim()) clean.instagram = localContactLinks.instagram.trim();
             if (localContactLinks.email?.trim())     clean.email     = localContactLinks.email.trim();
-            if (localContactLinks.phone?.trim())     clean.phone     = localContactLinks.phone.trim();
             await api.patch(`/venues/${venue.id}/settings`, { contactLinks: clean });
             setLocalContactLinks(clean);
             Alert.alert('✅ Kaydedildi', 'İletişim butonları güncellendi.');
@@ -2291,26 +2300,31 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                     </Text>
 
                     {[
-                        { key: 'whatsapp',  label: 'WhatsApp',  placeholder: '+90555...' },
-                        { key: 'telegram',  label: 'Telegram',  placeholder: '@kullanici' },
-                        { key: 'instagram', label: 'Instagram', placeholder: '@hesap' },
-                        { key: 'email',     label: 'E-posta',   placeholder: 'info@tesis.com' },
-                        { key: 'phone',     label: 'Telefon',   placeholder: '+90555...' },
+                        { key: 'whatsapp',  label: 'WhatsApp',  placeholder: '5551234567', prefix: '+90', keyboardType: 'phone-pad' },
+                        { key: 'phone',     label: 'Beni Ara',  placeholder: '5551234567', prefix: '+90', keyboardType: 'phone-pad' },
+                        { key: 'telegram',  label: 'Telegram',  placeholder: '@kullanici', prefix: null, keyboardType: 'default' },
+                        { key: 'instagram', label: 'Instagram', placeholder: '@hesap',     prefix: null, keyboardType: 'default' },
+                        { key: 'email',     label: 'E-posta',   placeholder: 'info@tesis.com', prefix: null, keyboardType: 'email-address' },
                     ].map(item => (
                         <View key={item.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                             <Text style={{ color: '#666', fontSize: 12, fontWeight: '700', width: 72 }}>{item.label}</Text>
-                            <TextInput
-                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                    paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
-                                    fontSize: 13, borderWidth: 1,
-                                    borderColor: localContactLinks[item.key] ? BIZ_COLOR + '60' : '#ffffff15' }}
-                                placeholder={item.placeholder}
-                                placeholderTextColor="#444"
-                                value={localContactLinks[item.key] || ''}
-                                onChangeText={v => setLocalContactLinks(p => ({ ...p, [item.key]: v }))}
-                                autoCapitalize="none"
-                                keyboardType={item.key === 'email' ? 'email-address' : 'default'}
-                            />
+                            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center',
+                                backgroundColor: '#ffffff0a', borderRadius: 8, borderWidth: 1,
+                                borderColor: localContactLinks[item.key] ? BIZ_COLOR + '60' : '#ffffff15', overflow: 'hidden' }}>
+                                {item.prefix && (
+                                    <Text style={{ color: '#888', fontSize: 13, paddingLeft: 10, paddingRight: 4 }}>{item.prefix}</Text>
+                                )}
+                                <TextInput
+                                    style={{ flex: 1, paddingHorizontal: item.prefix ? 4 : 12,
+                                        paddingVertical: 7, color: '#fff', fontSize: 13 }}
+                                    placeholder={item.placeholder}
+                                    placeholderTextColor="#444"
+                                    value={localContactLinks[item.key] || ''}
+                                    onChangeText={v => setLocalContactLinks(p => ({ ...p, [item.key]: v }))}
+                                    autoCapitalize="none"
+                                    keyboardType={item.keyboardType}
+                                />
+                            </View>
                         </View>
                     ))}
                     <TouchableOpacity disabled={savingContactLinks}

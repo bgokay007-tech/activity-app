@@ -169,11 +169,11 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                         const cl = venue.contactLinks;
                         if (!cl || typeof cl !== 'object') return null;
                         const links = [
-                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp',  url: v => `https://wa.me/${v.replace(/\D/g,'')}` },
+                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp',  url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
+                            { key: 'phone',     icon: '📞', label: 'Beni Ara',  url: v => `tel:${v}` },
                             { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
                             { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
                             { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
-                            { key: 'phone',     icon: '📞', label: 'Telefon',   url: v => `tel:${v}` },
                         ].filter(l => cl[l.key]);
                         if (links.length === 0) return null;
                         return (
@@ -280,8 +280,11 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                             {varStart && (() => {
                                                 const w = entry.windows.find(win => win.start === varStart);
                                                 if (!w) return null;
-                                                const maxDur = toM(w.end) - toM(varStart);
-                                                const opts = [60, 90, 120, 150, 180].filter(d => d <= maxDur);
+                                                const weM = toM(w.end);
+                                                const opts = [60, 90, 120, 150, 180].filter(d => {
+                                                    const endM = toM(varStart) + d;
+                                                    return endM <= weM && (endM === weM || weM - endM >= 60);
+                                                });
                                                 return (
                                                     <>
                                                         <Text style={bv.stepLabel}>Süre Seçin</Text>

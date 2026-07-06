@@ -120,11 +120,11 @@ export default function VenueDetailScreen({ route, navigation }) {
                         const cl = venue.contactLinks;
                         if (!cl || typeof cl !== 'object') return null;
                         const links = [
-                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp',  url: v => `https://wa.me/${v.replace(/\D/g,'')}` },
+                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp',  url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
+                            { key: 'phone',     icon: '📞', label: 'Beni Ara',  url: v => `tel:${v}` },
                             { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
                             { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
                             { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
-                            { key: 'phone',     icon: '📞', label: 'Telefon',   url: v => `tel:${v}` },
                         ].filter(l => cl[l.key]);
                         if (links.length === 0) return null;
                         return (
