@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
-    StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal,
+    StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, Linking,
 } from 'react-native';
 import colors from '../../theme/colors';
 import api from '../../services/api';
@@ -163,6 +163,35 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                         <View style={bm.tag}><Text style={bm.tagText}>📅 {SLOT_LABEL[venue.slotType] || venue.slotType}</Text></View>
                         {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
                     </View>
+
+                    {/* İletişim butonları */}
+                    {(() => {
+                        const cl = venue.contactLinks;
+                        if (!cl || typeof cl !== 'object') return null;
+                        const links = [
+                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp',  url: v => `https://wa.me/${v.replace(/\D/g,'')}` },
+                            { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
+                            { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
+                            { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
+                            { key: 'phone',     icon: '📞', label: 'Telefon',   url: v => `tel:${v}` },
+                        ].filter(l => cl[l.key]);
+                        if (links.length === 0) return null;
+                        return (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }}>
+                                {links.map(l => (
+                                    <TouchableOpacity key={l.key}
+                                        onPress={() => Linking.openURL(l.url(cl[l.key]))}
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
+                                            backgroundColor: colors.surface2, borderRadius: 8,
+                                            paddingHorizontal: 10, paddingVertical: 6,
+                                            borderWidth: 1, borderColor: colors.border }}>
+                                        <Text style={{ fontSize: 13 }}>{l.icon}</Text>
+                                        <Text style={{ color: '#e5e7eb', fontSize: 11, fontWeight: '700' }}>{l.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        );
+                    })()}
 
                     {/* Fiyat politikası özeti */}
                     {(() => {

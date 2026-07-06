@@ -116,6 +116,36 @@ export default function VenueDetailScreen({ route, navigation }) {
                             </TouchableOpacity>
                         </View>
                     )}
+                    {(() => {
+                        const cl = venue.contactLinks;
+                        if (!cl || typeof cl !== 'object') return null;
+                        const links = [
+                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp',  url: v => `https://wa.me/${v.replace(/\D/g,'')}` },
+                            { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
+                            { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
+                            { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
+                            { key: 'phone',     icon: '📞', label: 'Telefon',   url: v => `tel:${v}` },
+                        ].filter(l => cl[l.key]);
+                        if (links.length === 0) return null;
+                        return (
+                            <View style={[s.infoRow, { flexWrap: 'wrap', gap: 6, alignItems: 'flex-start' }]}>
+                                <Text style={s.infoLabel}>İletişim</Text>
+                                <View style={{ flex: 2, flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+                                    {links.map(l => (
+                                        <TouchableOpacity key={l.key}
+                                            onPress={() => Linking.openURL(l.url(cl[l.key]))}
+                                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
+                                                backgroundColor: '#9333ea18', borderRadius: 8,
+                                                paddingHorizontal: 10, paddingVertical: 6,
+                                                borderWidth: 1, borderColor: '#9333ea40' }}>
+                                            <Text style={{ fontSize: 13 }}>{l.icon}</Text>
+                                            <Text style={{ color: colors.purpleLight, fontSize: 11, fontWeight: '700' }}>{l.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        );
+                    })()}
                 </View>
 
                 {/* Kortlar */}

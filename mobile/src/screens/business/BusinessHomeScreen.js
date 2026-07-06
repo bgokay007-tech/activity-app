@@ -1102,6 +1102,12 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const [showPriceFromPicker, setShowPriceFromPicker] = useState(false);
     const [showPriceToPicker, setShowPriceToPicker]     = useState(false);
 
+    // ── İletişim butonları state ──────────────────────────────────────────────
+    const [localContactLinks, setLocalContactLinks] = useState(
+        () => (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {}
+    );
+    const [savingContactLinks, setSavingContactLinks] = useState(false);
+
     const sortedCourts = [...(venue.courts || [])].sort((a, b) => {
         const nA = parseInt(a.name.match(/\d+/)?.[0] ?? '', 10);
         const nB = parseInt(b.name.match(/\d+/)?.[0] ?? '', 10);
@@ -1295,6 +1301,22 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
             setLocalPricingWindows(next);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingPrice(false); }
+    };
+
+    const handleSaveContactLinks = async () => {
+        setSavingContactLinks(true);
+        try {
+            const clean = {};
+            if (localContactLinks.whatsapp?.trim())  clean.whatsapp  = localContactLinks.whatsapp.trim();
+            if (localContactLinks.telegram?.trim())  clean.telegram  = localContactLinks.telegram.trim();
+            if (localContactLinks.instagram?.trim()) clean.instagram = localContactLinks.instagram.trim();
+            if (localContactLinks.email?.trim())     clean.email     = localContactLinks.email.trim();
+            if (localContactLinks.phone?.trim())     clean.phone     = localContactLinks.phone.trim();
+            await api.patch(`/venues/${venue.id}/settings`, { contactLinks: clean });
+            setLocalContactLinks(clean);
+            Alert.alert('✅ Kaydedildi', 'İletişim butonları güncellendi.');
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingContactLinks(false); }
     };
 
     const isValidTime = isValidTimeStr;
@@ -2258,6 +2280,48 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                         onSelect={t => { setNewRuleTo(t); setShowPriceToPicker(false); }}
                         onClose={() => setShowPriceToPicker(false)}
                     />
+
+                    {/* ── İletişim Butonları ──── */}
+                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                        İLETİŞİM BUTONLARI
+                    </Text>
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 12, lineHeight: 15 }}>
+                        Kullanıcılar rezervasyon sırasında bu butonları görecek.
+                    </Text>
+
+                    {[
+                        { key: 'whatsapp',  label: 'WhatsApp',  placeholder: '+90555...' },
+                        { key: 'telegram',  label: 'Telegram',  placeholder: '@kullanici' },
+                        { key: 'instagram', label: 'Instagram', placeholder: '@hesap' },
+                        { key: 'email',     label: 'E-posta',   placeholder: 'info@tesis.com' },
+                        { key: 'phone',     label: 'Telefon',   placeholder: '+90555...' },
+                    ].map(item => (
+                        <View key={item.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <Text style={{ color: '#666', fontSize: 12, fontWeight: '700', width: 72 }}>{item.label}</Text>
+                            <TextInput
+                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
+                                    fontSize: 13, borderWidth: 1,
+                                    borderColor: localContactLinks[item.key] ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                placeholder={item.placeholder}
+                                placeholderTextColor="#444"
+                                value={localContactLinks[item.key] || ''}
+                                onChangeText={v => setLocalContactLinks(p => ({ ...p, [item.key]: v }))}
+                                autoCapitalize="none"
+                                keyboardType={item.key === 'email' ? 'email-address' : 'default'}
+                            />
+                        </View>
+                    ))}
+                    <TouchableOpacity disabled={savingContactLinks}
+                        onPress={handleSaveContactLinks}
+                        style={{ backgroundColor: BIZ_COLOR + '20', borderRadius: 8,
+                            paddingHorizontal: 14, paddingVertical: 9,
+                            borderWidth: 1, borderColor: BIZ_COLOR + '40', alignSelf: 'flex-end', marginTop: 4 }}>
+                        <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>
+                            {savingContactLinks ? 'Kaydediliyor...' : 'Kaydet'}
+                        </Text>
+                    </TouchableOpacity>
 
                     {/* ── İptal & Değişiklik Politikası ──── */}
                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />

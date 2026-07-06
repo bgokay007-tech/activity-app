@@ -390,7 +390,7 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows } = req.body;
+        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks } = req.body;
         const VALID_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_PAY   = ['CASH', 'EFT', 'ONLINE'];
         if (slotType && !VALID_TYPES.includes(slotType))
@@ -409,6 +409,7 @@ export const updateVenueSettings = async (req, res, next) => {
         if (openSlots !== undefined)             data.openSlots            = openSlots;
         if (acceptedPayments !== undefined)      data.acceptedPayments     = acceptedPayments;
         if (pricingWindows !== undefined)        data.pricingWindows       = pricingWindows;
+        if (contactLinks !== undefined)          data.contactLinks         = contactLinks;
         if (cancelHoursBefore !== undefined)     data.cancelHoursBefore    = cancelHoursBefore === null ? null : parseInt(cancelHoursBefore);
         if (rescheduleHoursBefore !== undefined) data.rescheduleHoursBefore = rescheduleHoursBefore === null ? null : parseInt(rescheduleHoursBefore);
 

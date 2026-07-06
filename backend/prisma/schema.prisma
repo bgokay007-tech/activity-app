@@ -868,6 +868,7 @@ model BusinessVenue {
   rescheduleHoursBefore Int?                           // null=her zaman, -1=asla, N>=0=N saat öncesine kadar
   acceptedPayments      Json     @default("[\"CASH\",\"EFT\"]") // kabul edilen ödeme yöntemleri
   pricingWindows        Json?                              // [{from,to,price,courtId?}] saat aralığı fiyatları
+  contactLinks          Json?                              // {whatsapp?,telegram?,instagram?,email?,phone?}
   status       String   @default("PENDING")   // PENDING | APPROVED | REJECTED
   adminNote   String?
   createdAt   DateTime @default(now())
