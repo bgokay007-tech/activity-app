@@ -3493,6 +3493,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                 <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                     {!cs?.loading && isStructured && cData.slots.map((sl, i) => {
                         const isSel = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
+                        const slotPrice = sl.price != null ? sl.price : venue?.pricePerSlot;
                         return (
                             <TouchableOpacity key={i} disabled={!sl.free}
                                 style={[vb.colSlot, sl.free ? vb.colSlotFree : vb.colSlotTaken, isSel && vb.colSlotSel]}
@@ -3503,6 +3504,9 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                 <Text style={[vb.colSlotSub, !sl.free && { color:'#ef444466' }, isSel && { color:'#fff', opacity:0.8 }]}>
                                     {sl.end}
                                 </Text>
+                                {sl.free && slotPrice > 0 && (
+                                    <Text style={[vb.colSlotPrice, isSel && { color:'#bbf7d0' }]}>{slotPrice}₺</Text>
+                                )}
                             </TouchableOpacity>
                         );
                     })}
@@ -3592,6 +3596,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                             <Text style={vb.selSummaryTxt}>
                                                 ✅ {selCourt?.name} · {selSlot.slot.start}{selSlot.slot.end ? ` – ${selSlot.slot.end}` : ''}
                                             </Text>
+                                            {(() => { const p = selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot; return p > 0 ? <Text style={vb.selSummaryPrice}>💰 {p}₺</Text> : null; })()}
                                         </View>
                                         {needsDur && (
                                             <>
@@ -3699,6 +3704,8 @@ const vb = StyleSheet.create({
     slotSel:      { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2.5 },
     slotT:        { color:'#4ade80', fontSize:12, fontWeight:'700' },
     slotTakenT:   { color:'#ef4444' },
+    colSlotPrice: { color:'#86efac', fontSize:9, fontWeight:'700', marginTop:1 },
+    selSummaryPrice: { color:'#4ade80', fontSize:12, fontWeight:'700', marginTop:3 },
 
     sectionLabel: { color:'#888', fontSize:11, fontWeight:'700', marginBottom:8, letterSpacing:0.5, textTransform:'uppercase' },
     takenRow:     { color:'#ef4444', fontSize:13, marginBottom:4 },
@@ -3806,7 +3813,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [submitting, setSubmitting] = useState(false);
     const [ratingPickerTarget, setRatingPickerTarget] = useState(null);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null });
-    const [menuOrder, setMenuOrder] = useState({ visible: false, venueId: null });
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
 
     useEffect(() => {
@@ -4476,11 +4482,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     reservationId: reservationId || null,
                 }));
             }}
-        />
-        <VenueMenuOrderModal
-            visible={menuOrder.visible}
-            venueId={menuOrder.venueId}
-            onClose={() => setMenuOrder({ visible: false, venueId: null })}
         />
         </>
     );

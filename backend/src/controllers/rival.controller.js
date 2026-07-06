@@ -465,6 +465,20 @@ export const createRivalRequest = async (req, res, next) => {
             }
         }
 
+        // venueCourtId varsa tesis+kort adını otomatik oluştur
+        let resolvedCourtName = courtName;
+        if (venueCourtId && venueId) {
+            try {
+                const [venueRec, courtRec] = await Promise.all([
+                    prisma.businessVenue.findUnique({ where: { id: venueId }, select: { name: true } }),
+                    prisma.venueCourt.findUnique({ where: { id: venueCourtId }, select: { name: true } }),
+                ]);
+                if (venueRec && courtRec) {
+                    resolvedCourtName = `${venueRec.name} ${courtRec.name}`;
+                }
+            } catch {}
+        }
+
         const request = await prisma.activityRequest.create({
             data: {
                 senderId: req.userId,
@@ -474,7 +488,7 @@ export const createRivalRequest = async (req, res, next) => {
                 level,
                 levelDetail,
                 location,
-                courtName,
+                courtName: resolvedCourtName,
                 courtAddress,
                 courtLat: courtLat ? Number(courtLat) : null,
                 courtLng: courtLng ? Number(courtLng) : null,
