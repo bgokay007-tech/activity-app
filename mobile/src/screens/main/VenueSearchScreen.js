@@ -87,23 +87,12 @@ function ConfirmModal({ visible, venue, court, slot, date, onConfirm, onClose, c
 const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
 
-function genVarSlots(windows, durationMins) {
-    const out = [];
-    for (const w of windows) {
-        const ws = toM(w.start), we = toM(w.end);
-        for (let t = ws; t + durationMins <= we; t += 60) {
-            const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (durationMins / 60)) : null;
-            out.push({ start: toT(t), end: toT(t + durationMins), free: true, price, durationMins });
-        }
-    }
-    return out;
-}
 
 function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
     const [date,        setDate]        = useState(DATE_OPTIONS[0]);
     const [slotsMap,    setSlotsMap]    = useState({});
     const [picked,      setPicked]      = useState(null);
-    const [varDurMap,   setVarDurMap]   = useState({}); // { [courtId]: 60|90|120 }
+    const [varStartMap, setVarStartMap] = useState({}); // { [courtId]: startTime | null }
 
     const fetchAllSlots = useCallback(async (d) => {
         if (!venue?.courts?.length) return;
@@ -130,6 +119,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
             const today = DATE_OPTIONS[0];
             setDate(today);
             setPicked(null);
+            setVarStartMap({});
             fetchAllSlots(today);
         }
     }, [visible, venue]);
@@ -137,6 +127,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
     const handleDateChange = (d) => {
         setDate(d);
         setPicked(null);
+        setVarStartMap({});
         fetchAllSlots(d);
     };
 
@@ -221,11 +212,11 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                     {/* Kortlar + Slotlar */}
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={bm.scroll}>
                         {venue.courts.map(court => {
-                            const entry      = slotsMap[court.id] || { slots: [], loading: true, type: null, windows: [] };
-                            const isVar      = entry.type === 'VAR_DURATION';
-                            const dur        = varDurMap[court.id] || 60;
-                            const displaySlots = isVar ? genVarSlots(entry.windows, dur) : entry.slots;
-                            const freeCount  = displaySlots.filter(sl => sl.free !== false).length;
+                            const entry = slotsMap[court.id] || { slots: [], loading: true, type: null, windows: [] };
+                            const isVar = entry.type === 'VAR_DURATION';
+                            const varStart = varStartMap[court.id] || null;
+                            const displaySlots = isVar ? [] : entry.slots;
+                            const freeCount = isVar ? entry.windows.length : displaySlots.filter(sl => sl.free !== false).length;
                             return (
                                 <View key={court.id} style={bm.courtSection}>
                                     <View style={bm.courtHeader}>
@@ -237,26 +228,55 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                         )}
                                     </View>
 
-                                    {isVar && !entry.loading && (
-                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                                            {[60, 90, 120, 150, 180].map(d => (
-                                                <TouchableOpacity key={d}
-                                                    onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setPicked(null); }}
-                                                    style={{ paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center',
-                                                        borderWidth: 1.5,
-                                                        borderColor: dur === d ? colors.purple : colors.border,
-                                                        backgroundColor: dur === d ? colors.purple + '20' : colors.surface2 }}>
-                                                    <Text style={{ color: dur === d ? colors.purple : colors.textMuted,
-                                                        fontWeight: '800', fontSize: 12 }}>{d} dk</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    )}
-
                                     {entry.loading ? (
                                         <ActivityIndicator size="small" color={colors.purple} style={{ marginVertical: 12 }} />
                                     ) : entry.error ? (
                                         <Text style={bm.errorText}>{entry.error}</Text>
+                                    ) : isVar ? (
+                                        <>
+                                            <Text style={bv.stepLabel}>Başlangıç Saati</Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                                {entry.windows.length === 0 ? (
+                                                    <Text style={bm.noSlotText}>Müsait pencere yok.</Text>
+                                                ) : entry.windows.map((w, wi) => (
+                                                    <TouchableOpacity key={wi}
+                                                        onPress={() => { setVarStartMap(p => ({ ...p, [court.id]: w.start })); setPicked(null); }}
+                                                        style={[bv.timeBtn, varStart === w.start && bv.timeBtnActive]}
+                                                    >
+                                                        <Text style={[bv.timeBtnText, varStart === w.start && bv.timeBtnTextActive]}>{w.start}</Text>
+                                                        <Text style={[bv.timeBtnSub, varStart === w.start && bv.timeBtnTextActive]}>–{w.end}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                            {varStart && (() => {
+                                                const w = entry.windows.find(win => win.start === varStart);
+                                                if (!w) return null;
+                                                const maxDur = toM(w.end) - toM(varStart);
+                                                const opts = [60, 90, 120, 150, 180].filter(d => d <= maxDur);
+                                                return (
+                                                    <>
+                                                        <Text style={bv.stepLabel}>Süre Seçin</Text>
+                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                                            {opts.map(d => {
+                                                                const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (d / 60)) : null;
+                                                                const endT = toT(toM(varStart) + d);
+                                                                const isPicked = picked?.court.id === court.id && picked?.slot.start === varStart && picked?.slot.end === endT;
+                                                                return (
+                                                                    <TouchableOpacity key={d}
+                                                                        onPress={() => setPicked({ court, slot: { start: varStart, end: endT, free: true, price, durationMins: d } })}
+                                                                        style={[bv.durBtn, isPicked && bv.durBtnPicked]}
+                                                                    >
+                                                                        <Text style={[bv.durBtnDur, isPicked && bv.durBtnTextPicked]}>{d} dk</Text>
+                                                                        <Text style={[bv.durBtnTime, isPicked && bv.durBtnTextPicked]}>{varStart}–{endT}</Text>
+                                                                        {price != null && <Text style={[bv.durBtnPrice, isPicked && bv.durBtnTextPicked]}>{price > 0 ? `${price}₺` : 'Ücretsiz'}</Text>}
+                                                                    </TouchableOpacity>
+                                                                );
+                                                            })}
+                                                        </View>
+                                                    </>
+                                                );
+                                            })()}
+                                        </>
                                     ) : displaySlots.length === 0 ? (
                                         <Text style={bm.noSlotText}>Bu tarihte slot tanımlı değil.</Text>
                                     ) : (
@@ -621,7 +641,7 @@ const bm = StyleSheet.create({
     dateList:         { paddingHorizontal: 14, paddingVertical: 8, gap: 6 },
     dateBtn:          { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
     dateBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
-    dateBtnText:      { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+    dateBtnText:      { color: '#e5e7eb', fontSize: 13, fontWeight: '700' },
     dateBtnTextActive:{ color: '#fff' },
 
     scroll: { paddingHorizontal: 14, paddingTop: 6 },
@@ -652,6 +672,21 @@ const bm = StyleSheet.create({
     reserveBarSub:   { color: colors.textMuted, fontSize: 11, marginTop: 2 },
     reserveBtn:      { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
     reserveBtnText:  { color: '#fff', fontWeight: '900', fontSize: 13 },
+});
+
+const bv = StyleSheet.create({
+    stepLabel:        { color: colors.textSecondary, fontSize: 11, fontWeight: '800', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+    timeBtn:          { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface2 },
+    timeBtnActive:    { borderColor: colors.purple, backgroundColor: colors.purple + '20' },
+    timeBtnText:      { color: '#e5e7eb', fontSize: 14, fontWeight: '900' },
+    timeBtnSub:       { color: colors.textMuted, fontSize: 10, marginTop: 1 },
+    timeBtnTextActive:{ color: colors.purple },
+    durBtn:           { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '50', backgroundColor: colors.surface2 },
+    durBtnPicked:     { backgroundColor: colors.purple, borderColor: colors.purple },
+    durBtnDur:        { color: colors.purple, fontSize: 14, fontWeight: '900' },
+    durBtnTime:       { color: colors.textMuted, fontSize: 10, marginTop: 1 },
+    durBtnPrice:      { color: colors.purple, fontSize: 11, fontWeight: '800', marginTop: 2 },
+    durBtnTextPicked: { color: '#fff' },
 });
 
 const cm = StyleSheet.create({

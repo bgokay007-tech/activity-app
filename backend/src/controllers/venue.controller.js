@@ -274,7 +274,10 @@ export const getVenueSlots = async (req, res, next) => {
         });
 
         const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
-        const effectiveVenue = { ...venue, slotType: (VALID_SLOT_TYPES.includes(court?.slotType) ? court.slotType : null) || venue.slotType || 'FULL_HOUR' };
+        const courtSlotType = VALID_SLOT_TYPES.includes(court?.slotType) ? court.slotType : null;
+        // VAR_DURATION tesis düzeyinden miras alınmaz — sadece kortun kendisi VAR_DURATION ise geçerli
+        const venueSlotFallback = venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : (venue.slotType || 'FULL_HOUR');
+        const effectiveVenue = { ...venue, slotType: courtSlotType || venueSlotFallback };
         const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId);
         const addSlotPrice = arr => (arr || []).map(s => {
             const dur = s.start && s.end ? toMins(s.end) - toMins(s.start) : 60;

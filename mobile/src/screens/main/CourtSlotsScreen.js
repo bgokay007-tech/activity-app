@@ -22,6 +22,9 @@ function formatDateLabel(dateStr) {
     return `${days[d.getDay()]} ${day} ${months[m - 1]}`;
 }
 
+const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
+
 function SlotBubble({ slot, selected, onPress }) {
     const priceLabel = slot.price != null ? (slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz') : null;
     return (
@@ -118,13 +121,13 @@ export default function CourtSlotsScreen({ route, navigation }) {
     const [pickedSlot, setPicked] = useState(null);
     const [modalVisible, setModal] = useState(false);
     const [confirming, setConf]   = useState(false);
-    const [varDuration, setVarDuration] = useState(60);
+    const [varStartTime, setVarStartTime] = useState(null);
 
     const fetchSlots = useCallback(async (date) => {
         setLoading(true);
         setSlots(null);
         setPicked(null);
-        setVarDuration(60);
+        setVarStartTime(null);
         try {
             const { data } = await api.get(`/venues/${venue.id}/courts/${court.id}/slots`, { params: { date } });
             setSlots(data);
@@ -161,20 +164,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
 
     const isVarDuration = slots?.type === 'VAR_DURATION';
 
-    const slotList = (() => {
-        if (!isVarDuration) return slots?.slots || slots?.windows || [];
-        const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-        const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
-        const generated = [];
-        for (const w of (slots?.windows || [])) {
-            const wStart = toM(w.start), wEnd = toM(w.end);
-            for (let t = wStart; t + varDuration <= wEnd; t += 60) {
-                const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (varDuration / 60)) : null;
-                generated.push({ start: toT(t), end: toT(t + varDuration), free: true, price, durationMins: varDuration });
-            }
-        }
-        return generated;
-    })();
+    const slotList = isVarDuration ? [] : (slots?.slots || slots?.windows || []);
 
     return (
         <View style={s.root}>
@@ -219,43 +209,73 @@ export default function CourtSlotsScreen({ route, navigation }) {
 
                 {!loading && slots && (
                     <>
-                        {isVarDuration && (
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                                {[60, 90, 120, 150, 180].map(d => (
-                                    <TouchableOpacity key={d}
-                                        onPress={() => { setVarDuration(d); setPicked(null); }}
-                                        style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center',
-                                            borderWidth: 1.5,
-                                            borderColor: varDuration === d ? colors.purple : colors.border,
-                                            backgroundColor: varDuration === d ? colors.purple + '20' : colors.surface }}>
-                                        <Text style={{ color: varDuration === d ? colors.purple : colors.textMuted,
-                                            fontWeight: '800', fontSize: 13 }}>
-                                            {d} dk
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        )}
-
-                        <Text style={s.slotsTitle}>
-                            {formatDateLabel(selectedDate)} — {slotList.filter(sl => sl.free !== false).length} müsait slot
-                        </Text>
-
-                        {slotList.length === 0 ? (
-                            <View style={s.noSlots}>
-                                <Text style={s.noSlotsText}>Bu tarihte müsait slot bulunamadı.</Text>
-                            </View>
+                        {isVarDuration ? (
+                            <>
+                                <Text style={s.slotsTitle}>{formatDateLabel(selectedDate)} — Başlangıç saati seçin</Text>
+                                <Text style={vs.stepLabel}>1. Başlangıç Saati</Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                                    {(slots?.windows || []).length === 0 ? (
+                                        <Text style={s.noSlotsText}>Bu tarihte müsait pencere yok.</Text>
+                                    ) : (slots?.windows || []).map((w, i) => (
+                                        <TouchableOpacity key={i}
+                                            onPress={() => { setVarStartTime(w.start); setPicked(null); }}
+                                            style={[vs.timeBtn, varStartTime === w.start && vs.timeBtnActive]}
+                                        >
+                                            <Text style={[vs.timeBtnText, varStartTime === w.start && vs.timeBtnTextActive]}>{w.start}</Text>
+                                            <Text style={[vs.timeBtnSub, varStartTime === w.start && vs.timeBtnTextActive]}>–{w.end}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                {varStartTime && (() => {
+                                    const w = (slots?.windows || []).find(win => win.start === varStartTime);
+                                    if (!w) return null;
+                                    const maxDur = toM(w.end) - toM(varStartTime);
+                                    const options = [60, 90, 120, 150, 180].filter(d => d <= maxDur);
+                                    return (
+                                        <>
+                                            <Text style={vs.stepLabel}>2. Süre Seçin</Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                                {options.map(d => {
+                                                    const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (d / 60)) : null;
+                                                    const endT = toT(toM(varStartTime) + d);
+                                                    return (
+                                                        <TouchableOpacity key={d}
+                                                            onPress={() => handleSelectSlot({ start: varStartTime, end: endT, free: true, price, durationMins: d })}
+                                                            style={vs.durBtn}
+                                                        >
+                                                            <Text style={vs.durBtnDur}>{d} dk</Text>
+                                                            <Text style={vs.durBtnTime}>{varStartTime}–{endT}</Text>
+                                                            {price != null && <Text style={vs.durBtnPrice}>{price > 0 ? `${price}₺` : 'Ücretsiz'}</Text>}
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </View>
+                                        </>
+                                    );
+                                })()}
+                            </>
                         ) : (
-                            <View style={ss.grid}>
-                                {slotList.map((slot, i) => (
-                                    <SlotBubble
-                                        key={i}
-                                        slot={slot}
-                                        selected={pickedSlot?.start === slot.start && pickedSlot?.end === slot.end}
-                                        onPress={handleSelectSlot}
-                                    />
-                                ))}
-                            </View>
+                            <>
+                                <Text style={s.slotsTitle}>
+                                    {formatDateLabel(selectedDate)} — {slotList.filter(sl => sl.free !== false).length} müsait slot
+                                </Text>
+                                {slotList.length === 0 ? (
+                                    <View style={s.noSlots}>
+                                        <Text style={s.noSlotsText}>Bu tarihte müsait slot bulunamadı.</Text>
+                                    </View>
+                                ) : (
+                                    <View style={ss.grid}>
+                                        {slotList.map((slot, i) => (
+                                            <SlotBubble
+                                                key={i}
+                                                slot={slot}
+                                                selected={pickedSlot?.start === slot.start && pickedSlot?.end === slot.end}
+                                                onPress={handleSelectSlot}
+                                            />
+                                        ))}
+                                    </View>
+                                )}
+                            </>
                         )}
 
                         <View style={s.legend}>
@@ -292,7 +312,7 @@ const s = StyleSheet.create({
     dateList: { paddingHorizontal: 14, paddingVertical: 12, gap: 8 },
     dateBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     dateBtnActive: { backgroundColor: colors.purple, borderColor: colors.purple },
-    dateBtnText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+    dateBtnText: { color: '#e5e7eb', fontSize: 13, fontWeight: '700' },
     dateBtnTextActive: { color: '#fff' },
 
     scroll: { paddingHorizontal: 14, paddingTop: 8 },
@@ -346,4 +366,17 @@ const cm = StyleSheet.create({
     cancelBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
     confirmBtn: { flex: 2, backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
     confirmBtnText: { color: '#fff', fontWeight: '900', fontSize: 14 },
+});
+
+const vs = StyleSheet.create({
+    stepLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    timeBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
+    timeBtnActive: { borderColor: colors.purple, backgroundColor: colors.purple + '20' },
+    timeBtnText: { color: '#e5e7eb', fontSize: 16, fontWeight: '900' },
+    timeBtnSub: { color: colors.textMuted, fontSize: 10, marginTop: 2 },
+    timeBtnTextActive: { color: colors.purple },
+    durBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '50', backgroundColor: colors.surface },
+    durBtnDur: { color: colors.purple, fontSize: 15, fontWeight: '900' },
+    durBtnTime: { color: colors.textMuted, fontSize: 10, marginTop: 2 },
+    durBtnPrice: { color: colors.purple, fontSize: 11, fontWeight: '800', marginTop: 3 },
 });
