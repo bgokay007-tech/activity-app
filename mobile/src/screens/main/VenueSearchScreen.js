@@ -238,11 +238,11 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                     </View>
 
                                     {isVar && !entry.loading && (
-                                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
-                                            {[60, 90, 120].map(d => (
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                            {[60, 90, 120, 150, 180].map(d => (
                                                 <TouchableOpacity key={d}
                                                     onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setPicked(null); }}
-                                                    style={{ flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center',
+                                                    style={{ paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center',
                                                         borderWidth: 1.5,
                                                         borderColor: dur === d ? colors.purple : colors.border,
                                                         backgroundColor: dur === d ? colors.purple + '20' : colors.surface2 }}>

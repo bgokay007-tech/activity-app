@@ -220,11 +220,11 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 {!loading && slots && (
                     <>
                         {isVarDuration && (
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                                {[60, 90, 120].map(d => (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                                {[60, 90, 120, 150, 180].map(d => (
                                     <TouchableOpacity key={d}
                                         onPress={() => { setVarDuration(d); setPicked(null); }}
-                                        style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center',
+                                        style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center',
                                             borderWidth: 1.5,
                                             borderColor: varDuration === d ? colors.purple : colors.border,
                                             backgroundColor: varDuration === d ? colors.purple + '20' : colors.surface }}>
