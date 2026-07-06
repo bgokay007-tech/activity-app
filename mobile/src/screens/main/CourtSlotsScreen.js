@@ -222,32 +222,31 @@ export default function CourtSlotsScreen({ route, navigation }) {
             })()}
 
             {/* Tarih seçici */}
-            <FlatList
-                data={dateOptions}
-                keyExtractor={d => d}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                extraData={selectedDate}
-                contentContainerStyle={s.dateList}
-                renderItem={({ item }) => {
-                    const active = item === selectedDate;
-                    const [y, mo, day] = item.split('-').map(Number);
-                    const d = new Date(y, mo - 1, day);
-                    const dayNames   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
-                    const monthNames = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
-                    return (
-                        <TouchableOpacity
-                            style={[s.dateBtn, active && s.dateBtnActive]}
-                            onPress={() => { setDate(item); }}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[s.dateBtnText, active && s.dateBtnTextActive]}>
-                                {`${day} ${monthNames[mo-1]} ${dayNames[d.getDay()]}`}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                }}
-            />
+            {(() => {
+                const dayNames   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+                const monthNames = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+                return (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingHorizontal:14, paddingVertical:8 }}>
+                        {dateOptions.map(item => {
+                            const active = item === selectedDate;
+                            const [,mo,day] = item.split('-').map(Number);
+                            const d = new Date(item + 'T12:00:00');
+                            const label = `${day} ${monthNames[mo-1]} ${dayNames[d.getDay()]}`;
+                            return (
+                                <TouchableOpacity key={item}
+                                    onPress={() => setDate(item)}
+                                    activeOpacity={0.75}
+                                    style={{ marginRight:6, paddingVertical:7, paddingHorizontal:12, borderRadius:20,
+                                        backgroundColor: active ? colors.purple : colors.surface,
+                                        borderWidth:1, borderColor: active ? colors.purple : colors.border }}>
+                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                );
+            })()}
 
             <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
                 {loading && (
