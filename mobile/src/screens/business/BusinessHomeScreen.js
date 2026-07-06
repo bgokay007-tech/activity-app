@@ -2115,9 +2115,8 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                     </TouchableOpacity>
                                 </View>
 
-                            </View>
-                            </View>)}
-                            </View>
+                        </View>}
+                    </View>
                         );
                     })}
                     {savingSlot && <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 10 }} />}
