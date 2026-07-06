@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     StatusBar, Platform, Alert, ActivityIndicator, Modal, Image,
-    TextInput, Switch,
+    TextInput, Switch, FlatList,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
@@ -13,6 +13,77 @@ import colors from '../../theme/colors';
 const BIZ_COLOR = '#f59e0b';
 const BIZ_LIGHT = '#fbbf24';
 const BIZ_DIM   = '#f59e0b18';
+
+const COUNTRIES = [
+    { code: '+90',  flag: '🇹🇷', name: 'Türkiye' },
+    { code: '+994', flag: '🇦🇿', name: 'Azerbaycan' },
+    { code: '+995', flag: '🇬🇪', name: 'Gürcistan' },
+    { code: '+374', flag: '🇦🇲', name: 'Ermenistan' },
+    { code: '+966', flag: '🇸🇦', name: 'Suudi Arabistan' },
+    { code: '+971', flag: '🇦🇪', name: 'BAE' },
+    { code: '+974', flag: '🇶🇦', name: 'Katar' },
+    { code: '+965', flag: '🇰🇼', name: 'Kuveyt' },
+    { code: '+973', flag: '🇧🇭', name: 'Bahreyn' },
+    { code: '+968', flag: '🇴🇲', name: 'Umman' },
+    { code: '+964', flag: '🇮🇶', name: 'Irak' },
+    { code: '+962', flag: '🇯🇴', name: 'Ürdün' },
+    { code: '+961', flag: '🇱🇧', name: 'Lübnan' },
+    { code: '+963', flag: '🇸🇾', name: 'Suriye' },
+    { code: '+20',  flag: '🇪🇬', name: 'Mısır' },
+    { code: '+212', flag: '🇲🇦', name: 'Fas' },
+    { code: '+216', flag: '🇹🇳', name: 'Tunus' },
+    { code: '+213', flag: '🇩🇿', name: 'Cezayir' },
+    { code: '+218', flag: '🇱🇾', name: 'Libya' },
+    { code: '+98',  flag: '🇮🇷', name: 'İran' },
+    { code: '+1',   flag: '🇺🇸', name: 'ABD / Kanada' },
+    { code: '+44',  flag: '🇬🇧', name: 'İngiltere' },
+    { code: '+49',  flag: '🇩🇪', name: 'Almanya' },
+    { code: '+33',  flag: '🇫🇷', name: 'Fransa' },
+    { code: '+39',  flag: '🇮🇹', name: 'İtalya' },
+    { code: '+34',  flag: '🇪🇸', name: 'İspanya' },
+    { code: '+31',  flag: '🇳🇱', name: 'Hollanda' },
+    { code: '+32',  flag: '🇧🇪', name: 'Belçika' },
+    { code: '+41',  flag: '🇨🇭', name: 'İsviçre' },
+    { code: '+43',  flag: '🇦🇹', name: 'Avusturya' },
+    { code: '+46',  flag: '🇸🇪', name: 'İsveç' },
+    { code: '+47',  flag: '🇳🇴', name: 'Norveç' },
+    { code: '+45',  flag: '🇩🇰', name: 'Danimarka' },
+    { code: '+358', flag: '🇫🇮', name: 'Finlandiya' },
+    { code: '+48',  flag: '🇵🇱', name: 'Polonya' },
+    { code: '+30',  flag: '🇬🇷', name: 'Yunanistan' },
+    { code: '+351', flag: '🇵🇹', name: 'Portekiz' },
+    { code: '+7',   flag: '🇷🇺', name: 'Rusya' },
+    { code: '+380', flag: '🇺🇦', name: 'Ukrayna' },
+    { code: '+40',  flag: '🇷🇴', name: 'Romanya' },
+    { code: '+36',  flag: '🇭🇺', name: 'Macaristan' },
+    { code: '+420', flag: '🇨🇿', name: 'Çekya' },
+    { code: '+386', flag: '🇸🇮', name: 'Slovenya' },
+    { code: '+381', flag: '🇷🇸', name: 'Sırbistan' },
+    { code: '+385', flag: '🇭🇷', name: 'Hırvatistan' },
+    { code: '+359', flag: '🇧🇬', name: 'Bulgaristan' },
+    { code: '+91',  flag: '🇮🇳', name: 'Hindistan' },
+    { code: '+92',  flag: '🇵🇰', name: 'Pakistan' },
+    { code: '+880', flag: '🇧🇩', name: 'Bangladeş' },
+    { code: '+86',  flag: '🇨🇳', name: 'Çin' },
+    { code: '+81',  flag: '🇯🇵', name: 'Japonya' },
+    { code: '+82',  flag: '🇰🇷', name: 'Güney Kore' },
+    { code: '+65',  flag: '🇸🇬', name: 'Singapur' },
+    { code: '+60',  flag: '🇲🇾', name: 'Malezya' },
+    { code: '+62',  flag: '🇮🇩', name: 'Endonezya' },
+    { code: '+66',  flag: '🇹🇭', name: 'Tayland' },
+    { code: '+63',  flag: '🇵🇭', name: 'Filipinler' },
+    { code: '+84',  flag: '🇻🇳', name: 'Vietnam' },
+    { code: '+61',  flag: '🇦🇺', name: 'Avustralya' },
+    { code: '+64',  flag: '🇳🇿', name: 'Yeni Zelanda' },
+    { code: '+27',  flag: '🇿🇦', name: 'Güney Afrika' },
+    { code: '+234', flag: '🇳🇬', name: 'Nijerya' },
+    { code: '+254', flag: '🇰🇪', name: 'Kenya' },
+    { code: '+55',  flag: '🇧🇷', name: 'Brezilya' },
+    { code: '+52',  flag: '🇲🇽', name: 'Meksika' },
+    { code: '+54',  flag: '🇦🇷', name: 'Arjantin' },
+    { code: '+56',  flag: '🇨🇱', name: 'Şili' },
+    { code: '+57',  flag: '🇨🇴', name: 'Kolombiya' },
+];
 
 const EFT_BANK = {
     banka:    'Ziraat Bankası',
@@ -1128,6 +1199,8 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         return { whatsapp: ccOnly(cl.whatsapp), phone: ccOnly(cl.phone) };
     });
     const [savingContactLinks, setSavingContactLinks] = useState(false);
+    const [ccPickerKey, setCcPickerKey] = useState(null);
+    const [ccSearch, setCcSearch] = useState('');
 
     const sortedCourts = [...(venue.courts || [])].sort((a, b) => {
         const nA = parseInt(a.name.match(/\d+/)?.[0] ?? '', 10);
@@ -2386,17 +2459,14 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                 backgroundColor: '#ffffff0a', borderRadius: 8, borderWidth: 1,
                                 borderColor: localContactLinks[item.key] ? BIZ_COLOR + '60' : '#ffffff15', overflow: 'hidden' }}>
                                 {item.hasCC && (
-                                    <TextInput
-                                        style={{ width: 48, paddingLeft: 10, paddingRight: 2,
-                                            paddingVertical: 7, color: '#aaa', fontSize: 13,
-                                            borderRightWidth: 1, borderRightColor: '#ffffff15' }}
-                                        value={localCCs[item.key] || '+90'}
-                                        onChangeText={v => setLocalCCs(p => ({ ...p, [item.key]: v }))}
-                                        keyboardType="phone-pad"
-                                        placeholder="+90"
-                                        placeholderTextColor="#444"
-                                        maxLength={5}
-                                    />
+                                    <TouchableOpacity
+                                        onPress={() => { setCcSearch(''); setCcPickerKey(item.key); }}
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 2,
+                                            paddingHorizontal: 10, paddingVertical: 7,
+                                            borderRightWidth: 1, borderRightColor: '#ffffff15' }}>
+                                        <Text style={{ color: '#aaa', fontSize: 13 }}>{localCCs[item.key] || '+90'}</Text>
+                                        <Text style={{ color: '#555', fontSize: 9 }}>▾</Text>
+                                    </TouchableOpacity>
                                 )}
                                 <TextInput
                                     style={{ flex: 1, paddingHorizontal: item.hasCC ? 6 : 12,
@@ -2756,6 +2826,49 @@ export default function BusinessHomeScreen({ navigation, route }) {
                 onClose={() => setVenueModal(false)}
                 onSuccess={fetchAll}
             />
+
+            {/* Ülke kodu seçici */}
+            <Modal visible={ccPickerKey !== null} transparent animationType="slide" onRequestClose={() => setCcPickerKey(null)}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000088' }} activeOpacity={1} onPress={() => setCcPickerKey(null)} />
+                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                    backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                    maxHeight: '70%', paddingTop: 16 }}>
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', textAlign: 'center', marginBottom: 12 }}>
+                        Ülke Kodu Seç
+                    </Text>
+                    <View style={{ marginHorizontal: 16, marginBottom: 10,
+                        backgroundColor: '#ffffff0a', borderRadius: 10, flexDirection: 'row', alignItems: 'center',
+                        borderWidth: 1, borderColor: '#ffffff15' }}>
+                        <TextInput
+                            style={{ flex: 1, color: '#fff', fontSize: 14, paddingHorizontal: 12, paddingVertical: 9 }}
+                            placeholder="Ülke veya kod ara..."
+                            placeholderTextColor="#555"
+                            value={ccSearch}
+                            onChangeText={setCcSearch}
+                            autoFocus
+                        />
+                    </View>
+                    <FlatList
+                        data={COUNTRIES.filter(c =>
+                            c.name.toLowerCase().includes(ccSearch.toLowerCase()) ||
+                            c.code.includes(ccSearch)
+                        )}
+                        keyExtractor={(_, idx) => String(idx)}
+                        keyboardShouldPersistTaps="handled"
+                        renderItem={({ item: c }) => (
+                            <TouchableOpacity
+                                onPress={() => { setLocalCCs(p => ({ ...p, [ccPickerKey]: c.code })); setCcPickerKey(null); }}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 12,
+                                    paddingHorizontal: 20, paddingVertical: 11,
+                                    borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                                <Text style={{ fontSize: 22 }}>{c.flag}</Text>
+                                <Text style={{ flex: 1, color: '#ccc', fontSize: 14 }}>{c.name}</Text>
+                                <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '700' }}>{c.code}</Text>
+                            </TouchableOpacity>
+                        )}
+                    />
+                </View>
+            </Modal>
         </View>
     );
 }
