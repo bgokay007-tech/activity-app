@@ -217,13 +217,19 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 contentContainerStyle={s.dateList}
                 renderItem={({ item }) => {
                     const active = item === selectedDate;
+                    const [y, mo, day] = item.split('-').map(Number);
+                    const d = new Date(y, mo - 1, day);
+                    const dayNames   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+                    const monthNames = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
                     return (
                         <TouchableOpacity
                             style={[s.dateBtn, active && s.dateBtnActive]}
                             onPress={() => { setDate(item); }}
                             activeOpacity={0.7}
                         >
-                            <Text style={[s.dateBtnText, active && s.dateBtnTextActive]}>{formatDateLabel(item)}</Text>
+                            <Text style={[s.dateChipWeek,  active && s.dateChipWeekA]}>{dayNames[d.getDay()]}</Text>
+                            <Text style={[s.dateChipNum,   active && s.dateChipNumA]}>{day}</Text>
+                            <Text style={[s.dateChipMonth, active && s.dateChipMonthA]}>{monthNames[mo - 1]}</Text>
                         </TouchableOpacity>
                     );
                 }}
@@ -341,11 +347,15 @@ const s = StyleSheet.create({
     title: { color: '#fff', fontSize: 16, fontWeight: '900' },
     subtitle: { color: colors.textMuted, fontSize: 12, marginTop: 1 },
 
-    dateList: { paddingHorizontal: 14, paddingVertical: 12, gap: 8 },
-    dateBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-    dateBtnActive: { backgroundColor: colors.purple, borderColor: colors.purple },
-    dateBtnText: { color: '#e5e7eb', fontSize: 13, fontWeight: '700' },
-    dateBtnTextActive: { color: '#fff' },
+    dateList: { paddingHorizontal: 14, paddingVertical: 8, gap: 6 },
+    dateBtn: { alignItems:'center', paddingVertical:8, paddingHorizontal:10, borderRadius:12, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, minWidth:54 },
+    dateBtnActive: { backgroundColor: colors.purple+'30', borderColor: colors.purple },
+    dateChipWeek:  { color:'#888', fontSize:10, fontWeight:'700', marginBottom:1 },
+    dateChipWeekA: { color: colors.purple },
+    dateChipNum:   { color:'#fff', fontSize:20, fontWeight:'900', lineHeight:24 },
+    dateChipNumA:  { color:'#fff' },
+    dateChipMonth: { color:'#888', fontSize:10, marginTop:1 },
+    dateChipMonthA:{ color: colors.purple },
 
     scroll: { paddingHorizontal: 14, paddingTop: 8 },
     center: { paddingTop: 60, alignItems: 'center' },
