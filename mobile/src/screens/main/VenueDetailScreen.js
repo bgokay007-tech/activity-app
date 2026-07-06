@@ -89,8 +89,7 @@ export default function VenueDetailScreen({ route, navigation }) {
                     </View>
                     {(() => {
                         const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
-                        const defaultPrice = venue.pricePerSlot || 0;
-                        if (pw.length === 0 && defaultPrice === 0) return null;
+                        if (pw.length === 0) return null;
                         return (
                             <View style={[s.infoRow, { alignItems: 'flex-start' }]}>
                                 <Text style={s.infoLabel}>Ücret{'\n'}Politikası</Text>
@@ -105,9 +104,6 @@ export default function VenueDetailScreen({ route, navigation }) {
                                             </Text>
                                         );
                                     })}
-                                    <Text style={[s.infoValue, { color: pw.length > 0 ? colors.textMuted : colors.yellow, textAlign: 'right' }]}>
-                                        {pw.length > 0 ? `Varsayılan: ${defaultPrice > 0 ? `${defaultPrice}₺/slot` : 'Ücretsiz'}` : `${defaultPrice}₺ / slot`}
-                                    </Text>
                                 </View>
                             </View>
                         );

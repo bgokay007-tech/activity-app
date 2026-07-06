@@ -1092,8 +1092,6 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         (venue.courts || []).forEach(c => { init[c.id] = c.pricePerSlot != null ? String(c.pricePerSlot) : ''; });
         return init;
     });
-    const [defaultPrice, setDefaultPrice] = useState(String(venue.pricePerSlot || 0));
-    const [editDefaultPrice, setEditDefaultPrice] = useState(false);
     const [addingPriceRule, setAddingPriceRule] = useState(false);
     const [newRuleFrom, setNewRuleFrom] = useState('');
     const [newRuleTo, setNewRuleTo]     = useState('');
@@ -1259,17 +1257,6 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
             );
             setVenueLights(lightsFrom || null);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
-    };
-
-    const handleSaveDefaultPrice = async () => {
-        const p = parseInt(defaultPrice);
-        if (isNaN(p) || p < 0) { Alert.alert('Hata', 'Geçerli bir fiyat giriniz'); return; }
-        setSavingPrice(true);
-        try {
-            await api.patch(`/venues/${venue.id}/settings`, { pricePerSlot: p });
-            setEditDefaultPrice(false);
-        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
-        finally { setSavingPrice(false); }
     };
 
     const handleSaveCourtPrice = async (courtId) => {
@@ -2123,48 +2110,6 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 12, letterSpacing: 0.5 }}>
                         FİYATLANDIRMA
                     </Text>
-
-                    {/* Varsayılan fiyat */}
-                    <View style={{ marginBottom: 14 }}>
-                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                            SLOT BAŞI VARSAYILAN ÜCRET
-                        </Text>
-                        {editDefaultPrice ? (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                                <TextInput
-                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                        paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
-                                        fontSize: 14, borderWidth: 1, borderColor: BIZ_COLOR + '60' }}
-                                    keyboardType="number-pad"
-                                    value={defaultPrice}
-                                    onChangeText={setDefaultPrice}
-                                    autoFocus
-                                    returnKeyType="done"
-                                    onSubmitEditing={handleSaveDefaultPrice}
-                                />
-                                <Text style={{ color: '#555', fontSize: 14 }}>₺</Text>
-                                <TouchableOpacity disabled={savingPrice} onPress={handleSaveDefaultPrice}
-                                    style={{ backgroundColor: BIZ_COLOR + '25', borderRadius: 8,
-                                        paddingHorizontal: 12, paddingVertical: 7,
-                                        borderWidth: 1, borderColor: BIZ_COLOR + '50' }}>
-                                    {savingPrice
-                                        ? <ActivityIndicator size="small" color={BIZ_COLOR} />
-                                        : <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Kaydet</Text>}
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setEditDefaultPrice(false)}>
-                                    <Text style={{ color: '#555', fontSize: 13 }}>İptal</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <TouchableOpacity onPress={() => setEditDefaultPrice(true)}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                                <Text style={{ color: BIZ_LIGHT, fontSize: 20, fontWeight: '900' }}>
-                                    {parseInt(defaultPrice) > 0 ? `${defaultPrice}₺` : 'Ücretsiz'}
-                                </Text>
-                                <Text style={{ color: '#555', fontSize: 12 }}>· Düzenle</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
 
                     {/* Saat aralığı kuralları */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
