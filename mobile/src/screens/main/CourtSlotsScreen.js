@@ -177,6 +177,19 @@ export default function CourtSlotsScreen({ route, navigation }) {
                     <Text style={s.title}>{court.name}</Text>
                     <Text style={s.subtitle}>{venue.name}</Text>
                 </View>
+                {(venue.lat || venue.address) && (
+                    <TouchableOpacity
+                        onPress={() => {
+                            const url = venue.lat && venue.lng
+                                ? `https://maps.google.com/?q=${venue.lat},${venue.lng}`
+                                : `https://maps.google.com/?q=${encodeURIComponent(`${venue.name}, ${venue.address || venue.city}`)}`;
+                            Linking.openURL(url);
+                        }}
+                        style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: colors.surface2, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
+                    >
+                        <Text style={{ fontSize: 18 }}>📍</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* İletişim butonları */}

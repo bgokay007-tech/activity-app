@@ -869,6 +869,8 @@ model BusinessVenue {
   acceptedPayments      Json     @default("[\"CASH\",\"EFT\"]") // kabul edilen ödeme yöntemleri
   pricingWindows        Json?                              // [{from,to,price,courtId?}] saat aralığı fiyatları
   contactLinks          Json?                              // {whatsapp?,telegram?,instagram?,email?,phone?}
+  lat                   Float?                             // Google Maps enlem
+  lng                   Float?                             // Google Maps boylam
   status       String   @default("PENDING")   // PENDING | APPROVED | REJECTED
   adminNote   String?
   createdAt   DateTime @default(now())

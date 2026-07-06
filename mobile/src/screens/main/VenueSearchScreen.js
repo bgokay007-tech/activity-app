@@ -148,9 +148,21 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                     <View style={bm.header}>
                         <View style={{ flex: 1 }}>
                             <Text style={bm.venueName}>{venue.name}</Text>
-                            <Text style={bm.venueMeta}>
-                                {venue.branch} · {venue.city}{venue.district ? ` / ${venue.district}` : ''}
-                            </Text>
+                            <TouchableOpacity
+                                disabled={!venue.lat && !venue.address}
+                                onPress={() => {
+                                    const url = venue.lat && venue.lng
+                                        ? `https://maps.google.com/?q=${venue.lat},${venue.lng}`
+                                        : `https://maps.google.com/?q=${encodeURIComponent(`${venue.name}, ${venue.address || venue.city}`)}`;
+                                    Linking.openURL(url);
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[bm.venueMeta, (venue.lat || venue.address) && { color: colors.purple }]}>
+                                    📍 {venue.branch} · {venue.city}{venue.district ? ` / ${venue.district}` : ''}
+                                    {venue.address ? `\n${venue.address}` : ''}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                         <TouchableOpacity onPress={onClose} style={bm.closeBtn}>
                             <Text style={bm.closeBtnText}>✕</Text>

@@ -13,9 +13,14 @@ export default function VenueDetailScreen({ route, navigation }) {
     const [selectedCourt, setSelected] = useState(null);
 
     const openMaps = () => {
-        if (!venue.address) return;
-        const q = encodeURIComponent(`${venue.name}, ${venue.address}`);
-        Linking.openURL(`https://maps.google.com/?q=${q}`);
+        let url;
+        if (venue.lat && venue.lng) {
+            url = `https://maps.google.com/?q=${venue.lat},${venue.lng}`;
+        } else {
+            const q = encodeURIComponent(`${venue.name}${venue.address ? ', ' + venue.address : ''}, ${venue.city}`);
+            url = `https://maps.google.com/?q=${q}`;
+        }
+        Linking.openURL(url);
     };
 
     const openPhone = () => {
@@ -58,9 +63,10 @@ export default function VenueDetailScreen({ route, navigation }) {
                     </View>
                     <View style={s.infoRow}>
                         <Text style={s.infoLabel}>Konum</Text>
-                        <TouchableOpacity onPress={openMaps} disabled={!venue.address}>
-                            <Text style={[s.infoValue, venue.address && s.link]}>
+                        <TouchableOpacity onPress={openMaps} disabled={!venue.address && !venue.lat}>
+                            <Text style={[s.infoValue, (venue.address || venue.lat) && s.link]}>
                                 {venue.city}{venue.district ? ` / ${venue.district}` : ''}{venue.address ? `\n${venue.address}` : ''}
+                                {(venue.lat && venue.lng) ? '\n📍 Haritada Göster' : ''}
                             </Text>
                         </TouchableOpacity>
                     </View>

@@ -1102,6 +1102,11 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const [showPriceFromPicker, setShowPriceFromPicker] = useState(false);
     const [showPriceToPicker, setShowPriceToPicker]     = useState(false);
 
+    // ── Konum state ───────────────────────────────────────────────────────────
+    const [localLat, setLocalLat] = useState(venue.lat != null ? String(venue.lat) : '');
+    const [localLng, setLocalLng] = useState(venue.lng != null ? String(venue.lng) : '');
+    const [savingLocation, setSavingLocation] = useState(false);
+
     // ── İletişim butonları state ──────────────────────────────────────────────
     const [localContactLinks, setLocalContactLinks] = useState(
         () => (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {}
@@ -1301,6 +1306,21 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
             setLocalPricingWindows(next);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingPrice(false); }
+    };
+
+    const handleSaveLocation = async () => {
+        const lat = localLat.trim() ? parseFloat(localLat.trim().replace(',', '.')) : null;
+        const lng = localLng.trim() ? parseFloat(localLng.trim().replace(',', '.')) : null;
+        if ((localLat.trim() && isNaN(lat)) || (localLng.trim() && isNaN(lng))) {
+            Alert.alert('Hata', 'Geçerli bir koordinat girin (örn. 41.0082)');
+            return;
+        }
+        setSavingLocation(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { lat, lng });
+            Alert.alert('✅ Kaydedildi', 'Konum bilgisi güncellendi.');
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingLocation(false); }
     };
 
     const addCountryCode = (val) => {
@@ -2289,6 +2309,54 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                         onSelect={t => { setNewRuleTo(t); setShowPriceToPicker(false); }}
                         onClose={() => setShowPriceToPicker(false)}
                     />
+
+                    {/* ── Konum ──── */}
+                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                        KONUM
+                    </Text>
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 12, lineHeight: 15 }}>
+                        Google Maps'te konumu bul → Konuma uzun bas → Enlem/Boylam kopyala
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>Enlem</Text>
+                            <TextInput
+                                style={{ backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
+                                    fontSize: 13, borderWidth: 1,
+                                    borderColor: localLat ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                placeholder="41.0082"
+                                placeholderTextColor="#444"
+                                keyboardType="decimal-pad"
+                                value={localLat}
+                                onChangeText={setLocalLat}
+                            />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>Boylam</Text>
+                            <TextInput
+                                style={{ backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
+                                    fontSize: 13, borderWidth: 1,
+                                    borderColor: localLng ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                placeholder="28.9784"
+                                placeholderTextColor="#444"
+                                keyboardType="decimal-pad"
+                                value={localLng}
+                                onChangeText={setLocalLng}
+                            />
+                        </View>
+                    </View>
+                    <TouchableOpacity disabled={savingLocation}
+                        onPress={handleSaveLocation}
+                        style={{ backgroundColor: BIZ_COLOR + '20', borderRadius: 8,
+                            paddingHorizontal: 14, paddingVertical: 9,
+                            borderWidth: 1, borderColor: BIZ_COLOR + '40', alignSelf: 'flex-end', marginBottom: 4 }}>
+                        <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>
+                            {savingLocation ? 'Kaydediliyor...' : 'Kaydet'}
+                        </Text>
+                    </TouchableOpacity>
 
                     {/* ── İletişim Butonları ──── */}
                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
