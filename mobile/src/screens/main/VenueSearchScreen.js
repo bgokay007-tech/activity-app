@@ -247,9 +247,9 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                     onPress={() => handleDateChange(item)}
                                     activeOpacity={0.7}
                                 >
-                                    <Text style={[bm.dateChipWeek,  active && bm.dateChipWeekA]}>{dayNames[d.getDay()]}</Text>
-                                    <Text style={[bm.dateChipNum,   active && bm.dateChipNumA]}>{day}</Text>
-                                    <Text style={[bm.dateChipMonth, active && bm.dateChipMonthA]}>{monthNames[mo - 1]}</Text>
+                                    <Text style={[bm.dateBtnText, active && bm.dateBtnTextActive]}>
+                                        {`${day} ${monthNames[mo-1]} ${dayNames[d.getDay()]}`}
+                                    </Text>
                                 </TouchableOpacity>
                             );
                         }}
@@ -688,14 +688,10 @@ const bm = StyleSheet.create({
     priceTagText:{ color: colors.purple, fontSize: 11, fontWeight: '700' },
 
     dateList:         { paddingHorizontal: 14, paddingVertical: 8, gap: 6 },
-    dateBtn:          { alignItems:'center', paddingVertical:8, paddingHorizontal:10, borderRadius:12, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, minWidth:54 },
-    dateBtnActive:    { backgroundColor: colors.purple+'30', borderColor: colors.purple },
-    dateChipWeek:     { color:'#888', fontSize:10, fontWeight:'700', marginBottom:1 },
-    dateChipWeekA:    { color: colors.purple },
-    dateChipNum:      { color:'#fff', fontSize:20, fontWeight:'900', lineHeight:24 },
-    dateChipNumA:     { color:'#fff' },
-    dateChipMonth:    { color:'#888', fontSize:10, marginTop:1 },
-    dateChipMonthA:   { color: colors.purple },
+    dateBtn:          { paddingVertical:7, paddingHorizontal:12, borderRadius:20, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    dateBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
+    dateBtnText:      { color:'#e5e7eb', fontSize:12, fontWeight:'700' },
+    dateBtnTextActive:{ color:'#fff' },
 
     scroll: { paddingHorizontal: 14, paddingTop: 6 },
 
