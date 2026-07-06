@@ -1082,6 +1082,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     );
     const [showVenueLightsPicker, setShowVenueLightsPicker] = useState(false);
     const [savingSlot, setSavingSlot]         = useState(false);
+    const [expandedCourtId, setExpandedCourtId] = useState(null);
 
     // ── Fiyatlandırma state ───────────────────────────────────────────────────
     const [localPricingWindows, setLocalPricingWindows] = useState(
@@ -1996,11 +1997,25 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                     {sortedCourts.map(court => {
                         const currentType    = courtSlotTypes[court.id] || 'FULL_HOUR';
                         const currentSurface = courtSurfaces[court.id] || null;
+                        const isOpen         = expandedCourtId === court.id;
                         return (
-                            <View key={court.id} style={{ marginBottom: 28 }}>
-                                <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>
-                                    🏟 {court.name}
-                                </Text>
+                            <View key={court.id} style={{ marginBottom: 8 }}>
+                                <TouchableOpacity
+                                    onPress={() => setExpandedCourtId(isOpen ? null : court.id)}
+                                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                                        backgroundColor: isOpen ? BIZ_COLOR + '18' : '#ffffff08',
+                                        borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
+                                        borderWidth: 1, borderColor: isOpen ? BIZ_COLOR + '50' : '#ffffff12' }}
+                                    activeOpacity={0.7}>
+                                    <Text style={{ color: isOpen ? BIZ_LIGHT : '#bbb', fontWeight: '800', fontSize: 14 }}>
+                                        🏟 {court.name}
+                                    </Text>
+                                    <Text style={{ color: isOpen ? BIZ_LIGHT : '#555', fontSize: 18 }}>
+                                        {isOpen ? '▲' : '▼'}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                {!isOpen ? null : <View style={{ paddingTop: 14, paddingBottom: 14 }}>
 
                                 {/* Rezervasyon tipi */}
                                 <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
@@ -2100,6 +2115,8 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                     </TouchableOpacity>
                                 </View>
 
+                            </View>
+                            </View>)}
                             </View>
                         );
                     })}
