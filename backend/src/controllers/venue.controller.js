@@ -417,41 +417,41 @@ export const makeReservation = async (req, res, next) => {
         const hasConflict = existing.some(r => overlaps(startMins, endMins, toMins(r.startTime), toMins(r.endTime)));
         if (hasConflict) return res.status(409).json({ message: 'Bu saat aralığı dolu' });
 
-        // Boşluk kontrolü: rezervasyon pencere başında/sonunda veya aralarda <60 dk boşluk bırakamaz
+        // Boşluk kontrolü: VAR_DURATION esnek saatlerde uygulanmaz; diğerleri için <minGap dk boşluk bırakamaz
         {
             const courtInfo = await prisma.venueCourt.findUnique({ where: { id: courtId } });
             const VSGT = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
             const effType = (VSGT.includes(courtInfo?.slotType) ? courtInfo.slotType : null)
                 || (venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : venue.slotType)
                 || 'FULL_HOUR';
-            const minGap = effType === 'NINETY_MIN' ? 90 : 60;
 
-            const openWins = getOpenWindows(venue, date, courtId);
-            const allBooked = [
-                ...existing.map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime) })),
-                { s: startMins, e: endMins },
-            ].sort((a, b) => a.s - b.s);
+            if (effType !== 'VAR_DURATION') {
+                const minGap = effType === 'NINETY_MIN' ? 90 : 60;
+                const openWins = getOpenWindows(venue, date, courtId);
+                const allBooked = [
+                    ...existing.map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime) })),
+                    { s: startMins, e: endMins },
+                ].sort((a, b) => a.s - b.s);
 
-            for (const w of openWins) {
-                const wS = toMins(w.from), wE = toMins(w.to);
-                // HALF_HOUR: pencere :00 açılıyorsa ilk :30'a kadar yapısal dead zone var — gap sayılmaz
-                let cur = wS;
-                let effectiveWE = wE;
-                if (effType === 'HALF_HOUR') {
-                    if (cur % 60 !== 30) { cur = Math.floor(cur / 60) * 60 + 30; if (cur < wS) cur += 60; }
-                    // Pencere içindeki son slot bitişi (yapısal kuyruk dead zone'u hariç tut)
-                    effectiveWE = cur + Math.floor((wE - cur) / 60) * 60;
+                for (const w of openWins) {
+                    const wS = toMins(w.from), wE = toMins(w.to);
+                    let cur = wS;
+                    let effectiveWE = wE;
+                    if (effType === 'HALF_HOUR') {
+                        if (cur % 60 !== 30) { cur = Math.floor(cur / 60) * 60 + 30; if (cur < wS) cur += 60; }
+                        effectiveWE = cur + Math.floor((wE - cur) / 60) * 60;
+                    }
+                    for (const b of allBooked) {
+                        if (b.e <= wS || b.s >= effectiveWE) continue;
+                        const gap = Math.min(b.s, effectiveWE) - cur;
+                        if (gap > 0 && gap < minGap)
+                            return res.status(400).json({ message: `Bu rezervasyon ${toTime(cur)}–${toTime(Math.min(b.s, effectiveWE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
+                        cur = Math.max(cur, b.e);
+                    }
+                    const tail = effectiveWE - cur;
+                    if (tail > 0 && tail < minGap)
+                        return res.status(400).json({ message: `Bu rezervasyon sonrasında ${toTime(cur)}–${toTime(effectiveWE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
                 }
-                for (const b of allBooked) {
-                    if (b.e <= wS || b.s >= effectiveWE) continue;
-                    const gap = Math.min(b.s, effectiveWE) - cur;
-                    if (gap > 0 && gap < minGap)
-                        return res.status(400).json({ message: `Bu rezervasyon ${toTime(cur)}–${toTime(Math.min(b.s, effectiveWE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
-                    cur = Math.max(cur, b.e);
-                }
-                const tail = effectiveWE - cur;
-                if (tail > 0 && tail < minGap)
-                    return res.status(400).json({ message: `Bu rezervasyon sonrasında ${toTime(cur)}–${toTime(effectiveWE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
             }
         }
 
