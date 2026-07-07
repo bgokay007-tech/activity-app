@@ -1028,6 +1028,16 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                             {SURFACE_ICON[court.surface]} {SURFACE_LABEL[court.surface]}
                                                         </Text>
                                                     ) : null}
+                                                    {(() => {
+                                                        const ST = { FULL_HOUR: ['Tam Saat','#22d3ee','#083344'], HALF_HOUR: ['Buçuklu','#a3e635','#1a2e05'], NINETY_MIN: ['90 Dakika','#fb923c','#431407'], VAR_DURATION: ['Esnek Saat','#c084fc','#2e1065'], FLEXIBLE: ['Esnek Saat','#c084fc','#2e1065'] };
+                                                        const info = ST[court.slotType];
+                                                        if (!info) return null;
+                                                        return (
+                                                            <View style={{ backgroundColor: info[2], borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 3, borderWidth: 1, borderColor: info[1] + '60' }}>
+                                                                <Text style={{ color: info[1], fontSize: 8, fontWeight: '800', letterSpacing: 0.3 }}>{info[0]}</Text>
+                                                            </View>
+                                                        );
+                                                    })()}
                                                 </View>
 
                                                 {/* Slot cells */}
