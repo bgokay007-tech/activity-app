@@ -3524,60 +3524,53 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         const typeInfo = cData ? slotTypeLabel(cData.type) : null;
 
         return (
-            <View key={court.id} style={{ borderBottomWidth:1, borderBottomColor:'#ffffff12', paddingVertical:12, paddingHorizontal:4 }}>
-                {/* Kort başlığı */}
-                <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:8 }}>
-                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'800', flex:1 }}>{court.name}</Text>
-                    {typeInfo && (
-                        <View style={{ backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: typeInfo.color+'60' }}>
-                            <Text style={{ color: typeInfo.color, fontSize:9, fontWeight:'800', letterSpacing:0.3 }}>{typeInfo.label}</Text>
-                        </View>
-                    )}
-                    {court.lightsFrom && (
-                        <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:3 }} activeOpacity={0.7}
-                            onPress={() => Alert.alert('💡 Gece Işıkları', `Bu kortta gece ışıkları ${court.lightsFrom} itibarıyla açılır.\nGündüz saatlerinde ışık olmayabilir.`)}>
-                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>💡 {court.lightsFrom}</Text>
-                            <View style={vb.lightsInfoBtn}><Text style={vb.lightsInfoTxt}>i</Text></View>
-                        </TouchableOpacity>
-                    )}
-                </View>
-                {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop:4 }} size="small" />}
-                {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
-
-                {/* Yapısal slotlar — 3'lü grid */}
-                {!cs?.loading && isStructured && (
-                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5 }}>
-                    {cData.slots.map((sl, i) => {
-                        const isSel    = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
-                        const isPend   = !sl.free && sl.status === 'PENDING';
-                        const slotPrice = sl.price != null ? sl.price : venue?.pricePerSlot;
-                        return (
-                            <TouchableOpacity key={i} disabled={!sl.free}
-                                style={[{ width:'31%', borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1 },
-                                    sl.free ? vb.colSlotFree : (isPend ? vb.colSlotPend : vb.colSlotTaken),
-                                    isSel && vb.colSlotSel]}
-                                onPress={() => selectSlot(court.id, sl)} activeOpacity={0.75}>
-                                <Text style={[vb.colSlotT,
-                                    !sl.free && { color: isPend ? '#fbbf24' : '#ef4444' },
-                                    isSel && { color:'#fff' }]}>
-                                    {isPend ? '⏳' : sl.start}
-                                </Text>
-                                <Text style={[vb.colSlotSub,
-                                    !sl.free && { color: isPend ? '#fbbf2480' : '#ef444480' },
-                                    isSel && { color:'#fff', opacity:0.8 }]}>
-                                    {isPend ? 'Onay Bek.' : sl.end}
-                                </Text>
-                                {!sl.free && !isPend && (
-                                    <Text style={{ color:'#ef4444', fontSize:8, fontWeight:'800', marginTop:1 }}>Dolu</Text>
-                                )}
-                                {sl.free && slotPrice > 0 && (
-                                    <Text style={[vb.colSlotPrice, isSel && { color:'#bbf7d0' }]}>{slotPrice}₺</Text>
-                                )}
-                            </TouchableOpacity>
-                        );
-                    })}
+            <View key={court.id} style={vb.courtCol}>
+                <Text style={vb.courtColTitle}>{court.name}</Text>
+                {typeInfo && (
+                    <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:6, paddingVertical:2, marginBottom:4, borderWidth:1, borderColor: typeInfo.color+'60' }}>
+                        <Text style={{ color: typeInfo.color, fontSize:9, fontWeight:'800', letterSpacing:0.3 }}>{typeInfo.label}</Text>
                     </View>
                 )}
+                {court.lightsFrom && (
+                    <TouchableOpacity style={vb.lightsRow} activeOpacity={0.7}
+                        onPress={() => Alert.alert('💡 Gece Işıkları', `Bu kortta gece ışıkları ${court.lightsFrom} itibarıyla açılır.\nGündüz saatlerinde ışık olmayabilir.`)}>
+                        <Text style={vb.courtColLight}>💡 {court.lightsFrom}</Text>
+                        <View style={vb.lightsInfoBtn}><Text style={vb.lightsInfoTxt}>i</Text></View>
+                    </TouchableOpacity>
+                )}
+                {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop:8 }} size="small" />}
+                {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
+
+                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1 }}>
+                {!cs?.loading && isStructured && cData.slots.map((sl, i) => {
+                    const isSel    = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
+                    const isPend   = !sl.free && sl.status === 'PENDING';
+                    const slotPrice = sl.price != null ? sl.price : venue?.pricePerSlot;
+                    return (
+                        <TouchableOpacity key={i} disabled={!sl.free}
+                            style={[vb.colSlot,
+                                sl.free ? vb.colSlotFree : (isPend ? vb.colSlotPend : vb.colSlotTaken),
+                                isSel && vb.colSlotSel]}
+                            onPress={() => selectSlot(court.id, sl)} activeOpacity={0.75}>
+                            <Text style={[vb.colSlotT,
+                                !sl.free && { color: isPend ? '#fbbf24' : '#ef4444' },
+                                isSel && { color:'#fff' }]}>
+                                {isPend ? '⏳' : sl.start}
+                            </Text>
+                            <Text style={[vb.colSlotSub,
+                                !sl.free && { color: isPend ? '#fbbf2480' : '#ef444480' },
+                                isSel && { color:'#fff', opacity:0.8 }]}>
+                                {isPend ? 'Onay Bek.' : sl.end}
+                            </Text>
+                            {!sl.free && !isPend && (
+                                <Text style={{ color:'#ef4444', fontSize:8, fontWeight:'800', marginTop:1 }}>Dolu</Text>
+                            )}
+                            {sl.free && slotPrice > 0 && (
+                                <Text style={[vb.colSlotPrice, isSel && { color:'#bbf7d0' }]}>{slotPrice}₺</Text>
+                            )}
+                        </TouchableOpacity>
+                    );
+                })}
 
                 {!cs?.loading && isWindow && (() => {
                     const freeWins  = cData.windows || [];
@@ -3673,6 +3666,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                         })();
                     });
                 })()}
+                <View style={{ height:8 }} />
+                </ScrollView>
             </View>
         );
     };
@@ -3769,7 +3764,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             {/* Tarih Seçici — 14 günlük yatay strip */}
                             <View style={vb.dateStrip}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={{ paddingHorizontal:10, paddingVertical:10, gap:6, alignItems:'center' }}>
+                                    style={{ flex:1 }}
+                                    contentContainerStyle={{ paddingHorizontal:10, paddingVertical:8, gap:6, alignItems:'center' }}>
                                     {Array.from({length:14}, (_,i) => {
                                         const d = new Date();
                                         d.setDate(d.getDate() + i);
@@ -3809,10 +3805,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                 </View>
                             </View>
 
-                            {/* Tüm kortlar dikey liste */}
-                            <ScrollView showsVerticalScrollIndicator={false}
-                                style={{ flex:1 }}
-                                contentContainerStyle={{ paddingHorizontal:12, paddingBottom:8 }}>
+                            {/* Tüm kortlar sütun sütun (yatay kaydır) */}
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', flexGrow:1 }]}
+                                style={{ flex:1, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                                 {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                             </ScrollView>
 
@@ -3930,12 +3926,12 @@ const vb = StyleSheet.create({
     tabTxt:       { color:'#888', fontSize:13, fontWeight:'600' },
     tabTxtActive: { color:'#c084fc', fontWeight:'700' },
 
-    dateStrip:        { borderBottomWidth:1, borderBottomColor:'#ffffff10' },
-    dateChip:         { alignItems:'center', paddingVertical:8, paddingHorizontal:10, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:52 },
+    dateStrip:        { minHeight:88, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
+    dateChip:         { alignItems:'center', paddingVertical:7, paddingHorizontal:9, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:50 },
     dateChipSel:      { backgroundColor:'#16a34a30', borderColor:'#22c55e' },
-    dateChipDay:      { color:'#888', fontSize:9, fontWeight:'700', textTransform:'uppercase', marginBottom:1 },
+    dateChipDay:      { color:'#888', fontSize:9, fontWeight:'700', textTransform:'uppercase' },
     dateChipDaySel:   { color:'#4ade80' },
-    dateChipNum:      { color:'#fff', fontSize:15, fontWeight:'800', lineHeight:18 },
+    dateChipNum:      { color:'#fff', fontSize:14, fontWeight:'800' },
     dateChipNumSel:   { color:'#22c55e' },
     dateChipMonth:    { color:'#888', fontSize:9, marginTop:1 },
     dateChipMonthSel: { color:'#4ade80' },
@@ -3984,7 +3980,7 @@ const vb = StyleSheet.create({
 
     // Çok sütunlu kort görünümü
     courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:8, paddingVertical:8, gap:8 },
-    courtCol:     { width:120, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
+    courtCol:     { width:150, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
     courtColTitle:{ color:'#fff', fontSize:13, fontWeight:'800', textAlign:'center', marginBottom:5, letterSpacing:0.3 },
     lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, marginBottom:5 },
     courtColLight:{ color:'#fbbf24', fontSize:10 },
