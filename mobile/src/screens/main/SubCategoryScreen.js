@@ -3410,6 +3410,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         const tot = h * 60 + min + m;
         return `${String(Math.floor(tot/60)).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`;
     };
+    const toM = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const toT = (mins) => `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
     const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString('tr-TR',
         { weekday: 'short', day: 'numeric', month: 'short' });
 
@@ -3423,6 +3425,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
     const [payMethod,   setPayMethod]   = useState('CASH');
     const [booking,     setBooking]     = useState(false);
     const [booked,      setBooked]      = useState(false);
+    const [varStartMap, setVarStartMap] = useState({});
+    const [varDurMap,   setVarDurMap]   = useState({});
 
     // Tesis verisi yükle
     useEffect(() => {
@@ -3473,16 +3477,18 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         const { courtId, slot, flexDur } = selSlot;
         const activeCourt = venue?.courts?.find(c => c.id === courtId);
         const courtData = courtsSlots[courtId]?.data;
-        const endTime = (courtData?.type === 'FLEXIBLE' || courtData?.type === 'VAR_DURATION')
+        const isFlexible = courtData?.type === 'FLEXIBLE';
+        const isVarDur   = courtData?.type === 'VAR_DURATION';
+        const endTime = isFlexible
             ? addMins(slot.start, flexDur)
-            : slot.end;
+            : (isVarDur ? slot.end : slot.end);
         setBooking(true);
         try {
             const resResp = await api.post(`/venues/${venueId}/courts/${courtId}/reserve`, {
                 date: selDate, startTime: slot.start, endTime, paymentMethod: payMethod,
             });
             const reservationId = resResp.data?.reservation?.id || null;
-            const slotDurMins = (courtData?.type === 'FLEXIBLE' || courtData?.type === 'VAR_DURATION') ? flexDur : 60;
+            const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
             const courtTotalPrice = venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0;
             const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice };
             onBooked?.(courtObj, selDate, slot.start, endTime, reservationId);
@@ -3535,15 +3541,68 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                     {!cs?.loading && isWindow && (
                         cData.windows?.length === 0
                             ? <Text style={vb.colEmpty}>Müsait yok</Text>
-                            : cData.windows.map((w, i) => {
-                                const isSel = selSlot?.courtId === court.id && selSlot?.slot?.start === w.start;
+                            : cData.windows.map((w, wi) => {
+                                const sel = varStartMap[court.id];
+                                const isWinSel = sel?.winStart === w.start;
+                                const customStart = isWinSel ? (sel?.customStart ?? w.start) : w.start;
+                                const dur = isWinSel ? (varDurMap[court.id] ?? 60) : 60;
+                                const startM  = /^\d{2}:\d{2}$/.test(customStart) ? toM(customStart) : -1;
+                                const winEndM = toM(w.end);
+                                const validStart = startM >= toM(w.start) && startM < winEndM;
+                                const validEnd   = validStart && (startM + dur) <= winEndM;
+                                const endT = validStart ? toT(startM + dur) : '';
+                                const isReserved = selSlot?.courtId === court.id && isWinSel && selSlot?.slot?.start === customStart;
                                 return (
-                                    <TouchableOpacity key={i}
-                                        style={[vb.colSlot, vb.colSlotFree, isSel && vb.colSlotSel]}
-                                        onPress={() => selectSlot(court.id, w)} activeOpacity={0.75}>
-                                        <Text style={[vb.colSlotT, isSel && { color:'#fff' }]}>{w.start}</Text>
-                                        <Text style={[vb.colSlotSub, isSel && { color:'#fff', opacity:0.8 }]}>{w.end}</Text>
-                                    </TouchableOpacity>
+                                    <View key={wi} style={{ backgroundColor:'#ffffff08', borderRadius:10, padding:8, marginBottom:8, borderWidth:1, borderColor: isWinSel ? '#9333ea' : '#ffffff15' }}>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setVarStartMap(p => ({ ...p, [court.id]: { winStart: w.start, winEnd: w.end, customStart: w.start } }));
+                                                setVarDurMap(p => ({ ...p, [court.id]: 60 }));
+                                                setSelSlot(null);
+                                            }}
+                                            style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: isWinSel ? 8 : 0 }}
+                                            activeOpacity={0.75}>
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>🕐 {w.start}–{w.end}</Text>
+                                            <Text style={{ color: isWinSel ? '#c084fc' : '#888', fontSize:10, fontWeight:'700' }}>{isWinSel ? '▲' : '▼'}</Text>
+                                        </TouchableOpacity>
+                                        {isWinSel && (<>
+                                            <Text style={{ color:'#888', fontSize:10, fontWeight:'700', marginBottom:4 }}>Başlangıç</Text>
+                                            <TextInput
+                                                value={sel?.customStart ?? w.start}
+                                                onChangeText={v => { setVarStartMap(p => ({ ...p, [court.id]: { ...p[court.id], customStart: v } })); setSelSlot(null); }}
+                                                placeholder={w.start}
+                                                placeholderTextColor="#555"
+                                                keyboardType="numbers-and-punctuation"
+                                                maxLength={5}
+                                                style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:5, color:'#fff', fontSize:13, fontWeight:'800', borderWidth:1, borderColor: validStart ? '#9333ea' : '#ffffff20', textAlign:'center', marginBottom:8 }}
+                                            />
+                                            {validStart && (<>
+                                                <Text style={{ color:'#888', fontSize:10, fontWeight:'700', marginBottom:4 }}>Süre</Text>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:6 }}>
+                                                    {[60,90,120,150,180].filter(d => startM + d <= winEndM).map(d => {
+                                                        const isSd = varDurMap[court.id] === d;
+                                                        return (
+                                                            <TouchableOpacity key={d}
+                                                                onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setSelSlot(null); }}
+                                                                style={{ flex:1, minWidth:36, paddingVertical:5, borderRadius:8, backgroundColor: isSd ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSd ? '#9333ea' : '#ffffff20' }}>
+                                                                <Text style={{ color: isSd ? '#fff' : '#aaa', fontSize:10, fontWeight:'700' }}>{d<60?`${d}dk`:`${d/60}sa`}</Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                                {validEnd && (
+                                                    <TouchableOpacity
+                                                        onPress={() => selectSlot(court.id, { start: customStart, end: endT, price: w.pricePerHour != null ? Math.round(w.pricePerHour*(dur/60)) : venue?.pricePerSlot, durationMins: dur })}
+                                                        style={{ backgroundColor: isReserved ? '#9333ea' : '#9333ea30', borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#9333ea' }}
+                                                        activeOpacity={0.75}>
+                                                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>
+                                                            {isReserved ? '✅ Seçildi' : `${customStart}–${endT} Rezerve Et`}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </>)}
+                                        </>)}
+                                    </View>
                                 );
                             })
                     )}
@@ -3568,6 +3627,51 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             <Text style={vb.closeX}>✕</Text>
                         </TouchableOpacity>
                     </View>
+
+                    {/* İletişim butonları */}
+                    {venue && (() => {
+                        const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
+                        const effectiveCl = {
+                            whatsapp:  cl.whatsapp  || venue.phone || null,
+                            phone:     cl.phone     || venue.phone || null,
+                            telegram:  cl.telegram  || null,
+                            instagram: cl.instagram || null,
+                            email:     cl.email     || null,
+                        };
+                        const links = [
+                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp', url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
+                            { key: 'phone',     icon: '📞', label: 'Beni Ara',  url: v => `tel:${v}` },
+                            { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
+                            { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
+                            { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
+                        ].filter(l => effectiveCl[l.key]);
+                        if (links.length === 0) return null;
+                        return (
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, paddingHorizontal:14, paddingTop:6, paddingBottom:4 }}>
+                                {links.map(l => (
+                                    <TouchableOpacity key={l.key}
+                                        onPress={() => Linking.openURL(l.url(effectiveCl[l.key]))}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#ffffff0f', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
+                                        <Text style={{ fontSize:13 }}>{l.icon}</Text>
+                                        <Text style={{ color:'#e5e7eb', fontSize:11, fontWeight:'700' }}>{l.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        );
+                    })()}
+
+                    {/* initialCourtId seçili kort bilgisi */}
+                    {venue && initialCourtId && (() => {
+                        const initCourt = venue.courts?.find(c => c.id === initialCourtId);
+                        if (!initCourt) return null;
+                        return (
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:14, paddingBottom:6 }}>
+                                <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#9333ea50' }}>
+                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📍 {initCourt.name}</Text>
+                                </View>
+                            </View>
+                        );
+                    })()}
 
                     {loadingV && <ActivityIndicator color="#22c55e" style={{ marginVertical: 28 }} />}
 
@@ -3626,7 +3730,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             )}
                             {selSlot && (() => {
                                 const courtData = courtsSlots[selSlot.courtId]?.data;
-                                const needsDur = courtData?.type === 'FLEXIBLE' || courtData?.type === 'VAR_DURATION';
+                                const needsDur = courtData?.type === 'FLEXIBLE';
                                 const selCourt = venue.courts?.find(c => c.id === selSlot.courtId);
                                 return (
                                     <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
