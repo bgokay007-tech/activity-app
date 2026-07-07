@@ -1161,6 +1161,12 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         (venue.courts || []).forEach(c => { init[c.id] = c.surface || null; });
         return init;
     });
+    const [courtIndoors, setCourtIndoors] = useState(() => {
+        const init = {};
+        (venue.courts || []).forEach(c => { init[c.id] = c.indoor ?? null; });
+        return init;
+    });
+    const [globalIndoor, setGlobalIndoor] = useState(venue.courtIndoorDefault ?? false);
     const [venueLights, setVenueLights] = useState(
         () => (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom || null
     );
@@ -1427,6 +1433,27 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                 )
             );
             setVenueLights(lightsFrom || null);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+    };
+
+    const handleGlobalIndoor = async (isIndoor) => {
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { courtIndoorDefault: isIndoor });
+            await Promise.all(sortedCourts.map(c =>
+                api.patch(`/venues/${venue.id}/courts/${c.id}/settings`, { indoor: null })
+            ));
+            setGlobalIndoor(isIndoor);
+            const upd = {};
+            sortedCourts.forEach(c => { upd[c.id] = null; });
+            setCourtIndoors(prev => ({ ...prev, ...upd }));
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+    };
+
+    const handleCourtIndoor = async (courtId, isIndoor) => {
+        const next = courtIndoors[courtId] === isIndoor ? null : isIndoor;
+        try {
+            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { indoor: next });
+            setCourtIndoors(prev => ({ ...prev, [courtId]: next }));
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
     };
 
@@ -1857,6 +1884,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 ...(hasPricingWins ? [{ label: `📊 ${venue.pricingWindows.length} fiyat dilimi`, color: '#fbbf24' }] : []),
                                 ...(contactCount > 0 ? [{ label: `📞 ${contactCount} iletişim`, color: '#60a5fa' }] : []),
                                 ...(lightsFrom ? [{ label: `💡 Işık: ${lightsFrom}`, color: '#fbbf24' }] : []),
+                                { label: venue.courtIndoorDefault ? '🏠 Kapalı Alan' : '🌤️ Açık Alan', color: venue.courtIndoorDefault ? '#818cf8' : '#22d3ee' },
                             ];
 
                             return (
@@ -2430,6 +2458,30 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 </Text>
                             )}
 
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 6, letterSpacing: 0.5 }}>
+                                ALAN TÜRÜ
+                            </Text>
+                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
+                                Tüm kortlara uygulanır. Bireysel kortlar ayrı özelleştirilebilir.
+                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                {[{ val: false, label: '🌤️ Açık Alan' }, { val: true, label: '🏠 Kapalı Alan' }].map(opt => {
+                                    const isActive = globalIndoor === opt.val;
+                                    return (
+                                        <TouchableOpacity key={String(opt.val)}
+                                            onPress={() => handleGlobalIndoor(opt.val)}
+                                            style={{ flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
+                                                borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
+                                                backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
+                                                alignItems: 'center' }}>
+                                            <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: isActive ? '700' : '400' }}>
+                                                {opt.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
                             <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 4, letterSpacing: 0.5 }}>
                                 KORT ÜCRETİ
                             </Text>
@@ -2681,6 +2733,33 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                             Seçili: {SURFACE_ICON[currentSurface]} {SURFACE_LABEL[currentSurface]} · Seçili zemine tekrar tıklayarak kaldırabilirsin
                                         </Text>
                                     )}
+
+                                    {/* Alan türü override */}
+                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 6, letterSpacing: 0.5 }}>
+                                        ALAN TÜRÜ
+                                    </Text>
+                                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
+                                        Varsayılan: {globalIndoor ? '🏠 Kapalı Alan' : '🌤️ Açık Alan'}. Farklıysa bu kort için özelleştir. Tekrar tıklayarak varsayılana dön.
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        {[{ val: false, label: '🌤️ Açık Alan' }, { val: true, label: '🏠 Kapalı Alan' }].map(opt => {
+                                            const courtIndoor = courtIndoors[court.id];
+                                            const isActive = courtIndoor === opt.val;
+                                            const isDefault = courtIndoor === null && globalIndoor === opt.val;
+                                            return (
+                                                <TouchableOpacity key={String(opt.val)}
+                                                    onPress={() => handleCourtIndoor(court.id, opt.val)}
+                                                    style={{ flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
+                                                        borderColor: isActive ? BIZ_COLOR + '80' : isDefault ? '#ffffff25' : '#ffffff10',
+                                                        backgroundColor: isActive ? BIZ_COLOR + '18' : isDefault ? '#ffffff06' : 'transparent',
+                                                        alignItems: 'center' }}>
+                                                    <Text style={{ color: isActive ? BIZ_LIGHT : isDefault ? '#777' : '#555', fontSize: 13, fontWeight: isActive ? '700' : '400' }}>
+                                                        {opt.label}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
 
                                     {/* Kort başına fiyat override */}
                                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 4, letterSpacing: 0.5 }}>

@@ -868,6 +868,7 @@ model BusinessVenue {
   rescheduleHoursBefore Int?                           // null=her zaman, -1=asla, N>=0=N saat öncesine kadar
   acceptedPayments      Json     @default("[\"CASH\",\"EFT\"]") // kabul edilen ödeme yöntemleri
   approvalMode          String   @default("FULL_AUTO")         // FULL_AUTO | EFT_TIMED | PAYMENT_AUTO | MANUAL
+  courtIndoorDefault    Boolean  @default(false)            // false = açık alan, true = kapalı alan (tüm kortlar için varsayılan)
   pricingWindows        Json?                              // [{from,to,price,courtId?}] saat aralığı fiyatları
   contactLinks          Json?                              // {whatsapp?,telegram?,instagram?,email?,phone?}
   lat                   Float?                             // Google Maps enlem
@@ -891,6 +892,7 @@ model VenueCourt {
   name       String
   slotType         String?
   surface          String?
+  indoor           Boolean? // null = tesis varsayılanı kullan
   lightsFrom       String?
   pricePerSlot     Int?     // null = tesis varsayılanı kullan
   maintenanceDates Json?    // [{ from: "YYYY-MM-DD", to: "YYYY-MM-DD" }]

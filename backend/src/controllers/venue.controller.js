@@ -348,7 +348,7 @@ export const getVenueSlots = async (req, res, next) => {
 export const updateCourtSettings = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
-        const { slotType, surface, lightsFrom, pricePerSlot, maintenanceDates, approvalMode } = req.body;
+        const { slotType, surface, indoor, lightsFrom, pricePerSlot, maintenanceDates, approvalMode } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_SURFACES = ['CLAY', 'HARD', 'CARPET', 'GRASS', 'PARQUET', 'SYNTHETIC'];
         const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
@@ -367,6 +367,7 @@ export const updateCourtSettings = async (req, res, next) => {
         const data = {};
         if (slotType          !== undefined) data.slotType          = slotType          || null;
         if (surface           !== undefined) data.surface           = surface           || null;
+        if (indoor            !== undefined) data.indoor            = indoor === null ? null : Boolean(indoor);
         if (lightsFrom        !== undefined) data.lightsFrom        = lightsFrom        || null;
         if (pricePerSlot      !== undefined) data.pricePerSlot      = pricePerSlot === null ? null : (parseInt(pricePerSlot) || 0);
         if (maintenanceDates  !== undefined) data.maintenanceDates  = Array.isArray(maintenanceDates) ? maintenanceDates : null;
@@ -529,7 +530,7 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode } = req.body;
+        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode, courtIndoorDefault } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_PAY      = ['CASH', 'EFT', 'ONLINE'];
         const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
@@ -557,6 +558,7 @@ export const updateVenueSettings = async (req, res, next) => {
         if (cancelHoursBefore !== undefined)     data.cancelHoursBefore    = cancelHoursBefore === null ? null : parseInt(cancelHoursBefore);
         if (rescheduleHoursBefore !== undefined) data.rescheduleHoursBefore = rescheduleHoursBefore === null ? null : parseInt(rescheduleHoursBefore);
         if (approvalMode !== undefined)          data.approvalMode          = approvalMode;
+        if (courtIndoorDefault !== undefined)   data.courtIndoorDefault    = Boolean(courtIndoorDefault);
 
         const updated = await prisma.businessVenue.update({ where: { id }, data });
         res.json({ venue: updated });
