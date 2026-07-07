@@ -3557,11 +3557,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                         if (block._t !== 'free') {
                             const isPend = block._t === 'pending';
                             return (
-                                <View key={wi} style={{ backgroundColor: isPend ? '#78350f30' : '#450a0a50', borderRadius:10, padding:8, marginBottom:8, borderWidth:1, borderColor: isPend ? '#f59e0b50' : '#ef444450' }}>
-                                    <Text style={{ color: isPend ? '#fbbf24' : '#f87171', fontSize:11, fontWeight:'800' }}>
+                                <View key={wi} style={{ backgroundColor: isPend ? '#78350f99' : '#450a0a99', borderRadius:10, padding:8, marginBottom:8, borderWidth:1.5, borderColor: isPend ? '#f59e0b' : '#ef4444' }}>
+                                    <Text style={{ color: isPend ? '#fde68a' : '#fca5a5', fontSize:12, fontWeight:'800' }}>
                                         {isPend ? '⏳' : '🔴'} {block.start}–{block.end}
                                     </Text>
-                                    <Text style={{ color: isPend ? '#f59e0b' : '#ef4444', fontSize:10, marginTop:2, fontWeight:'700' }}>
+                                    <Text style={{ color: isPend ? '#fbbf24' : '#f87171', fontSize:11, marginTop:2, fontWeight:'800' }}>
                                         {isPend ? 'Onay Bekleniyor' : 'Dolu'}
                                     </Text>
                                 </View>
@@ -3697,7 +3697,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                         return (
                             <View style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:14, paddingBottom:6 }}>
                                 <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#9333ea50' }}>
-                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📍 {initCourt.name}</Text>
+                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>🎾 {initCourt.name}</Text>
                                 </View>
                             </View>
                         );
@@ -3770,6 +3770,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                 <View style={vb.legendItem}>
                                     <View style={[vb.legendDot, { backgroundColor:'#dc2626' }]} />
                                     <Text style={vb.legendTxt}>Dolu</Text>
+                                </View>
+                                <View style={vb.legendItem}>
+                                    <View style={[vb.legendDot, { backgroundColor:'#d97706' }]} />
+                                    <Text style={vb.legendTxt}>⏳ Onay Bek.</Text>
                                 </View>
                             </View>
 
@@ -3954,7 +3958,7 @@ const vb = StyleSheet.create({
     colSlot:      { borderRadius:5, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:3, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#450a0a', borderColor:'#7f1d1d', opacity:0.7 },
-    colSlotPend:  { backgroundColor:'#78350f40', borderColor:'#f59e0b80' },
+    colSlotPend:  { backgroundColor:'#78350fcc', borderColor:'#f59e0b', borderWidth:1.5 },
     colSlotSel:   { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2 },
     colSlotT:     { color:'#4ade80', fontSize:12, fontWeight:'700' },
     colSlotSub:   { color:'#4ade80', fontSize:9, opacity:0.7 },
