@@ -1133,6 +1133,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [menuItems, setMenuItems]   = useState([]);
     const [mName, setMName]           = useState('');
     const [mPrice, setMPrice]         = useState('');
+    const [mUnit, setMUnit]           = useState('');
+    const [mHourly, setMHourly]       = useState(false);
     const [mCat, setMCat]             = useState('EQUIPMENT');
     const [addingItem, setAddingItem] = useState(false);
     const [menuLoaded, setMenuLoaded] = useState(false);
@@ -1337,9 +1339,11 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         if (!mName.trim()) return;
         setAddingItem(true);
         try {
-            const { data } = await api.post(`/venues/${venue.id}/menu`, { name: mName.trim(), price: mPrice, category: mCat });
+            const unit = mCat === 'EQUIPMENT' ? (mHourly ? '/saat' : null)
+                       : mUnit.trim() ? mUnit.trim() : null;
+            const { data } = await api.post(`/venues/${venue.id}/menu`, { name: mName.trim(), price: mPrice, category: mCat, unit });
             setMenuItems(p => [...p, data.item]);
-            setMName(''); setMPrice(''); setMCat('EQUIPMENT');
+            setMName(''); setMPrice(''); setMUnit(''); setMHourly(false); setMCat('EQUIPMENT');
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Eklenemedi'); }
         finally { setAddingItem(false); }
     };
@@ -1866,13 +1870,13 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             {MENU_CATS.map(c => (
                                 <TouchableOpacity key={c.key}
                                     style={[vc.catBtn, mCat === c.key && vc.catBtnActive]}
-                                    onPress={() => setMCat(c.key)}>
+                                    onPress={() => { setMCat(c.key); setMUnit(''); setMHourly(false); }}>
                                     <Text style={[vc.catBtnTxt, mCat === c.key && { color: BIZ_COLOR }]}>{c.label}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
                     </ScrollView>
-                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
                         <TextInput style={[ic.input, { flex: 2, marginBottom: 0 }]}
                             placeholder="Ürün adı" placeholderTextColor={colors.textMuted}
                             value={mName} onChangeText={setMName} />
@@ -1883,14 +1887,42 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             {addingItem ? <ActivityIndicator size="small" color="#fff" /> : <Text style={vc.blockBtnTxt}>+</Text>}
                         </TouchableOpacity>
                     </View>
+                    {/* Birim alanı — kategoriye göre */}
+                    {mCat === 'EQUIPMENT' ? (
+                        <TouchableOpacity
+                            onPress={() => setMHourly(p => !p)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingVertical: 4 }}>
+                            <View style={{
+                                width: 18, height: 18, borderRadius: 4, borderWidth: 1.5,
+                                borderColor: mHourly ? BIZ_COLOR : '#444',
+                                backgroundColor: mHourly ? BIZ_COLOR + '30' : 'transparent',
+                                alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                {mHourly && <Text style={{ color: BIZ_COLOR, fontSize: 11, fontWeight: '900' }}>✓</Text>}
+                            </View>
+                            <Text style={{ color: mHourly ? BIZ_LIGHT : '#666', fontSize: 12 }}>
+                                Saatlik ücret (fiyat /saat olarak gösterilir)
+                            </Text>
+                        </TouchableOpacity>
+                    ) : (mCat === 'FOOD' || mCat === 'DRINK') ? (
+                        <TextInput
+                            style={[ic.input, { marginBottom: 10 }]}
+                            placeholder={mCat === 'FOOD' ? 'Gramaj (ör: 200g, 1 porsiyon)' : 'Hacim (ör: 330ml, 1lt)'}
+                            placeholderTextColor={colors.textMuted}
+                            value={mUnit} onChangeText={setMUnit}
+                        />
+                    ) : <View style={{ marginBottom: 4 }} />}
                     {menuItems.length === 0
                         ? <Text style={vc.emptyTxt}>Henüz menü kalemi yok. Yukarıdan ekleyin.</Text>
                         : menuItems.map(item => (
                             <View key={item.id} style={vc.menuRow}>
                                 <Text style={{ color: item.available ? '#fff' : '#555', flex: 1, fontSize: 13 }} numberOfLines={1}>
                                     {MENU_CATS.find(c => c.key === item.category)?.label.split(' ')[0]} {item.name}
+                                    {item.unit && item.unit !== '/saat' ? <Text style={{ color: '#666', fontSize: 11 }}> ({item.unit})</Text> : null}
                                 </Text>
-                                <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '700', marginRight: 8 }}>{item.price}₺</Text>
+                                <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '700', marginRight: 8 }}>
+                                    {item.price}₺{item.unit === '/saat' ? '/saat' : ''}
+                                </Text>
                                 <Switch value={item.available} onValueChange={() => toggleItem(item)}
                                     trackColor={{ false: '#333', true: BIZ_COLOR + '60' }}
                                     thumbColor={item.available ? BIZ_COLOR : '#555'}

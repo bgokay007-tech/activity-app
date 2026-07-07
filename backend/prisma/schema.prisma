@@ -941,6 +941,7 @@ model VenueMenuItem {
   name      String
   price     Int      @default(0)
   category  String   @default("OTHER") // EQUIPMENT | FOOD | DRINK | OTHER
+  unit      String?  // ör: "/saat", "200g", "330ml"
   available Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1026,12 +1026,12 @@ const assertProVenueOwner = async (venueId, userId) => {
 export const addMenuItem = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, price, category } = req.body;
+        const { name, price, category, unit } = req.body;
         const check = await assertProVenueOwner(id, req.userId);
         if (check.error) return res.status(check.status).json({ message: check.error });
         if (!name?.trim()) return res.status(400).json({ message: 'İsim zorunludur' });
         const item = await prisma.venueMenuItem.create({
-            data: { venueId: id, name: name.trim(), price: parseInt(price) || 0, category: category || 'OTHER' },
+            data: { venueId: id, name: name.trim(), price: parseInt(price) || 0, category: category || 'OTHER', unit: unit?.trim() || null },
         });
         res.status(201).json({ item });
     } catch (error) { next(error); }
@@ -1040,16 +1040,17 @@ export const addMenuItem = async (req, res, next) => {
 export const updateMenuItem = async (req, res, next) => {
     try {
         const { id, itemId } = req.params;
-        const { name, price, category, available } = req.body;
+        const { name, price, category, available, unit } = req.body;
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
         const item = await prisma.venueMenuItem.update({
             where: { id: itemId },
             data: {
-                ...(name      !== undefined ? { name: name.trim() }         : {}),
+                ...(name      !== undefined ? { name: name.trim() }           : {}),
                 ...(price     !== undefined ? { price: parseInt(price) || 0 } : {}),
-                ...(category  !== undefined ? { category }                  : {}),
-                ...(available !== undefined ? { available }                 : {}),
+                ...(category  !== undefined ? { category }                    : {}),
+                ...(available !== undefined ? { available }                   : {}),
+                ...(unit      !== undefined ? { unit: unit?.trim() || null }  : {}),
             },
         });
         res.json({ item });
