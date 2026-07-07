@@ -3734,11 +3734,18 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                 const selCourt = venue.courts?.find(c => c.id === selSlot.courtId);
                                 return (
                                     <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
-                                        <View style={vb.selSummary}>
-                                            <Text style={vb.selSummaryTxt}>
-                                                ✅ {selCourt?.name} · {selSlot.slot.start}{selSlot.slot.end ? ` – ${selSlot.slot.end}` : ''}
-                                            </Text>
-                                            {(() => { const p = selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot; return p > 0 ? <Text style={vb.selSummaryPrice}>💰 {p}₺</Text> : null; })()}
+                                        <View style={[vb.selSummary, { flexDirection:'row', alignItems:'center' }]}>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={vb.selSummaryTxt}>
+                                                    ✅ {selCourt?.name} · {selSlot.slot.start}{selSlot.slot.end ? ` – ${selSlot.slot.end}` : ''}
+                                                </Text>
+                                                {(() => { const p = selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot; return p > 0 ? <Text style={vb.selSummaryPrice}>💰 {p}₺</Text> : null; })()}
+                                            </View>
+                                            <TouchableOpacity
+                                                onPress={() => setSelSlot(null)}
+                                                style={{ backgroundColor:'#ffffff12', borderRadius:8, paddingHorizontal:10, paddingVertical:6, marginLeft:8, borderWidth:1, borderColor:'#ffffff20' }}>
+                                                <Text style={{ color:'#aaa', fontSize:12, fontWeight:'700' }}>← Geri</Text>
+                                            </TouchableOpacity>
                                         </View>
                                         {needsDur && (
                                             <>
@@ -3837,7 +3844,7 @@ const vb = StyleSheet.create({
     dateChipMonth:    { color:'#888', fontSize:9, marginTop:1 },
     dateChipMonthSel: { color:'#4ade80' },
 
-    body:         { padding:16, maxHeight:420 },
+    body:         { padding:16, maxHeight:260 },
 
     legend:       { flexDirection:'row', gap:14, marginBottom:10 },
     legendItem:   { flexDirection:'row', alignItems:'center', gap:5 },
