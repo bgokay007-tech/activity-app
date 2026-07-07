@@ -888,10 +888,11 @@ model VenueCourt {
   id         String  @id @default(uuid())
   venueId    String
   name       String
-  slotType     String?
-  surface      String?
-  lightsFrom   String?
-  pricePerSlot Int?    // null = tesis varsayılanı kullan
+  slotType         String?
+  surface          String?
+  lightsFrom       String?
+  pricePerSlot     Int?     // null = tesis varsayılanı kullan
+  maintenanceDates Json?    // [{ from: "YYYY-MM-DD", to: "YYYY-MM-DD" }]
 
   venue        BusinessVenue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
   reservations CourtReservation[]

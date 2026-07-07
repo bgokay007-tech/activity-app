@@ -162,7 +162,8 @@ export default function CourtSlotsScreen({ route, navigation }) {
         } finally { setConf(false); }
     };
 
-    const isVarDuration = slots?.type === 'VAR_DURATION';
+    const isVarDuration   = slots?.type === 'VAR_DURATION';
+    const isMaintenance   = slots?.type === 'MAINTENANCE';
 
     const slotList = isVarDuration ? [] : (slots?.slots || slots?.windows || []);
 
@@ -256,7 +257,21 @@ export default function CourtSlotsScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {!loading && slots && (
+                {!loading && isMaintenance && (
+                    <View style={{ margin: 16, padding: 20, borderRadius: 14,
+                        backgroundColor: '#ef444412', borderWidth: 1, borderColor: '#ef444440',
+                        alignItems: 'center', gap: 10 }}>
+                        <Text style={{ fontSize: 36 }}>🔧</Text>
+                        <Text style={{ color: '#fca5a5', fontSize: 16, fontWeight: '900', textAlign: 'center' }}>
+                            Bakımda
+                        </Text>
+                        <Text style={{ color: '#f87171', fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
+                            {court.name} seçilen tarihte bakım sürecinde.{'\n'}Farklı bir tarih ya da kort seçin.
+                        </Text>
+                    </View>
+                )}
+
+                {!loading && slots && !isMaintenance && (
                     <>
                         {isVarDuration ? (
                             <>

@@ -262,7 +262,8 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={bm.scroll}>
                         {venue.courts.map(court => {
                             const entry = slotsMap[court.id] || { slots: [], loading: true, type: null, windows: [] };
-                            const isVar = entry.type === 'VAR_DURATION';
+                            const isVar   = entry.type === 'VAR_DURATION';
+                            const isMaint = entry.type === 'MAINTENANCE';
                             const varStart = varStartMap[court.id] || null;
                             const displaySlots = isVar ? [] : entry.slots;
                             const freeCount = isVar ? entry.windows.length : displaySlots.filter(sl => sl.free !== false).length;
@@ -270,10 +271,13 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                 <View key={court.id} style={bm.courtSection}>
                                     <View style={bm.courtHeader}>
                                         <Text style={bm.courtName}>🎾 {court.name}</Text>
-                                        {!entry.loading && (
+                                        {!entry.loading && !isMaint && (
                                             <Text style={[bm.courtFree, freeCount === 0 && { color: colors.textMuted }]}>
                                                 {freeCount > 0 ? `${freeCount} müsait` : 'Dolu'}
                                             </Text>
+                                        )}
+                                        {isMaint && (
+                                            <Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '700' }}>🔧 Bakımda</Text>
                                         )}
                                     </View>
 
@@ -281,6 +285,10 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                         <ActivityIndicator size="small" color={colors.purple} style={{ marginVertical: 12 }} />
                                     ) : entry.error ? (
                                         <Text style={bm.errorText}>{entry.error}</Text>
+                                    ) : isMaint ? (
+                                        <Text style={{ color: '#f87171', fontSize: 12, marginVertical: 8, lineHeight: 18 }}>
+                                            Bu kort seçilen tarihte bakımda. Farklı bir tarih seçin.
+                                        </Text>
                                     ) : isVar ? (
                                         <>
                                             {entry.windows.length === 0 ? (

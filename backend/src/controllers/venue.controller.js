@@ -270,6 +270,11 @@ export const getVenueSlots = async (req, res, next) => {
         ]);
         if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
 
+        // Bakım kontrolü
+        const maintDates = Array.isArray(court?.maintenanceDates) ? court.maintenanceDates : [];
+        const underMaintenance = maintDates.some(m => m.from && m.to && date >= m.from && date <= m.to);
+        if (underMaintenance) return res.json({ type: 'MAINTENANCE', message: 'Bu kort seçilen tarihte bakım sürecinde. Rezervasyon yapılamaz.' });
+
         const reservations = await prisma.courtReservation.findMany({
             where: { venueId: id, courtId },
         });
@@ -299,7 +304,7 @@ export const getVenueSlots = async (req, res, next) => {
 export const updateCourtSettings = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
-        const { slotType, surface, lightsFrom, pricePerSlot } = req.body;
+        const { slotType, surface, lightsFrom, pricePerSlot, maintenanceDates } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_SURFACES = ['CLAY', 'HARD', 'CARPET', 'GRASS', 'PARQUET', 'SYNTHETIC'];
         if (slotType && !VALID_TYPES.includes(slotType))
@@ -313,10 +318,11 @@ export const updateCourtSettings = async (req, res, next) => {
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
         const data = {};
-        if (slotType     !== undefined) data.slotType     = slotType     || null;
-        if (surface      !== undefined) data.surface      = surface      || null;
-        if (lightsFrom   !== undefined) data.lightsFrom   = lightsFrom   || null;
-        if (pricePerSlot !== undefined) data.pricePerSlot = pricePerSlot === null ? null : (parseInt(pricePerSlot) || 0);
+        if (slotType          !== undefined) data.slotType          = slotType          || null;
+        if (surface           !== undefined) data.surface           = surface           || null;
+        if (lightsFrom        !== undefined) data.lightsFrom        = lightsFrom        || null;
+        if (pricePerSlot      !== undefined) data.pricePerSlot      = pricePerSlot === null ? null : (parseInt(pricePerSlot) || 0);
+        if (maintenanceDates  !== undefined) data.maintenanceDates  = Array.isArray(maintenanceDates) ? maintenanceDates : null;
 
         const court = await prisma.venueCourt.update({ where: { id: courtId }, data });
         res.json({ court });
@@ -337,6 +343,12 @@ export const makeReservation = async (req, res, next) => {
         if (isBlocked) return res.status(403).json({ message: 'Bu tesiste rezervasyon yapamazsınız' });
 
         if (!date || !startTime || !endTime) return res.status(400).json({ message: 'Tarih, başlangıç ve bitiş saati zorunludur' });
+
+        // Bakım kontrolü
+        const courtCheck = await prisma.venueCourt.findUnique({ where: { id: courtId } });
+        const mDates = Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : [];
+        if (mDates.some(m => m.from && m.to && date >= m.from && date <= m.to))
+            return res.status(400).json({ message: 'Bu kort seçilen tarihte bakımda. Rezervasyon yapılamaz.' });
 
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
         if (paymentMethod && !accepted.includes(paymentMethod))

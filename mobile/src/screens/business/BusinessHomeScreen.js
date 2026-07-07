@@ -1210,6 +1210,19 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     const [ccPickerKey, setCcPickerKey] = useState(null);
     const [ccSearch, setCcSearch] = useState('');
 
+    // ── Bakım günleri state ──────────────────────────────────────────────────
+    const [courtMaintenance, setCourtMaintenance] = useState(() => {
+        const r = {};
+        (venue.courts || []).forEach(c => {
+            r[c.id] = Array.isArray(c.maintenanceDates) ? c.maintenanceDates : [];
+        });
+        return r;
+    });
+    const [addingMaint, setAddingMaint] = useState(null);
+    const [maintFrom, setMaintFrom]     = useState('');
+    const [maintTo, setMaintTo]         = useState('');
+    const [savingMaint, setSavingMaint] = useState(false);
+
     const sortedCourts = [...(venue.courts || [])].sort((a, b) => {
         const nA = parseInt(a.name.match(/\d+/)?.[0] ?? '', 10);
         const nB = parseInt(b.name.match(/\d+/)?.[0] ?? '', 10);
@@ -1347,6 +1360,15 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
             setLocalAcceptedPayments(next);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingPayments(false); }
+    };
+
+    const handleSaveMaintenance = async (courtId, newDates) => {
+        setSavingMaint(true);
+        try {
+            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { maintenanceDates: newDates });
+            setCourtMaintenance(prev => ({ ...prev, [courtId]: newDates }));
+        } catch (e) { Alert.alert('Hata', 'Kaydedilemedi'); }
+        finally { setSavingMaint(false); }
     };
 
     const handleUpdateCourtSlotType = async (courtId, type) => {
@@ -2435,6 +2457,85 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                         <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Kaydet</Text>
                                     </TouchableOpacity>
                                 </View>
+
+                                {/* Bakım Günleri */}
+                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 18, marginBottom: 4, letterSpacing: 0.5 }}>
+                                    BAKIM GÜNLERİ
+                                </Text>
+                                <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
+                                    Belirtilen tarihlerde bu kort bakımda sayılır, rezervasyon yapılamaz.
+                                </Text>
+                                {(courtMaintenance[court.id] || []).map((m, idx) => (
+                                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6,
+                                        backgroundColor: '#ef444412', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
+                                        borderWidth: 1, borderColor: '#ef444430' }}>
+                                        <Text style={{ flex: 1, color: '#fca5a5', fontSize: 13 }}>🔧 {m.from} – {m.to}</Text>
+                                        <TouchableOpacity onPress={() => {
+                                            const updated = (courtMaintenance[court.id] || []).filter((_, i) => i !== idx);
+                                            handleSaveMaintenance(court.id, updated);
+                                        }}>
+                                            <Text style={{ color: '#ef4444', fontSize: 15, fontWeight: '700' }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                                {addingMaint === court.id ? (
+                                    <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 6 }}>
+                                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                                            <TextInput
+                                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                                    paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
+                                                    fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
+                                                placeholder="2026-07-10"
+                                                placeholderTextColor="#444"
+                                                value={maintFrom}
+                                                onChangeText={setMaintFrom}
+                                                keyboardType="number-pad"
+                                                maxLength={10}
+                                            />
+                                            <Text style={{ color: '#555', fontSize: 16 }}>–</Text>
+                                            <TextInput
+                                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                                    paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
+                                                    fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
+                                                placeholder="2026-07-15"
+                                                placeholderTextColor="#444"
+                                                value={maintTo}
+                                                onChangeText={setMaintTo}
+                                                keyboardType="number-pad"
+                                                maxLength={10}
+                                            />
+                                        </View>
+                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                            <TouchableOpacity onPress={() => { setAddingMaint(null); setMaintFrom(''); setMaintTo(''); }}
+                                                style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ffffff12', alignItems: 'center' }}>
+                                                <Text style={{ color: '#aaa', fontSize: 13 }}>Vazgeç</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                disabled={savingMaint}
+                                                onPress={() => {
+                                                    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+                                                    if (!dateRe.test(maintFrom) || !dateRe.test(maintTo) || maintFrom > maintTo)
+                                                        return Alert.alert('Hata', 'YYYY-AA-GG formatında geçerli aralık girin.\nÖrnek: 2026-07-10 – 2026-07-15');
+                                                    const updated = [...(courtMaintenance[court.id] || []), { from: maintFrom, to: maintTo }]
+                                                        .sort((a, b) => a.from.localeCompare(b.from));
+                                                    handleSaveMaintenance(court.id, updated);
+                                                    setAddingMaint(null); setMaintFrom(''); setMaintTo('');
+                                                }}
+                                                style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ef444430', alignItems: 'center' }}>
+                                                <Text style={{ color: '#fca5a5', fontWeight: '700', fontSize: 13 }}>
+                                                    {savingMaint ? 'Kaydediliyor...' : 'Ekle'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ) : (
+                                    <TouchableOpacity onPress={() => { setAddingMaint(court.id); setMaintFrom(''); setMaintTo(''); }}
+                                        style={{ borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1,
+                                            borderStyle: 'dashed', borderColor: '#ef444440',
+                                            backgroundColor: '#ef444408', marginBottom: 4 }}>
+                                        <Text style={{ color: '#fca5a5', fontSize: 12 }}>+ Bakım Dönemi Ekle</Text>
+                                    </TouchableOpacity>
+                                )}
 
                             </View>
                         );
