@@ -1247,22 +1247,13 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         }
         return {}; // boş = tüm günler varsayılan saatler
     });
-    const [selectedDay,    setSelectedDay]    = useState(1); // 1=Pzt...7=Paz
+    const [selectedDay,    setSelectedDay]    = useState(0); // 0=Tüm Günler, 1=Pzt...7=Paz
     const [addingWindow,   setAddingWindow]   = useState(false);
     const [newFrom,        setNewFrom]        = useState('');
     const [newTo,          setNewTo]          = useState('');
     const [savingWindows,  setSavingWindows]  = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(null); // null | 'from' | 'to'
 
-    // Şablon modal state
-    const [showTpl,     setShowTpl]     = useState(false);
-    const [tplWindows,  setTplWindows]  = useState([]);
-    const [tplDays,     setTplDays]     = useState(new Set([1,2,3,4,5,6,7]));
-    const [tplCourts,   setTplCourts]   = useState('all'); // 'all' | Set<courtId>
-    const [tplFrom,     setTplFrom]     = useState('');
-    const [tplTo,       setTplTo]       = useState('');
-    const [tplPicker,   setTplPicker]   = useState(null); // 'from' | 'to' | null
-    const [tplAdding,   setTplAdding]   = useState(false);
 
     const [localCancelPolicy,     setLocalCancelPolicy]     = useState(venue.cancelHoursBefore     ?? null);
     const [localReschedulePolicy, setLocalReschedulePolicy] = useState(venue.rescheduleHoursBefore ?? null);
@@ -1563,7 +1554,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         Alert.alert('Kayıt Hatası', msg);
     };
 
-    const dayKey          = String(selectedDay);
+    const dayKey          = selectedDay === 0 ? '0' : String(selectedDay);
     const effectiveKey    = selectedCourt ? `${selectedCourt}_${dayKey}` : dayKey;
     const dayEntry        = localOpenSlots[effectiveKey]; // undefined | [] | [{from,to}...]
     const isClosed        = Array.isArray(dayEntry) && dayEntry.length === 0;
@@ -1596,22 +1587,30 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         return slots;
     };
 
-    const handleRemoveWindow = (idx) => {
-        if (!isCustomized) return;
-        if (dayWindows.length <= 1) {
-            const next = { ...localOpenSlots };
-            delete next[effectiveKey];
-            saveOpenSlots(next);
-            return;
+    const saveWindowsForSelection = (windows) => {
+        const prefix = selectedCourt ? `${selectedCourt}_` : '';
+        const next = { ...localOpenSlots };
+        if (selectedDay === 0) {
+            if (windows === null) {
+                ['0','1','2','3','4','5','6','7'].forEach(d => delete next[`${prefix}${d}`]);
+            } else {
+                ['0','1','2','3','4','5','6','7'].forEach(d => { next[`${prefix}${d}`] = [...windows]; });
+            }
+        } else {
+            if (windows === null) delete next[effectiveKey];
+            else next[effectiveKey] = windows;
         }
-        const next = { ...localOpenSlots, [effectiveKey]: dayWindows.filter((_, i) => i !== idx) };
         saveOpenSlots(next);
     };
 
+    const handleRemoveWindow = (idx) => {
+        if (!isCustomized) return;
+        const filtered = dayWindows.filter((_, i) => i !== idx);
+        saveWindowsForSelection(filtered.length === 0 ? null : filtered);
+    };
+
     const handleResetDay = () => {
-        const next = { ...localOpenSlots };
-        delete next[effectiveKey];
-        saveOpenSlots(next);
+        saveWindowsForSelection(null);
     };
 
     const handleCustomizeDayFromDefault = () => {
@@ -1620,14 +1619,11 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
     };
 
     const handleMarkClosed = () => {
-        const next = { ...localOpenSlots, [effectiveKey]: [] };
-        saveOpenSlots(next);
+        saveWindowsForSelection([]);
     };
 
     const handleMarkOpen = () => {
-        const next = { ...localOpenSlots };
-        delete next[effectiveKey];
-        saveOpenSlots(next);
+        saveWindowsForSelection(null);
     };
 
     // "Tüm günlere uygula" — Tüm Kortlar modunda: tüm 7 gün key'ine yaz + global şablon('0')
@@ -1646,31 +1642,6 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         saveOpenSlots(next);
     };
 
-    const openTpl = () => {
-        setTplWindows([]);
-        setTplDays(new Set([1,2,3,4,5,6,7]));
-        setTplCourts('all');
-        setTplFrom(''); setTplTo(''); setTplAdding(false); setTplPicker(null);
-        setShowTpl(true);
-    };
-
-    const applyTemplate = () => {
-        if (tplWindows.length === 0) { Alert.alert('Hata', 'En az bir zaman aralığı ekleyin'); return; }
-        if (tplDays.size === 0) { Alert.alert('Hata', 'En az bir gün seçin'); return; }
-        const next = { ...localOpenSlots };
-        const windows = tplWindows.map(w => ({ from: w.from, to: w.to }));
-        if (tplCourts === 'all') {
-            // Tüm kortlar modunda: dayKey olarak kaydet (tüm kortlara fallback eder)
-            for (const d of tplDays) next[String(d)] = [...windows];
-        } else {
-            // Belirli kortlar: her kort + gün kombinasyonuna yaz
-            for (const cId of tplCourts) {
-                for (const d of tplDays) next[`${cId}_${d}`] = [...windows];
-            }
-        }
-        saveOpenSlots(next);
-        setShowTpl(false);
-    };
 
     // "Tüm kortlara uygula" — Bu günkü saatleri tüm kortların bu günü için yaz
     const handleApplyToAllCourts = () => {
@@ -1694,12 +1665,12 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         const from = normalizeTime(newFrom);
         const to   = normalizeTime(newTo);
         if (!isValidTime(from) || !isValidTime(to)) { Alert.alert('Hata', 'Geçerli saat girin (ör: 8, 8:30, 08:00)'); return; }
-        const existing = isCustomized ? dayWindows : []; // Varsayılan günde "+" → sıfırdan başla
-        const next = { ...localOpenSlots, [effectiveKey]: [...existing, { from, to }].sort((a, b) => a.from.localeCompare(b.from)) };
+        const existing = isCustomized ? dayWindows : [];
+        const newWindows = [...existing, { from, to }].sort((a, b) => a.from.localeCompare(b.from));
         setAddingWindow(false);
         setNewFrom('');
         setNewTo('');
-        saveOpenSlots(next);
+        saveWindowsForSelection(newWindows);
     };
 
     const handleDelete = () => {
@@ -2032,28 +2003,24 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                         </View>
                     )}
                     {/* ── Çalışma Saatleri ─────────────────────── */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, flex: 1 }}>
-                            ÇALIŞMA SAATLERİ
-                        </Text>
-                        <TouchableOpacity onPress={openTpl}
-                            style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 7,
-                                backgroundColor: BIZ_COLOR + '22', borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
-                            <Text style={{ color: BIZ_LIGHT, fontSize: 11, fontWeight: '700' }}>⚡ Şablon Uygula</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 }}>
+                        ÇALIŞMA SAATLERİ
+                    </Text>
 
                     {/* Gün seçici */}
                     <View style={{ flexDirection: 'row', gap: 5, marginBottom: 14, flexWrap: 'wrap' }}>
                         {[
+                            { d: 0, lbl: 'Tüm Günler' },
                             { d: 1, lbl: 'Pzt' }, { d: 2, lbl: 'Sal' }, { d: 3, lbl: 'Çar' },
                             { d: 4, lbl: 'Per' }, { d: 5, lbl: 'Cum' }, { d: 6, lbl: 'Cmt' },
                             { d: 7, lbl: 'Paz' },
                         ].map(({ d, lbl }) => {
                             const isActive    = selectedDay === d;
-                            const eKey        = selectedCourt ? `${selectedCourt}_${d}` : String(d);
+                            const eKey        = d === 0
+                                ? (selectedCourt ? `${selectedCourt}_0` : '0')
+                                : (selectedCourt ? `${selectedCourt}_${d}` : String(d));
                             const entry       = localOpenSlots[eKey];
-                            const isDayClosed = Array.isArray(entry) && entry.length === 0;
+                            const isDayClosed = d !== 0 && Array.isArray(entry) && entry.length === 0;
                             const isDayCustom = Array.isArray(entry) && entry.length > 0;
                             const borderClr   = isActive ? BIZ_COLOR : isDayClosed ? '#ef444460' : isDayCustom ? BIZ_COLOR + '40' : '#ffffff15';
                             const bgClr       = isActive ? BIZ_COLOR + '28' : isDayClosed ? '#ef444412' : 'transparent';
@@ -2115,15 +2082,7 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                         borderWidth: 1, borderColor: '#ffffff15' }}>
                                     <Text style={{ color: '#6b7280', fontSize: 11 }}>↺ Sıfırla</Text>
                                 </TouchableOpacity>
-                                {!selectedCourt ? (
-                                    /* Tüm Kortlar modunda: tüm günlere uygula */
-                                    <TouchableOpacity onPress={handleSetAsDefault}
-                                        style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '15',
-                                            borderWidth: 1, borderColor: BIZ_COLOR + '35' }}>
-                                        <Text style={{ color: BIZ_COLOR, fontSize: 11, fontWeight: '700' }}>⊙ Tüm günlere uygula</Text>
-                                    </TouchableOpacity>
-                                ) : (
-                                    /* Belirli kort modunda: tüm kortlara + tüm günlere */
+                                {selectedCourt && selectedDay !== 0 && (
                                     <>
                                         <TouchableOpacity onPress={handleApplyToAllCourts}
                                             style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: BIZ_COLOR + '15',
@@ -2227,160 +2186,6 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                         }}
                         onClose={() => setShowTimePicker(null)}
                     />
-
-                    {/* ── Şablon Modal ── */}
-                    <Modal visible={showTpl} transparent animationType="slide" onRequestClose={() => setShowTpl(false)}>
-                        <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
-                            <View style={{ backgroundColor:'#1a1a2e', borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, maxHeight:'90%' }}>
-                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', marginBottom:4 }}>⚡ Şablon Uygula</Text>
-                                <Text style={{ color:'#666', fontSize:12, marginBottom:16, lineHeight:17 }}>
-                                    Seçilen gün/kortlara toplu saat uygular. Bireysel özelleştirme sonradan yapılabilir.
-                                </Text>
-
-                                {/* ── Kortlar (birden fazla kort varsa) ── */}
-                                {sortedCourts.length > 1 && (
-                                    <>
-                                        <Text style={{ color:'#888', fontSize:11, fontWeight:'700', marginBottom:6, letterSpacing:0.4 }}>KORTLAR</Text>
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:14 }}>
-                                            <TouchableOpacity
-                                                onPress={() => setTplCourts('all')}
-                                                style={{ paddingHorizontal:10, paddingVertical:5, borderRadius:7, borderWidth:1.5,
-                                                    borderColor: tplCourts === 'all' ? BIZ_COLOR : '#ffffff20',
-                                                    backgroundColor: tplCourts === 'all' ? BIZ_COLOR+'28' : 'transparent' }}>
-                                                <Text style={{ color: tplCourts === 'all' ? BIZ_LIGHT : '#777', fontSize:11, fontWeight: tplCourts === 'all' ? '800' : '400' }}>
-                                                    Tüm Kortlar
-                                                </Text>
-                                            </TouchableOpacity>
-                                            {sortedCourts.map(c => {
-                                                const isSel = tplCourts !== 'all' && tplCourts.has(c.id);
-                                                return (
-                                                    <TouchableOpacity key={c.id}
-                                                        onPress={() => {
-                                                            if (tplCourts === 'all') {
-                                                                setTplCourts(new Set([c.id]));
-                                                            } else {
-                                                                const next = new Set(tplCourts);
-                                                                if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
-                                                                setTplCourts(next.size > 0 ? next : 'all');
-                                                            }
-                                                        }}
-                                                        style={{ paddingHorizontal:10, paddingVertical:5, borderRadius:7, borderWidth:1.5,
-                                                            borderColor: isSel ? BIZ_COLOR : '#ffffff20',
-                                                            backgroundColor: isSel ? BIZ_COLOR+'28' : 'transparent' }}>
-                                                        <Text style={{ color: isSel ? BIZ_LIGHT : '#777', fontSize:11, fontWeight: isSel ? '800' : '400' }}>
-                                                            {c.name}
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                );
-                                            })}
-                                        </View>
-                                    </>
-                                )}
-
-                                {/* ── Günler ── */}
-                                <Text style={{ color:'#888', fontSize:11, fontWeight:'700', marginBottom:6, letterSpacing:0.4 }}>GÜNLER</Text>
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:14 }}>
-                                    {[{d:1,l:'Pzt'},{d:2,l:'Sal'},{d:3,l:'Çar'},{d:4,l:'Per'},{d:5,l:'Cum'},{d:6,l:'Cmt'},{d:7,l:'Paz'}].map(({ d, l }) => {
-                                        const sel = tplDays.has(d);
-                                        return (
-                                            <TouchableOpacity key={d}
-                                                onPress={() => {
-                                                    const next = new Set(tplDays);
-                                                    if (next.has(d)) next.delete(d); else next.add(d);
-                                                    setTplDays(next);
-                                                }}
-                                                style={{ paddingHorizontal:11, paddingVertical:7, borderRadius:8, borderWidth:1.5,
-                                                    borderColor: sel ? BIZ_COLOR : '#ffffff20',
-                                                    backgroundColor: sel ? BIZ_COLOR+'28' : 'transparent' }}>
-                                                <Text style={{ color: sel ? BIZ_LIGHT : '#777', fontSize:12, fontWeight: sel ? '800' : '400' }}>{l}</Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-
-                                {/* ── Zaman Aralıkları ── */}
-                                <Text style={{ color:'#888', fontSize:11, fontWeight:'700', marginBottom:6, letterSpacing:0.4 }}>SAATLER</Text>
-                                {tplWindows.map((w, i) => (
-                                    <View key={i} style={{ flexDirection:'row', alignItems:'center', marginBottom:6,
-                                        backgroundColor:'#ffffff08', borderRadius:8, paddingHorizontal:12, paddingVertical:8 }}>
-                                        <Text style={{ color: BIZ_LIGHT, fontWeight:'800', fontSize:14, flex:1 }}>{w.from} – {w.to}</Text>
-                                        <TouchableOpacity onPress={() => setTplWindows(p => p.filter((_,j) => j !== i))} style={{ padding:4 }}>
-                                            <Text style={{ color:'#ef4444', fontSize:16, fontWeight:'700' }}>✕</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ))}
-                                {tplAdding ? (
-                                    <View style={{ backgroundColor:'#ffffff08', borderRadius:10, padding:12, marginBottom:8 }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:10 }}>
-                                            <TouchableOpacity onPress={() => setTplPicker('from')}
-                                                style={{ flex:1, backgroundColor: tplFrom ? BIZ_COLOR+'20' : '#ffffff10', borderRadius:8,
-                                                    paddingVertical:10, alignItems:'center', borderWidth:1.5,
-                                                    borderColor: tplFrom ? BIZ_COLOR+'60' : '#ffffff20' }}>
-                                                <Text style={{ color: tplFrom ? BIZ_LIGHT : '#555', fontWeight: tplFrom ? '800':'400', fontSize:15 }}>
-                                                    {tplFrom || 'Başlangıç'}
-                                                </Text>
-                                            </TouchableOpacity>
-                                            <Text style={{ color:'#555', fontSize:18 }}>–</Text>
-                                            <TouchableOpacity onPress={() => setTplPicker('to')}
-                                                style={{ flex:1, backgroundColor: tplTo ? BIZ_COLOR+'20' : '#ffffff10', borderRadius:8,
-                                                    paddingVertical:10, alignItems:'center', borderWidth:1.5,
-                                                    borderColor: tplTo ? BIZ_COLOR+'60' : '#ffffff20' }}>
-                                                <Text style={{ color: tplTo ? BIZ_LIGHT : '#555', fontWeight: tplTo ? '800':'400', fontSize:15 }}>
-                                                    {tplTo || 'Bitiş'}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                        <View style={{ flexDirection:'row', gap:8 }}>
-                                            <TouchableOpacity onPress={() => { setTplAdding(false); setTplFrom(''); setTplTo(''); }}
-                                                style={{ flex:1, padding:10, borderRadius:8, backgroundColor:'#ffffff12', alignItems:'center' }}>
-                                                <Text style={{ color:'#aaa', fontSize:13 }}>Vazgeç</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => {
-                                                    const f = normalizeTime(tplFrom), t = normalizeTime(tplTo);
-                                                    if (!isValidTimeStr(f) || !isValidTimeStr(t)) { Alert.alert('Hata', 'Geçerli saat girin'); return; }
-                                                    setTplWindows(p => [...p, { from:f, to:t }].sort((a,b) => a.from.localeCompare(b.from)));
-                                                    setTplAdding(false); setTplFrom(''); setTplTo('');
-                                                }}
-                                                style={{ flex:1, padding:10, borderRadius:8, backgroundColor: BIZ_COLOR+'30', alignItems:'center' }}>
-                                                <Text style={{ color: BIZ_LIGHT, fontWeight:'700', fontSize:13 }}>Ekle</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity onPress={() => setTplAdding(true)}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:6, paddingVertical:6, marginBottom:6 }}>
-                                        <Text style={{ color: BIZ_COLOR, fontSize:20, fontWeight:'700' }}>+</Text>
-                                        <Text style={{ color: BIZ_COLOR, fontSize:13, fontWeight:'600' }}>Aralık Ekle</Text>
-                                    </TouchableOpacity>
-                                )}
-
-                                <TimePickerModal
-                                    visible={tplPicker !== null}
-                                    value={tplPicker === 'from' ? tplFrom : tplTo}
-                                    onSelect={t => {
-                                        if (tplPicker === 'from') setTplFrom(t); else setTplTo(t);
-                                        setTplPicker(null);
-                                    }}
-                                    onClose={() => setTplPicker(null)}
-                                />
-
-                                {/* ── Butonlar ── */}
-                                <View style={{ flexDirection:'row', gap:10, marginTop:16 }}>
-                                    <TouchableOpacity onPress={() => setShowTpl(false)}
-                                        style={{ flex:1, padding:13, borderRadius:10, backgroundColor:'#ffffff12', alignItems:'center' }}>
-                                        <Text style={{ color:'#aaa', fontWeight:'600', fontSize:14 }}>Vazgeç</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={applyTemplate} disabled={savingWindows}
-                                        style={{ flex:2, padding:13, borderRadius:10, backgroundColor: BIZ_COLOR, alignItems:'center' }}>
-                                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>
-                                            {savingWindows ? 'Kaydediliyor…' : '⚡ Uygula'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </View>
-                    </Modal>
 
                     {!selectedCourt && isPro && (
                         <>
