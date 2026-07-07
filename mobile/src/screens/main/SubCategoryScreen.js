@@ -4054,6 +4054,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [submitting, setSubmitting] = useState(false);
     const [ratingPickerTarget, setRatingPickerTarget] = useState(null);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null });
+    const [myUnlistedRes, setMyUnlistedRes] = useState([]);
+
+    useEffect(() => {
+        if (!visible) return;
+        api.get('/venues/reservations/unlisted')
+            .then(r => setMyUnlistedRes(Array.isArray(r.data) ? r.data : []))
+            .catch(() => setMyUnlistedRes([]));
+    }, [visible]);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
 
     useEffect(() => {
@@ -4436,6 +4444,72 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={{ color: f.courtMutual ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>🤝 {t.courtMutualBtn}</Text>
                                         </TouchableOpacity>
                                     </View>
+                                    {/* Mevcut rezervasyonlardan hızlı seçim */}
+                                    {!f.courtMutual && !f.selectedCourt && myUnlistedRes.length > 0 && (
+                                        <View style={{ marginBottom: 10 }}>
+                                            <Text style={{ color: '#22c55e', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.3 }}>
+                                                📋 MEVCut REZERVASYONLARINDAN SEÇ
+                                            </Text>
+                                            {myUnlistedRes.map(r => {
+                                                const dayNames = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+                                                const d = new Date(r.date + 'T12:00:00');
+                                                const dayLabel = `${dayNames[d.getDay()]} ${d.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}`;
+                                                return (
+                                                    <TouchableOpacity key={r.id}
+                                                        activeOpacity={0.8}
+                                                        onPress={() => {
+                                                            const court = r.court;
+                                                            const venue = r.venue;
+                                                            const effectiveIndoor = court?.indoor ?? false;
+                                                            const courtObj = {
+                                                                name: court?.name || '',
+                                                                venueName: venue?.name || '',
+                                                                venueId: r.venueId,
+                                                                courtId: r.courtId,
+                                                                id: r.courtId,
+                                                                city: venue?.city,
+                                                                totalPrice: 0,
+                                                                surface: court?.surface || null,
+                                                                indoor: effectiveIndoor,
+                                                            };
+                                                            setF(p => ({
+                                                                ...p,
+                                                                selectedCourt: courtObj,
+                                                                courtSearchText: [venue?.name, court?.name].filter(Boolean).join(' '),
+                                                                courtResults: [],
+                                                                matchDate: d,
+                                                                matchTime: r.startTime,
+                                                                reservationEndTime: r.endTime || null,
+                                                                venueId: r.venueId,
+                                                                venueCourtId: r.courtId,
+                                                                reservationId: r.id,
+                                                                courtReserved: true,
+                                                                manualCity: venue?.city || '',
+                                                                surface: court?.surface || p.surface,
+                                                                venueType: court?.indoor != null ? (court.indoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
+                                                            }));
+                                                        }}
+                                                        style={{ backgroundColor: '#22c55e10', borderRadius: 8, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#22c55e30', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                                        <View style={{ flex: 1 }}>
+                                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                                                                {r.venue?.name}{r.court?.name ? ` · ${r.court.name}` : ''}
+                                                            </Text>
+                                                            <Text style={{ color: '#86efac', fontSize: 11, marginTop: 2 }}>
+                                                                📅 {dayLabel}  ·  🕐 {r.startTime}–{r.endTime}
+                                                            </Text>
+                                                            {r.court?.surface && (
+                                                                <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 1 }}>
+                                                                    Zemin: {r.court.surface}
+                                                                </Text>
+                                                            )}
+                                                        </View>
+                                                        <Text style={{ color: '#22c55e', fontSize: 18 }}>›</Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                    )}
+
                                     {!f.courtMutual && <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                         <TextInput
                                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}

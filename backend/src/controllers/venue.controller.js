@@ -751,6 +751,36 @@ export const getMyReservations = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+export const getUnlistedReservations = async (req, res, next) => {
+    try {
+        const today = new Date().toISOString().slice(0, 10);
+        const reservations = await prisma.courtReservation.findMany({
+            where: { userId: req.userId, status: { not: 'CANCELLED' }, date: { gte: today } },
+            include: {
+                venue: { select: { id: true, name: true, branch: true, city: true } },
+                court: true,
+            },
+            orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+        });
+
+        const linked = await prisma.activityRequest.findMany({
+            where: { senderId: req.userId, venueCourtId: { not: null }, status: { not: 'CANCELLED' } },
+            select: { venueCourtId: true, matchTime: true, matchDate: true },
+        });
+
+        const unlisted = reservations.filter(r =>
+            !linked.some(a =>
+                a.venueCourtId === r.courtId &&
+                a.matchTime === r.startTime &&
+                a.matchDate &&
+                new Date(a.matchDate).toISOString().slice(0, 10) === r.date
+            )
+        );
+
+        res.json(unlisted);
+    } catch (error) { next(error); }
+};
+
 export const cancelReservation = async (req, res, next) => {
     try {
         const { resId } = req.params;
