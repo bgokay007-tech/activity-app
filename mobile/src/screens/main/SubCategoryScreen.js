@@ -3721,14 +3721,14 @@ const vb = StyleSheet.create({
     tabTxt:       { color:'#888', fontSize:13, fontWeight:'600' },
     tabTxtActive: { color:'#c084fc', fontWeight:'700' },
 
-    dateStrip:        { borderBottomWidth:1, borderBottomColor:'#ffffff10' },
-    dateChip:         { alignItems:'center', paddingVertical:8, paddingHorizontal:10, borderRadius:12, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:52 },
+    dateStrip:        { height:72, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
+    dateChip:         { alignItems:'center', paddingVertical:6, paddingHorizontal:8, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:46 },
     dateChipSel:      { backgroundColor:'#16a34a30', borderColor:'#22c55e' },
-    dateChipDay:      { color:'#888', fontSize:10, fontWeight:'700', textTransform:'uppercase', marginBottom:1 },
+    dateChipDay:      { color:'#888', fontSize:9, fontWeight:'700', textTransform:'uppercase', marginBottom:1 },
     dateChipDaySel:   { color:'#4ade80' },
-    dateChipNum:      { color:'#fff', fontSize:18, fontWeight:'800', lineHeight:22 },
+    dateChipNum:      { color:'#fff', fontSize:15, fontWeight:'800', lineHeight:18 },
     dateChipNumSel:   { color:'#22c55e' },
-    dateChipMonth:    { color:'#888', fontSize:10, marginTop:1 },
+    dateChipMonth:    { color:'#888', fontSize:9, marginTop:1 },
     dateChipMonthSel: { color:'#4ade80' },
 
     body:         { padding:16, maxHeight:420 },
@@ -3775,7 +3775,7 @@ const vb = StyleSheet.create({
 
     // Çok sütunlu kort görünümü
     courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:8, paddingVertical:8, gap:8 },
-    courtCol:     { width:150, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
+    courtCol:     { width:120, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
     courtColTitle:{ color:'#fff', fontSize:13, fontWeight:'800', textAlign:'center', marginBottom:5, letterSpacing:0.3 },
     lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, marginBottom:5 },
     courtColLight:{ color:'#fbbf24', fontSize:10 },
