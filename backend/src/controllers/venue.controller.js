@@ -113,7 +113,8 @@ function computeSlots(venue, reservations, date, courtId = null) {
         for (const w of openWindows) {
             let open = toMins(w.from);
             const close = toMins(w.to);
-            if (open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
+            // Açılış :00 veya :30 değilse en yakın :30'a yuvarla; :00 açılışında gap oluşmaması için kaydırma yapma
+            if (open % 60 !== 0 && open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
             for (let t = open; t + 60 <= close; t += 60)
                 slots.push({ start: toTime(t), end: toTime(t + 60), free: isFree(t, t + 60) });
         }
@@ -456,7 +457,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
-                    if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
+                    if (start % 60 !== 0 && start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
                     for (let t = start; t + 60 <= close; t += 60) {
                         const rs = findRes(court.id, t, t + 60);
                         slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
