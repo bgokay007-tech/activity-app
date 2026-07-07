@@ -3679,6 +3679,32 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
                     {!loadingV && venue && (
                         <View style={{ flex:1 }}>
+                            {/* Fiyat bilgisi */}
+                            {(() => {
+                                const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
+                                const base = venue.pricePerSlot;
+                                if (pw.length === 0 && !(base > 0)) return null;
+                                return (
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5, paddingHorizontal:14, paddingTop:6, paddingBottom:4 }}>
+                                        {base > 0 && pw.length === 0 && (
+                                            <View style={{ backgroundColor:'#9333ea18', borderRadius:7, paddingHorizontal:9, paddingVertical:4, borderWidth:1, borderColor:'#9333ea40' }}>
+                                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>💰 {base}₺/slot</Text>
+                                            </View>
+                                        )}
+                                        {pw.map((rule, i) => {
+                                            const cName = rule.courtId ? (venue.courts||[]).find(c=>c.id===rule.courtId)?.name : null;
+                                            return (
+                                                <View key={i} style={{ backgroundColor:'#9333ea18', borderRadius:7, paddingHorizontal:9, paddingVertical:4, borderWidth:1, borderColor:'#9333ea40' }}>
+                                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>
+                                                        💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{cName ? ` · ${cName}` : ''}
+                                                    </Text>
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
+                                );
+                            })()}
+
                             {/* Tarih Seçici — 14 günlük yatay strip */}
                             <View style={vb.dateStrip}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -3861,7 +3887,7 @@ const vb = StyleSheet.create({
     slotSel:      { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2.5 },
     slotT:        { color:'#4ade80', fontSize:12, fontWeight:'700' },
     slotTakenT:   { color:'#ef4444' },
-    colSlotPrice: { color:'#86efac', fontSize:9, fontWeight:'700', marginTop:1 },
+    colSlotPrice: { color:'#86efac', fontSize:11, fontWeight:'700', marginTop:2 },
     selSummaryPrice: { color:'#4ade80', fontSize:12, fontWeight:'700', marginTop:3 },
 
     sectionLabel: { color:'#888', fontSize:11, fontWeight:'700', marginBottom:8, letterSpacing:0.5, textTransform:'uppercase' },
