@@ -6,7 +6,21 @@ import {
 import colors from '../../theme/colors';
 
 const DAYS_TR = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-const SLOT_LABEL = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu Saatler', NINETY_MIN: '90 Dakika', FLEXIBLE: 'Serbest' };
+const SLOT_LABEL = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu Saatler', NINETY_MIN: '90 Dakika', FLEXIBLE: 'Serbest', VAR_DURATION: 'Esnek Saat' };
+const SLOT_SHORT = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk', FLEXIBLE: 'Esnek', VAR_DURATION: 'Esnek' };
+const VALID_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION', 'FLEXIBLE'];
+function courtSlotLabels(venue) {
+    const courts = venue.courts || [];
+    if (courts.length === 0) return SLOT_LABEL[venue.slotType] || venue.slotType;
+    const venueBase = venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : (venue.slotType || 'FULL_HOUR');
+    const perCourt = courts.map(c => ({
+        name: c.name,
+        type: (VALID_TYPES.includes(c.slotType) ? c.slotType : null) || venueBase,
+    }));
+    const unique = [...new Set(perCourt.map(c => c.type))];
+    if (unique.length === 1) return SLOT_LABEL[unique[0]] || unique[0];
+    return perCourt.map(c => `${c.name}: ${SLOT_SHORT[c.type] || c.type}`).join('\n');
+}
 
 export default function VenueDetailScreen({ route, navigation }) {
     const { venue } = route.params;
@@ -89,9 +103,9 @@ export default function VenueDetailScreen({ route, navigation }) {
                             })}
                         </View>
                     </View>
-                    <View style={s.infoRow}>
+                    <View style={[s.infoRow, { alignItems: 'flex-start' }]}>
                         <Text style={s.infoLabel}>Rezervasyon</Text>
-                        <Text style={s.infoValue}>{SLOT_LABEL[venue.slotType] || venue.slotType}</Text>
+                        <Text style={[s.infoValue, { textAlign: 'right', flex: 1 }]}>{courtSlotLabels(venue)}</Text>
                     </View>
                     {(() => {
                         const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];

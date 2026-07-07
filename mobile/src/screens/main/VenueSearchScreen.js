@@ -24,7 +24,21 @@ function formatDateLabel(dateStr) {
 }
 
 const DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
-const SLOT_LABEL   = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk' };
+const SLOT_LABEL = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk', VAR_DURATION: 'Esnek Saat', FLEXIBLE: 'Esnek Saat' };
+const SLOT_SHORT = { FULL_HOUR: 'Tam', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90dk', VAR_DURATION: 'Esnek', FLEXIBLE: 'Esnek' };
+const VALID_ST   = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION', 'FLEXIBLE'];
+function venueSlotChip(venue) {
+    const courts = venue.courts || [];
+    const base = venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : (venue.slotType || 'FULL_HOUR');
+    if (courts.length === 0) return SLOT_LABEL[venue.slotType] || venue.slotType;
+    const perCourt = courts.map(c => ({
+        name: c.name,
+        type: (VALID_ST.includes(c.slotType) ? c.slotType : null) || base,
+    }));
+    const unique = [...new Set(perCourt.map(c => c.type))];
+    if (unique.length === 1) return SLOT_LABEL[unique[0]] || unique[0];
+    return perCourt.map(c => `${c.name}:${SLOT_SHORT[c.type] || c.type}`).join(' · ');
+}
 
 function getVenueHoursLabel(venue, dateStr) {
     const os = venue.openSlots;
@@ -191,7 +205,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                     {/* Rozetler */}
                     <View style={bm.tagRow}>
                         <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date)}</Text></View>
-                        <View style={bm.tag}><Text style={bm.tagText}>📅 {SLOT_LABEL[venue.slotType] || venue.slotType}</Text></View>
+                        <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue)}</Text></View>
                         {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
                     </View>
 
