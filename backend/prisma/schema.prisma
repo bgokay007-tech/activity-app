@@ -118,6 +118,7 @@ model User {
   courtReservations     CourtReservation[]
   venueBlocks           VenueBlock[]       @relation("BlockedUser")
   venueOrders           VenueOrder[]
+  venueReviews          VenueReview[]
 }
 
 model ProfileChangeRequest {
@@ -886,6 +887,7 @@ model BusinessVenue {
   blocks       VenueBlock[]
   menuItems    VenueMenuItem[]
   orders       VenueOrder[]
+  reviews      VenueReview[]
 }
 
 model VenueCourt {
@@ -902,6 +904,7 @@ model VenueCourt {
 
   venue        BusinessVenue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
   reservations CourtReservation[]
+  reviews      VenueReview[]
 }
 
 model CourtReservation {
@@ -995,4 +998,22 @@ model CourtBlock {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([courtId, tournamentId])
+}
+
+// TESİS / KORT YORUMU
+model VenueReview {
+  id        String   @id @default(uuid())
+  venueId   String
+  courtId   String?  // null = tesis geneli, dolu = belirli kort yorumu
+  userId    String
+  rating    Int      // 1–5
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venue  BusinessVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  court  VenueCourt?   @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId],  references: [id], onDelete: Cascade)
+
+  @@unique([userId, venueId, courtId]) // kullanıcı başına hedef başına 1 yorum
 }

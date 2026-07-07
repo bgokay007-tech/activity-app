@@ -3541,7 +3541,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                 {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop:8 }} size="small" />}
                 {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
 
-                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1 }}>
+                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1, maxHeight:240 }}>
                 {!cs?.loading && isStructured && cData.slots.map((sl, i) => {
                     const isSel    = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
                     const isPend   = !sl.free && sl.status === 'PENDING';
@@ -3807,8 +3807,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
                             {/* Tüm kortlar sütun sütun (yatay kaydır) */}
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', flexGrow:1 }]}
-                                style={{ flex:1, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', minHeight:300 }]}
+                                style={{ height:300, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                                 {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                             </ScrollView>
 
@@ -3980,7 +3980,7 @@ const vb = StyleSheet.create({
 
     // Çok sütunlu kort görünümü
     courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:8, paddingVertical:8, gap:8 },
-    courtCol:     { width:150, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
+    courtCol:     { width:150, height:300, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
     courtColTitle:{ color:'#fff', fontSize:13, fontWeight:'800', textAlign:'center', marginBottom:5, letterSpacing:0.3 },
     lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, marginBottom:5 },
     courtColLight:{ color:'#fbbf24', fontSize:10 },

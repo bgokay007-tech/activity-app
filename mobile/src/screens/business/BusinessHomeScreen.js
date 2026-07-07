@@ -1267,6 +1267,16 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [maintToTime, setMaintToTime]         = useState('');
     const [savingMaint, setSavingMaint]         = useState(false);
 
+    // ── Yorumlar state ───────────────────────────────────────────────────────
+    const [venueReviews, setVenueReviews]     = useState(null); // null=yükleniyor
+    const [reviewsLoaded, setReviewsLoaded]   = useState(false);
+
+    const loadVenueReviews = useCallback(() => {
+        api.get(`/venues/${venue.id}/reviews`)
+            .then(r => { setVenueReviews(r.data); setReviewsLoaded(true); })
+            .catch(() => { setVenueReviews({ reviews: [], venueRating: null, venueReviewCount: 0, courtRatings: [] }); setReviewsLoaded(true); });
+    }, [venue.id]);
+
     const sortedCourts = [...(venue.courts || [])].sort((a, b) => {
         const nA = parseInt(a.name.match(/\d+/)?.[0] ?? '', 10);
         const nB = parseInt(b.name.match(/\d+/)?.[0] ?? '', 10);
@@ -1333,9 +1343,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
 
     const handleTab = (tab) => {
         setActiveTab(tab);
-        if (tab === 'blocks'       && !blocksLoaded) loadBlocks();
-        if (tab === 'menu'         && !menuLoaded)   loadMenu();
-        if (tab === 'orders'       && !ordersLoaded) loadOrders();
+        if (tab === 'blocks'       && !blocksLoaded)  loadBlocks();
+        if (tab === 'menu'         && !menuLoaded)    loadMenu();
+        if (tab === 'orders'       && !ordersLoaded)  loadOrders();
+        if (tab === 'reviews'      && !reviewsLoaded) loadVenueReviews();
         if (tab === 'reservations') { setScheduleOpen(true); if (!resLoaded) loadReservations(); }
         if (tab === 'analytics')    setAnalyticsOpen(true);
     };
@@ -1820,6 +1831,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         { key: 'info',         label: 'ℹ️ Bilgi' },
         isApproved ? { key: 'reservations', label: '📅 Rezervasyonlar' } : null,
         isApproved ? { key: 'analytics',    label: '📊 Rapor' }          : null,
+        isApproved ? { key: 'reviews',      label: '⭐ Yorumlar' }       : null,
         isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
         isApproved && isPro ? { key: 'orders',   label: '🛒 Sipariş' } : null,
@@ -2117,6 +2129,76 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             </View>
                         ))
                     }
+                </View>
+            )}
+
+            {activeTab === 'reviews' && (
+                <View style={vc.panel}>
+                    {venueReviews === null ? (
+                        <ActivityIndicator color={BIZ_COLOR} style={{ marginVertical: 16 }} />
+                    ) : (
+                        <>
+                            {/* Genel puan özeti */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
+                                <Text style={{ fontSize: 32, fontWeight: '900', color: '#fbbf24' }}>
+                                    {venueReviews.venueRating ?? '—'}
+                                </Text>
+                                <View>
+                                    <View style={{ flexDirection: 'row', gap: 3 }}>
+                                        {[1,2,3,4,5].map(n => (
+                                            <Text key={n} style={{ fontSize: 16, color: n <= Math.round(venueReviews.venueRating || 0) ? '#fbbf24' : '#374151' }}>★</Text>
+                                        ))}
+                                    </View>
+                                    <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>
+                                        {venueReviews.venueReviewCount} genel yorum
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {/* Kort bazı puanlar */}
+                            {(venueReviews.courtRatings || []).length > 0 && (
+                                <View style={{ marginBottom: 10, gap: 4 }}>
+                                    <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>KORT PUANLARI</Text>
+                                    {venueReviews.courtRatings.map(cr => (
+                                        <View key={cr.courtId} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                            <Text style={{ color: '#e5e7eb', fontSize: 12, fontWeight: '700', minWidth: 65 }}>{cr.courtName}</Text>
+                                            {[1,2,3,4,5].map(n => (
+                                                <Text key={n} style={{ fontSize: 13, color: n <= Math.round(cr.avgRating) ? '#fbbf24' : '#374151' }}>★</Text>
+                                            ))}
+                                            <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '800' }}>{cr.avgRating}</Text>
+                                            <Text style={{ color: '#6b7280', fontSize: 11 }}>({cr.count})</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Yorum listesi */}
+                            {(venueReviews.reviews || []).length === 0 ? (
+                                <Text style={vc.emptyTxt}>Henüz yorum yapılmamış</Text>
+                            ) : (
+                                <>
+                                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginBottom: 10 }} />
+                                    {venueReviews.reviews.map(r => (
+                                        <View key={r.id} style={{ backgroundColor: '#ffffff06', borderRadius: 8, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#ffffff10' }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                                <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700' }}>@{r.user?.username}</Text>
+                                                {r.court && <Text style={{ color: '#6b7280', fontSize: 11 }}>· {r.court.name}</Text>}
+                                                <View style={{ flex: 1 }} />
+                                                <View style={{ flexDirection: 'row', gap: 2 }}>
+                                                    {[1,2,3,4,5].map(n => (
+                                                        <Text key={n} style={{ fontSize: 11, color: n <= r.rating ? '#fbbf24' : '#374151' }}>★</Text>
+                                                    ))}
+                                                    <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '800', marginLeft: 2 }}>{r.rating}</Text>
+                                                </View>
+                                            </View>
+                                            {r.comment ? <Text style={{ color: '#d1d5db', fontSize: 12, lineHeight: 17 }}>{r.comment}</Text> : null}
+                                            <Text style={{ color: '#4b5563', fontSize: 10, marginTop: 3 }}>{new Date(r.createdAt).toLocaleDateString('tr-TR')}</Text>
+                                        </View>
+                                    ))}
+                                </>
+                            )}
+                        </>
+                    )}
                 </View>
             )}
 

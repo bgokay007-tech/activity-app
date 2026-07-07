@@ -12,6 +12,7 @@ import {
     addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
     placeOrder, getVenueOrders, getUserOrders, updateOrderStatus,
 } from '../controllers/venue.controller.js';
+import { getVenueReviews, upsertVenueReview, upsertCourtReview, deleteVenueReview } from '../controllers/venueReview.controller.js';
 
 const router = Router();
 router.use(authenticate);
@@ -53,6 +54,12 @@ router.post('/:id/orders',               placeOrder);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);
 router.post('/:id/courts/:courtId/reserve', makeReservation);
 router.patch('/:id/courts/:courtId/settings', updateCourtSettings);
+// Yorumlar
+router.get('/:id/reviews',                      getVenueReviews);
+router.post('/:id/reviews',                     upsertVenueReview);
+router.post('/:id/courts/:courtId/reviews',     upsertCourtReview);
+router.delete('/:id/reviews/:reviewId',         deleteVenueReview);
+
 router.get('/:id', getVenueById);
 
 // Admin
