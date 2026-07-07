@@ -124,8 +124,8 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
         for (const w of openWindows) {
             let open = toMins(w.from);
             const close = toMins(w.to);
-            // Açılış :00 veya :30 değilse en yakın :30'a yuvarla; :00 açılışında gap oluşmaması için kaydırma yapma
-            if (open % 60 !== 0 && open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
+            // Buçuklu saat: slotlar her zaman :30 dakikasında başlar
+            if (open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
             for (let t = open; t + 60 <= close; t += 60) {
                 const maint = isMaint(t, t + 60);
                 slots.push({ start: toTime(t), end: toTime(t + 60), free: !maint && isFree(t, t + 60), ...(maint ? { maintenance: true } : {}) });
@@ -412,17 +412,24 @@ export const makeReservation = async (req, res, next) => {
 
             for (const w of openWins) {
                 const wS = toMins(w.from), wE = toMins(w.to);
+                // HALF_HOUR: pencere :00 açılıyorsa ilk :30'a kadar yapısal dead zone var — gap sayılmaz
                 let cur = wS;
+                let effectiveWE = wE;
+                if (effType === 'HALF_HOUR') {
+                    if (cur % 60 !== 30) { cur = Math.floor(cur / 60) * 60 + 30; if (cur < wS) cur += 60; }
+                    // Pencere içindeki son slot bitişi (yapısal kuyruk dead zone'u hariç tut)
+                    effectiveWE = cur + Math.floor((wE - cur) / 60) * 60;
+                }
                 for (const b of allBooked) {
-                    if (b.e <= wS || b.s >= wE) continue;
-                    const gap = Math.min(b.s, wE) - cur;
+                    if (b.e <= wS || b.s >= effectiveWE) continue;
+                    const gap = Math.min(b.s, effectiveWE) - cur;
                     if (gap > 0 && gap < minGap)
-                        return res.status(400).json({ message: `Bu rezervasyon ${toTime(cur)}–${toTime(Math.min(b.s, wE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
+                        return res.status(400).json({ message: `Bu rezervasyon ${toTime(cur)}–${toTime(Math.min(b.s, effectiveWE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
                     cur = Math.max(cur, b.e);
                 }
-                const tail = wE - cur;
+                const tail = effectiveWE - cur;
                 if (tail > 0 && tail < minGap)
-                    return res.status(400).json({ message: `Bu rezervasyon sonrasında ${toTime(cur)}–${toTime(wE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
+                    return res.status(400).json({ message: `Bu rezervasyon sonrasında ${toTime(cur)}–${toTime(effectiveWE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
             }
         }
 
@@ -530,7 +537,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
-                    if (start % 60 !== 0 && start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
+                    if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
                     for (let t = start; t + 60 <= close; t += 60) {
                         const rs = findRes(court.id, t, t + 60);
                         slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
