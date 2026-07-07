@@ -41,6 +41,14 @@ function splitOvernight(windows) {
     return result.length > 0 ? result : [{ from: '00:00', to: '24:00' }];
 }
 
+// Bakım kaydı normalizer — eski { from, to } formatını ve yeni { fromDate, toDate, fromTime?, toTime? } formatını destekler
+const normMaint = m => ({
+    fromDate: m.fromDate || m.from || null,
+    toDate:   m.toDate   || m.to   || null,
+    fromTime: m.fromTime || null,
+    toTime:   m.toTime   || null,
+});
+
 // openSlots format: { "0":[global şablon], "1":[Pzt override], "courtId_1":[Pzt+Kort override] }
 // Öncelik: kort+gün > gün > global şablon('0') > tesis varsayılanı
 // Kapalı: ilgili key = [] (boş dizi)
@@ -88,7 +96,7 @@ function getSlotPrice(venue, court, startTime, durationMins = 60) {
     return Math.round(basePrice * (durationMins / 60));
 }
 
-function computeSlots(venue, reservations, date, courtId = null) {
+function computeSlots(venue, reservations, date, courtId = null, maintWindows = []) {
     const openWindows = getOpenWindows(venue, date, courtId);
 
     const taken = reservations
@@ -96,14 +104,17 @@ function computeSlots(venue, reservations, date, courtId = null) {
         .map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime) }))
         .sort((a, b) => a.s - b.s);
 
-    const isFree = (s, e) => !taken.some(r => overlaps(s, e, r.s, r.e));
+    const isFree  = (s, e) => !taken.some(r => overlaps(s, e, r.s, r.e));
+    const isMaint = (s, e) => maintWindows.some(m => overlaps(s, e, m.s, m.e));
 
     if (venue.slotType === 'FULL_HOUR') {
         const slots = [];
         for (const w of openWindows) {
             const open = toMins(w.from), close = toMins(w.to);
-            for (let t = open; t + 60 <= close; t += 60)
-                slots.push({ start: toTime(t), end: toTime(t + 60), free: isFree(t, t + 60) });
+            for (let t = open; t + 60 <= close; t += 60) {
+                const maint = isMaint(t, t + 60);
+                slots.push({ start: toTime(t), end: toTime(t + 60), free: !maint && isFree(t, t + 60), ...(maint ? { maintenance: true } : {}) });
+            }
         }
         return { type: 'FULL_HOUR', slots };
     }
@@ -115,8 +126,10 @@ function computeSlots(venue, reservations, date, courtId = null) {
             const close = toMins(w.to);
             // Açılış :00 veya :30 değilse en yakın :30'a yuvarla; :00 açılışında gap oluşmaması için kaydırma yapma
             if (open % 60 !== 0 && open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
-            for (let t = open; t + 60 <= close; t += 60)
-                slots.push({ start: toTime(t), end: toTime(t + 60), free: isFree(t, t + 60) });
+            for (let t = open; t + 60 <= close; t += 60) {
+                const maint = isMaint(t, t + 60);
+                slots.push({ start: toTime(t), end: toTime(t + 60), free: !maint && isFree(t, t + 60), ...(maint ? { maintenance: true } : {}) });
+            }
         }
         return { type: 'HALF_HOUR', slots };
     }
@@ -125,17 +138,22 @@ function computeSlots(venue, reservations, date, courtId = null) {
         const slots = [];
         for (const w of openWindows) {
             const open = toMins(w.from), close = toMins(w.to);
-            for (let t = open; t + 90 <= close; t += 120)
-                slots.push({ start: toTime(t), end: toTime(t + 90), free: isFree(t, t + 90) });
+            for (let t = open; t + 90 <= close; t += 120) {
+                const maint = isMaint(t, t + 90);
+                slots.push({ start: toTime(t), end: toTime(t + 90), free: !maint && isFree(t, t + 90), ...(maint ? { maintenance: true } : {}) });
+            }
         }
         return { type: 'NINETY_MIN', slots };
     }
+
+    // VAR_DURATION ve FLEXIBLE için bakım pencereleri alınan zaman gibi davranır
+    const allTaken = [...taken, ...maintWindows].sort((a, b) => a.s - b.s);
 
     if (venue.slotType === 'VAR_DURATION') {
         const windows = [];
         for (const w of openWindows) {
             const open = toMins(w.from), close = toMins(w.to);
-            const wTaken = taken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
+            const wTaken = allTaken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
             let prev = open;
             for (const r of wTaken) {
                 if (r.s > prev && r.s - prev >= 60)
@@ -152,7 +170,7 @@ function computeSlots(venue, reservations, date, courtId = null) {
     const windows = [];
     for (const w of openWindows) {
         const open = toMins(w.from), close = toMins(w.to);
-        const wTaken = taken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
+        const wTaken = allTaken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
         let prev = open;
         for (const r of wTaken) {
             if (r.s > prev) windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
@@ -271,9 +289,12 @@ export const getVenueSlots = async (req, res, next) => {
         if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
 
         // Bakım kontrolü
-        const maintDates = Array.isArray(court?.maintenanceDates) ? court.maintenanceDates : [];
-        const underMaintenance = maintDates.some(m => m.from && m.to && date >= m.from && date <= m.to);
-        if (underMaintenance) return res.json({ type: 'MAINTENANCE', message: 'Bu kort seçilen tarihte bakım sürecinde. Rezervasyon yapılamaz.' });
+        const maintDates = (Array.isArray(court?.maintenanceDates) ? court.maintenanceDates : []).map(normMaint);
+        const fullDayMaint = maintDates.some(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime);
+        if (fullDayMaint) return res.json({ type: 'MAINTENANCE', message: 'Bu kort seçilen tarihte bakım sürecinde. Rezervasyon yapılamaz.' });
+        const maintWindows = maintDates
+            .filter(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && m.fromTime && m.toTime)
+            .map(m => ({ s: toMins(m.fromTime), e: toMins(m.toTime) }));
 
         const reservations = await prisma.courtReservation.findMany({
             where: { venueId: id, courtId },
@@ -284,7 +305,7 @@ export const getVenueSlots = async (req, res, next) => {
         // VAR_DURATION tesis düzeyinden miras alınmaz — sadece kortun kendisi VAR_DURATION ise geçerli
         const venueSlotFallback = venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : (venue.slotType || 'FULL_HOUR');
         const effectiveVenue = { ...venue, slotType: courtSlotType || venueSlotFallback };
-        const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId);
+        const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId, maintWindows);
         const addSlotPrice = arr => (arr || []).map(s => {
             const dur = s.start && s.end ? toMins(s.end) - toMins(s.start) : 60;
             return { ...s, price: getSlotPrice(venue, court, s.start, dur) };
@@ -344,10 +365,10 @@ export const makeReservation = async (req, res, next) => {
 
         if (!date || !startTime || !endTime) return res.status(400).json({ message: 'Tarih, başlangıç ve bitiş saati zorunludur' });
 
-        // Bakım kontrolü
+        // Tüm-gün bakım kontrolü
         const courtCheck = await prisma.venueCourt.findUnique({ where: { id: courtId } });
-        const mDates = Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : [];
-        if (mDates.some(m => m.from && m.to && date >= m.from && date <= m.to))
+        const mDates = (Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : []).map(normMaint);
+        if (mDates.some(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime))
             return res.status(400).json({ message: 'Bu kort seçilen tarihte bakımda. Rezervasyon yapılamaz.' });
 
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
@@ -357,6 +378,15 @@ export const makeReservation = async (req, res, next) => {
         const startMins = toMins(startTime);
         const endMins   = toMins(endTime);
         if (endMins - startMins < 60) return res.status(400).json({ message: 'Minimum rezervasyon süresi 1 saattir' });
+
+        // Saat aralığı bakım kontrolü
+        for (const m of mDates) {
+            if (!m.fromDate || !m.toDate || date < m.fromDate || date > m.toDate) continue;
+            if (!m.fromTime || !m.toTime) continue;
+            const ms = toMins(m.fromTime), me = toMins(m.toTime);
+            if (overlaps(startMins, endMins, ms, me))
+                return res.status(400).json({ message: `Bu kort ${m.fromTime}–${m.toTime} saatleri arası bakımda. Rezervasyon yapılamaz.` });
+        }
 
         // Çakışma kontrolü
         const existing = await prisma.courtReservation.findMany({

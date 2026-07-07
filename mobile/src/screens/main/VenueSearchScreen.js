@@ -26,6 +26,22 @@ function formatDateLabel(dateStr) {
 const DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
 const SLOT_LABEL   = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk' };
 
+function getVenueHoursLabel(venue, dateStr) {
+    const os = venue.openSlots;
+    if (os && !Array.isArray(os) && typeof os === 'object') {
+        const dow = new Date(dateStr + 'T12:00:00').getDay();
+        const key = String(dow === 0 ? 7 : dow);
+        let entry;
+        if (os[key] !== undefined) entry = os[key];
+        else if (os['0'] !== undefined) entry = os['0'];
+        if (entry !== undefined) {
+            if (Array.isArray(entry) && entry.length === 0) return 'Kapalı';
+            if (Array.isArray(entry) && entry.length > 0) return entry.map(w => `${w.from}–${w.to}`).join(' / ');
+        }
+    }
+    return `${venue.openTime || '08:00'}–${venue.closeTime || '22:00'}`;
+}
+
 // ─── Onay Modalı (en üst seviyede, nested modal sorunu yok) ──────────────────
 function ConfirmModal({ visible, venue, court, slot, date, onConfirm, onClose, confirming }) {
     const [payment, setPayment] = useState('CASH');
@@ -174,7 +190,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
 
                     {/* Rozetler */}
                     <View style={bm.tagRow}>
-                        <View style={bm.tag}><Text style={bm.tagText}>⏰ {venue.openTime}–{venue.closeTime}</Text></View>
+                        <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date)}</Text></View>
                         <View style={bm.tag}><Text style={bm.tagText}>📅 {SLOT_LABEL[venue.slotType] || venue.slotType}</Text></View>
                         {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
                     </View>
@@ -381,12 +397,13 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                                     picked?.court.id === court.id &&
                                                     picked?.slot.start === slot.start &&
                                                     picked?.slot.end === slot.end;
+                                                const isMaintSlot = slot.maintenance && !slot.free;
                                                 return (
                                                     <TouchableOpacity
                                                         key={i}
                                                         style={[
                                                             bm.slotBtn,
-                                                            !slot.free && bm.slotBtnTaken,
+                                                            !slot.free && (isMaintSlot ? bm.slotBtnMaint : bm.slotBtnTaken),
                                                             isPicked && bm.slotBtnPicked,
                                                         ]}
                                                         onPress={() => slot.free && setPicked({ court, slot })}
@@ -394,10 +411,10 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                                         activeOpacity={0.7}
                                                     >
                                                         <Text style={[bm.slotTime, !slot.free && bm.slotTimeTaken, isPicked && bm.slotTimePicked]}>
-                                                            {slot.start}
+                                                            {isMaintSlot ? '🔧' : slot.start}
                                                         </Text>
                                                         <Text style={[bm.slotEnd, !slot.free && bm.slotTimeTaken, isPicked && bm.slotTimePicked]}>
-                                                            –{slot.end}
+                                                            {isMaintSlot ? '' : `–${slot.end}`}
                                                         </Text>
                                                         {slot.price != null && slot.free !== false && (
                                                             <Text style={{ color: isPicked ? '#ffffffcc' : colors.purple, fontSize: 10, fontWeight: '800', marginTop: 2 }}>
@@ -422,6 +439,10 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                             <View style={bm.legendItem}>
                                 <View style={[bm.legendDot, { backgroundColor: colors.surface2, borderColor: colors.border }]} />
                                 <Text style={bm.legendText}>Dolu</Text>
+                            </View>
+                            <View style={bm.legendItem}>
+                                <View style={[bm.legendDot, { backgroundColor: '#ef444418', borderColor: '#ef444440' }]} />
+                                <Text style={bm.legendText}>🔧 Bakım</Text>
                             </View>
                         </View>
                         <View style={{ height: 80 }} />
@@ -464,7 +485,7 @@ function VenueCard({ venue, onPress }) {
             </View>
             <View style={s.cardTags}>
                 <View style={s.tag}><Text style={s.tagText}>🏟️ {venue.courts?.length || 0} kort</Text></View>
-                <View style={s.tag}><Text style={s.tagText}>⏰ {venue.openTime}–{venue.closeTime}</Text></View>
+                <View style={s.tag}><Text style={s.tagText}>⏰ {getVenueHoursLabel(venue, getDateStr(0))}</Text></View>
                 {venue.pricePerSlot > 0 && (
                     <View style={s.tag}><Text style={s.tagText}>💰 {venue.pricePerSlot}₺/slot</Text></View>
                 )}
@@ -751,6 +772,7 @@ const bm = StyleSheet.create({
     slotGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     slotBtn:       { width: '30%', backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 4, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '70' },
     slotBtnTaken:  { backgroundColor: colors.surface2, borderColor: colors.border, opacity: 0.45 },
+    slotBtnMaint:  { backgroundColor: '#ef444418', borderColor: '#ef444440', opacity: 0.9 },
     slotBtnPicked: { backgroundColor: colors.purple, borderColor: colors.purple },
     slotTime:      { color: colors.purple, fontSize: 14, fontWeight: '900' },
     slotEnd:       { color: colors.purple + '99', fontSize: 10, marginTop: 1 },

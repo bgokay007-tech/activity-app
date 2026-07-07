@@ -26,19 +26,20 @@ const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
 
 function SlotBubble({ slot, selected, onPress }) {
-    const priceLabel = slot.price != null ? (slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz') : null;
+    const isMaint = slot.maintenance && !slot.free;
+    const priceLabel = !isMaint && slot.price != null ? (slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz') : null;
     return (
         <TouchableOpacity
-            style={[ss.bubble, !slot.free && ss.bubbleTaken, selected && ss.bubbleSelected]}
+            style={[ss.bubble, !slot.free && (isMaint ? ss.bubbleMaint : ss.bubbleTaken), selected && ss.bubbleSelected]}
             onPress={() => slot.free && onPress(slot)}
             disabled={!slot.free}
             activeOpacity={0.7}
         >
             <Text style={[ss.bubbleTime, !slot.free && ss.bubbleTimeTaken, selected && ss.bubbleTimeSelected]}>
-                {slot.start}
+                {isMaint ? '🔧' : slot.start}
             </Text>
             <Text style={[ss.bubbleDash, !slot.free && ss.bubbleTimeTaken, selected && ss.bubbleTimeSelected]}>
-                –{slot.end}
+                {isMaint ? '' : `–${slot.end}`}
             </Text>
             {priceLabel && slot.free !== false && (
                 <Text style={[ss.bubblePrice, selected && ss.bubblePriceSelected]}>{priceLabel}</Text>
@@ -348,6 +349,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                         <View style={s.legend}>
                             <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: colors.purple + '30', borderColor: colors.purple }]} /><Text style={s.legendText}>Müsait</Text></View>
                             <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: colors.surface2 }]} /><Text style={s.legendText}>Dolu</Text></View>
+                            <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: '#ef444418', borderColor: '#ef444440' }]} /><Text style={s.legendText}>🔧 Bakım</Text></View>
                         </View>
                     </>
                 )}
@@ -399,6 +401,7 @@ const ss = StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     bubble: { width: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '60' },
     bubbleTaken: { backgroundColor: colors.surface2, borderColor: colors.border, opacity: 0.5 },
+    bubbleMaint: { backgroundColor: '#ef444418', borderColor: '#ef444440', opacity: 0.9 },
     bubbleSelected: { backgroundColor: colors.purple, borderColor: colors.purple },
     bubbleTime: { color: colors.purple, fontSize: 14, fontWeight: '900' },
     bubbleDash: { color: colors.purple + '99', fontSize: 11, marginTop: 2 },

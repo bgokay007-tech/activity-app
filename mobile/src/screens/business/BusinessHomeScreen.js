@@ -1218,10 +1218,12 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         });
         return r;
     });
-    const [addingMaint, setAddingMaint] = useState(null);
-    const [maintFrom, setMaintFrom]     = useState('');
-    const [maintTo, setMaintTo]         = useState('');
-    const [savingMaint, setSavingMaint] = useState(false);
+    const [addingMaint, setAddingMaint]         = useState(null);
+    const [maintFromDate, setMaintFromDate]     = useState('');
+    const [maintToDate, setMaintToDate]         = useState('');
+    const [maintFromTime, setMaintFromTime]     = useState('');
+    const [maintToTime, setMaintToTime]         = useState('');
+    const [savingMaint, setSavingMaint]         = useState(false);
 
     const sortedCourts = [...(venue.courts || [])].sort((a, b) => {
         const nA = parseInt(a.name.match(/\d+/)?.[0] ?? '', 10);
@@ -2465,30 +2467,39 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                 <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
                                     Belirtilen tarihlerde bu kort bakımda sayılır, rezervasyon yapılamaz.
                                 </Text>
-                                {(courtMaintenance[court.id] || []).map((m, idx) => (
-                                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6,
-                                        backgroundColor: '#ef444412', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
-                                        borderWidth: 1, borderColor: '#ef444430' }}>
-                                        <Text style={{ flex: 1, color: '#fca5a5', fontSize: 13 }}>🔧 {m.from} – {m.to}</Text>
-                                        <TouchableOpacity onPress={() => {
-                                            const updated = (courtMaintenance[court.id] || []).filter((_, i) => i !== idx);
-                                            handleSaveMaintenance(court.id, updated);
-                                        }}>
-                                            <Text style={{ color: '#ef4444', fontSize: 15, fontWeight: '700' }}>✕</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ))}
+                                {(courtMaintenance[court.id] || []).map((m, idx) => {
+                                    const fd = m.fromDate || m.from;
+                                    const td = m.toDate   || m.to;
+                                    const hasTime = m.fromTime && m.toTime;
+                                    return (
+                                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6,
+                                            backgroundColor: '#ef444412', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
+                                            borderWidth: 1, borderColor: '#ef444430' }}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ color: '#fca5a5', fontSize: 13 }}>🔧 {fd} – {td}</Text>
+                                                {hasTime && <Text style={{ color: '#f87171', fontSize: 12, marginTop: 2 }}>🕐 {m.fromTime} – {m.toTime}</Text>}
+                                            </View>
+                                            <TouchableOpacity onPress={() => {
+                                                const updated = (courtMaintenance[court.id] || []).filter((_, i) => i !== idx);
+                                                handleSaveMaintenance(court.id, updated);
+                                            }}>
+                                                <Text style={{ color: '#ef4444', fontSize: 15, fontWeight: '700' }}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    );
+                                })}
                                 {addingMaint === court.id ? (
                                     <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 6 }}>
-                                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                                        <Text style={{ color: '#888', fontSize: 11, marginBottom: 6 }}>Tarih Aralığı (YYYY-AA-GG)</Text>
+                                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' }}>
                                             <TextInput
                                                 style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
                                                     paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
                                                     fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
                                                 placeholder="2026-07-10"
                                                 placeholderTextColor="#444"
-                                                value={maintFrom}
-                                                onChangeText={setMaintFrom}
+                                                value={maintFromDate}
+                                                onChangeText={setMaintFromDate}
                                                 keyboardType="number-pad"
                                                 maxLength={10}
                                             />
@@ -2499,14 +2510,47 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                                     fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
                                                 placeholder="2026-07-15"
                                                 placeholderTextColor="#444"
-                                                value={maintTo}
-                                                onChangeText={setMaintTo}
+                                                value={maintToDate}
+                                                onChangeText={setMaintToDate}
                                                 keyboardType="number-pad"
                                                 maxLength={10}
                                             />
                                         </View>
+                                        <Text style={{ color: '#888', fontSize: 11, marginBottom: 6 }}>Saat Aralığı — İsteğe Bağlı (HH:MM)</Text>
+                                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                                            <TextInput
+                                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                                    paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
+                                                    fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
+                                                placeholder="09:00"
+                                                placeholderTextColor="#444"
+                                                value={maintFromTime}
+                                                onChangeText={setMaintFromTime}
+                                                keyboardType="numbers-and-punctuation"
+                                                maxLength={5}
+                                            />
+                                            <Text style={{ color: '#555', fontSize: 16 }}>–</Text>
+                                            <TextInput
+                                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                                    paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
+                                                    fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
+                                                placeholder="12:00"
+                                                placeholderTextColor="#444"
+                                                value={maintToTime}
+                                                onChangeText={setMaintToTime}
+                                                keyboardType="numbers-and-punctuation"
+                                                maxLength={5}
+                                            />
+                                        </View>
+                                        <Text style={{ color: '#555', fontSize: 11, marginBottom: 8 }}>
+                                            Saat boş bırakılırsa tüm gün bakımda sayılır.
+                                        </Text>
                                         <View style={{ flexDirection: 'row', gap: 8 }}>
-                                            <TouchableOpacity onPress={() => { setAddingMaint(null); setMaintFrom(''); setMaintTo(''); }}
+                                            <TouchableOpacity onPress={() => {
+                                                setAddingMaint(null);
+                                                setMaintFromDate(''); setMaintToDate('');
+                                                setMaintFromTime(''); setMaintToTime('');
+                                            }}
                                                 style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ffffff12', alignItems: 'center' }}>
                                                 <Text style={{ color: '#aaa', fontSize: 13 }}>Vazgeç</Text>
                                             </TouchableOpacity>
@@ -2514,12 +2558,20 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                                 disabled={savingMaint}
                                                 onPress={() => {
                                                     const dateRe = /^\d{4}-\d{2}-\d{2}$/;
-                                                    if (!dateRe.test(maintFrom) || !dateRe.test(maintTo) || maintFrom > maintTo)
-                                                        return Alert.alert('Hata', 'YYYY-AA-GG formatında geçerli aralık girin.\nÖrnek: 2026-07-10 – 2026-07-15');
-                                                    const updated = [...(courtMaintenance[court.id] || []), { from: maintFrom, to: maintTo }]
-                                                        .sort((a, b) => a.from.localeCompare(b.from));
+                                                    const timeRe = /^\d{2}:\d{2}$/;
+                                                    if (!dateRe.test(maintFromDate) || !dateRe.test(maintToDate) || maintFromDate > maintToDate)
+                                                        return Alert.alert('Hata', 'YYYY-AA-GG formatında geçerli tarih aralığı girin.\nÖrnek: 2026-07-10 – 2026-07-15');
+                                                    const hasTime = maintFromTime || maintToTime;
+                                                    if (hasTime && (!timeRe.test(maintFromTime) || !timeRe.test(maintToTime) || maintFromTime >= maintToTime))
+                                                        return Alert.alert('Hata', 'Saat HH:MM formatında olmalı ve başlangıç < bitiş.');
+                                                    const item = { fromDate: maintFromDate, toDate: maintToDate };
+                                                    if (hasTime) { item.fromTime = maintFromTime; item.toTime = maintToTime; }
+                                                    const updated = [...(courtMaintenance[court.id] || []), item]
+                                                        .sort((a, b) => (a.fromDate || a.from || '').localeCompare(b.fromDate || b.from || ''));
                                                     handleSaveMaintenance(court.id, updated);
-                                                    setAddingMaint(null); setMaintFrom(''); setMaintTo('');
+                                                    setAddingMaint(null);
+                                                    setMaintFromDate(''); setMaintToDate('');
+                                                    setMaintFromTime(''); setMaintToTime('');
                                                 }}
                                                 style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ef444430', alignItems: 'center' }}>
                                                 <Text style={{ color: '#fca5a5', fontWeight: '700', fontSize: 13 }}>
@@ -2529,7 +2581,11 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
                                         </View>
                                     </View>
                                 ) : (
-                                    <TouchableOpacity onPress={() => { setAddingMaint(court.id); setMaintFrom(''); setMaintTo(''); }}
+                                    <TouchableOpacity onPress={() => {
+                                        setAddingMaint(court.id);
+                                        setMaintFromDate(''); setMaintToDate('');
+                                        setMaintFromTime(''); setMaintToTime('');
+                                    }}
                                         style={{ borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1,
                                             borderStyle: 'dashed', borderColor: '#ef444440',
                                             backgroundColor: '#ef444408', marginBottom: 4 }}>
