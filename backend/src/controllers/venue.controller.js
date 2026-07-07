@@ -101,11 +101,12 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
 
     const taken = reservations
         .filter(r => r.date === date && r.status !== 'CANCELLED')
-        .map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime) }))
+        .map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime), status: r.status }))
         .sort((a, b) => a.s - b.s);
 
-    const isFree  = (s, e) => !taken.some(r => overlaps(s, e, r.s, r.e));
-    const isMaint = (s, e) => maintWindows.some(m => overlaps(s, e, m.s, m.e));
+    const isFree     = (s, e) => !taken.some(r => overlaps(s, e, r.s, r.e));
+    const isMaint    = (s, e) => maintWindows.some(m => overlaps(s, e, m.s, m.e));
+    const slotStatus = (s, e) => taken.find(r => overlaps(s, e, r.s, r.e))?.status;
 
     if (venue.slotType === 'FULL_HOUR') {
         const slots = [];
@@ -113,7 +114,8 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
             const open = toMins(w.from), close = toMins(w.to);
             for (let t = open; t + 60 <= close; t += 60) {
                 const maint = isMaint(t, t + 60);
-                slots.push({ start: toTime(t), end: toTime(t + 60), free: !maint && isFree(t, t + 60), ...(maint ? { maintenance: true } : {}) });
+                const free  = !maint && isFree(t, t + 60);
+                slots.push({ start: toTime(t), end: toTime(t + 60), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: slotStatus(t, t + 60) } : {}) });
             }
         }
         return { type: 'FULL_HOUR', slots };
@@ -128,7 +130,8 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
             if (open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
             for (let t = open; t + 60 <= close; t += 60) {
                 const maint = isMaint(t, t + 60);
-                slots.push({ start: toTime(t), end: toTime(t + 60), free: !maint && isFree(t, t + 60), ...(maint ? { maintenance: true } : {}) });
+                const free  = !maint && isFree(t, t + 60);
+                slots.push({ start: toTime(t), end: toTime(t + 60), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: slotStatus(t, t + 60) } : {}) });
             }
         }
         return { type: 'HALF_HOUR', slots };
@@ -140,7 +143,8 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
             const open = toMins(w.from), close = toMins(w.to);
             for (let t = open; t + 90 <= close; t += 120) {
                 const maint = isMaint(t, t + 90);
-                slots.push({ start: toTime(t), end: toTime(t + 90), free: !maint && isFree(t, t + 90), ...(maint ? { maintenance: true } : {}) });
+                const free  = !maint && isFree(t, t + 90);
+                slots.push({ start: toTime(t), end: toTime(t + 90), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: slotStatus(t, t + 90) } : {}) });
             }
         }
         return { type: 'NINETY_MIN', slots };
@@ -163,7 +167,11 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
             if (prev < close && close - prev >= 60)
                 windows.push({ start: toTime(prev), end: toTime(close), durationMins: close - prev });
         }
-        return { type: 'VAR_DURATION', windows };
+        return {
+            type: 'VAR_DURATION',
+            windows,
+            taken: taken.map(r => ({ start: toTime(r.s), end: toTime(r.e), status: r.status })),
+        };
     }
 
     // FLEXIBLE
@@ -181,7 +189,7 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
     return {
         type: 'FLEXIBLE',
         windows: windows.filter(w => w.durationMins >= 60),
-        taken: taken.map(r => ({ start: toTime(r.s), end: toTime(r.e) })),
+        taken: taken.map(r => ({ start: toTime(r.s), end: toTime(r.e), status: r.status })),
     };
 }
 

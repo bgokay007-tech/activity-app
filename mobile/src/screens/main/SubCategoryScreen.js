@@ -3519,17 +3519,24 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
                 <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                     {!cs?.loading && isStructured && cData.slots.map((sl, i) => {
-                        const isSel = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
+                        const isSel    = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
+                        const isPend   = !sl.free && sl.status === 'PENDING';
                         const slotPrice = sl.price != null ? sl.price : venue?.pricePerSlot;
                         return (
                             <TouchableOpacity key={i} disabled={!sl.free}
-                                style={[vb.colSlot, sl.free ? vb.colSlotFree : vb.colSlotTaken, isSel && vb.colSlotSel]}
+                                style={[vb.colSlot,
+                                    sl.free ? vb.colSlotFree : (isPend ? vb.colSlotPend : vb.colSlotTaken),
+                                    isSel && vb.colSlotSel]}
                                 onPress={() => selectSlot(court.id, sl)} activeOpacity={0.75}>
-                                <Text style={[vb.colSlotT, !sl.free && { color:'#ef4444' }, isSel && { color:'#fff' }]}>
-                                    {sl.start}
+                                <Text style={[vb.colSlotT,
+                                    !sl.free && { color: isPend ? '#fbbf24' : '#ef4444' },
+                                    isSel && { color:'#fff' }]}>
+                                    {isPend ? '⏳' : sl.start}
                                 </Text>
-                                <Text style={[vb.colSlotSub, !sl.free && { color:'#ef444466' }, isSel && { color:'#fff', opacity:0.8 }]}>
-                                    {sl.end}
+                                <Text style={[vb.colSlotSub,
+                                    !sl.free && { color: isPend ? '#fbbf2480' : '#ef444466' },
+                                    isSel && { color:'#fff', opacity:0.8 }]}>
+                                    {isPend ? 'Onay Bek.' : sl.end}
                                 </Text>
                                 {sl.free && slotPrice > 0 && (
                                     <Text style={[vb.colSlotPrice, isSel && { color:'#bbf7d0' }]}>{slotPrice}₺</Text>
@@ -3538,10 +3545,30 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                         );
                     })}
 
-                    {!cs?.loading && isWindow && (
-                        cData.windows?.length === 0
-                            ? <Text style={vb.colEmpty}>Müsait yok</Text>
-                            : cData.windows.map((w, wi) => {
+                    {!cs?.loading && isWindow && (() => {
+                        const freeWins  = cData.windows || [];
+                        const takenBlks = cData.taken   || [];
+                        const allBlocks = [
+                            ...freeWins.map(w  => ({ ...w, _t: 'free' })),
+                            ...takenBlks.map(t => ({ ...t, _t: t.status === 'PENDING' ? 'pending' : 'taken' })),
+                        ].sort((a, b) => toM(a.start) - toM(b.start));
+                        if (allBlocks.length === 0) return <Text style={vb.colEmpty}>Müsait yok</Text>;
+                        return allBlocks.map((block, wi) => {
+                        if (block._t !== 'free') {
+                            const isPend = block._t === 'pending';
+                            return (
+                                <View key={wi} style={{ backgroundColor: isPend ? '#78350f30' : '#450a0a50', borderRadius:10, padding:8, marginBottom:8, borderWidth:1, borderColor: isPend ? '#f59e0b50' : '#ef444450' }}>
+                                    <Text style={{ color: isPend ? '#fbbf24' : '#f87171', fontSize:11, fontWeight:'800' }}>
+                                        {isPend ? '⏳' : '🔴'} {block.start}–{block.end}
+                                    </Text>
+                                    <Text style={{ color: isPend ? '#f59e0b' : '#ef4444', fontSize:10, marginTop:2, fontWeight:'700' }}>
+                                        {isPend ? 'Onay Bekleniyor' : 'Dolu'}
+                                    </Text>
+                                </View>
+                            );
+                        }
+                        const w = block;
+                        return (() => {
                                 const sel = varStartMap[court.id];
                                 const isWinSel = sel?.winStart === w.start;
                                 const customStart = isWinSel ? (sel?.customStart ?? w.start) : w.start;
@@ -3604,8 +3631,9 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                         </>)}
                                     </View>
                                 );
-                            })
-                    )}
+                        })();
+                        });
+                    })()}
                     <View style={{ height: 8 }} />
                 </ScrollView>
             </View>
@@ -3926,6 +3954,7 @@ const vb = StyleSheet.create({
     colSlot:      { borderRadius:5, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:3, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#450a0a', borderColor:'#7f1d1d', opacity:0.7 },
+    colSlotPend:  { backgroundColor:'#78350f40', borderColor:'#f59e0b80' },
     colSlotSel:   { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2 },
     colSlotT:     { color:'#4ade80', fontSize:12, fontWeight:'700' },
     colSlotSub:   { color:'#4ade80', fontSize:9, opacity:0.7 },
