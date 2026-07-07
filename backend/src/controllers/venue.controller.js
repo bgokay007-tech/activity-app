@@ -116,6 +116,8 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
         for (const w of openWindows) {
             const open = toMins(w.from), close = toMins(w.to);
             for (let t = open; t + 60 <= close; t += 60) {
+                const remaining = close - (t + 60);
+                if (remaining > 0 && remaining < 60) continue; // kapanışta kullanılamaz boşluk bırakır
                 const maint = isMaint(t, t + 60);
                 const free  = !maint && isFree(t, t + 60);
                 slots.push({ start: toTime(t), end: toTime(t + 60), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: slotStatus(t, t + 60) } : {}) });
@@ -138,6 +140,7 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
             for (let t = open; t + 60 <= effectiveClose; t += 60) {
                 const endT = t + 60;
                 const midnight = endT > 1440;
+                if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; } // kapanışta kullanılamaz boşluk
                 const maint = midnight ? (isMaint(t, 1440) || isMaint(0, endT - 1440)) : isMaint(t, endT);
                 const free  = !maint && (midnight ? (isFree(t, 1440) && isFree(0, endT - 1440)) : isFree(t, endT));
                 const st    = !free && !maint ? (midnight ? (slotStatus(t, 1440) || slotStatus(0, endT - 1440)) : slotStatus(t, endT)) : undefined;
@@ -152,6 +155,8 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
         for (const w of openWindows) {
             const open = toMins(w.from), close = toMins(w.to);
             for (let t = open; t + 90 <= close; t += 120) {
+                const remaining = close - (t + 90);
+                if (remaining > 0 && remaining < 90) continue; // kapanışta kullanılamaz boşluk bırakır
                 const maint = isMaint(t, t + 90);
                 const free  = !maint && isFree(t, t + 90);
                 slots.push({ start: toTime(t), end: toTime(t + 90), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: slotStatus(t, t + 90) } : {}) });
@@ -425,7 +430,7 @@ export const makeReservation = async (req, res, next) => {
                 || (venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : venue.slotType)
                 || 'FULL_HOUR';
 
-            if (effType !== 'VAR_DURATION') {
+            {
                 const minGap = effType === 'NINETY_MIN' ? 90 : 60;
                 const openWins = getOpenWindows(venue, date, courtId);
                 const allBooked = [
@@ -595,6 +600,7 @@ export const getOwnerSchedule = async (req, res, next) => {
 
                 if (effectiveSlotType === 'FULL_HOUR') {
                     for (let t = open; t + 60 <= close; t += 60) {
+                        if (close - (t + 60) > 0 && close - (t + 60) < 60) continue;
                         const rs = findRes(court.id, t, t + 60);
                         slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
                     }
@@ -606,20 +612,29 @@ export const getOwnerSchedule = async (req, res, next) => {
                     for (let t = start; t + 60 <= effectiveClose; t += 60) {
                         const endT = t + 60;
                         const midnight = endT > 1440;
+                        if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; }
                         const rs = findRes(court.id, t, midnight ? 1470 : endT);
                         slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
+                        if (close - (t + 90) > 0 && close - (t + 90) < 90) continue;
                         const rs = findRes(court.id, t, t + 90);
                         slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
                     }
                 } else {
-                    // VAR_DURATION: işletme takviminde 1 saatlik grid göster
-                    for (let t = open; t + 60 <= close; t += 60) {
-                        const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t), 60) });
+                    // VAR_DURATION: gerçek rezervasyon bloklarını ve boş pencereleri göster (saatlik grid değil)
+                    const courtRes = allRes.filter(r => r.courtId === court.id)
+                        .map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime), r }))
+                        .sort((a, b) => a.s - b.s)
+                        .filter(r => r.s < close && r.e > open);
+                    let cur = open;
+                    for (const { s, e, r } of courtRes) {
+                        if (s > cur) slots.push({ start: toTime(cur), end: toTime(s), status: 'FREE', user: null, reservationId: null, paymentMethod: null, price: 0 });
+                        slots.push({ start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, user: r.user, reservationId: r.id, paymentMethod: r.paymentMethod, price: null });
+                        cur = Math.max(cur, e);
                     }
+                    if (cur < close) slots.push({ start: toTime(cur), end: toTime(close), status: 'FREE', user: null, reservationId: null, paymentMethod: null, price: 0 });
                 }
             }
             return slots;
