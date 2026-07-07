@@ -576,7 +576,12 @@ export const getOwnerSchedule = async (req, res, next) => {
         });
 
         const findRes = (courtId, s, e) =>
-            allRes.filter(r => r.courtId === courtId && overlaps(s, e, toMins(r.startTime), toMins(r.endTime)));
+            allRes.filter(r => {
+                if (r.courtId !== courtId) return false;
+                const rs = toMins(r.startTime), re = toMins(r.endTime);
+                if (re < rs) return overlaps(s, e, rs, 1440) || overlaps(s, e, 0, re);
+                return overlaps(s, e, rs, re);
+            });
 
         const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
         const buildSlots = (court) => {
@@ -584,7 +589,8 @@ export const getOwnerSchedule = async (req, res, next) => {
             const courtWindows = getOpenWindows(venue, date, court.id); // kort bazlı windows
             const slots = [];
 
-            for (const w of courtWindows) {
+            for (let wi = 0; wi < courtWindows.length; wi++) {
+                const w = courtWindows[wi];
                 const open = toMins(w.from), close = toMins(w.to);
 
                 if (effectiveSlotType === 'FULL_HOUR') {
@@ -595,9 +601,13 @@ export const getOwnerSchedule = async (req, res, next) => {
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
                     if (start % 60 !== 30) { start = Math.floor(start / 60) * 60 + 30; if (start < open) start += 60; }
-                    for (let t = start; t + 60 <= close; t += 60) {
-                        const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
+                    const nextW = courtWindows[wi + 1];
+                    const effectiveClose = (close === 1440 && nextW && toMins(nextW.from) === 0) ? 1470 : close;
+                    for (let t = start; t + 60 <= effectiveClose; t += 60) {
+                        const endT = t + 60;
+                        const midnight = endT > 1440;
+                        const rs = findRes(court.id, t, midnight ? 1470 : endT);
+                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, price: getSlotPrice(venue, court, toTime(t)) });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {

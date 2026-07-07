@@ -203,11 +203,17 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                     </View>
 
                     {/* Rozetler */}
-                    <View style={bm.tagRow}>
-                        <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date)}</Text></View>
-                        <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue)}</Text></View>
-                        {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
-                    </View>
+                    {(() => {
+                        const lightsFrom = (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom;
+                        return (
+                            <View style={bm.tagRow}>
+                                <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date)}</Text></View>
+                                <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue)}</Text></View>
+                                {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
+                                {lightsFrom ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡 {lightsFrom}'dan ışık</Text></View> : null}
+                            </View>
+                        );
+                    })()}
 
                     {/* İletişim butonları */}
                     {(() => {

@@ -103,6 +103,16 @@ export default function VenueDetailScreen({ route, navigation }) {
                             })}
                         </View>
                     </View>
+                    {(() => {
+                        const lightsFrom = (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom;
+                        if (!lightsFrom) return null;
+                        return (
+                            <View style={s.infoRow}>
+                                <Text style={s.infoLabel}>Gece Işığı</Text>
+                                <Text style={[s.infoValue, { color: '#fbbf24' }]}>💡 {lightsFrom} itibarıyla</Text>
+                            </View>
+                        );
+                    })()}
                     <View style={[s.infoRow, { alignItems: 'flex-start' }]}>
                         <Text style={s.infoLabel}>Rezervasyon</Text>
                         <Text style={[s.infoValue, { textAlign: 'right', flex: 1 }]}>{courtSlotLabels(venue)}</Text>
