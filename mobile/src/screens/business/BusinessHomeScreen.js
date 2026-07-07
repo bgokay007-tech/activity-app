@@ -170,33 +170,7 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
     };
 
     const renderSubContent = () => {
-        if (sub) {
-            const endDate  = new Date(sub.endDate);
-            const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
-            return (
-                <View style={m.activeCard}>
-                    <View style={m.activeHeader}>
-                        <Text style={m.activeIcon}>{activePkg?.icon || '✅'}</Text>
-                        <View style={{ flex: 1 }}>
-                            <Text style={m.activeTitle}>{activePkg?.name || sub.packageType} Aktif</Text>
-                            <Text style={m.activeSub}>{daysLeft} gün kaldı · {endDate.toLocaleDateString('tr-TR')}</Text>
-                        </View>
-                        <View style={m.activeBadge}><Text style={m.activeBadgeText}>AKTİF</Text></View>
-                    </View>
-                    <View style={m.divider} />
-                    {(activePkg?.features || []).map((f, i) => (
-                        <View key={i} style={m.featureRow}>
-                            <Text style={m.featureCheck}>✓</Text>
-                            <Text style={m.featureText}>{f}</Text>
-                        </View>
-                    ))}
-                    <TouchableOpacity style={m.cancelBtn} onPress={onCancel} disabled={cancelling} activeOpacity={0.8}>
-                        {cancelling ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={m.cancelBtnText}>Aboneliği İptal Et</Text>}
-                    </TouchableOpacity>
-                </View>
-            );
-        }
-        if (pendingRequest) {
+        if (pendingRequest && !sub) {
             return (
                 <View style={m.pendingCard}>
                     <Text style={m.pendingIcon}>⏳</Text>
@@ -221,34 +195,69 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
                 </View>
             );
         }
-        // Paket seçimi
+        // Paket seçimi (aktif paket varsa üstte göster, altında tüm paketler)
         if (step === 'packages') {
             return (
                 <View>
-                    <Text style={m.pkgSelectTitle}>Bir paket seçin</Text>
-                    {PACKAGES.map(pkg => (
-                        <TouchableOpacity key={pkg.key} style={[m.pkgSelectCard, selectedPkg?.key === pkg.key && m.pkgSelectCardActive]}
-                            onPress={() => setSelected(pkg)} activeOpacity={0.8}>
-                            <View style={m.pkgSelectRow}>
-                                <Text style={m.pkgIcon}>{pkg.icon}</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={m.pkgName}>{pkg.name}</Text>
-                                    <Text style={m.pkgSelectPrice}>{pkg.price}₺/ay</Text>
+                    {sub && (() => {
+                        const endDate  = new Date(sub.endDate);
+                        const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
+                        return (
+                            <View style={[m.activeCard, { marginBottom: 16 }]}>
+                                <View style={m.activeHeader}>
+                                    <Text style={m.activeIcon}>{activePkg?.icon || '✅'}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={m.activeTitle}>{activePkg?.name || sub.packageType} Aktif</Text>
+                                        <Text style={m.activeSub}>{daysLeft} gün kaldı · {endDate.toLocaleDateString('tr-TR')}</Text>
+                                    </View>
+                                    <View style={m.activeBadge}><Text style={m.activeBadgeText}>AKTİF</Text></View>
                                 </View>
-                                {selectedPkg?.key === pkg.key && <Text style={m.pkgSelectCheck}>✓</Text>}
+                                <View style={m.divider} />
+                                {(activePkg?.features || []).map((f, i) => (
+                                    <View key={i} style={m.featureRow}>
+                                        <Text style={m.featureCheck}>✓</Text>
+                                        <Text style={m.featureText}>{f}</Text>
+                                    </View>
+                                ))}
+                                <TouchableOpacity style={m.cancelBtn} onPress={onCancel} disabled={cancelling} activeOpacity={0.8}>
+                                    {cancelling ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={m.cancelBtnText}>Aboneliği İptal Et</Text>}
+                                </TouchableOpacity>
                             </View>
-                            {selectedPkg?.key === pkg.key && pkg.features.map((f, i) => (
-                                <View key={i} style={m.featureRow}>
-                                    <Text style={m.featureCheck}>✓</Text>
-                                    <Text style={m.featureText}>{f}</Text>
+                        );
+                    })()}
+                    <Text style={[m.pkgSelectTitle, sub && { marginTop: 4 }]}>{sub ? 'Tüm Paketler' : 'Bir paket seçin'}</Text>
+                    {PACKAGES.map(pkg => {
+                        const isActive = sub?.packageType === pkg.key;
+                        return (
+                            <TouchableOpacity key={pkg.key}
+                                style={[m.pkgSelectCard, selectedPkg?.key === pkg.key && m.pkgSelectCardActive, isActive && { borderColor: '#22c55e60', backgroundColor: '#22c55e08' }]}
+                                onPress={() => !isActive && setSelected(pkg)} activeOpacity={isActive ? 1 : 0.8}>
+                                <View style={m.pkgSelectRow}>
+                                    <Text style={m.pkgIcon}>{pkg.icon}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={m.pkgName}>{pkg.name}</Text>
+                                        <Text style={m.pkgSelectPrice}>{pkg.price}₺/ay</Text>
+                                    </View>
+                                    {isActive
+                                        ? <View style={{ backgroundColor: '#22c55e20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#22c55e50' }}><Text style={{ color: '#22c55e', fontSize: 10, fontWeight: '800' }}>AKTİF</Text></View>
+                                        : selectedPkg?.key === pkg.key && <Text style={m.pkgSelectCheck}>✓</Text>
+                                    }
                                 </View>
-                            ))}
+                                {(isActive || selectedPkg?.key === pkg.key) && pkg.features.map((f, i) => (
+                                    <View key={i} style={m.featureRow}>
+                                        <Text style={[m.featureCheck, isActive && { color: '#22c55e' }]}>✓</Text>
+                                        <Text style={[m.featureText, isActive && { color: '#86efac' }]}>{f}</Text>
+                                    </View>
+                                ))}
+                            </TouchableOpacity>
+                        );
+                    })}
+                    {!sub && (
+                        <TouchableOpacity style={[m.pkgContinueBtn, !selectedPkg && { opacity: 0.4 }]}
+                            onPress={() => setStep('pay')} disabled={!selectedPkg} activeOpacity={0.8}>
+                            <Text style={m.pkgContinueBtnText}>Devam Et →</Text>
                         </TouchableOpacity>
-                    ))}
-                    <TouchableOpacity style={[m.pkgContinueBtn, !selectedPkg && { opacity: 0.4 }]}
-                        onPress={() => setStep('pay')} disabled={!selectedPkg} activeOpacity={0.8}>
-                        <Text style={m.pkgContinueBtnText}>Devam Et →</Text>
-                    </TouchableOpacity>
+                    )}
                 </View>
             );
         }
