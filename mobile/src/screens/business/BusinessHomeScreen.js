@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../../store/slices/authSlice';
 import api from '../../services/api';
+import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 
 const BIZ_COLOR = '#f59e0b';
@@ -3342,6 +3343,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
     const [cancelling,     setCancelling]     = useState(false);
     const [submitting,     setSubmitting]     = useState(false);
     const [uploading,      setUploading]      = useState(false);
+    const [unreadNotifs,   setUnreadNotifs]   = useState(0);
 
     const fetchAll = useCallback(async () => {
         try {
@@ -3358,6 +3360,13 @@ export default function BusinessHomeScreen({ navigation, route }) {
     }, []);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
+
+    // Bildirim sayacı — API'den çek + socket ile anlık güncelle
+    useEffect(() => {
+        api.get('/notifications').then(({ data }) => setUnreadNotifs(data.unreadCount || 0)).catch(() => {});
+        const off = onSocket('notification', () => setUnreadNotifs(prev => prev + 1));
+        return off;
+    }, []);
 
     // Geri tuşu — uygulamadan çıkışı engelle
     useEffect(() => {
@@ -3438,10 +3447,21 @@ export default function BusinessHomeScreen({ navigation, route }) {
                     <Text style={s.headerBadge}>🏢 İŞLETME HESABI</Text>
                 </View>
                 <View style={s.rightBtns}>
+                    <TouchableOpacity style={s.iconBtn} onPress={() => { setUnreadNotifs(0); navigation.navigate('App', { screen: 'NotificationsTab' }); }} activeOpacity={0.7}>
+                        <Text style={{ fontSize: 16 }}>🔔</Text>
+                        {unreadNotifs > 0 && (
+                            <View style={s.notifBadge}>
+                                <Text style={s.notifBadgeText}>{unreadNotifs > 99 ? '99+' : unreadNotifs}</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('App', { screen: 'MessagesTab' })} activeOpacity={0.7}>
+                        <Text style={{ fontSize: 16 }}>💬</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('App')}
                         style={s.backAppBtn}>
-                        <Text style={s.backAppBtnText}>‹ Uygulamaya Dön</Text>
+                        <Text style={s.backAppBtnText}>‹ Uygulama</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
                         <Text style={s.logoutText}>Çıkış</Text>
@@ -3542,7 +3562,10 @@ const s = StyleSheet.create({
     subBtn:       { flexDirection: 'row', alignItems: 'center', backgroundColor: BIZ_DIM, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BIZ_COLOR + '40', gap: 4 },
     subBtnText:   { color: BIZ_LIGHT, fontSize: 11, fontWeight: '800' },
     activeDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' },
-    rightBtns:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    rightBtns:      { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    iconBtn:        { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, justifyContent: 'center', alignItems: 'center' },
+    notifBadge:     { position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, borderRadius: 8, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 2 },
+    notifBadgeText: { color: '#fff', fontSize: 8, fontWeight: '900', lineHeight: 11 },
     backAppBtn:   { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
     backAppBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     logoutBtn:    { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#ef444440', backgroundColor: '#ef444410' },
