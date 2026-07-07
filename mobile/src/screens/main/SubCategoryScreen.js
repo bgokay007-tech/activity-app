@@ -4134,17 +4134,27 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     const reset = () => setF(INIT);
 
+    const deselectCourt = () => {
+        setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null, courtReserved: false }));
+    };
+
     const cancelCourt = async () => {
-        if (!f.reservationId) {
-            setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null }));
-            return;
-        }
-        try {
-            await api.delete(`/venues/reservations/${f.reservationId}`);
-            setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null }));
-        } catch (e) {
-            Alert.alert('İptal Edilemiyor', e?.response?.data?.message || 'Rezervasyon iptal edilemedi');
-        }
+        if (!f.reservationId) { deselectCourt(); return; }
+        Alert.alert(
+            'Rezervasyonu İptal Et',
+            'Bu kort rezervasyonunu tamamen iptal etmek istediğinizden emin misiniz? Bu işlem geri alınamaz.',
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'İptal Et', style: 'destructive', onPress: async () => {
+                    try {
+                        await api.delete(`/venues/reservations/${f.reservationId}`);
+                        deselectCourt();
+                    } catch (e) {
+                        Alert.alert('İptal Edilemiyor', e?.response?.data?.message || 'Rezervasyon iptal edilemedi');
+                    }
+                }},
+            ]
+        );
     };
 
     const changeCourt = async () => {
@@ -4440,15 +4450,24 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {/* Kort Ara */}
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                                         <Text style={[s.fieldLabel, { marginBottom:0 }]}>{t.courtLabel}{!f.flexibleSchedule && !f.courtMutual ? ' *' : ''}</Text>
-                                        <TouchableOpacity
-                                            onPress={() => set('courtMutual', !f.courtMutual)}
-                                            style={{ flexDirection:'row', alignItems:'center', gap:4, paddingVertical:4, paddingHorizontal:8, borderRadius:10, backgroundColor: f.courtMutual ? cfg.color+'18' : '#ffffff08', borderWidth:1, borderColor: f.courtMutual ? cfg.color+'60' : '#ffffff15' }}
-                                        >
-                                            <View style={{ width:14, height:14, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
-                                                {f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
-                                            </View>
-                                            <Text style={{ color: f.courtMutual ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>🤝 {t.courtMutualBtn}</Text>
-                                        </TouchableOpacity>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                            {f.courtMutual && (
+                                                <TouchableOpacity
+                                                    onPress={() => set('courtMutual', false)}
+                                                    style={{ paddingVertical:4, paddingHorizontal:8, borderRadius:10, backgroundColor:'#ffffff10', borderWidth:1, borderColor:'#ffffff25' }}>
+                                                    <Text style={{ color:'#aaa', fontSize:11, fontWeight:'700' }}>↩ Vazgeç</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            <TouchableOpacity
+                                                onPress={() => set('courtMutual', !f.courtMutual)}
+                                                style={{ flexDirection:'row', alignItems:'center', gap:4, paddingVertical:4, paddingHorizontal:8, borderRadius:10, backgroundColor: f.courtMutual ? cfg.color+'18' : '#ffffff08', borderWidth:1, borderColor: f.courtMutual ? cfg.color+'60' : '#ffffff15' }}
+                                            >
+                                                <View style={{ width:14, height:14, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
+                                                    {f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
+                                                </View>
+                                                <Text style={{ color: f.courtMutual ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>🤝 {t.courtMutualBtn}</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                     {/* Mevcut rezervasyonlardan hızlı seçim */}
                                     {!f.courtMutual && !f.selectedCourt && myUnlistedRes.length > 0 && (
@@ -4586,7 +4605,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </Text>
                                                 )}
                                             </View>
-                                            <View style={{ flexDirection:'row', gap:6 }}>
+                                            <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', justifyContent:'flex-end', marginTop:4 }}>
+                                                <TouchableOpacity
+                                                    onPress={deselectCourt}
+                                                    style={{ backgroundColor:'#ffffff12', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ffffff25' }}>
+                                                    <Text style={{ color:'#aaa', fontSize:11, fontWeight:'700' }}>↩ Vazgeç</Text>
+                                                </TouchableOpacity>
                                                 {f.venueId && (
                                                     <TouchableOpacity
                                                         onPress={changeCourt}
@@ -4594,13 +4618,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>🔄 Değiştir</Text>
                                                     </TouchableOpacity>
                                                 )}
-                                                <TouchableOpacity
-                                                    onPress={cancelCourt}
-                                                    style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ef444450' }}>
-                                                    <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>
-                                                        {f.reservationId ? '🗑 Sil' : '✕'}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                                {f.reservationId && (
+                                                    <TouchableOpacity
+                                                        onPress={cancelCourt}
+                                                        style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ef444450' }}>
+                                                        <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>🗑 Sil</Text>
+                                                    </TouchableOpacity>
+                                                )}
                                             </View>
                                         </View>
                                     )}
