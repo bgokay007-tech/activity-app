@@ -3374,7 +3374,7 @@ function VenueMenuOrderModal({ visible, venueId, onClose }) {
 
 const vm = StyleSheet.create({
     overlay:    { flex:1, backgroundColor:'#000b', justifyContent:'flex-end' },
-    sheet:      { backgroundColor:'#12121e', borderTopLeftRadius:20, borderTopRightRadius:20, maxHeight:'85%' },
+    sheet:      { backgroundColor:'#12121e', borderTopLeftRadius:20, borderTopRightRadius:20, height:'85%' },
     header:     { flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor:'#ffffff12' },
     title:      { flex:1, color:'#fff', fontSize:16, fontWeight:'700' },
     closeBtn:   { padding:4 },
