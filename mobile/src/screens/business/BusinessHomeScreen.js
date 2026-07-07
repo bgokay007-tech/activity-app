@@ -1828,6 +1828,50 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 );
                             })}
                         </View>
+                        {/* Ayarlar Özeti */}
+                        {(() => {
+                            const APPROVAL_SHORT = {
+                                'FULL_AUTO':    '🤖 Tam Otomatik',
+                                'EFT_TIMED':    '⏱️ EFT 1sa Bekle',
+                                'PAYMENT_AUTO': '💳 Ödeme=Otomatik',
+                                'MANUAL':       '✋ Manuel Onay',
+                            };
+                            const PAY_ICONS = { CASH: '💵', EFT: '🏦', ONLINE: '💳' };
+                            const PAY_NAMES = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online' };
+                            const policyLabel = (v) => v === null || v === undefined ? 'Her zaman' : v === -1 ? 'Asla' : `${v} saat öncesi`;
+
+                            const approvalMode   = venue.approvalMode || 'FULL_AUTO';
+                            const payments       = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
+                            const hasPricingWins = Array.isArray(venue.pricingWindows) && venue.pricingWindows.length > 0;
+                            const cl             = venue.contactLinks || {};
+                            const contactCount   = ['whatsapp','telegram','instagram','email','phone'].filter(k => cl[k]).length;
+                            const lightsFrom     = (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom;
+
+                            const chips = [
+                                { label: APPROVAL_SHORT[approvalMode] || approvalMode, color: '#a78bfa' },
+                                { label: payments.map(p => (PAY_ICONS[p] || '') + ' ' + (PAY_NAMES[p] || p)).join('  '), color: '#34d399' },
+                                { label: `🚫 İptal: ${policyLabel(venue.cancelHoursBefore)}`, color: '#f87171' },
+                                { label: `🔄 Değişiklik: ${policyLabel(venue.rescheduleHoursBefore)}`, color: '#fb923c' },
+                                ...(venue.pricePerSlot > 0 ? [{ label: `💰 ${venue.pricePerSlot}₺/saat`, color: '#fbbf24' }] : []),
+                                ...(hasPricingWins ? [{ label: `📊 ${venue.pricingWindows.length} fiyat dilimi`, color: '#fbbf24' }] : []),
+                                ...(contactCount > 0 ? [{ label: `📞 ${contactCount} iletişim`, color: '#60a5fa' }] : []),
+                                ...(lightsFrom ? [{ label: `💡 Işık: ${lightsFrom}`, color: '#fbbf24' }] : []),
+                            ];
+
+                            return (
+                                <View style={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4 }}>
+                                    <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 8 }}>AYAR ÖZETİ</Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+                                        {chips.map((chip, i) => (
+                                            <View key={i} style={{ backgroundColor: chip.color + '15', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: chip.color + '40' }}>
+                                                <Text style={{ color: chip.color, fontSize: 10, fontWeight: '700' }}>{chip.label}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            );
+                        })()}
+
                         <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting} activeOpacity={0.8}>
                             {deleting ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={vc.deleteBtnText}>Tesisi Sil</Text>}
                         </TouchableOpacity>
