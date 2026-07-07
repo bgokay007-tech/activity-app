@@ -805,7 +805,7 @@ const SURFACE_LABEL = {
     SYNTHETIC: 'Sentetik',
 };
 const SURFACE_ICON = {
-    CLAY: '🟤', HARD: '🩶', CARPET: '🟥', GRASS: '🟢', PARQUET: '🟫', SYNTHETIC: '🟩',
+    CLAY: '🟤', HARD: '⬜', CARPET: '🟥', GRASS: '🟢', PARQUET: '🟫', SYNTHETIC: '🟩',
 };
 
 const SCHED_COURT_W = 72;
