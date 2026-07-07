@@ -4358,15 +4358,36 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {f.courtResults.length > 0 && !f.selectedCourt && (
                                         <View style={s.courtResultsBox}>
                                             {f.courtResults.map(c => (
-                                                <TouchableOpacity key={c.id} style={s.courtResultRow} onPress={() => selectCourt(c)}>
-                                                    <View style={{ flex:1 }}>
-                                                        <Text style={s.courtResultName}>{c.name}</Text>
-                                                        {c.city && <Text style={s.courtResultCity}>{c.city}</Text>}
-                                                        {c.isBusinessVenue && <Text style={{ color:'#22c55e', fontSize:10, marginTop:1 }}>🏢 İşletme · Rezerve Et</Text>}
-                                                    </View>
-                                                    {c.verified && !c.isBusinessVenue && <Text style={{ color:'#4ade80', fontSize:11 }}>{t.courtVerified}</Text>}
-                                                    {c.isBusinessVenue && <Text style={{ color:'#22c55e', fontSize:14 }}>›</Text>}
-                                                </TouchableOpacity>
+                                                c.isBusinessVenue ? (
+                                                    <TouchableOpacity key={c.id}
+                                                        style={{ padding:10, borderBottomWidth:1, borderBottomColor:colors.border, backgroundColor:'#9333ea08' }}
+                                                        onPress={() => selectCourt(c)} activeOpacity={0.8}>
+                                                        <View style={{ flexDirection:'row', alignItems:'flex-start', marginBottom:6 }}>
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'900' }}>{c.name}</Text>
+                                                                {c.description ? <Text style={{ color:colors.textMuted, fontSize:11, marginTop:2 }}>{c.description}</Text> : null}
+                                                                {c.city ? <Text style={{ color:colors.textMuted, fontSize:11, marginTop:1 }}>📍 {c.city}</Text> : null}
+                                                            </View>
+                                                            <Text style={{ color:'#c084fc', fontSize:20, fontWeight:'300' }}>›</Text>
+                                                        </View>
+                                                        <View style={{ flexDirection:'row', gap:5 }}>
+                                                            <View style={{ backgroundColor:'#9333ea20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
+                                                                <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>🏢 PRO Tesis</Text>
+                                                            </View>
+                                                            <View style={{ backgroundColor:'#22c55e20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#22c55e40' }}>
+                                                                <Text style={{ color:'#22c55e', fontSize:10, fontWeight:'700' }}>📅 Rezerve Et</Text>
+                                                            </View>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <TouchableOpacity key={c.id} style={s.courtResultRow} onPress={() => selectCourt(c)}>
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={s.courtResultName}>{c.name}</Text>
+                                                            {c.city && <Text style={s.courtResultCity}>{c.city}</Text>}
+                                                        </View>
+                                                        {c.verified && <Text style={{ color:'#4ade80', fontSize:11 }}>{t.courtVerified}</Text>}
+                                                    </TouchableOpacity>
+                                                )
                                             ))}
                                             {/* Yazdığı adı doğrudan kullanma seçeneği */}
                                             <TouchableOpacity
