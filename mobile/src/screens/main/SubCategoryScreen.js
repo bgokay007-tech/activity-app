@@ -3490,7 +3490,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             const reservationId = resResp.data?.reservation?.id || null;
             const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
             const courtTotalPrice = slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0);
-            const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice };
+            const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, surface: activeCourt?.surface || null };
             onBooked?.(courtObj, selDate, slot.start, endTime, reservationId);
             setBooked(true);
         } catch (e) {
@@ -4739,6 +4739,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     venueId: court.venueId || null,
                     venueCourtId: court.courtId || null,
                     reservationId: reservationId || null,
+                    courtReserved: true,
+                    surface: court.surface || p.surface,
                 }));
             }}
         />
