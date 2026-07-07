@@ -3558,10 +3558,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                     {isPend ? '⏳' : sl.start}
                                 </Text>
                                 <Text style={[vb.colSlotSub,
-                                    !sl.free && { color: isPend ? '#fbbf2480' : '#ef444466' },
+                                    !sl.free && { color: isPend ? '#fbbf2480' : '#ef444480' },
                                     isSel && { color:'#fff', opacity:0.8 }]}>
                                     {isPend ? 'Onay Bek.' : sl.end}
                                 </Text>
+                                {!sl.free && !isPend && (
+                                    <Text style={{ color:'#ef4444', fontSize:8, fontWeight:'800', marginTop:1 }}>Dolu</Text>
+                                )}
                                 {sl.free && slotPrice > 0 && (
                                     <Text style={[vb.colSlotPrice, isSel && { color:'#bbf7d0' }]}>{slotPrice}₺</Text>
                                 )}
@@ -3762,7 +3765,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             <View style={vb.dateStrip}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
                                     style={{ flex:1 }}
-                                    contentContainerStyle={{ paddingHorizontal:10, paddingVertical:6, gap:6, alignItems:'center' }}>
+                                    contentContainerStyle={{ paddingHorizontal:10, paddingVertical:8, gap:6, alignItems:'center' }}>
                                     {Array.from({length:14}, (_,i) => {
                                         const d = new Date();
                                         d.setDate(d.getDate() + i);
@@ -3852,8 +3855,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                         <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
                                         <View style={vb.payRow}>
                                             {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['ONLINE','💳 Online']].filter(([m]) => {
-                                                const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : ['CASH','EFT'];
-                                                return acc.includes(m);
+                                                if (m === 'ONLINE') {
+                                                    const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : [];
+                                                    return acc.includes('ONLINE');
+                                                }
+                                                return true; // CASH ve EFT her zaman göster
                                             }).map(([m, label]) => (
                                                 <TouchableOpacity key={m}
                                                     style={[vb.payBtn, payMethod===m && vb.payBtnSel]}
@@ -3920,8 +3926,8 @@ const vb = StyleSheet.create({
     tabTxt:       { color:'#888', fontSize:13, fontWeight:'600' },
     tabTxtActive: { color:'#c084fc', fontWeight:'700' },
 
-    dateStrip:        { height:68, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
-    dateChip:         { alignItems:'center', paddingVertical:6, paddingHorizontal:8, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:46 },
+    dateStrip:        { height:86, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
+    dateChip:         { alignItems:'center', paddingVertical:7, paddingHorizontal:8, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:48 },
     dateChipSel:      { backgroundColor:'#16a34a30', borderColor:'#22c55e' },
     dateChipDay:      { color:'#888', fontSize:9, fontWeight:'700', textTransform:'uppercase', marginBottom:1 },
     dateChipDaySel:   { color:'#4ade80' },
@@ -3982,7 +3988,7 @@ const vb = StyleSheet.create({
     lightsInfoTxt:{ color:'#fbbf24', fontSize:9, fontWeight:'800', lineHeight:13 },
     colSlot:      { borderRadius:5, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:3, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
-    colSlotTaken: { backgroundColor:'#450a0a', borderColor:'#7f1d1d', opacity:0.7 },
+    colSlotTaken: { backgroundColor:'#5c0a0a', borderColor:'#ef4444', borderWidth:1.5 },
     colSlotPend:  { backgroundColor:'#78350fcc', borderColor:'#f59e0b', borderWidth:1.5 },
     colSlotSel:   { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2 },
     colSlotT:     { color:'#4ade80', fontSize:12, fontWeight:'700' },
