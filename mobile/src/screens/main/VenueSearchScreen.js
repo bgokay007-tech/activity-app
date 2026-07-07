@@ -181,21 +181,28 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
 
                     {/* İletişim butonları */}
                     {(() => {
-                        const cl = venue.contactLinks;
-                        if (!cl || typeof cl !== 'object') return null;
+                        const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
+                        // venue.phone'u whatsapp ve phone için fallback olarak kullan
+                        const effectiveCl = {
+                            whatsapp:  cl.whatsapp  || venue.phone || null,
+                            phone:     cl.phone     || venue.phone || null,
+                            telegram:  cl.telegram  || null,
+                            instagram: cl.instagram || null,
+                            email:     cl.email     || null,
+                        };
                         const links = [
                             { key: 'whatsapp',  icon: '💬', label: 'WhatsApp',  url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
                             { key: 'phone',     icon: '📞', label: 'Beni Ara',  url: v => `tel:${v}` },
                             { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
                             { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
                             { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
-                        ].filter(l => cl[l.key]);
+                        ].filter(l => effectiveCl[l.key]);
                         if (links.length === 0) return null;
                         return (
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }}>
                                 {links.map(l => (
                                     <TouchableOpacity key={l.key}
-                                        onPress={() => Linking.openURL(l.url(cl[l.key]))}
+                                        onPress={() => Linking.openURL(l.url(effectiveCl[l.key]))}
                                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
                                             backgroundColor: colors.surface2, borderRadius: 8,
                                             paddingHorizontal: 10, paddingVertical: 6,
