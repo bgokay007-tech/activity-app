@@ -99,10 +99,13 @@ function getSlotPrice(venue, court, startTime, durationMins = 60) {
 function computeSlots(venue, reservations, date, courtId = null, maintWindows = []) {
     const openWindows = getOpenWindows(venue, date, courtId);
 
-    const taken = reservations
-        .filter(r => r.date === date && r.status !== 'CANCELLED')
-        .map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime), status: r.status }))
-        .sort((a, b) => a.s - b.s);
+    const taken = [];
+    for (const r of reservations.filter(r => r.date === date && r.status !== 'CANCELLED')) {
+        const s = toMins(r.startTime), e = toMins(r.endTime);
+        if (e < s) { taken.push({ s, e: 1440, status: r.status }); taken.push({ s: 0, e, status: r.status }); }
+        else taken.push({ s, e, status: r.status });
+    }
+    taken.sort((a, b) => a.s - b.s);
 
     const isFree     = (s, e) => !taken.some(r => overlaps(s, e, r.s, r.e));
     const isMaint    = (s, e) => maintWindows.some(m => overlaps(s, e, m.s, m.e));
@@ -123,15 +126,22 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
 
     if (venue.slotType === 'HALF_HOUR') {
         const slots = [];
-        for (const w of openWindows) {
+        for (let wi = 0; wi < openWindows.length; wi++) {
+            const w = openWindows[wi];
             let open = toMins(w.from);
             const close = toMins(w.to);
             // Buçuklu saat: slotlar her zaman :30 dakikasında başlar
             if (open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
-            for (let t = open; t + 60 <= close; t += 60) {
-                const maint = isMaint(t, t + 60);
-                const free  = !maint && isFree(t, t + 60);
-                slots.push({ start: toTime(t), end: toTime(t + 60), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: slotStatus(t, t + 60) } : {}) });
+            // Gece yarısını geçen slot: pencere 24:00'de bitiyorsa ve sonraki pencere 00:00'dan başlıyorsa 23:30-00:30 slotuna izin ver
+            const nextW = openWindows[wi + 1];
+            const effectiveClose = (close === 1440 && nextW && toMins(nextW.from) === 0) ? 1470 : close;
+            for (let t = open; t + 60 <= effectiveClose; t += 60) {
+                const endT = t + 60;
+                const midnight = endT > 1440;
+                const maint = midnight ? (isMaint(t, 1440) || isMaint(0, endT - 1440)) : isMaint(t, endT);
+                const free  = !maint && (midnight ? (isFree(t, 1440) && isFree(0, endT - 1440)) : isFree(t, endT));
+                const st    = !free && !maint ? (midnight ? (slotStatus(t, 1440) || slotStatus(0, endT - 1440)) : slotStatus(t, endT)) : undefined;
+                slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: st } : {}) });
             }
         }
         return { type: 'HALF_HOUR', slots };
