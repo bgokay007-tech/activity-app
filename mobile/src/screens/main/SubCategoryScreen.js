@@ -3614,7 +3614,9 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
     return (
         <>
-        <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+        <Modal visible={visible} transparent={false} animationType="slide"
+            onRequestClose={() => { if (selSlot) { setSelSlot(null); } else { onClose(); } }}
+            statusBarTranslucent>
             <View style={vb.overlay}>
                 <View style={vb.sheet}>
                     {/* Header */}
@@ -3743,8 +3745,9 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                             </View>
                                             <TouchableOpacity
                                                 onPress={() => setSelSlot(null)}
-                                                style={{ backgroundColor:'#ffffff12', borderRadius:8, paddingHorizontal:10, paddingVertical:6, marginLeft:8, borderWidth:1, borderColor:'#ffffff20' }}>
-                                                <Text style={{ color:'#aaa', fontSize:12, fontWeight:'700' }}>← Geri</Text>
+                                                style={{ paddingHorizontal:10, paddingVertical:6, marginLeft:8 }}
+                                                hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                                                <Text style={{ color:'#888', fontSize:18 }}>↩</Text>
                                             </TouchableOpacity>
                                         </View>
                                         {needsDur && (
