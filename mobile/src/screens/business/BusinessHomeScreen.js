@@ -1180,19 +1180,27 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
 
     // ── İletişim butonları state ──────────────────────────────────────────────
     const [localContactLinks, setLocalContactLinks] = useState(() => {
-        const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
+        const raw = venue.contactLinks;
+        const cl = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
         const numOnly = (val) => {
-            if (!val) return '';
+            if (!val || typeof val !== 'string') return '';
             if (!val.startsWith('+')) return val;
             const m = val.match(/^\+\d{1,4}(.*)/);
             return m ? m[1].trim() : val;
         };
-        return { ...cl, whatsapp: numOnly(cl.whatsapp), phone: numOnly(cl.phone) };
+        return {
+            whatsapp:  numOnly(cl.whatsapp),
+            phone:     numOnly(cl.phone),
+            telegram:  typeof cl.telegram  === 'string' ? cl.telegram  : '',
+            instagram: typeof cl.instagram === 'string' ? cl.instagram : '',
+            email:     typeof cl.email     === 'string' ? cl.email     : '',
+        };
     });
     const [localCCs, setLocalCCs] = useState(() => {
-        const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
+        const raw = venue.contactLinks;
+        const cl = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
         const ccOnly = (val) => {
-            if (!val || !val.startsWith('+')) return '+90';
+            if (!val || typeof val !== 'string' || !val.startsWith('+')) return '+90';
             const m = val.match(/^(\+\d{1,4})/);
             return m ? m[1] : '+90';
         };
