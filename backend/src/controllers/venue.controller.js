@@ -530,7 +530,7 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode, courtIndoorDefault } = req.body;
+        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_PAY      = ['CASH', 'EFT', 'ONLINE'];
         const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
@@ -559,6 +559,8 @@ export const updateVenueSettings = async (req, res, next) => {
         if (rescheduleHoursBefore !== undefined) data.rescheduleHoursBefore = rescheduleHoursBefore === null ? null : parseInt(rescheduleHoursBefore);
         if (approvalMode !== undefined)          data.approvalMode          = approvalMode;
         if (courtIndoorDefault !== undefined)   data.courtIndoorDefault    = Boolean(courtIndoorDefault);
+        if (businessIban !== undefined)         data.businessIban          = businessIban || null;
+        if (businessIbanHolder !== undefined)   data.businessIbanHolder    = businessIbanHolder || null;
 
         const updated = await prisma.businessVenue.update({ where: { id }, data });
         res.json({ venue: updated });

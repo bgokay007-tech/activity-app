@@ -869,6 +869,8 @@ model BusinessVenue {
   acceptedPayments      Json     @default("[\"CASH\",\"EFT\"]") // kabul edilen ödeme yöntemleri
   approvalMode          String   @default("FULL_AUTO")         // FULL_AUTO | EFT_TIMED | PAYMENT_AUTO | MANUAL
   courtIndoorDefault    Boolean  @default(false)            // false = açık alan, true = kapalı alan (tüm kortlar için varsayılan)
+  businessIban          String?                            // EFT ödemeler için IBAN (tesis bazında)
+  businessIbanHolder    String?                            // IBAN hesap sahibi adı
   pricingWindows        Json?                              // [{from,to,price,courtId?}] saat aralığı fiyatları
   contactLinks          Json?                              // {whatsapp?,telegram?,instagram?,email?,phone?}
   lat                   Float?                             // Google Maps enlem

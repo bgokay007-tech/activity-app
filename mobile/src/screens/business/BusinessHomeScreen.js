@@ -1193,6 +1193,9 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         return init;
     });
     const [globalApprovalMode, setGlobalApprovalMode] = useState(venue.approvalMode || 'FULL_AUTO');
+    const [venueIban, setVenueIban]           = useState(venue.businessIban || '');
+    const [venueIbanHolder, setVenueIbanHolder] = useState(venue.businessIbanHolder || '');
+    const [savingIban, setSavingIban]         = useState(false);
 
     // ── Fiyatlandırma state ───────────────────────────────────────────────────
     const [localPricingWindows, setLocalPricingWindows] = useState(
@@ -1464,6 +1467,26 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { indoor: next });
             setCourtIndoors(prev => ({ ...prev, [courtId]: next }));
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+    };
+
+    const handleSaveVenueIban = async () => {
+        if (!venueIbanHolder.trim()) { Alert.alert('Hata', 'Hesap sahibi adını giriniz'); return; }
+        if (!venueIban.trim()) { Alert.alert('Hata', 'IBAN numarasını giriniz'); return; }
+        setSavingIban(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { businessIban: venueIban.trim(), businessIbanHolder: venueIbanHolder.trim() });
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingIban(false); }
+    };
+
+    const handleClearVenueIban = async () => {
+        setSavingIban(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { businessIban: null, businessIbanHolder: null });
+            setVenueIban('');
+            setVenueIbanHolder('');
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingIban(false); }
     };
 
     const handleSaveCourtPrice = async (courtId) => {
@@ -2665,6 +2688,44 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     </TouchableOpacity>
                                 );
                             })}
+
+                                        <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                            EFT / IBAN BİLGİLERİ
+                                        </Text>
+                                        <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 15 }}>
+                                            Bu tesis için EFT ödemelerinde gösterilecek banka hesabı.
+                                        </Text>
+                                        {venue.businessIban ? (
+                                            <View style={{ backgroundColor: '#22c55e10', borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#22c55e30' }}>
+                                                <Text style={{ color: '#86efac', fontSize: 12 }}>🏦 {venue.businessIbanHolder || 'Hesap Sahibi'}</Text>
+                                                <Text style={{ color: '#fff', fontSize: 12, marginTop: 2 }} selectable>{venue.businessIban}</Text>
+                                                <TouchableOpacity onPress={handleClearVenueIban} disabled={savingIban} style={{ marginTop: 8 }}>
+                                                    <Text style={{ color: '#f87171', fontSize: 11 }}>✕ IBAN Bilgisini Kaldır</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : null}
+                                        <TextInput
+                                            style={{ backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: venueIbanHolder ? BIZ_COLOR + '60' : '#ffffff15', marginBottom: 6 }}
+                                            placeholder="Hesap Sahibi Adı"
+                                            placeholderTextColor="#444"
+                                            value={venueIbanHolder}
+                                            onChangeText={setVenueIbanHolder}
+                                        />
+                                        <TextInput
+                                            style={{ backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: venueIban ? BIZ_COLOR + '60' : '#ffffff15', marginBottom: 8 }}
+                                            placeholder="TR00 0000 0000 0000 0000 0000 00"
+                                            placeholderTextColor="#444"
+                                            value={venueIban}
+                                            onChangeText={setVenueIban}
+                                            autoCapitalize="characters"
+                                        />
+                                        <TouchableOpacity
+                                            onPress={handleSaveVenueIban}
+                                            disabled={savingIban}
+                                            style={{ backgroundColor: BIZ_COLOR + '25', borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '50' }}>
+                                            {savingIban ? <ActivityIndicator size="small" color={BIZ_LIGHT} /> : <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>💾 IBAN Kaydet</Text>}
+                                        </TouchableOpacity>
                         </>
                     ) : (
                         /* ── Kort özel ayarları ── */
@@ -3576,9 +3637,6 @@ export default function BusinessHomeScreen({ navigation, route }) {
                             </TouchableOpacity>
                         )}
                     </View>
-
-                    {/* IBAN */}
-                    <IbanCard iban={iban} ibanHolder={ibanHolder} onSave={handleSaveIban} />
 
                     {/* Tesisler */}
                     <View style={s.sectionHeader}>

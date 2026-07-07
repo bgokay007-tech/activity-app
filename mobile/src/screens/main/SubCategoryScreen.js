@@ -3875,12 +3875,12 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                         )}
                                         {payMethod === 'EFT' && (
                                             <View style={vb.ibanBox}>
-                                                {venue?.user?.businessIban ? (
+                                                {(venue?.businessIban || venue?.user?.businessIban) ? (
                                                     <>
-                                                        {venue.user.businessIbanHolder && (
-                                                            <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.user.businessIbanHolder}</Text></Text>
+                                                        {(venue.businessIbanHolder || venue.user?.businessIbanHolder) && (
+                                                            <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.businessIbanHolder || venue.user?.businessIbanHolder}</Text></Text>
                                                         )}
-                                                        <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.user.businessIban}</Text></Text>
+                                                        <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.businessIban || venue.user?.businessIban}</Text></Text>
                                                     </>
                                                 ) : (
                                                     <Text style={[vb.ibanRow, { color:'#f59e0b' }]}>📞 EFT bilgisi için lütfen tesis ile iletişime geçin.</Text>
