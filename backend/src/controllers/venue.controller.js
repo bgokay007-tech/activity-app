@@ -333,15 +333,18 @@ export const getVenueSlots = async (req, res, next) => {
 export const updateCourtSettings = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
-        const { slotType, surface, lightsFrom, pricePerSlot, maintenanceDates } = req.body;
+        const { slotType, surface, lightsFrom, pricePerSlot, maintenanceDates, approvalMode } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_SURFACES = ['CLAY', 'HARD', 'CARPET', 'GRASS', 'PARQUET', 'SYNTHETIC'];
+        const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
         if (slotType && !VALID_TYPES.includes(slotType))
             return res.status(400).json({ message: 'Geçersiz slot tipi' });
         if (surface && !VALID_SURFACES.includes(surface))
             return res.status(400).json({ message: 'Geçersiz zemin tipi' });
         if (lightsFrom !== undefined && lightsFrom !== null && !/^\d{2}:\d{2}$/.test(lightsFrom))
             return res.status(400).json({ message: 'Geçersiz ışık saati formatı (HH:MM)' });
+        if (approvalMode !== undefined && approvalMode !== null && !VALID_APPROVAL.includes(approvalMode))
+            return res.status(400).json({ message: 'Geçersiz onay modu' });
 
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
@@ -352,6 +355,7 @@ export const updateCourtSettings = async (req, res, next) => {
         if (lightsFrom        !== undefined) data.lightsFrom        = lightsFrom        || null;
         if (pricePerSlot      !== undefined) data.pricePerSlot      = pricePerSlot === null ? null : (parseInt(pricePerSlot) || 0);
         if (maintenanceDates  !== undefined) data.maintenanceDates  = Array.isArray(maintenanceDates) ? maintenanceDates : null;
+        if (approvalMode      !== undefined) data.approvalMode      = approvalMode || null;
 
         const court = await prisma.venueCourt.update({ where: { id: courtId }, data });
         res.json({ court });
@@ -441,17 +445,48 @@ export const makeReservation = async (req, res, next) => {
             }
         }
 
+        const courtForApproval = await prisma.venueCourt.findUnique({ where: { id: courtId } });
+        const effectiveMode = courtForApproval?.approvalMode || venue.approvalMode || 'FULL_AUTO';
+        const pm = paymentMethod || 'CASH';
+
+        let initialStatus = 'PENDING';
+        if (effectiveMode === 'FULL_AUTO') {
+            initialStatus = 'CONFIRMED';
+        } else if (effectiveMode === 'EFT_TIMED') {
+            // EFT → PENDING (job 1 saat sonra onaylar), diğerleri → CONFIRMED
+            initialStatus = pm === 'EFT' ? 'PENDING' : 'CONFIRMED';
+        } else if (effectiveMode === 'PAYMENT_AUTO') {
+            // CASH veya ONLINE → CONFIRMED, EFT → PENDING (manuel onay gerekli)
+            initialStatus = (pm === 'CASH' || pm === 'ONLINE') ? 'CONFIRMED' : 'PENDING';
+        }
+        // MANUAL → her zaman PENDING (initialStatus zaten PENDING)
+
         const reservation = await prisma.courtReservation.create({
             data: { venueId: id, courtId, userId: req.userId, date, startTime, endTime,
-                    paymentMethod: paymentMethod || 'CASH', notes: notes || null },
+                    paymentMethod: pm, notes: notes || null, status: initialStatus },
         });
 
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
         const court = await prisma.venueCourt.findUnique({ where: { id: courtId } });
-        await createNotification(venue.userId, 'RESERVATION', '📅 Yeni Rezervasyon',
-            `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı.`,
-            { reservationId: reservation.id }
-        );
+
+        if (initialStatus === 'CONFIRMED') {
+            // İşletmeye bilgi bildirimi
+            createNotification(venue.userId, 'RESERVATION', '✅ Otomatik Onaylı Rezervasyon',
+                `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı. (Otomatik onaylandı)`,
+                { reservationId: reservation.id }
+            ).catch(() => {});
+            // Müşteriye onay bildirimi
+            createNotification(req.userId, 'RESERVATION', '✅ Rezervasyonunuz Onaylandı',
+                `${venue.name} — ${court?.name || 'Kort'} için ${date} ${startTime}–${endTime} rezervasyonunuz onaylandı.`,
+                { reservationId: reservation.id }
+            ).catch(() => {});
+            emitToUser(req.userId, 'reservationUpdate', { reservationId: reservation.id, status: 'CONFIRMED' });
+        } else {
+            await createNotification(venue.userId, 'RESERVATION', '📅 Yeni Rezervasyon',
+                `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı.`,
+                { reservationId: reservation.id }
+            );
+        }
         emitToUser(venue.userId, 'notification', {});
 
         res.status(201).json({ reservation });
@@ -479,15 +514,18 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng } = req.body;
-        const VALID_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
-        const VALID_PAY   = ['CASH', 'EFT', 'ONLINE'];
+        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode } = req.body;
+        const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
+        const VALID_PAY      = ['CASH', 'EFT', 'ONLINE'];
+        const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
         if (slotType && !VALID_TYPES.includes(slotType))
             return res.status(400).json({ message: 'Geçersiz slot tipi' });
         if (acceptedPayments !== undefined) {
             if (!Array.isArray(acceptedPayments) || acceptedPayments.length === 0 || acceptedPayments.some(m => !VALID_PAY.includes(m)))
                 return res.status(400).json({ message: 'Geçersiz ödeme yöntemi' });
         }
+        if (approvalMode !== undefined && !VALID_APPROVAL.includes(approvalMode))
+            return res.status(400).json({ message: 'Geçersiz onay modu' });
 
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
@@ -503,6 +541,7 @@ export const updateVenueSettings = async (req, res, next) => {
         if (lng !== undefined)                   data.lng                  = lng !== null ? parseFloat(lng) : null;
         if (cancelHoursBefore !== undefined)     data.cancelHoursBefore    = cancelHoursBefore === null ? null : parseInt(cancelHoursBefore);
         if (rescheduleHoursBefore !== undefined) data.rescheduleHoursBefore = rescheduleHoursBefore === null ? null : parseInt(rescheduleHoursBefore);
+        if (approvalMode !== undefined)          data.approvalMode          = approvalMode;
 
         const updated = await prisma.businessVenue.update({ where: { id }, data });
         res.json({ venue: updated });

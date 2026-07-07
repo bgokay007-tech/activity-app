@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     StatusBar, Platform, Alert, ActivityIndicator, Modal, Image,
-    TextInput, Switch, FlatList,
+    TextInput, Switch, FlatList, BackHandler,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
@@ -1162,8 +1162,19 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         () => (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom || null
     );
     const [showVenueLightsPicker, setShowVenueLightsPicker] = useState(false);
-    const [savingSlot, setSavingSlot]         = useState(false);
+    const [savingSlot, setSavingSlot]           = useState(false);
+    const [savingApproval, setSavingApproval]   = useState(false);
     const [expandedCourtId, setExpandedCourtId] = useState(null);
+
+    const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
+    const [courtApprovalModes, setCourtApprovalModes] = useState(() => {
+        const init = {};
+        (venue.courts || []).forEach(c => {
+            init[c.id] = (VALID_APPROVAL.includes(c.approvalMode) ? c.approvalMode : null) || venue.approvalMode || 'FULL_AUTO';
+        });
+        return init;
+    });
+    const [globalApprovalMode, setGlobalApprovalMode] = useState(venue.approvalMode || 'FULL_AUTO');
 
     // ── Fiyatlandırma state ───────────────────────────────────────────────────
     const [localPricingWindows, setLocalPricingWindows] = useState(
@@ -1423,6 +1434,32 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { pricePerSlot: p });
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingPrice(false); }
+    };
+
+    const handleGlobalApprovalMode = async (mode) => {
+        if (globalApprovalMode === mode) return;
+        setSavingApproval(true);
+        try {
+            await Promise.all([
+                api.patch(`/venues/${venue.id}/settings`, { approvalMode: mode }),
+                ...sortedCourts.map(c => api.patch(`/venues/${venue.id}/courts/${c.id}/settings`, { approvalMode: null })),
+            ]);
+            const upd = {};
+            sortedCourts.forEach(c => { upd[c.id] = mode; });
+            setCourtApprovalModes(prev => ({ ...prev, ...upd }));
+            setGlobalApprovalMode(mode);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingApproval(false); }
+    };
+
+    const handleCourtApprovalMode = async (courtId, mode) => {
+        if (courtApprovalModes[courtId] === mode) return;
+        setSavingApproval(true);
+        try {
+            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { approvalMode: mode });
+            setCourtApprovalModes(prev => ({ ...prev, [courtId]: mode }));
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingApproval(false); }
     };
 
     const handleGlobalSlotType = async (type) => {
@@ -2453,6 +2490,43 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     <Text style={{ color: '#fca5a5', fontSize: 12 }}>+ Tüm Kortlara Bakım Dönemi Ekle</Text>
                                 </TouchableOpacity>
                             )}
+
+                            {/* ── Onay Sistemi (global) ── */}
+                            <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 16 }} />
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                REZERVASYON ONAY SİSTEMİ
+                            </Text>
+                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>
+                                Tüm kortlara uygulanır. Kort bazında özelleştirebilirsiniz.
+                            </Text>
+                            {[
+                                { key: 'FULL_AUTO',    title: 'Tümünü Otomatik Onayla', desc: 'Her ödeme türü anında onaylanır.' },
+                                { key: 'EFT_TIMED',    title: 'EFT → 1 Saat Bekle',    desc: 'EFT 1 saat onaylanmazsa otomatik onaylanır. Nakit/Online anında onaylanır.' },
+                                { key: 'PAYMENT_AUTO', title: 'Nakit/Online Otomatik',  desc: 'Nakit ve online ödemeler otomatik onaylanır. EFT manuel onay bekler.' },
+                                { key: 'MANUAL',       title: 'Manuel Onay',            desc: 'Tüm rezervasyonlar işletme onayı bekler.' },
+                            ].map(opt => {
+                                const isActive = globalApprovalMode === opt.key;
+                                return (
+                                    <TouchableOpacity key={opt.key}
+                                        style={[vc.settingCard, isActive && vc.settingCardActive]}
+                                        onPress={() => handleGlobalApprovalMode(opt.key)}
+                                        disabled={savingApproval}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                                            <View style={[vc.radio, isActive && vc.radioActive]}>
+                                                {isActive && <View style={vc.radioDot} />}
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 13 }}>
+                                                    {opt.title}
+                                                </Text>
+                                                <Text style={{ color: '#777', fontSize: 11, marginTop: 3, lineHeight: 16 }}>
+                                                    {opt.desc}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </>
                     ) : (
                         /* ── Kort özel ayarları ── */
@@ -2693,6 +2767,40 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         <Text style={{ color: '#fca5a5', fontSize: 12 }}>+ Bakım Dönemi Ekle</Text>
                                     </TouchableOpacity>
                                 )}
+
+                                    {/* ── Onay Sistemi (per-court) ── */}
+                                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 14 }} />
+                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                        REZERVASYON ONAY SİSTEMİ
+                                    </Text>
+                                    {[
+                                        { key: 'FULL_AUTO',    title: 'Tümünü Otomatik', desc: 'Her ödeme anında onaylanır.' },
+                                        { key: 'EFT_TIMED',    title: 'EFT 1 Saat Bekle', desc: 'EFT 1 saat onaylanmazsa otomatik. Nakit/Online anında.' },
+                                        { key: 'PAYMENT_AUTO', title: 'Nakit/Online Otomatik', desc: 'EFT manuel onay bekler.' },
+                                        { key: 'MANUAL',       title: 'Manuel Onay',      desc: 'Tümü işletme onayı bekler.' },
+                                    ].map(opt => {
+                                        const isActive = (courtApprovalModes[court.id] || globalApprovalMode) === opt.key;
+                                        return (
+                                            <TouchableOpacity key={opt.key}
+                                                style={[vc.settingCard, isActive && vc.settingCardActive]}
+                                                onPress={() => handleCourtApprovalMode(court.id, opt.key)}
+                                                disabled={savingApproval}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                                                    <View style={[vc.radio, isActive && vc.radioActive]}>
+                                                        {isActive && <View style={vc.radioDot} />}
+                                                    </View>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '700', fontSize: 12 }}>
+                                                            {opt.title}
+                                                        </Text>
+                                                        <Text style={{ color: '#666', fontSize: 11, marginTop: 2, lineHeight: 15 }}>
+                                                            {opt.desc}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
 
                             </View>
                         );
@@ -3175,6 +3283,14 @@ export default function BusinessHomeScreen({ navigation, route }) {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
+    // Geri tuşu — uygulamadan çıkışı engelle
+    useEffect(() => {
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+            if (navigation.canGoBack()) return false; // normal geri navigasyonuna izin ver
+            return true; // uygulamadan çıkışı engelle
+        });
+        return () => sub.remove();
+    }, [navigation]);
 
     const handlePurchase = async (packageType) => {
         setSubmitting(true);
