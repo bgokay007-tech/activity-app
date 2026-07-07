@@ -3574,30 +3574,32 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                     {!loadingV && venue && (
                         <View style={{ flex:1 }}>
                             {/* Tarih Seçici — 14 günlük yatay strip */}
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                style={vb.dateStrip}
-                                contentContainerStyle={{ paddingHorizontal:10, paddingVertical:8, gap:6 }}>
-                                {Array.from({length:14}, (_,i) => {
-                                    const d = new Date();
-                                    d.setDate(d.getDate() + i);
-                                    const yStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                    const isSel = selDate === yStr;
-                                    return (
-                                        <TouchableOpacity key={yStr} onPress={() => setSelDate(yStr)}
-                                            style={[vb.dateChip, isSel && vb.dateChipSel]}>
-                                            <Text style={[vb.dateChipDay, isSel && vb.dateChipDaySel]}>
-                                                {d.toLocaleDateString('tr-TR', { weekday:'short' })}
-                                            </Text>
-                                            <Text style={[vb.dateChipNum, isSel && vb.dateChipNumSel]}>
-                                                {d.getDate()}
-                                            </Text>
-                                            <Text style={[vb.dateChipMonth, isSel && vb.dateChipMonthSel]}>
-                                                {d.toLocaleDateString('tr-TR', { month:'short' })}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
+                            <View style={vb.dateStrip}>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                                    style={{ flex:1 }}
+                                    contentContainerStyle={{ paddingHorizontal:10, paddingVertical:6, gap:6, alignItems:'center' }}>
+                                    {Array.from({length:14}, (_,i) => {
+                                        const d = new Date();
+                                        d.setDate(d.getDate() + i);
+                                        const yStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                        const isSel = selDate === yStr;
+                                        return (
+                                            <TouchableOpacity key={yStr} onPress={() => setSelDate(yStr)}
+                                                style={[vb.dateChip, isSel && vb.dateChipSel]}>
+                                                <Text style={[vb.dateChipDay, isSel && vb.dateChipDaySel]}>
+                                                    {d.toLocaleDateString('tr-TR', { weekday:'short' })}
+                                                </Text>
+                                                <Text style={[vb.dateChipNum, isSel && vb.dateChipNumSel]}>
+                                                    {d.getDate()}
+                                                </Text>
+                                                <Text style={[vb.dateChipMonth, isSel && vb.dateChipMonthSel]}>
+                                                    {d.toLocaleDateString('tr-TR', { month:'short' })}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+                            </View>
 
                             {/* Legend */}
                             <View style={[vb.legend, { paddingHorizontal:14, marginBottom:4 }]}>
@@ -3721,7 +3723,7 @@ const vb = StyleSheet.create({
     tabTxt:       { color:'#888', fontSize:13, fontWeight:'600' },
     tabTxtActive: { color:'#c084fc', fontWeight:'700' },
 
-    dateStrip:        { height:72, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
+    dateStrip:        { height:68, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
     dateChip:         { alignItems:'center', paddingVertical:6, paddingHorizontal:8, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:46 },
     dateChipSel:      { backgroundColor:'#16a34a30', borderColor:'#22c55e' },
     dateChipDay:      { color:'#888', fontSize:9, fontWeight:'700', textTransform:'uppercase', marginBottom:1 },
