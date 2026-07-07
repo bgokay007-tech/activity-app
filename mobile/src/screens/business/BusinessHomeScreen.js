@@ -1109,7 +1109,7 @@ const MENU_CATS = [
 const ORDER_COLORS = { PENDING:'#eab308', CONFIRMED:'#3b82f6', READY:'#22c55e', CANCELLED:'#ef4444' };
 const ORDER_LABELS = { PENDING:'⏳ Bekliyor', CONFIRMED:'✅ Onaylandı', READY:'🟢 Hazır', CANCELLED:'❌ İptal' };
 
-function VenueCard({ venue, sub, onDelete, navigation }) {
+function VenueCard({ venue, sub, onDelete, navigation, openReservations = false }) {
     const isApproved = venue.status === 'APPROVED';
     const isPro = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
     const [activeTab, setActiveTab] = useState('info');
@@ -1280,6 +1280,14 @@ function VenueCard({ venue, sub, onDelete, navigation }) {
         try { const { data } = await api.get(`/venues/${venue.id}/reservations`); setReservations(data); }
         catch {} finally { setResLoaded(true); }
     };
+
+    useEffect(() => {
+        if (openReservations) {
+            setActiveTab('reservations');
+            setScheduleOpen(true);
+            if (!resLoaded) loadReservations();
+        }
+    }, [openReservations]);
 
     const handleTab = (tab) => {
         setActiveTab(tab);
@@ -3157,12 +3165,6 @@ export default function BusinessHomeScreen({ navigation, route }) {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
-    useEffect(() => {
-        if (route?.params?.openReservations && venues.length > 0) {
-            setScheduleOpen(true);
-            if (!resLoaded) loadReservations();
-        }
-    }, [route?.params?.openReservations, venues.length]);
 
     const handlePurchase = async (packageType) => {
         setSubmitting(true);
@@ -3293,7 +3295,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
                         </View>
                     ) : (
                         venues.map(v => (
-                            <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} />
+                            <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={route?.params?.openReservations === true} />
                         ))
                     )}
 

@@ -2,6 +2,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
@@ -40,11 +41,16 @@ const TYPE_ICON = {
     TOURNAMENT_CANCEL_APPROVED: '✅',
     TOURNAMENT_CANCEL_REJECTED: '❌',
     TOURNAMENT_REMOVED: '🚫',
+    RESERVATION: '📅',
+    RESERVATION_UPDATE: '🔄',
+    VENUE_ORDER: '🛒',
+    PAYMENT_ALERT: '💳',
     default: '🔔',
 };
 
 export default function NotificationsScreen({ navigation }) {
     const t = useT();
+    const isBusiness = useSelector(s => s.auth.user?.isBusiness);
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -145,6 +151,12 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('tournaments', null, data.tournamentId || null);
         } else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') {
             goToSub('tournaments');
+        } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'VENUE_ORDER' || type === 'PAYMENT_ALERT') {
+            if (isBusiness) {
+                navigation.navigate('BusinessApp', { openReservations: true });
+            } else {
+                navigation.navigate('HomeTab', { screen: 'MyReservations' });
+            }
         } else if (data.category && data.subCategory) {
             goToSub('rivals');
         }
