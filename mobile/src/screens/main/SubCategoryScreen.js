@@ -3494,7 +3494,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             onBooked?.(courtObj, selDate, slot.start, endTime, reservationId);
             setBooked(true);
         } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon yapılamadı');
+            const status  = e?.response?.status;
+            const srvMsg  = e?.response?.data?.message;
+            const netCode = e?.code;
+            const detail  = srvMsg
+                || (netCode === 'ECONNABORTED' ? 'Bağlantı zaman aşımına uğradı (30 sn)' : null)
+                || (netCode ? `Ağ hatası: ${netCode}` : null)
+                || e?.message
+                || 'Rezervasyon yapılamadı';
+            Alert.alert('Hata', status ? `[${status}] ${detail}` : detail);
         } finally { setBooking(false); }
     };
 
