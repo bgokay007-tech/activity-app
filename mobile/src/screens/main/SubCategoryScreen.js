@@ -3489,7 +3489,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             });
             const reservationId = resResp.data?.reservation?.id || null;
             const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
-            const courtTotalPrice = venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0;
+            const courtTotalPrice = slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0);
             const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice };
             onBooked?.(courtObj, selDate, slot.start, endTime, reservationId);
             setBooked(true);
@@ -3631,11 +3631,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:6 }}>
                                                     {[60,90,120,150,180].filter(d => startM + d <= winEndM).map(d => {
                                                         const isSd = varDurMap[court.id] === d;
+                                                        const dPrice = w.pricePerHour != null ? Math.round(w.pricePerHour*(d/60)) : null;
                                                         return (
                                                             <TouchableOpacity key={d}
                                                                 onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setSelSlot(null); }}
                                                                 style={{ flex:1, minWidth:36, paddingVertical:5, borderRadius:8, backgroundColor: isSd ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSd ? '#9333ea' : '#ffffff20' }}>
                                                                 <Text style={{ color: isSd ? '#fff' : '#aaa', fontSize:10, fontWeight:'700' }}>{d<60?`${d}dk`:`${d/60}sa`}</Text>
+                                                                {dPrice != null && dPrice > 0 && (
+                                                                    <Text style={{ color: isSd ? '#bbf7d0' : '#6b7280', fontSize:9, fontWeight:'700', marginTop:1 }}>{dPrice}₺</Text>
+                                                                )}
                                                             </TouchableOpacity>
                                                         );
                                                     })}
@@ -3648,6 +3652,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                                         <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>
                                                             {isReserved ? '✅ Seçildi' : `${customStart}–${endT} Rezerve Et`}
                                                         </Text>
+                                                        {!isReserved && (() => { const bp = w.pricePerHour != null ? Math.round(w.pricePerHour*(dur/60)) : (venue?.pricePerSlot||null); return bp>0 ? <Text style={{ color:'#bbf7d0', fontSize:10, fontWeight:'700', marginTop:1 }}>{bp}₺</Text> : null; })()}
                                                     </TouchableOpacity>
                                                 )}
                                             </>)}
