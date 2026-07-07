@@ -3690,18 +3690,14 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                         );
                     })()}
 
-                    {/* initialCourtId seçili kort bilgisi */}
-                    {venue && initialCourtId && (() => {
-                        const initCourt = venue.courts?.find(c => c.id === initialCourtId);
-                        if (!initCourt) return null;
-                        return (
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:14, paddingBottom:6 }}>
-                                <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#9333ea50' }}>
-                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>🎾 {initCourt.name}</Text>
-                                </View>
+                    {/* İşletme konumu chip */}
+                    {venue && initialCourtId && (
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:14, paddingBottom:6 }}>
+                            <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#9333ea50' }}>
+                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📍 {venue.name}</Text>
                             </View>
-                        );
-                    })()}
+                        </View>
+                    )}
 
                     {loadingV && <ActivityIndicator color="#22c55e" style={{ marginVertical: 28 }} />}
 
