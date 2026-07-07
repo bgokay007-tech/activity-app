@@ -1469,12 +1469,18 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
     };
 
+    const [savedIban, setSavedIban]             = useState(venue.businessIban || null);
+    const [savedIbanHolder, setSavedIbanHolder] = useState(venue.businessIbanHolder || null);
+
     const handleSaveVenueIban = async () => {
         if (!venueIbanHolder.trim()) { Alert.alert('Hata', 'Hesap sahibi adını giriniz'); return; }
         if (!venueIban.trim()) { Alert.alert('Hata', 'IBAN numarasını giriniz'); return; }
         setSavingIban(true);
         try {
             await api.patch(`/venues/${venue.id}/settings`, { businessIban: venueIban.trim(), businessIbanHolder: venueIbanHolder.trim() });
+            setSavedIban(venueIban.trim());
+            setSavedIbanHolder(venueIbanHolder.trim());
+            Alert.alert('Kaydedildi', 'IBAN bilgileri güncellendi.');
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingIban(false); }
     };
@@ -1485,6 +1491,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             await api.patch(`/venues/${venue.id}/settings`, { businessIban: null, businessIbanHolder: null });
             setVenueIban('');
             setVenueIbanHolder('');
+            setSavedIban(null);
+            setSavedIbanHolder(null);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingIban(false); }
     };
@@ -1932,6 +1940,40 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 </View>
                             );
                         })()}
+
+                        {/* Kort Listesi */}
+                        {(venue.courts || []).length > 0 && (() => {
+                            const SLOT_SHORT = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk', VAR_DURATION: 'Esnek', FLEXIBLE: 'Esnek' };
+                            const SURF_ICON  = { CLAY: '🟤', HARD: '⬜', CARPET: '🟥', GRASS: '🌿', PARQUET: '🟫', SYNTHETIC: '🟩' };
+                            return (
+                                <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 }}>
+                                    <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 8 }}>KORTLAR</Text>
+                                    {(venue.courts || []).map(c => {
+                                        const slotT  = c.slotType || venue.slotType || 'FULL_HOUR';
+                                        const effIndoor = c.indoor ?? venue.courtIndoorDefault ?? false;
+                                        const price  = c.pricePerSlot != null ? c.pricePerSlot : venue.pricePerSlot;
+                                        return (
+                                            <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#ffffff08', gap: 6 }}>
+                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', flex: 1 }}>{c.name}</Text>
+                                                {c.surface ? <Text style={{ fontSize: 11 }}>{SURF_ICON[c.surface] || ''}</Text> : null}
+                                                <Text style={{ color: '#a78bfa', fontSize: 10, backgroundColor: '#a78bfa15', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>{SLOT_SHORT[slotT] || slotT}</Text>
+                                                <Text style={{ color: effIndoor ? '#818cf8' : '#22d3ee', fontSize: 10 }}>{effIndoor ? '🏠' : '🌤️'}</Text>
+                                                {price > 0 ? <Text style={{ color: '#fbbf24', fontSize: 10 }}>💰{price}₺</Text> : null}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            );
+                        })()}
+
+                        {/* IBAN Özeti */}
+                        {savedIban ? (
+                            <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 }}>
+                                <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6 }}>EFT / IBAN</Text>
+                                <Text style={{ color: '#86efac', fontSize: 11 }}>🏦 {savedIbanHolder}</Text>
+                                <Text style={{ color: '#aaa', fontSize: 11, marginTop: 2 }} selectable>{savedIban}</Text>
+                            </View>
+                        ) : null}
 
                         <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting} activeOpacity={0.8}>
                             {deleting ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={vc.deleteBtnText}>Tesisi Sil</Text>}
@@ -2696,10 +2738,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 15 }}>
                                             Bu tesis için EFT ödemelerinde gösterilecek banka hesabı.
                                         </Text>
-                                        {venue.businessIban ? (
+                                        {savedIban ? (
                                             <View style={{ backgroundColor: '#22c55e10', borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#22c55e30' }}>
-                                                <Text style={{ color: '#86efac', fontSize: 12 }}>🏦 {venue.businessIbanHolder || 'Hesap Sahibi'}</Text>
-                                                <Text style={{ color: '#fff', fontSize: 12, marginTop: 2 }} selectable>{venue.businessIban}</Text>
+                                                <Text style={{ color: '#86efac', fontSize: 12 }}>🏦 {savedIbanHolder || 'Hesap Sahibi'}</Text>
+                                                <Text style={{ color: '#fff', fontSize: 12, marginTop: 2 }} selectable>{savedIban}</Text>
                                                 <TouchableOpacity onPress={handleClearVenueIban} disabled={savingIban} style={{ marginTop: 8 }}>
                                                     <Text style={{ color: '#f87171', fontSize: 11 }}>✕ IBAN Bilgisini Kaldır</Text>
                                                 </TouchableOpacity>
