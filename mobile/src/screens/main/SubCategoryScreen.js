@@ -3498,15 +3498,30 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         } finally { setBooking(false); }
     };
 
+    const slotTypeLabel = (type) => {
+        if (type === 'FULL_HOUR')   return { label: 'Tam Saat',   color: '#22d3ee', bg: '#083344' };
+        if (type === 'HALF_HOUR')   return { label: 'Buçuklu',    color: '#a3e635', bg: '#1a2e05' };
+        if (type === 'NINETY_MIN')  return { label: '90 Dakika',  color: '#fb923c', bg: '#431407' };
+        if (type === 'VAR_DURATION') return { label: 'Esnek Saat', color: '#c084fc', bg: '#2e1065' };
+        if (type === 'FLEXIBLE')    return { label: 'Esnek Saat', color: '#c084fc', bg: '#2e1065' };
+        return null;
+    };
+
     const renderCourtCol = (court) => {
         const cs = courtsSlots[court.id];
         const cData = cs?.data;
         const isStructured = cData && (cData.type === 'FULL_HOUR' || cData.type === 'HALF_HOUR' || cData.type === 'NINETY_MIN');
         const isWindow = cData && (cData.type === 'FLEXIBLE' || cData.type === 'VAR_DURATION');
+        const typeInfo = cData ? slotTypeLabel(cData.type) : null;
 
         return (
             <View key={court.id} style={vb.courtCol}>
                 <Text style={vb.courtColTitle}>{court.name}</Text>
+                {typeInfo && (
+                    <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:6, paddingVertical:2, marginBottom:4, borderWidth:1, borderColor: typeInfo.color + '60' }}>
+                        <Text style={{ color: typeInfo.color, fontSize:9, fontWeight:'800', letterSpacing:0.3 }}>{typeInfo.label}</Text>
+                    </View>
+                )}
                 {court.lightsFrom && (
                     <TouchableOpacity style={vb.lightsRow} activeOpacity={0.7}
                         onPress={() => Alert.alert('💡 Gece Işıkları', `Bu kortta gece ışıkları ${court.lightsFrom} itibarıyla açılır.\nGündüz saatlerinde ışık olmayabilir.`)}>
