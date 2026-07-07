@@ -3348,7 +3348,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                 onClose={() => setScheduleOpen(false)}
                 onUserPress={(user) => {
                     setScheduleOpen(false);
-                    navigation?.navigate('Profile', { userId: user.id });
+                    navigation?.navigate('App', { screen: 'HomeTab', params: { screen: 'Profile', params: { userId: user.id } } });
                 }}
             />
             <VenueAnalyticsModal
