@@ -353,6 +353,37 @@ export const makeReservation = async (req, res, next) => {
         const hasConflict = existing.some(r => overlaps(startMins, endMins, toMins(r.startTime), toMins(r.endTime)));
         if (hasConflict) return res.status(409).json({ message: 'Bu saat aralığı dolu' });
 
+        // Boşluk kontrolü: rezervasyon pencere başında/sonunda veya aralarda <60 dk boşluk bırakamaz
+        {
+            const courtInfo = await prisma.venueCourt.findUnique({ where: { id: courtId } });
+            const VSGT = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
+            const effType = (VSGT.includes(courtInfo?.slotType) ? courtInfo.slotType : null)
+                || (venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : venue.slotType)
+                || 'FULL_HOUR';
+            const minGap = effType === 'NINETY_MIN' ? 90 : 60;
+
+            const openWins = getOpenWindows(venue, date, courtId);
+            const allBooked = [
+                ...existing.map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime) })),
+                { s: startMins, e: endMins },
+            ].sort((a, b) => a.s - b.s);
+
+            for (const w of openWins) {
+                const wS = toMins(w.from), wE = toMins(w.to);
+                let cur = wS;
+                for (const b of allBooked) {
+                    if (b.e <= wS || b.s >= wE) continue;
+                    const gap = Math.min(b.s, wE) - cur;
+                    if (gap > 0 && gap < minGap)
+                        return res.status(400).json({ message: `Bu rezervasyon ${toTime(cur)}–${toTime(Math.min(b.s, wE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
+                    cur = Math.max(cur, b.e);
+                }
+                const tail = wE - cur;
+                if (tail > 0 && tail < minGap)
+                    return res.status(400).json({ message: `Bu rezervasyon sonrasında ${toTime(cur)}–${toTime(wE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
+            }
+        }
+
         const reservation = await prisma.courtReservation.create({
             data: { venueId: id, courtId, userId: req.userId, date, startTime, endTime,
                     paymentMethod: paymentMethod || 'CASH', notes: notes || null },

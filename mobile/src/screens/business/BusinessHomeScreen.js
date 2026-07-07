@@ -2829,44 +2829,48 @@ export default function BusinessHomeScreen({ navigation, route }) {
 
             {/* Ülke kodu seçici */}
             <Modal visible={ccPickerKey !== null} transparent animationType="slide" onRequestClose={() => setCcPickerKey(null)}>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000088' }} activeOpacity={1} onPress={() => setCcPickerKey(null)} />
-                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
-                    backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-                    maxHeight: '70%', paddingTop: 16 }}>
-                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', textAlign: 'center', marginBottom: 12 }}>
-                        Ülke Kodu Seç
-                    </Text>
-                    <View style={{ marginHorizontal: 16, marginBottom: 10,
-                        backgroundColor: '#ffffff0a', borderRadius: 10, flexDirection: 'row', alignItems: 'center',
-                        borderWidth: 1, borderColor: '#ffffff15' }}>
-                        <TextInput
-                            style={{ flex: 1, color: '#fff', fontSize: 14, paddingHorizontal: 12, paddingVertical: 9 }}
-                            placeholder="Ülke veya kod ara..."
-                            placeholderTextColor="#555"
-                            value={ccSearch}
-                            onChangeText={setCcSearch}
-                            autoFocus
+                <View style={{ flex: 1 }}>
+                    <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000088' }} activeOpacity={1} onPress={() => setCcPickerKey(null)} />
+                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                        backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                        maxHeight: '70%', paddingTop: 16 }}>
+                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', textAlign: 'center', marginBottom: 12 }}>
+                            Ülke Kodu Seç
+                        </Text>
+                        <View style={{ marginHorizontal: 16, marginBottom: 10,
+                            backgroundColor: '#ffffff0a', borderRadius: 10,
+                            borderWidth: 1, borderColor: '#ffffff15' }}>
+                            <TextInput
+                                style={{ color: '#fff', fontSize: 14, paddingHorizontal: 12, paddingVertical: 9 }}
+                                placeholder="Ülke veya kod ara..."
+                                placeholderTextColor="#555"
+                                value={ccSearch}
+                                onChangeText={setCcSearch}
+                                autoFocus
+                            />
+                        </View>
+                        <FlatList
+                            data={COUNTRIES.filter(c =>
+                                c.name.toLowerCase().includes(ccSearch.toLowerCase()) ||
+                                c.code.includes(ccSearch)
+                            )}
+                            keyExtractor={(_, idx) => String(idx)}
+                            keyboardShouldPersistTaps="handled"
+                            style={{ flexGrow: 0 }}
+                            renderItem={({ item: c }) => (
+                                <TouchableOpacity
+                                    onPress={() => { setLocalCCs(p => ({ ...p, [ccPickerKey]: c.code })); setCcPickerKey(null); }}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12,
+                                        paddingHorizontal: 20, paddingVertical: 11,
+                                        borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                                    <Text style={{ fontSize: 22 }}>{c.flag}</Text>
+                                    <Text style={{ flex: 1, color: '#ccc', fontSize: 14 }}>{c.name}</Text>
+                                    <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '700' }}>{c.code}</Text>
+                                </TouchableOpacity>
+                            )}
                         />
+                        <View style={{ height: 24 }} />
                     </View>
-                    <FlatList
-                        data={COUNTRIES.filter(c =>
-                            c.name.toLowerCase().includes(ccSearch.toLowerCase()) ||
-                            c.code.includes(ccSearch)
-                        )}
-                        keyExtractor={(_, idx) => String(idx)}
-                        keyboardShouldPersistTaps="handled"
-                        renderItem={({ item: c }) => (
-                            <TouchableOpacity
-                                onPress={() => { setLocalCCs(p => ({ ...p, [ccPickerKey]: c.code })); setCcPickerKey(null); }}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 12,
-                                    paddingHorizontal: 20, paddingVertical: 11,
-                                    borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
-                                <Text style={{ fontSize: 22 }}>{c.flag}</Text>
-                                <Text style={{ flex: 1, color: '#ccc', fontSize: 14 }}>{c.name}</Text>
-                                <Text style={{ color: BIZ_COLOR, fontSize: 13, fontWeight: '700' }}>{c.code}</Text>
-                            </TouchableOpacity>
-                        )}
-                    />
                 </View>
             </Modal>
         </View>
