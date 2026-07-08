@@ -322,7 +322,7 @@ export const getCourtRatings = async (req, res, next) => {
         const [ratings, agg] = await Promise.all([
             prisma.courtRating.findMany({
                 where: { courtId: id },
-                include: { user: { select: { id: true, username: true, profileImage: true } } },
+                include: { user: { select: { id: true, username: true, avatar: true } } },
                 orderBy: { createdAt: 'desc' },
                 take: 30,
             }),
