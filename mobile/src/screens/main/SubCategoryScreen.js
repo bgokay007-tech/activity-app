@@ -93,7 +93,7 @@ function getTabs(sub) {
     if (sub === 'football' || sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', ...(sub==='football' ? ['referee'] : []), 'media'];
     if (sub === 'tennis' || sub === 'padel')
-        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'archive', 'news'];
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'news', 'archive'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
 }
 
@@ -9098,7 +9098,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (loadingVenues) return;
         setLoadingVenues(true);
         try {
-            const { data } = await api.get('/venues/search', { params: { branch: sub } });
+            const { data } = await api.get('/venues/search', { params: { branch: sub, ratingMode: 'true' } });
             setVenuesList(Array.isArray(data) ? data : []);
             setVenuesLoaded(true);
         } catch { setVenuesList([]); setVenuesLoaded(true); }
@@ -9745,7 +9745,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                         <TouchableOpacity onPress={() => { if (!venuesLoaded) loadVenues(); setShowVenuesSheet(true); }}
                             style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
-                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>🏟️ Kortlar</Text>
+                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? '🏟️ Kortlar' : '🏟️ Courts'}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
                             <Text style={{ fontSize:19 }}>ℹ️</Text>
