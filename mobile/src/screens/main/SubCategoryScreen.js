@@ -9099,24 +9099,27 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (activeTab === 'news') loadNews();
     }, [activeTab, lang]);
 
-    const loadVenues = useCallback(async (city = '', name = '') => {
-        if (loadingVenues) return;
+    const fetchVenues = async (city, name) => {
         setLoadingVenues(true);
         try {
             const params = { ratingMode: 'true', skip: 0, take: 20 };
-            if (city.trim()) params.city = city.trim();
-            if (name.trim()) params.name = name.trim();
+            if (city && city.trim()) params.city = city.trim();
+            if (name && name.trim()) params.name = name.trim();
             const { data } = await api.get('/venues/search', { params });
-            setVenuesList(data?.items || []);
-            setVenuesTotal(data?.total || 0);
-            setVenuesHasMore(data?.hasMore || false);
-            setVenuesLoaded(true);
+            setVenuesList(data?.items ?? []);
+            setVenuesTotal(data?.total ?? 0);
+            setVenuesHasMore(data?.hasMore ?? false);
         } catch (e) {
-            console.log('loadVenues error:', e?.response?.status, e?.message);
+            console.log('fetchVenues error', e?.response?.status, e?.message);
             setVenuesList([]);
+        } finally {
+            setLoadingVenues(false);
         }
-        finally { setLoadingVenues(false); }
-    }, []);
+    };
+
+    useEffect(() => {
+        if (showVenuesSheet) fetchVenues('', '');
+    }, [showVenuesSheet]);
 
     const loadMoreVenues = async () => {
         if (loadingMoreVenues || !venuesHasMore) return;
@@ -9131,9 +9134,6 @@ export default function SubCategoryScreen({ route, navigation }) {
         } catch {}
         finally { setLoadingMoreVenues(false); }
     };
-
-    useEffect(() => {
-    }, [activeTab]);
 
     const openVenueReview = async (venue) => {
         setVrLoading(true);
@@ -9770,7 +9770,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
                 {(sub === 'tennis' || sub === 'padel') && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                        <TouchableOpacity onPress={() => { loadVenues('', ''); setShowVenuesSheet(true); }}
+                        <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
                             style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
                             <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? '🏟️ Kortlar' : '🏟️ Courts'}</Text>
                         </TouchableOpacity>
@@ -11202,11 +11202,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     placeholder={lang === 'tr' ? 'Tesis / kort adı ara...' : 'Search venue / court name...'}
                                     placeholderTextColor={colors.textMuted}
                                     value={venueFilterName}
-                                    onChangeText={v => { setVenueFilterName(v); loadVenues(venueFilterCity, v); }}
+                                    onChangeText={v => { setVenueFilterName(v); fetchVenues(venueFilterCity, v); }}
                                     returnKeyType="search"
                                 />
                                 {!!venueFilterName && (
-                                    <TouchableOpacity onPress={() => { setVenueFilterName(''); loadVenues(venueFilterCity, ''); setVenueFilterName(''); }}>
+                                    <TouchableOpacity onPress={() => { setVenueFilterName(''); fetchVenues(venueFilterCity, ''); }}>
                                         <Text style={{ color: colors.textMuted, fontSize:16, paddingLeft:6 }}>✕</Text>
                                     </TouchableOpacity>
                                 )}
@@ -11218,11 +11218,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     placeholder={lang === 'tr' ? 'Şehir / ilçe filtrele...' : 'Filter by city / district...'}
                                     placeholderTextColor={colors.textMuted}
                                     value={venueFilterCity}
-                                    onChangeText={v => { setVenueFilterCity(v); loadVenues(v, venueFilterName); }}
+                                    onChangeText={v => { setVenueFilterCity(v); fetchVenues(v, venueFilterName); }}
                                     returnKeyType="search"
                                 />
                                 {!!venueFilterCity && (
-                                    <TouchableOpacity onPress={() => { setVenueFilterCity(''); loadVenues('', venueFilterName); }}>
+                                    <TouchableOpacity onPress={() => { setVenueFilterCity(''); fetchVenues('', venueFilterName); }}>
                                         <Text style={{ color: colors.textMuted, fontSize:16, paddingLeft:6 }}>✕</Text>
                                     </TouchableOpacity>
                                 )}
