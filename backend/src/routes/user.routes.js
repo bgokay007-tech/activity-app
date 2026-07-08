@@ -21,6 +21,7 @@ router.delete('/:userId/follow',       authenticate, unfollowUser);
 router.delete('/:userId/follower',     authenticate, removeFollower);
 router.get('/:userId',                 authenticate, getProfile);
 router.patch('/me',                    authenticate, updateProfile);
+router.post('/me',                     authenticate, updateProfile);
 router.post('/me/change-requests',     authenticate, submitProfileChangeRequest);
 router.get('/me/change-requests',      authenticate, getMyProfileChangeRequests);
 

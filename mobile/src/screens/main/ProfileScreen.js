@@ -2061,7 +2061,7 @@ export default function ProfileScreen({ route, navigation }) {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
                 const serverUrl = uploadData.url;
-                await api.patch('/users/me', { avatar: serverUrl });
+                await api.post('/users/me', { avatar: serverUrl });
                 setProfile(p => ({ ...p, avatar: serverUrl }));
                 dispatch(setUser({ ...profile, avatar: serverUrl }));
             } catch (e) { console.warn(e?.message); Alert.alert('Hata', 'Profil resmi yüklenemedi.'); }
@@ -2197,7 +2197,7 @@ export default function ProfileScreen({ route, navigation }) {
     const handleSaveInfo = async () => {
         setSavingInfo(true);
         try {
-            const { data } = await api.patch('/users/me', {
+            const { data } = await api.post('/users/me', {
                 city:     infoForm.city     || null,
                 profilePrivacy:   infoForm.profilePrivacy,
                 profileExclude:   infoForm.profileExclude,
@@ -2273,7 +2273,7 @@ export default function ProfileScreen({ route, navigation }) {
             setExcludePickerField(field);
         }
         try {
-            const { data } = await api.patch('/users/me', { [`${field}Privacy`]: value });
+            const { data } = await api.post('/users/me', { [`${field}Privacy`]: value });
             setProfile(p => ({ ...p, ...data }));
         } catch (e) { console.warn(e?.message); }
     };
@@ -2284,7 +2284,7 @@ export default function ProfileScreen({ route, navigation }) {
         const updated = list.includes(friendId) ? list.filter(id => id !== friendId) : [...list, friendId];
         setInfoForm(prev => ({ ...prev, [key]: updated }));
         try {
-            const { data } = await api.patch('/users/me', { [key]: updated });
+            const { data } = await api.post('/users/me', { [key]: updated });
             setProfile(p => ({ ...p, ...data }));
         } catch (e) { console.warn(e?.message); }
     };
