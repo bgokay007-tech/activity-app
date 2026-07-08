@@ -122,62 +122,20 @@ export const searchCourts = async (req, res, next) => {
             reviewCount: courtRatingMap[c.id]?.count  ?? 0,
         }));
 
-        // Her tesis ayrı bir satır olarak döner
-        const venueAsCourts = venues.flatMap(v =>
-            v.courts.length > 0
-                ? v.courts.map(c => ({
-                    id: `venue_${v.id}_court_${c.id}`,
-                    name: `${v.name} — ${c.name}`,
-                    venueName: v.name,
-                    address: v.address || null,
-                    city: v.city,
-                    country: null,
-                    lat: null,
-                    lng: null,
-                    sport: v.branch,
-                    surface: null,
-                    indoor: false,
-                    fee: false,
-                    feeAmount: null,
-                    lights: false,
-                    description: `${v.branch} · ${v.openTime}–${v.closeTime}`,
-                    addedBy: v.userId,
-                    verified: true,
-                    pending: false,
-                    isBusinessVenue: true,
-                    venueId: v.id,
-                    courtId: c.id,
-                    user: v.user,
-                    avgRating:   venueRatingMap[v.id]?.avg   ?? null,
-                    reviewCount: venueRatingMap[v.id]?.count  ?? 0,
-                }))
-                : [{
-                    id: `venue_${v.id}`,
-                    name: v.name,
-                    venueName: v.name,
-                    address: v.address || null,
-                    city: v.city,
-                    country: null,
-                    lat: null,
-                    lng: null,
-                    sport: v.branch,
-                    surface: null,
-                    indoor: false,
-                    fee: false,
-                    feeAmount: null,
-                    lights: false,
-                    description: null,
-                    addedBy: v.userId,
-                    verified: true,
-                    pending: false,
-                    isBusinessVenue: true,
-                    venueId: v.id,
-                    courtId: null,
-                    user: v.user,
-                    avgRating:   venueRatingMap[v.id]?.avg   ?? null,
-                    reviewCount: venueRatingMap[v.id]?.count  ?? 0,
-                }]
-        );
+        // Her BusinessVenue tek satır olarak döner (kort bazlı değil tesis bazlı)
+        const venueAsCourts = venues.map(v => ({
+            id: `venue_${v.id}`,
+            name: v.name,
+            address: v.address || null,
+            city: v.city,
+            sport: v.branch,
+            courtCount: v.courts.length,
+            isBusinessVenue: true,
+            venueId: v.id,
+            user: v.user,
+            avgRating:   venueRatingMap[v.id]?.avg   ?? null,
+            reviewCount: venueRatingMap[v.id]?.count  ?? 0,
+        }));
 
         res.json([...courtsWithRating, ...venueAsCourts]);
     } catch (error) {

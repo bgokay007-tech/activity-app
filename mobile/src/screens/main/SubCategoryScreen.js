@@ -11248,6 +11248,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     : null}
                                                         </View>
                                                         <Text style={{ color: colors.textMuted, fontSize:12, marginTop:3 }}>📍 {court.city}{court.address ? ` · ${court.address}` : ''}</Text>
+                                                        {court.isBusinessVenue && court.courtCount > 0 && (
+                                                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>🎾 {court.courtCount} {lang === 'tr' ? 'kort' : 'court'}</Text>
+                                                        )}
                                                         {!court.isBusinessVenue && (court.surface || court.indoor != null) && (
                                                             <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
                                                                 {court.surface ? `⬜ ${court.surface}` : ''}{court.surface && court.indoor != null ? '  ·  ' : ''}{court.indoor != null ? (court.indoor ? (lang === 'tr' ? '🏠 Kapalı' : '🏠 Indoor') : (lang === 'tr' ? '☀️ Açık' : '☀️ Outdoor')) : ''}
