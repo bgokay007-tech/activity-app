@@ -3609,19 +3609,23 @@ export default function ProfileScreen({ route, navigation }) {
                             <Text style={s.menuSectionTitle}>📞 {t.contactSection}</Text>
 
                             {[
-                                { field:'contactPhone',    emoji:'📞💬', label:'Telefon / WhatsApp', ph:t.contactPhonePh,    privPrefix:'phone',    kbd:'phone-pad' },
-                                { field:'contactTelegram', emoji:'✈️',   label:'Telegram',           ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
-                                { field:'contactEmail',    emoji:'✉️',   label:'E-Posta',            ph:t.contactEmailPh,    privPrefix:'cEmail',   kbd:'email-address' },
-                                { field:'contactInstagram',emoji:'📸',   label:'Instagram',          ph:t.contactInstagramPh,privPrefix:'instagram',kbd:'default'   },
-                            ].map(({ field, emoji, label, ph, privPrefix, kbd }) => (
-                                <View key={field} style={s.contactFieldRow}>
-                                    <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:4 }}>{emoji} {label}</Text>
+                                { field:'contactPhone',    emoji:'📞💬', ph:t.contactPhonePh,    privPrefix:'phone',    kbd:'phone-pad' },
+                                { field:'contactTelegram', emoji:'✈️',   ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
+                                { field:'contactEmail',    emoji:'✉️',   ph:t.contactEmailPh,    privPrefix:'cEmail',   kbd:'email-address' },
+                                { field:'contactInstagram',emoji:'📸',   ph:t.contactInstagramPh,privPrefix:'instagram',kbd:'default'   },
+                            ].map(({ field, emoji, ph, privPrefix, kbd }) => (
+                                <View key={field} style={[s.contactFieldRow, { marginBottom:10 }]}>
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                        {/* Emoji prefix */}
+                                        <View style={{ width:36, height:44, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ fontSize:16 }}>{emoji}</Text>
+                                        </View>
+                                        {/* Country code button — only for phone */}
                                         {field === 'contactPhone' && (
                                             <TouchableOpacity
                                                 onPress={() => setShowCCPicker(true)}
-                                                style={[s.fieldInput, { paddingHorizontal:10, marginBottom:0, justifyContent:'center' }]}>
-                                                <Text style={{ color: colors.text, fontSize:14 }}>
+                                                style={{ height:44, paddingHorizontal:10, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ color: colors.text, fontSize:13 }}>
                                                     {(() => { const cc = COUNTRY_CODES.find(c => c.code === phoneCC); return cc ? `${cc.flag} ${cc.code}` : phoneCC; })()}
                                                 </Text>
                                             </TouchableOpacity>
@@ -3642,8 +3646,8 @@ export default function ProfileScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                     </View>
                                     {field === 'contactPhone' && (
-                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
-                                            📞 Arama ve 💬 WhatsApp için kullanılır · beni arayabilirsin
+                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4, marginLeft:42 }}>
+                                            Arama ve WhatsApp için · beni arayabilirsin
                                         </Text>
                                     )}
                                 </View>
