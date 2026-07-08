@@ -2301,30 +2301,49 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                     {cancelRequests.length > 0 && (
                         <View style={{ marginBottom: 16 }}>
                             <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
-                                📋 İPTAL TALEPLERİ ({cancelRequests.length})
+                                📋 KULLANICI TALEPLERİ ({cancelRequests.length})
                             </Text>
-                            {cancelRequests.map(r => (
-                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#f59e0b40', borderWidth: 1 }]}>
+                            {cancelRequests.map(r => {
+                                const isReschedule = r.cancelRequestNote?.startsWith('RESCHEDULE');
+                                const noteText = isReschedule
+                                    ? (r.cancelRequestNote.includes(':') ? r.cancelRequestNote.split(':').slice(1).join(':') : null)
+                                    : r.cancelRequestNote;
+                                return (
+                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: isReschedule ? '#3b82f640' : '#f59e0b40', borderWidth: 1 }]}>
                                     <View style={{ flex: 1, marginBottom: 8 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                            <Text style={{ fontSize: 10, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5,
+                                                backgroundColor: isReschedule ? '#3b82f620' : '#ef444420',
+                                                color: isReschedule ? '#60a5fa' : '#f87171' }}>
+                                                {isReschedule ? '🔄 SAAT DEĞİŞİKLİĞİ' : '📋 İPTAL'}
+                                            </Text>
+                                        </View>
                                         <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
                                         <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
-                                        {r.cancelRequestNote ? (
-                                            <Text style={[vc.resMeta, { color: '#f59e0b', marginTop: 3 }]}>Not: {r.cancelRequestNote}</Text>
+                                        {noteText ? (
+                                            <Text style={[vc.resMeta, { color: '#f59e0b', marginTop: 3 }]}>Not: {noteText}</Text>
                                         ) : null}
                                     </View>
-                                    <TouchableOpacity
-                                        style={{ backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
-                                        disabled={approvingCancel === r.id}
-                                        onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.username} kişisinin iptal talebi onaylansın mı? Rezervasyon iptal edilecek.`, [
-                                            { text: 'Vazgeç', style: 'cancel' },
-                                            { text: 'Onayla', onPress: () => handleApproveCancelRequest(r.id) },
-                                        ])}>
-                                        {approvingCancel === r.id
-                                            ? <ActivityIndicator size="small" color="#22c55e" />
-                                            : <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ İptali Onayla</Text>}
-                                    </TouchableOpacity>
+                                    {isReschedule ? (
+                                        <Text style={{ color: '#60a5fa', fontSize: 11, textAlign: 'center', paddingVertical: 6 }}>
+                                            Kullanıcıyla iletişime geçerek yeni saat belirleyin
+                                        </Text>
+                                    ) : (
+                                        <TouchableOpacity
+                                            style={{ backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                            disabled={approvingCancel === r.id}
+                                            onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.username} kişisinin iptal talebi onaylansın mı? Rezervasyon iptal edilecek.`, [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Onayla', onPress: () => handleApproveCancelRequest(r.id) },
+                                            ])}>
+                                            {approvingCancel === r.id
+                                                ? <ActivityIndicator size="small" color="#22c55e" />
+                                                : <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ İptali Onayla</Text>}
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
-                            ))}
+                                );
+                            })}
                         </View>
                     )}
 

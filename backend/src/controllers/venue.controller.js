@@ -946,23 +946,27 @@ export const rescheduleReservation = async (req, res, next) => {
 export const requestCancelReservation = async (req, res, next) => {
     try {
         const { resId } = req.params;
-        const { note } = req.body;
+        const { note, requestType } = req.body; // requestType: 'CANCEL' | 'RESCHEDULE'
         const r = await prisma.courtReservation.findUnique({ where: { id: resId }, include: { venue: true } });
         if (!r) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
         if (r.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
         if (r.status === 'CANCELLED') return res.status(400).json({ message: 'Rezervasyon zaten iptal edilmiş' });
         if (r.cancelRequested) return res.status(400).json({ message: 'Talep zaten gönderildi' });
 
+        const isReschedule = requestType === 'RESCHEDULE';
+        const storedNote = isReschedule ? `RESCHEDULE${note ? ':' + note : ''}` : (note || null);
+
         await prisma.courtReservation.update({
             where: { id: resId },
-            data: { cancelRequested: true, cancelRequestNote: note || null },
+            data: { cancelRequested: true, cancelRequestNote: storedNote },
         });
 
-        await createNotification(r.venue.userId, 'RESERVATION',
-            '📋 İptal Talebi',
-            `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için iptal talebi gönderildi.`,
-            { reservationId: resId }
-        ).catch(() => {});
+        const notifTitle = isReschedule ? '🔄 Saat Değişikliği Talebi' : '📋 İptal Talebi';
+        const notifBody  = isReschedule
+            ? `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için saat değişikliği talep edildi.`
+            : `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için iptal talebi gönderildi.`;
+
+        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, { reservationId: resId }).catch(() => {});
         emitToUser(r.venue.userId, 'notification', {});
 
         res.json({ ok: true });

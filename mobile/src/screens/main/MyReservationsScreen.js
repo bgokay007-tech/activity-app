@@ -87,16 +87,19 @@ function ReservationCard({ item, onCancel, onReschedule, onCancelRequested, navi
         finally { setRSched(false); }
     };
 
-    const handleCancelRequest = () => {
+    const handleCancelRequest = (requestType) => {
+        const isCancelType = requestType === 'CANCEL';
         Alert.alert(
-            '📋 İptal Talebi Gönder',
-            'Rezervasyonunuz için işletmeden iptal veya ücret iadesi talep edeceksiniz. İşletme insiyatif alarak talebi onaylayabilir.',
+            isCancelType ? '📋 İptal Talebi Gönder' : '🔄 Saat Değişikliği Talebi Gönder',
+            isCancelType
+                ? 'Rezervasyonunuz için işletmeden iptal ve ücret iadesi talep edeceksiniz.'
+                : 'Rezervasyonunuz için işletmeden saat değişikliği talep edeceksiniz. İşletme sizinle iletişime geçecek.',
             [
                 { text: 'Vazgeç', style: 'cancel' },
                 { text: 'Talep Gönder', onPress: async () => {
                     setReq(true);
                     try {
-                        await api.post(`/venues/reservations/${item.id}/cancel-request`);
+                        await api.post(`/venues/reservations/${item.id}/cancel-request`, { requestType });
                         onCancelRequested(item.id);
                     } catch (e) {
                         Alert.alert('Hata', e?.response?.data?.message || 'Talep gönderilemedi');
@@ -194,16 +197,24 @@ function ReservationCard({ item, onCancel, onReschedule, onCancelRequested, navi
                     </TouchableOpacity>
                 )}
                 {cancelBlocked && !item.cancelRequested && (
-                    <TouchableOpacity style={[s.cancelBtn, { borderColor:'#f59e0b50', backgroundColor:'#f59e0b10' }]}
-                        onPress={handleCancelRequest} disabled={requesting} activeOpacity={0.8}>
-                        {requesting
-                            ? <ActivityIndicator size="small" color="#f59e0b" />
-                            : <Text style={[s.cancelBtnText, { color:'#f59e0b' }]}>📋 İşletmeden Talep Et</Text>}
-                    </TouchableOpacity>
+                    <>
+                        <TouchableOpacity style={[s.cancelBtn, { borderColor:'#ef444450', backgroundColor:'#ef444410' }]}
+                            onPress={() => handleCancelRequest('CANCEL')} disabled={requesting} activeOpacity={0.8}>
+                            {requesting
+                                ? <ActivityIndicator size="small" color="#f87171" />
+                                : <Text style={[s.cancelBtnText, { color:'#f87171' }]}>📋 İptal Talep Et</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[s.cancelBtn, { borderColor:'#f59e0b50', backgroundColor:'#f59e0b10' }]}
+                            onPress={() => handleCancelRequest('RESCHEDULE')} disabled={requesting} activeOpacity={0.8}>
+                            <Text style={[s.cancelBtnText, { color:'#f59e0b' }]}>🔄 Saat Değişikliği Talep Et</Text>
+                        </TouchableOpacity>
+                    </>
                 )}
                 {cancelBlocked && item.cancelRequested && (
-                    <View style={[s.cancelBtn, { opacity:0.5, borderColor:'#f59e0b30' }]}>
-                        <Text style={[s.cancelBtnText, { color:'#f59e0b' }]}>✓ Talep Gönderildi</Text>
+                    <View style={[s.cancelBtn, { opacity:0.6, borderColor:'#f59e0b30' }]}>
+                        <Text style={[s.cancelBtnText, { color:'#f59e0b' }]}>
+                            {item.cancelRequestNote?.startsWith('RESCHEDULE') ? '✓ Saat Değişikliği Talebi Gönderildi' : '✓ İptal Talebi Gönderildi'}
+                        </Text>
                     </View>
                 )}
                 {canReschedule && (
