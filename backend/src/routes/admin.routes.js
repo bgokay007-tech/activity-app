@@ -12,6 +12,7 @@ import {
 } from '../controllers/admin.controller.js';
 import { getNoShowReports, approveNoShow, rejectNoShow } from '../controllers/noshow.controller.js';
 import { adminGetCities, adminUpdateCity } from '../controllers/city.controller.js';
+import { getReviewAppeals, resolveReviewAppeal } from '../controllers/venueReview.controller.js';
 
 const router = Router();
 router.use(authenticate, requireAdmin);
@@ -41,5 +42,8 @@ router.delete('/tournament-permissions/:userId/revoke', revokeTournamentPermissi
 
 router.get('/profile-changes',        getProfileChangeRequests);
 router.patch('/profile-changes/:id',  reviewProfileChangeRequest);
+
+router.get('/review-appeals',         getReviewAppeals);
+router.patch('/review-appeals/:id',   resolveReviewAppeal);
 
 export default router;

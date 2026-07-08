@@ -120,6 +120,7 @@ model User {
   venueOrders           VenueOrder[]
   venueReviews          VenueReview[]
   courtRatings          CourtRating[]
+  reviewAppeals         ReviewAppeal[]
 }
 
 model ProfileChangeRequest {
@@ -906,6 +907,7 @@ model BusinessVenue {
   menuItems    VenueMenuItem[]
   orders       VenueOrder[]
   reviews      VenueReview[]
+  reviewAppeals ReviewAppeal[]
 }
 
 model VenueCourt {
@@ -1031,9 +1033,28 @@ model VenueReview {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  venue  BusinessVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  court  VenueCourt?   @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  user   User          @relation(fields: [userId],  references: [id], onDelete: Cascade)
+  venue   BusinessVenue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  court   VenueCourt?    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId],  references: [id], onDelete: Cascade)
+  appeals ReviewAppeal[]
 
   @@unique([userId, venueId, courtId]) // kullanıcı başına hedef başına 1 yorum
+}
+
+model ReviewAppeal {
+  id         String   @id @default(uuid())
+  reviewId   String
+  venueId    String
+  appealerId String   // venue owner userId
+  reason     String
+  status     String   @default("PENDING") // PENDING | RESOLVED | REJECTED
+  adminNote  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  review   VenueReview   @relation(fields: [reviewId],   references: [id], onDelete: Cascade)
+  venue    BusinessVenue @relation(fields: [venueId],    references: [id], onDelete: Cascade)
+  appealer User          @relation(fields: [appealerId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, appealerId])
 }

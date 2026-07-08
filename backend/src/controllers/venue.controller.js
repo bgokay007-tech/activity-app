@@ -224,11 +224,18 @@ export const createVenue = async (req, res, next) => {
         if (!VENUE_ALLOWED_PACKAGES.includes(sub.packageType))
             return res.status(403).json({ message: 'Tesis eklemek için en az Rahatlatıcı paket gereklidir' });
 
-        // RAHATLATICI paketi için max 3 tesis; PRO ve PREMIUM sınırsız
-        if (sub.packageType === 'RAHATLATICI') {
-            const count = await prisma.businessVenue.count({ where: { userId: req.userId } });
-            if (count >= 3)
-                return res.status(403).json({ message: 'Rahatlatıcı pakette en fazla 3 tesis ekleyebilirsiniz. Daha fazlası için Pro pakete geçin.' });
+        const PACKAGE_LIMITS = { PRO: { venues: 1, courts: 4 }, PREMIUM: { venues: 2, courts: 10 }, RAHATLATICI: { venues: 3, courts: null } };
+        const limit = PACKAGE_LIMITS[sub.packageType];
+        if (limit) {
+            const venueCount = await prisma.businessVenue.count({ where: { userId: req.userId } });
+            if (venueCount >= limit.venues)
+                return res.status(403).json({ message: `${sub.packageType === 'PRO' ? 'Pro' : sub.packageType === 'PREMIUM' ? 'Premium' : 'Rahatlatıcı'} pakette en fazla ${limit.venues} tesis ekleyebilirsiniz.` });
+            if (limit.courts !== null) {
+                const existingCourts = await prisma.venueCourt.count({ where: { venue: { userId: req.userId } } });
+                const newCourts = courts?.length || 0;
+                if (existingCourts + newCourts > limit.courts)
+                    return res.status(403).json({ message: `${sub.packageType === 'PRO' ? 'Pro' : 'Premium'} pakette toplam en fazla ${limit.courts} kort ekleyebilirsiniz. Mevcut: ${existingCourts}` });
+            }
         }
 
         if (!name || !branch || !city) return res.status(400).json({ message: 'İsim, spor dalı ve şehir zorunludur' });

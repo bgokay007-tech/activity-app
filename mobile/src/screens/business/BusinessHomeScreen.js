@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     StatusBar, Platform, Alert, ActivityIndicator, Modal, Image,
-    TextInput, Switch, FlatList, BackHandler,
+    TextInput, Switch, FlatList, BackHandler, KeyboardAvoidingView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
@@ -115,34 +115,30 @@ const PACKAGES = [
     {
         key: 'PRO', icon: '🚀', name: 'Pro Paket', price: '1999',
         features: [
+            '1 tesis, maksimum 4 kort ekleme hakkı',
             'Turnuva oluşturma yetkisi',
             'Kortlarını turnuvaya ekleme',
             'Turnuva maçlarına kort atama',
-            'Tesis & kort ekleme (sınırsız tesis)',
             'Uygulama üzerinden online rezervasyon',
             'Telefon trafiği iş yükü kalkar',
             'Öncelikli destek',
             'Ekstra hizmet menüsü (raket, su, havlu vb.)',
             'Kullanıcı engelleme özelliği',
             'Doluluk & gelir raporlama — günlük/haftalık/aylık dönemler, en yoğun saatler ve günler, tahmini gelir özeti',
-            'Resmi tatil & dini bayram hatırlatıcısı — tatilden 1 ay önce başlar, 3 günde bir bildirim gelir; "Bu tarihte çalışıyor olacak mısınız? Saatlerinizi güncelleyin" şeklinde hatırlatır',
+            'Resmi tatil & dini bayram hatırlatıcısı — tatilden 1 ay önce başlar, 3 günde bir bildirim gelir',
         ],
     },
     {
-        key: 'PREMIUM', icon: '👑', name: 'Premium Paket', price: '3999',
+        key: 'PREMIUM', icon: '👑', name: 'Premium Paket', price: '2499',
         features: [
-            'Turnuva oluşturma yetkisi',
-            'Kortlarını turnuvaya ekleme',
-            'Turnuva maçlarına kort atama',
-            'Tesis & kort ekleme (sınırsız tesis)',
-            'Uygulama üzerinden online rezervasyon',
-            'Telefon trafiği iş yükü kalkar',
-            'Öncelikli destek',
-            'Gelişmiş istatistikler',
-            'Özel marka sayfası',
-            'API entegrasyonu',
+            'Pro paketin tüm özellikleri',
+            '2 tesis, toplam maksimum 10 kort ekleme hakkı',
+            'Kortlarınıza gelen yorumları anında görün',
+            'Haksız yorumlara admin üzerinden itiraz hakkı',
+            'Admin kullanıcı ile işletme arasında arabuluculuk yapar',
+            'Gelişmiş istatistikler & özel marka sayfası',
             'Dedicated destek hattı',
-            'Resmi tatil & dini bayram hatırlatıcısı — tatilden 1 ay önce başlar, 3 günde bir bildirim gelir; "Bu tarihte çalışıyor olacak mısınız? Saatlerinizi güncelleyin" şeklinde hatırlatır',
+            'Resmi tatil & dini bayram hatırlatıcısı — tatilden 1 ay önce başlar, 3 günde bir bildirim gelir',
         ],
     },
 ];
@@ -1131,7 +1127,8 @@ const ORDER_LABELS = { PENDING:'⏳ Bekliyor', CONFIRMED:'✅ Onaylandı', READY
 
 function VenueCard({ venue, sub, onDelete, navigation, openReservations = false }) {
     const isApproved = venue.status === 'APPROVED';
-    const isPro = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
+    const isPro     = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
+    const isPremium = sub && sub.packageType === 'PREMIUM';
     const [activeTab, setActiveTab] = useState('info');
     const [deleting, setDeleting]   = useState(false);
 
@@ -1270,14 +1267,31 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [savingMaint, setSavingMaint]         = useState(false);
 
     // ── Yorumlar state ───────────────────────────────────────────────────────
-    const [venueReviews, setVenueReviews]     = useState(null); // null=yükleniyor
+    const [venueReviews, setVenueReviews]     = useState(null);
     const [reviewsLoaded, setReviewsLoaded]   = useState(false);
+    const [appealTarget, setAppealTarget]     = useState(null); // { reviewId, userName }
+    const [appealReason, setAppealReason]     = useState('');
+    const [appealSubmitting, setAppealSubmitting] = useState(false);
 
     const loadVenueReviews = useCallback(() => {
         api.get(`/venues/${venue.id}/reviews`)
             .then(r => { setVenueReviews(r.data); setReviewsLoaded(true); })
             .catch(() => { setVenueReviews({ reviews: [], venueRating: null, venueReviewCount: 0, courtRatings: [] }); setReviewsLoaded(true); });
     }, [venue.id]);
+
+    const submitAppeal = async () => {
+        if (!appealReason.trim()) return Alert.alert('', 'İtiraz nedeninizi yazın');
+        setAppealSubmitting(true);
+        try {
+            await api.post(`/venues/${venue.id}/reviews/${appealTarget.reviewId}/appeal`, { reason: appealReason.trim() });
+            Alert.alert('✅', 'İtirazınız admin\'e iletildi. Admin kullanıcı ile iletişime geçecek.');
+            setAppealTarget(null);
+            setAppealReason('');
+            loadVenueReviews();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Hata oluştu');
+        } finally { setAppealSubmitting(false); }
+    };
 
     const sortedCourts = [...(venue.courts || [])].sort((a, b) => {
         const nA = parseInt(a.name.match(/\d+/)?.[0] ?? '', 10);
@@ -2198,8 +2212,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             ) : (
                                 <>
                                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginBottom: 10 }} />
-                                    {venueReviews.reviews.map(r => (
-                                        <View key={r.id} style={{ backgroundColor: '#ffffff06', borderRadius: 8, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#ffffff10' }}>
+                                    {venueReviews.reviews.map(r => {
+                                        const existingAppeal = r.appeals?.[0];
+                                        return (
+                                        <View key={r.id} style={{ backgroundColor: '#ffffff06', borderRadius: 8, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: existingAppeal ? '#f59e0b40' : '#ffffff10' }}>
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                                 <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700' }}>@{r.user?.username}</Text>
                                                 {r.court && <Text style={{ color: '#6b7280', fontSize: 11 }}>· {r.court.name}</Text>}
@@ -2212,14 +2228,62 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                                 </View>
                                             </View>
                                             {r.comment ? <Text style={{ color: '#d1d5db', fontSize: 12, lineHeight: 17 }}>{r.comment}</Text> : null}
-                                            <Text style={{ color: '#4b5563', fontSize: 10, marginTop: 3 }}>{new Date(r.createdAt).toLocaleDateString('tr-TR')}</Text>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                                                <Text style={{ color: '#4b5563', fontSize: 10 }}>{new Date(r.createdAt).toLocaleDateString('tr-TR')}</Text>
+                                                {isPremium && (
+                                                    existingAppeal
+                                                        ? <Text style={{ fontSize: 10, fontWeight: '700', color: existingAppeal.status === 'PENDING' ? '#f59e0b' : existingAppeal.status === 'RESOLVED' ? '#22c55e' : '#ef4444' }}>
+                                                            {existingAppeal.status === 'PENDING' ? '⏳ İtiraz Beklemede' : existingAppeal.status === 'RESOLVED' ? '✅ İtiraz Kabul Edildi' : '❌ İtiraz Reddedildi'}
+                                                          </Text>
+                                                        : <TouchableOpacity onPress={() => { setAppealTarget({ reviewId: r.id, userName: r.user?.username }); setAppealReason(''); }}
+                                                            style={{ backgroundColor: '#ef444420', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#ef444440' }}>
+                                                            <Text style={{ color: '#f87171', fontSize: 10, fontWeight: '700' }}>⚖️ İtiraz Et</Text>
+                                                          </TouchableOpacity>
+                                                )}
+                                            </View>
                                         </View>
-                                    ))}
+                                        );
+                                    })}
                                 </>
                             )}
                         </>
                     )}
                 </View>
+            )}
+
+            {/* ── İtiraz Modalı (PREMIUM) ── */}
+            {!!appealTarget && (
+                <Modal visible animationType="slide" transparent onRequestClose={() => setAppealTarget(null)}>
+                    <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                            <View style={{ backgroundColor:'#1e1e2e', borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36 }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>⚖️ Yorum İtirazı</Text>
+                                    <TouchableOpacity onPress={() => setAppealTarget(null)}>
+                                        <Text style={{ color:'#6b7280', fontSize:18 }}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <Text style={{ color:'#9ca3af', fontSize:12, marginBottom:12 }}>
+                                    @{appealTarget.userName} kullanıcısının yorumuna itiraz ediyorsunuz.{'\n'}Adminimiz inceleyerek taraflarla iletişime geçecek.
+                                </Text>
+                                <TextInput
+                                    style={{ backgroundColor:'#2d2d3f', borderRadius:10, padding:12, color:'#fff', fontSize:13, minHeight:80, textAlignVertical:'top', borderWidth:1, borderColor:'#3d3d5c' }}
+                                    placeholder="İtiraz nedeninizi açıklayın..."
+                                    placeholderTextColor="#6b7280"
+                                    multiline
+                                    value={appealReason}
+                                    onChangeText={setAppealReason}
+                                />
+                                <TouchableOpacity onPress={submitAppeal} disabled={appealSubmitting}
+                                    style={{ backgroundColor:'#7c3aed', borderRadius:10, paddingVertical:12, alignItems:'center', marginTop:12, opacity: appealSubmitting ? 0.6 : 1 }}>
+                                    {appealSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>Admine Gönder</Text>}
+                                </TouchableOpacity>
+                            </View>
+                        </KeyboardAvoidingView>
+                    </View>
+                </Modal>
             )}
 
             {activeTab === 'reservations' && (() => {
