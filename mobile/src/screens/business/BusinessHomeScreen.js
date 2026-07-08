@@ -405,7 +405,8 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
             handleClose();
             onSuccess?.();
         } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi');
+            const msg = e?.response?.data?.message || e?.message || 'Sunucu ile bağlantı kurulamadı';
+            Alert.alert('Hata', msg);
         } finally { setSaving(false); }
     };
 
