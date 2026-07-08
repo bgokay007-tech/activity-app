@@ -3609,16 +3609,16 @@ export default function ProfileScreen({ route, navigation }) {
                             <Text style={s.menuSectionTitle}>📞 {t.contactSection}</Text>
 
                             {[
-                                { field:'contactPhone',    emoji:'📞💬', ph:t.contactPhonePh,    privPrefix:'phone',    kbd:'phone-pad' },
-                                { field:'contactTelegram', emoji:'✈️',   ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
-                                { field:'contactEmail',    emoji:'✉️',   ph:t.contactEmailPh,    privPrefix:'cEmail',   kbd:'email-address' },
-                                { field:'contactInstagram',emoji:'📸',   ph:t.contactInstagramPh,privPrefix:'instagram',kbd:'default'   },
-                            ].map(({ field, emoji, ph, privPrefix, kbd }) => (
+                                { field:'contactPhone',    emoji:'📞💬', emojiSize:11, ph:t.contactPhonePh,    privPrefix:'phone',    kbd:'phone-pad' },
+                                { field:'contactTelegram', emoji:'✈️',   emojiSize:16, ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
+                                { field:'contactEmail',    emoji:'✉️',   emojiSize:16, ph:t.contactEmailPh,    privPrefix:'cEmail',   kbd:'email-address' },
+                                { field:'contactInstagram',emoji:'📸',   emojiSize:16, ph:t.contactInstagramPh,privPrefix:'instagram',kbd:'default'   },
+                            ].map(({ field, emoji, emojiSize, ph, privPrefix, kbd }) => (
                                 <View key={field} style={[s.contactFieldRow, { marginBottom:10 }]}>
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                         {/* Emoji prefix */}
-                                        <View style={{ width:36, height:44, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' }}>
-                                            <Text style={{ fontSize:16 }}>{emoji}</Text>
+                                        <View style={{ width:42, height:44, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ fontSize:emojiSize }}>{emoji}</Text>
                                         </View>
                                         {/* Country code button — only for phone */}
                                         {field === 'contactPhone' && (
