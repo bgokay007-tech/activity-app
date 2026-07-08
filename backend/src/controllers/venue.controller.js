@@ -224,7 +224,7 @@ export const createVenue = async (req, res, next) => {
         if (!VENUE_ALLOWED_PACKAGES.includes(sub.packageType))
             return res.status(403).json({ message: 'Tesis eklemek için en az Rahatlatıcı paket gereklidir' });
 
-        const PACKAGE_LIMITS = { PRO: { venues: 1, courts: 4 }, PREMIUM: { venues: 2, courts: 10 }, RAHATLATICI: { venues: 3, courts: null } };
+        const PACKAGE_LIMITS = { RAHATLATICI: { venues: 1, courts: 3 }, PRO: { venues: 2, courts: 8 }, PREMIUM: { venues: 3, courts: 15 } };
         const limit = PACKAGE_LIMITS[sub.packageType];
         if (limit) {
             const venueCount = await prisma.businessVenue.count({ where: { userId: req.userId } });

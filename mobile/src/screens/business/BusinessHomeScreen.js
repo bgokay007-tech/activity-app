@@ -3752,20 +3752,31 @@ export default function BusinessHomeScreen({ navigation, route }) {
     const [uploading,      setUploading]      = useState(false);
     const [unreadNotifs,   setUnreadNotifs]   = useState(0);
 
-    const VENUE_LIMITS = { PRO: 1, PREMIUM: 2, RAHATLATICI: 3 };
-    const PACKAGE_NAMES = { PRO: 'Pro', PREMIUM: 'Premium', RAHATLATICI: 'Rahatlatıcı' };
+    const PKG_LIMITS = { RAHATLATICI: { venues: 1, courts: 3 }, PRO: { venues: 2, courts: 8 }, PREMIUM: { venues: 3, courts: 15 } };
+    const PKG_NAMES  = { RAHATLATICI: 'Rahatlatıcı', PRO: 'Pro', PREMIUM: 'Premium' };
+    const PKG_NEXT   = { RAHATLATICI: 'Pro', PRO: 'Premium' };
     const handleAddVenue = () => {
-        const limit = sub ? VENUE_LIMITS[sub.packageType] : null;
-        if (limit != null && venues.length >= limit) {
-            const pkgName = PACKAGE_NAMES[sub.packageType] || sub.packageType;
-            const upgradeMsg = sub.packageType === 'PRO'
-                ? '\n\nİkinci tesis eklemek için Premium pakete geçin.'
-                : sub.packageType === 'PREMIUM'
-                ? '\n\nDaha fazla tesis için iletişime geçin.'
-                : '';
+        const lim = sub ? PKG_LIMITS[sub.packageType] : null;
+        if (!lim) { setVenueModal(true); return; }
+        if (venues.length >= lim.venues) {
+            const name = PKG_NAMES[sub.packageType] || sub.packageType;
+            const next = PKG_NEXT[sub.packageType];
+            const upgradeMsg = next ? `\n\nDaha fazla tesis eklemek için ${next} pakete geçin.` : '';
             Alert.alert(
-                `${pkgName} Paket Limiti`,
-                `${pkgName} pakette en fazla ${limit} tesis ekleyebilirsiniz.${upgradeMsg}`
+                `${name} Paket Limiti`,
+                `${name} pakette en fazla ${lim.venues} tesis/işletme ekleyebilirsiniz.${upgradeMsg}`
+            );
+            return;
+        }
+        // Kort limiti uyarısı (bilgi amaçlı, mevcut kort sayısını hesapla)
+        const totalCourts = venues.reduce((s, v) => s + (v.courts?.length || 0), 0);
+        if (totalCourts >= lim.courts) {
+            const name = PKG_NAMES[sub.packageType] || sub.packageType;
+            const next = PKG_NEXT[sub.packageType];
+            const upgradeMsg = next ? `\n\nDaha fazla kort için ${next} pakete geçin.` : '';
+            Alert.alert(
+                `${name} Paket Limiti`,
+                `${name} pakette toplam en fazla ${lim.courts} kort ekleyebilirsiniz. Mevcut: ${totalCourts}${upgradeMsg}`
             );
             return;
         }
