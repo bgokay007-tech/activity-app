@@ -9103,7 +9103,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (city && city.trim()) params.city = city.trim();
             if (name && name.trim()) params.name = name.trim();
             const { data } = await api.get('/courts/search', { params });
-            const list = Array.isArray(data) ? data : [];
+            const list = (Array.isArray(data) ? data : []).filter(c => c.isBusinessVenue || c.verified);
             setVenuesList(list);
             setVenuesTotal(list.length);
         } catch (e) {
