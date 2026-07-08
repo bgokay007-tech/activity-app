@@ -4837,7 +4837,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 setF(p => ({
                     ...p,
                     selectedCourt: court,
-                    courtSearchText: [court.venueName, court.name].filter(Boolean).join(' '),
+                    courtSearchText: court.venueName || '',
                     courtResults: [],
                     matchDate: new Date(date + 'T12:00:00'),
                     matchTime: startTime,
