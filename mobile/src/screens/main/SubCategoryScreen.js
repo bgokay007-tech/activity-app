@@ -9111,7 +9111,10 @@ export default function SubCategoryScreen({ route, navigation }) {
             setVenuesTotal(data?.total || 0);
             setVenuesHasMore(data?.hasMore || false);
             setVenuesLoaded(true);
-        } catch { setVenuesList([]); setVenuesLoaded(true); }
+        } catch (e) {
+            console.log('loadVenues error:', e?.response?.status, e?.message);
+            setVenuesList([]);
+        }
         finally { setLoadingVenues(false); }
     }, []);
 
@@ -9767,7 +9770,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
                 {(sub === 'tennis' || sub === 'padel') && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                        <TouchableOpacity onPress={() => { if (!venuesLoaded) loadVenues('', ''); setShowVenuesSheet(true); }}
+                        <TouchableOpacity onPress={() => { loadVenues('', ''); setShowVenuesSheet(true); }}
                             style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
                             <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? '🏟️ Kortlar' : '🏟️ Courts'}</Text>
                         </TouchableOpacity>
@@ -11199,11 +11202,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     placeholder={lang === 'tr' ? 'Tesis / kort adı ara...' : 'Search venue / court name...'}
                                     placeholderTextColor={colors.textMuted}
                                     value={venueFilterName}
-                                    onChangeText={v => { setVenueFilterName(v); setVenuesLoaded(false); loadVenues(venueFilterCity, v); }}
+                                    onChangeText={v => { setVenueFilterName(v); loadVenues(venueFilterCity, v); }}
                                     returnKeyType="search"
                                 />
                                 {!!venueFilterName && (
-                                    <TouchableOpacity onPress={() => { setVenueFilterName(''); loadVenues(venueFilterCity, ''); }}>
+                                    <TouchableOpacity onPress={() => { setVenueFilterName(''); loadVenues(venueFilterCity, ''); setVenueFilterName(''); }}>
                                         <Text style={{ color: colors.textMuted, fontSize:16, paddingLeft:6 }}>✕</Text>
                                     </TouchableOpacity>
                                 )}
@@ -11215,7 +11218,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     placeholder={lang === 'tr' ? 'Şehir / ilçe filtrele...' : 'Filter by city / district...'}
                                     placeholderTextColor={colors.textMuted}
                                     value={venueFilterCity}
-                                    onChangeText={v => { setVenueFilterCity(v); setVenuesLoaded(false); loadVenues(v, venueFilterName); }}
+                                    onChangeText={v => { setVenueFilterCity(v); loadVenues(v, venueFilterName); }}
                                     returnKeyType="search"
                                 />
                                 {!!venueFilterCity && (
