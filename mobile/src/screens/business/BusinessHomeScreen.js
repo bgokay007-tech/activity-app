@@ -3752,6 +3752,26 @@ export default function BusinessHomeScreen({ navigation, route }) {
     const [uploading,      setUploading]      = useState(false);
     const [unreadNotifs,   setUnreadNotifs]   = useState(0);
 
+    const VENUE_LIMITS = { PRO: 1, PREMIUM: 2, RAHATLATICI: 3 };
+    const PACKAGE_NAMES = { PRO: 'Pro', PREMIUM: 'Premium', RAHATLATICI: 'Rahatlatıcı' };
+    const handleAddVenue = () => {
+        const limit = sub ? VENUE_LIMITS[sub.packageType] : null;
+        if (limit != null && venues.length >= limit) {
+            const pkgName = PACKAGE_NAMES[sub.packageType] || sub.packageType;
+            const upgradeMsg = sub.packageType === 'PRO'
+                ? '\n\nİkinci tesis eklemek için Premium pakete geçin.'
+                : sub.packageType === 'PREMIUM'
+                ? '\n\nDaha fazla tesis için iletişime geçin.'
+                : '';
+            Alert.alert(
+                `${pkgName} Paket Limiti`,
+                `${pkgName} pakette en fazla ${limit} tesis ekleyebilirsiniz.${upgradeMsg}`
+            );
+            return;
+        }
+        setVenueModal(true);
+    };
+
     const fetchAll = useCallback(async () => {
         try {
             const [subRes, venueRes] = await Promise.all([
@@ -3900,7 +3920,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
                     <View style={s.sectionHeader}>
                         <Text style={s.sectionTitle}>🏟️ Tesislerim</Text>
                         {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) && (
-                            <TouchableOpacity style={s.addVenueBtn} onPress={() => setVenueModal(true)} activeOpacity={0.8}>
+                            <TouchableOpacity style={s.addVenueBtn} onPress={handleAddVenue} activeOpacity={0.8}>
                                 <Text style={s.addVenueBtnText}>+ Tesis Ekle</Text>
                             </TouchableOpacity>
                         )}
@@ -3914,7 +3934,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
                                         ? 'Henüz tesis eklenmedi.' : 'Tesis eklemek için Rahatlatıcı veya üstü paket gereklidir.')
                                     : 'Tesis eklemek için önce abonelik alın.'}</Text>
                             {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) && (
-                                <TouchableOpacity style={s.addVenueBtnLg} onPress={() => setVenueModal(true)} activeOpacity={0.8}>
+                                <TouchableOpacity style={s.addVenueBtnLg} onPress={handleAddVenue} activeOpacity={0.8}>
                                     <Text style={s.addVenueBtnText}>+ Tesis / Kort Ekle</Text>
                                 </TouchableOpacity>
                             )}
