@@ -4046,9 +4046,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             selectedCourt:    preCourtObj,
             manualCity:       prefill.city || '',
             courtReserved:    true,
-            venueId:          prefill.venueId      || null,
-            venueCourtId:     prefill.venueCourtId || null,
-            courtFeePerPerson: prefill.courtFee ? String(prefill.courtFee) : '',
+            venueId:              prefill.venueId         || null,
+            venueCourtId:         prefill.venueCourtId    || null,
+            venueReservationId:   prefill.reservationId   || null,
+            courtFeePerPerson:    prefill.courtFee ? String(prefill.courtFee) : '',
         };
     };
 
@@ -4230,8 +4231,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 partnerInviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
                     ? f.partner.id
                     : undefined,
-                venueId:      f.venueId || undefined,
-                venueCourtId: f.venueCourtId || undefined,
+                venueId:            f.venueId            || undefined,
+                venueCourtId:       f.venueCourtId       || undefined,
+                venueReservationId: f.venueReservationId || undefined,
             });
             onCreated();
             onClose();

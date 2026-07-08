@@ -934,6 +934,82 @@ export const rescheduleReservation = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// ─── İptal talebi (kullanıcı → işletme) ─────────────────────────────────────
+
+export const requestCancelReservation = async (req, res, next) => {
+    try {
+        const { resId } = req.params;
+        const { note } = req.body;
+        const r = await prisma.courtReservation.findUnique({ where: { id: resId }, include: { venue: true } });
+        if (!r) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
+        if (r.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (r.status === 'CANCELLED') return res.status(400).json({ message: 'Rezervasyon zaten iptal edilmiş' });
+        if (r.cancelRequested) return res.status(400).json({ message: 'Talep zaten gönderildi' });
+
+        await prisma.courtReservation.update({
+            where: { id: resId },
+            data: { cancelRequested: true, cancelRequestNote: note || null },
+        });
+
+        await createNotification(r.venue.userId, 'RESERVATION',
+            '📋 İptal Talebi',
+            `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için iptal talebi gönderildi.`,
+            { reservationId: resId }
+        ).catch(() => {});
+        emitToUser(r.venue.userId, 'notification', {});
+
+        res.json({ ok: true });
+    } catch (error) { next(error); }
+};
+
+export const approveCancelRequest = async (req, res, next) => {
+    try {
+        const { resId } = req.params;
+        const r = await prisma.courtReservation.findUnique({ where: { id: resId }, include: { venue: true } });
+        if (!r) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
+
+        const isOwner = r.venue.userId === req.userId;
+        const isAdmin = req.isAdmin;
+        if (!isOwner && !isAdmin) return res.status(403).json({ message: 'Yetkisiz' });
+        if (r.status === 'CANCELLED') return res.status(400).json({ message: 'Zaten iptal edilmiş' });
+
+        await prisma.courtReservation.update({
+            where: { id: resId },
+            data: { status: 'CANCELLED', cancelRequested: false },
+        });
+
+        await createNotification(r.userId, 'RESERVATION',
+            '✅ İptal Talebiniz Onaylandı',
+            `${r.date} ${r.startTime}–${r.endTime} rezervasyonunuz iptal edildi.`,
+            { reservationId: resId }
+        ).catch(() => {});
+        emitToUser(r.userId, 'notification', {});
+        emitToUser(r.userId, 'reservationUpdate', { reservationId: resId, status: 'CANCELLED' });
+
+        res.json({ ok: true });
+    } catch (error) { next(error); }
+};
+
+export const getCancelRequests = async (req, res, next) => {
+    try {
+        const venues = await prisma.businessVenue.findMany({
+            where: { userId: req.userId },
+            select: { id: true },
+        });
+        const venueIds = venues.map(v => v.id);
+        const requests = await prisma.courtReservation.findMany({
+            where: { venueId: { in: venueIds }, cancelRequested: true, status: { not: 'CANCELLED' } },
+            include: {
+                venue: { select: { name: true } },
+                court: { select: { name: true } },
+                user:  { select: { id: true, username: true, fullName: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(requests);
+    } catch (error) { next(error); }
+};
+
 // ─── Genel arama (tüm kullanıcılar) ─────────────────────────────────────────
 
 export const searchVenues = async (req, res, next) => {

@@ -412,8 +412,9 @@ model ActivityRequest {
   courtAddress    String?
   courtLat        Float?
   courtLng        Float?
-  venueId         String?   // işletme tesisi bağlantısı
-  venueCourtId    String?
+  venueId              String?   // işletme tesisi bağlantısı
+  venueCourtId         String?
+  venueReservationId   String?   // hangi rezervasyondan oluşturuldu
   isCourtReserved    Boolean      @default(false)
   courtFeePerPerson  Int?
   flexibleSchedule   Boolean      @default(false)
@@ -920,6 +921,8 @@ model CourtReservation {
   noShow        Boolean  @default(false)
   receiptUrl    String?
   notes         String?
+  cancelRequested     Boolean  @default(false)
+  cancelRequestNote   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

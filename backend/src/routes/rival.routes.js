@@ -10,6 +10,7 @@ import {
     getMatchComments, addMatchComment, deleteMatchComment,
     getMyUpcomingMatches, getMyMatchHistory,
     proposeSchedule, acceptSchedule, updateRivalRequest,
+    getForReservation,
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -28,6 +29,7 @@ router.get('/my-history',            authenticate, getMyMatchHistory);
 router.get('/completed',             authenticate, getCompletedMatches);
 router.get('/archived',              authenticate, getArchivedMatchesBySport);
 router.get('/my',                    authenticate, getMyRequests);
+router.get('/for-reservation/:reservationId', authenticate, getForReservation);
 router.post('/:id/respond',          authenticate, sendJoinRequest);
 router.patch('/:id/join-partner',    authenticate, setRivalJoinPartner);
 router.post('/:id/invite',           authenticate, inviteToRival);

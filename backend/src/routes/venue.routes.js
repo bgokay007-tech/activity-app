@@ -11,6 +11,7 @@ import {
     blockUser, unblockUser, getBlockedUsers,
     addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
     placeOrder, getVenueOrders, getUserOrders, updateOrderStatus,
+    requestCancelReservation, approveCancelRequest, getCancelRequests,
 } from '../controllers/venue.controller.js';
 import { getVenueReviews, upsertVenueReview, upsertCourtReview, deleteVenueReview } from '../controllers/venueReview.controller.js';
 
@@ -47,8 +48,11 @@ router.get('/reservations/mine',         getMyReservations);
 router.get('/reservations/unlisted',     getUnlistedReservations);
 router.get('/orders/mine',               getUserOrders);
 router.delete('/reservations/:resId',    cancelReservation);
-router.patch('/reservations/:resId/status',     updateReservationStatus);
-router.patch('/reservations/:resId/reschedule', rescheduleReservation);
+router.patch('/reservations/:resId/status',          updateReservationStatus);
+router.patch('/reservations/:resId/reschedule',      rescheduleReservation);
+router.post('/reservations/:resId/cancel-request',   requestCancelReservation);
+router.post('/reservations/:resId/cancel-approve',   approveCancelRequest);
+router.get('/reservations/cancel-requests',          getCancelRequests);
 router.get('/:id/menu',                  getVenueMenu);
 router.post('/:id/orders',               placeOrder);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);

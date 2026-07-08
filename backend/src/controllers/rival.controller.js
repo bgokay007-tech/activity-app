@@ -439,7 +439,7 @@ export const createRivalRequest = async (req, res, next) => {
         const {
             category, subCategory, message, level, levelDetail,
             location, courtName, courtAddress, courtLat, courtLng,
-            venueId, venueCourtId,
+            venueId, venueCourtId, venueReservationId,
             isCourtReserved, flexibleSchedule, matchDate, matchTime,
             matchType = 'SINGLE', matchMode = 'PRACTICE',
             surface, teamSize = 1, courtFeePerPerson,
@@ -492,8 +492,9 @@ export const createRivalRequest = async (req, res, next) => {
                 courtAddress,
                 courtLat: courtLat ? Number(courtLat) : null,
                 courtLng: courtLng ? Number(courtLng) : null,
-                ...(venueId     && { venueId }),
-                ...(venueCourtId && { venueCourtId }),
+                ...(venueId            && { venueId }),
+                ...(venueCourtId       && { venueCourtId }),
+                ...(venueReservationId && { venueReservationId }),
                 isCourtReserved: isCourtReserved || false,
                 flexibleSchedule: flexibleSchedule || false,
                 expiresAt: (() => {
@@ -2383,4 +2384,15 @@ export const getMyRequests = async (req, res, next) => {
     } catch (error) {
         next(error);
     }
+};
+
+export const getForReservation = async (req, res, next) => {
+    try {
+        const { reservationId } = req.params;
+        const existing = await prisma.activityRequest.findFirst({
+            where: { venueReservationId: reservationId, senderId: req.userId, status: { not: 'CANCELLED' } },
+            select: { id: true, status: true, subCategory: true, category: true },
+        });
+        res.json({ listing: existing || null });
+    } catch (error) { next(error); }
 };

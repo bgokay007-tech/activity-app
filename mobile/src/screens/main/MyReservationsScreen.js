@@ -28,10 +28,11 @@ function calcDuration(start, end) {
     return String((eh * 60 + em) - (sh * 60 + sm));
 }
 
-function ReservationCard({ item, onCancel, onReschedule, navigation }) {
+function ReservationCard({ item, onCancel, onReschedule, onCancelRequested, navigation }) {
     const t = useT();
     const [cancelling,   setCanc]   = useState(false);
     const [rescheduling, setRSched] = useState(false);
+    const [requesting,   setReq]    = useState(false);
     const [showReschedule, setShowRS] = useState(false);
     const [newDate,  setNewDate]  = useState('');
     const [newStart, setNewStart] = useState('');
@@ -86,10 +87,46 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
         finally { setRSched(false); }
     };
 
-    const handleCreateRival = () => {
+    const handleCancelRequest = () => {
+        Alert.alert(
+            '📋 İptal Talebi Gönder',
+            'Rezervasyonunuz için işletmeden iptal veya ücret iadesi talep edeceksiniz. İşletme insiyatif alarak talebi onaylayabilir.',
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'Talep Gönder', onPress: async () => {
+                    setReq(true);
+                    try {
+                        await api.post(`/venues/reservations/${item.id}/cancel-request`);
+                        onCancelRequested(item.id);
+                    } catch (e) {
+                        Alert.alert('Hata', e?.response?.data?.message || 'Talep gönderilemedi');
+                    } finally { setReq(false); }
+                }},
+            ]
+        );
+    };
+
+    const handleCreateRival = async () => {
         const venueName = item.venue?.name || '';
         const courtName = item.court?.name || '';
         const { sub, cat } = branchToSub(item.venue?.branch);
+        try {
+            const { data } = await api.get(`/activity/for-reservation/${item.id}`);
+            if (data?.listing) {
+                Alert.alert(
+                    '📢 Aktif İlanınız Var',
+                    'Bu rezervasyon için zaten bir rakip arama ilanınız bulunuyor.',
+                    [
+                        { text: 'Kapat', style: 'cancel' },
+                        { text: 'İlana Git', onPress: () => navigation.navigate('SubCategory', {
+                            category: cat, sub, initialTab: 'rivals',
+                            highlightRivalId: data.listing.id,
+                        })},
+                    ]
+                );
+                return;
+            }
+        } catch {}
         Alert.alert(
             t.resCreateRivalTitle,
             t.resCreateRivalMsg(venueName, courtName, item.date, item.startTime, item.endTime),
@@ -101,14 +138,15 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
                         sub,
                         initialTab: 'rivals',
                         openCreateRival: true,
-                        prefillDate:         item.date,
-                        prefillTime:         item.startTime,
-                        prefillDuration:     calcDuration(item.startTime, item.endTime),
-                        prefillCourtName:    [venueName, courtName].filter(Boolean).join(' ') || undefined,
-                        prefillCity:         item.venue?.city || undefined,
-                        prefillVenueId:      item.venueId || undefined,
-                        prefillVenueCourtId: item.courtId || undefined,
-                        prefillCourtFee:     item.venue?.pricePerSlot || undefined,
+                        prefillDate:             item.date,
+                        prefillTime:             item.startTime,
+                        prefillDuration:         calcDuration(item.startTime, item.endTime),
+                        prefillCourtName:        [venueName, courtName].filter(Boolean).join(' ') || undefined,
+                        prefillCity:             item.venue?.city || undefined,
+                        prefillVenueId:          item.venueId || undefined,
+                        prefillVenueCourtId:     item.courtId || undefined,
+                        prefillCourtFee:         item.venue?.pricePerSlot || undefined,
+                        prefillReservationId:    item.id,
                     });
                 }},
             ]
@@ -153,11 +191,17 @@ function ReservationCard({ item, onCancel, onReschedule, navigation }) {
                             : <Text style={s.cancelBtnText}>{t.resCancelBtn}</Text>}
                     </TouchableOpacity>
                 )}
-                {cancelBlocked && (
-                    <View style={[s.cancelBtn, { opacity: 0.4 }]}>
-                        <Text style={s.cancelBtnText}>
-                            {cb < 0 ? t.resCancelDisabled : t.resCancelBeforeHours(cb)}
-                        </Text>
+                {cancelBlocked && !item.cancelRequested && (
+                    <TouchableOpacity style={[s.cancelBtn, { borderColor:'#f59e0b50', backgroundColor:'#f59e0b10' }]}
+                        onPress={handleCancelRequest} disabled={requesting} activeOpacity={0.8}>
+                        {requesting
+                            ? <ActivityIndicator size="small" color="#f59e0b" />
+                            : <Text style={[s.cancelBtnText, { color:'#f59e0b' }]}>📋 İşletmeden Talep Et</Text>}
+                    </TouchableOpacity>
+                )}
+                {cancelBlocked && item.cancelRequested && (
+                    <View style={[s.cancelBtn, { opacity:0.5, borderColor:'#f59e0b30' }]}>
+                        <Text style={[s.cancelBtnText, { color:'#f59e0b' }]}>✓ Talep Gönderildi</Text>
                     </View>
                 )}
                 {canReschedule && (
@@ -313,7 +357,8 @@ export default function MyReservationsScreen({ navigation, route }) {
                     renderItem={({ item }) => (
                         <ReservationCard item={item} navigation={navigation}
                             onCancel={id => setRes(prev => prev.map(r => r.id === id ? { ...r, status: 'CANCELLED' } : r))}
-                            onReschedule={(id, updated) => setRes(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r))} />
+                            onReschedule={(id, updated) => setRes(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r))}
+                            onCancelRequested={id => setRes(prev => prev.map(r => r.id === id ? { ...r, cancelRequested: true } : r))} />
                     )}
                 />
             )}

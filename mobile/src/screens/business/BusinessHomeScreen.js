@@ -1154,6 +1154,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
 
     const [reservations, setReservations]   = useState([]);
     const [resLoaded, setResLoaded]         = useState(false);
+    const [cancelRequests, setCancelRequests] = useState([]);
+    const [approvingCancel, setApprovingCancel] = useState(null);
     const [resFilter, setResFilter]         = useState('today'); // today | week | all
     const [scheduleOpen, setScheduleOpen]     = useState(false);
     const [analyticsOpen, setAnalyticsOpen]   = useState(false);
@@ -1333,11 +1335,29 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         catch {} finally { setResLoaded(true); }
     };
 
+    const loadCancelRequests = async () => {
+        try { const { data } = await api.get('/venues/reservations/cancel-requests'); setCancelRequests(data || []); }
+        catch {}
+    };
+
+    const handleApproveCancelRequest = async (resId) => {
+        setApprovingCancel(resId);
+        try {
+            await api.post(`/venues/reservations/${resId}/cancel-approve`);
+            setCancelRequests(prev => prev.filter(r => r.id !== resId));
+        } catch (e) {
+            Alert.alert('Hata', 'İptal talebi onaylanamadı.');
+        } finally {
+            setApprovingCancel(null);
+        }
+    };
+
     useEffect(() => {
         if (openReservations) {
             setActiveTab('reservations');
             setScheduleOpen(true);
             if (!resLoaded) loadReservations();
+            loadCancelRequests();
         }
     }, [openReservations]);
 
@@ -1347,7 +1367,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         if (tab === 'menu'         && !menuLoaded)    loadMenu();
         if (tab === 'orders'       && !ordersLoaded)  loadOrders();
         if (tab === 'reviews'      && !reviewsLoaded) loadVenueReviews();
-        if (tab === 'reservations') { setScheduleOpen(true); if (!resLoaded) loadReservations(); }
+        if (tab === 'reservations') { setScheduleOpen(true); if (!resLoaded) loadReservations(); loadCancelRequests(); }
         if (tab === 'analytics')    setAnalyticsOpen(true);
     };
 
@@ -2212,6 +2232,37 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                     <TouchableOpacity style={vc.scheduleBtn} onPress={() => setScheduleOpen(true)}>
                         <Text style={vc.scheduleBtnTxt}>📅 Takvimi Görüntüle</Text>
                     </TouchableOpacity>
+
+                    {/* İptal talepleri */}
+                    {cancelRequests.length > 0 && (
+                        <View style={{ marginBottom: 16 }}>
+                            <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                                📋 İPTAL TALEPLERİ ({cancelRequests.length})
+                            </Text>
+                            {cancelRequests.map(r => (
+                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#f59e0b40', borderWidth: 1 }]}>
+                                    <View style={{ flex: 1, marginBottom: 8 }}>
+                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
+                                        {r.cancelRequestNote ? (
+                                            <Text style={[vc.resMeta, { color: '#f59e0b', marginTop: 3 }]}>Not: {r.cancelRequestNote}</Text>
+                                        ) : null}
+                                    </View>
+                                    <TouchableOpacity
+                                        style={{ backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                        disabled={approvingCancel === r.id}
+                                        onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.username} kişisinin iptal talebi onaylansın mı? Rezervasyon iptal edilecek.`, [
+                                            { text: 'Vazgeç', style: 'cancel' },
+                                            { text: 'Onayla', onPress: () => handleApproveCancelRequest(r.id) },
+                                        ])}>
+                                        {approvingCancel === r.id
+                                            ? <ActivityIndicator size="small" color="#22c55e" />
+                                            : <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ İptali Onayla</Text>}
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
+                    )}
 
                     {/* Onay bekleyen geçmiş nakit rezervasyonlar */}
                     {pendingApproval.length > 0 && (
