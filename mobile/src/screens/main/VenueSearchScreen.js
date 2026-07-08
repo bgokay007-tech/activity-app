@@ -301,8 +301,10 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                         );
                     })()}
 
-                    {/* Kortlar + Slotlar */}
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={bm.scroll}>
+                    {/* Kortlar + Slotlar — yatay kaydır, her kort 170px sütun */}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                        style={{ height: 300 }}
+                        contentContainerStyle={{ flexDirection:'row', alignItems:'stretch', paddingHorizontal:8, paddingVertical:8, gap:8 }}>
                         {venue.courts.map(court => {
                             const entry = slotsMap[court.id] || { slots: [], loading: true, type: null, windows: [] };
                             const isVar   = entry.type === 'VAR_DURATION';
@@ -324,6 +326,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                         )}
                                     </View>
 
+                                    <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1 }}>
                                     {entry.loading ? (
                                         <ActivityIndicator size="small" color={colors.purple} style={{ marginVertical: 12 }} />
                                     ) : entry.error ? (
@@ -446,27 +449,28 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                             })}
                                         </View>
                                     )}
+                                    <View style={{ height:8 }} />
+                                    </ScrollView>
                                 </View>
                             );
                         })}
-
-                        {/* Lejant */}
-                        <View style={bm.legend}>
-                            <View style={bm.legendItem}>
-                                <View style={[bm.legendDot, { borderColor: colors.purple }]} />
-                                <Text style={bm.legendText}>Müsait</Text>
-                            </View>
-                            <View style={bm.legendItem}>
-                                <View style={[bm.legendDot, { backgroundColor: colors.surface2, borderColor: colors.border }]} />
-                                <Text style={bm.legendText}>Dolu</Text>
-                            </View>
-                            <View style={bm.legendItem}>
-                                <View style={[bm.legendDot, { backgroundColor: '#ef444418', borderColor: '#ef444440' }]} />
-                                <Text style={bm.legendText}>🔧 Bakım</Text>
-                            </View>
-                        </View>
-                        <View style={{ height: 80 }} />
                     </ScrollView>
+
+                    {/* Lejant */}
+                    <View style={[bm.legend, { paddingHorizontal:14, paddingTop:6 }]}>
+                        <View style={bm.legendItem}>
+                            <View style={[bm.legendDot, { borderColor: colors.purple }]} />
+                            <Text style={bm.legendText}>Müsait</Text>
+                        </View>
+                        <View style={bm.legendItem}>
+                            <View style={[bm.legendDot, { backgroundColor: colors.surface2, borderColor: colors.border }]} />
+                            <Text style={bm.legendText}>Dolu</Text>
+                        </View>
+                        <View style={bm.legendItem}>
+                            <View style={[bm.legendDot, { backgroundColor: '#ef444418', borderColor: '#ef444440' }]} />
+                            <Text style={bm.legendText}>🔧 Bakım</Text>
+                        </View>
+                    </View>
 
                     {/* Seçilen slot — alt bar */}
                     {picked && (
@@ -789,7 +793,7 @@ const bm = StyleSheet.create({
 
     scroll: { paddingHorizontal: 14, paddingTop: 6 },
 
-    courtSection: { marginBottom: 18 },
+    courtSection: { width: 170, backgroundColor: colors.surface2 + '40', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: colors.border },
     courtHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
     courtName:    { color: '#fff', fontSize: 14, fontWeight: '900' },
     courtFree:    { color: colors.purple, fontSize: 12, fontWeight: '700' },
@@ -797,7 +801,7 @@ const bm = StyleSheet.create({
     noSlotText:   { color: colors.textMuted, fontSize: 12, marginVertical: 6 },
 
     slotGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-    slotBtn:       { width: '30%', backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 4, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '70' },
+    slotBtn:       { width: '47%', backgroundColor: colors.bg, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '70' },
     slotBtnTaken:  { backgroundColor: colors.surface2, borderColor: colors.border, opacity: 0.45 },
     slotBtnMaint:  { backgroundColor: '#ef444418', borderColor: '#ef444440', opacity: 0.9 },
     slotBtnPicked: { backgroundColor: colors.purple, borderColor: colors.purple },
