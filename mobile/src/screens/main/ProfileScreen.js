@@ -2225,7 +2225,7 @@ export default function ProfileScreen({ route, navigation }) {
             setProfile(p => ({ ...p, ...data }));
             dispatch(setUser({ ...profile, ...data }));
             setProfileInfoOpen(false);
-        } catch (e) { Alert.alert('Hata', 'Kaydedilemedi.'); }
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Kaydedilemedi.'); }
         finally { setSavingInfo(false); }
     };
 
