@@ -93,7 +93,7 @@ function getTabs(sub) {
     if (sub === 'football' || sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', ...(sub==='football' ? ['referee'] : []), 'media'];
     if (sub === 'tennis' || sub === 'padel')
-        return ['rivals', 'tournaments', 'coaches', 'equipment', 'venues', 'media', 'news', 'posts', 'archive'];
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'archive', 'venues', 'news'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
 }
 
@@ -11232,6 +11232,25 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 ? <ActivityIndicator size="small" color="#fff" />
                                                 : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{lang === 'tr' ? 'Gönder' : 'Submit'}</Text>}
                                         </TouchableOpacity>
+
+                                        {/* Kort puanları */}
+                                        {(venueReviewTarget.courtRatings?.length > 0) && (
+                                            <>
+                                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
+                                                    {lang === 'tr' ? 'Kort Puanları' : 'Court Ratings'}
+                                                </Text>
+                                                {venueReviewTarget.courtRatings.map(cr => (
+                                                    <View key={cr.courtId} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 9, padding: 9, marginBottom: 6, borderWidth: 1, borderColor: colors.border }}>
+                                                        <Text style={{ color: '#ddd', fontSize: 13 }}>{cr.courtName}</Text>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                            <Text style={{ color: '#facc15', fontWeight: '800', fontSize: 13 }}>⭐ {cr.avgRating.toFixed(1)}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 11 }}>({cr.count})</Text>
+                                                        </View>
+                                                    </View>
+                                                ))}
+                                                <View style={{ height: 10 }} />
+                                            </>
+                                        )}
 
                                         {/* Mevcut yorumlar */}
                                         {(venueReviewTarget.reviews?.filter(r => !r.courtId) || []).length > 0 && (
