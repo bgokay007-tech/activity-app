@@ -93,7 +93,7 @@ function getTabs(sub) {
     if (sub === 'football' || sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', ...(sub==='football' ? ['referee'] : []), 'media'];
     if (sub === 'tennis' || sub === 'padel')
-        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'archive', 'venues', 'news'];
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'archive', 'news'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
 }
 
@@ -8559,6 +8559,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
     const [news, setNews] = useState([]);
     const [loadingNews, setLoadingNews] = useState(false);
+    const [showVenuesSheet, setShowVenuesSheet] = useState(false);
     const [venuesList, setVenuesList] = useState([]);
     const [loadingVenues, setLoadingVenues] = useState(false);
     const [venuesLoaded, setVenuesLoaded] = useState(false);
@@ -9105,7 +9106,6 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [sub]);
 
     useEffect(() => {
-        if (activeTab === 'venues' && !venuesLoaded) loadVenues();
     }, [activeTab]);
 
     const openVenueReview = async (venue) => {
@@ -9743,13 +9743,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
                 {(sub === 'tennis' || sub === 'padel') && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                        <TouchableOpacity onPress={() => navigation.navigate('VenueSearch', { branch: sub })}
+                        <TouchableOpacity onPress={() => { if (!venuesLoaded) loadVenues(); setShowVenuesSheet(true); }}
                             style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
                             <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>🏟️ Kortlar</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setActiveTab('archive')}
-                            style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border }}>
-                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'800' }}>🗃️ Arşiv</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
                             <Text style={{ fontSize:19 }}>ℹ️</Text>
@@ -11117,36 +11113,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                     )}
 
                     {/* ── VENUES ── */}
-                    {activeTab === 'venues' && (
-                        loadingVenues
-                            ? <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
-                            : venuesList.length === 0
-                                ? <EmptyState emoji="🏟️" text={lang === 'tr' ? 'Bu sporda kayıtlı tesis bulunamadı' : 'No venues found for this sport'} />
-                                : <>
-                                    <TouchableOpacity onPress={() => { setVenuesLoaded(false); loadVenues(); }} style={{ alignSelf: 'flex-end', marginBottom: 8, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
-                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔄 {lang === 'tr' ? 'Yenile' : 'Refresh'}</Text>
-                                    </TouchableOpacity>
-                                    {venuesList.map(venue => (
-                                        <TouchableOpacity key={venue.id} onPress={() => openVenueReview(venue)}
-                                            style={{ backgroundColor: colors.surface2, borderRadius: 13, marginBottom: 10, padding: 12, borderWidth: 1, borderColor: colors.border }}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                <View style={{ flex: 1 }}>
-                                                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{venue.name}{venue.branch ? ` · ${venue.branch}` : ''}</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>📍 {venue.city}{venue.district ? ` / ${venue.district}` : ''}</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>🎾 {venue.courts?.length || 0} kort</Text>
-                                                </View>
-                                                <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                                                    {venue.avgRating
-                                                        ? <Text style={{ color: '#facc15', fontWeight: '800', fontSize: 13 }}>⭐ {venue.avgRating.toFixed(1)}</Text>
-                                                        : <Text style={{ color: colors.textMuted, fontSize: 11 }}>—</Text>}
-                                                    <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>Değerlendir →</Text>
-                                                </View>
-                                            </View>
-                                        </TouchableOpacity>
-                                    ))}
-                                  </>
-                    )}
-
                     {/* ── TEXT POSTS ── */}
                     {activeTab === 'posts' && (
                         <>
@@ -11184,6 +11150,56 @@ export default function SubCategoryScreen({ route, navigation }) {
             )}
 
             {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
+
+            {/* ── Kortlar Listesi Modal ── */}
+            {showVenuesSheet && (
+                <Modal visible animationType="slide" transparent onRequestClose={() => setShowVenuesSheet(false)}>
+                    <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:22, borderTopRightRadius:22, padding:18, paddingBottom:36, maxHeight:'80%' }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>
+                                    {lang === 'tr' ? '🏟️ Kayıtlı Kortlar' : '🏟️ Registered Courts'}
+                                </Text>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                                    <TouchableOpacity onPress={() => { setVenuesLoaded(false); loadVenues(); }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>🔄</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setShowVenuesSheet(false)}>
+                                        <Text style={{ color: colors.textMuted, fontSize:18 }}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                            {loadingVenues
+                                ? <ActivityIndicator color={cfg.color} style={{ marginVertical:30 }} />
+                                : venuesList.length === 0
+                                    ? <Text style={{ color: colors.textMuted, textAlign:'center', marginVertical:30 }}>
+                                        {lang === 'tr' ? 'Kayıtlı tesis bulunamadı' : 'No registered venues found'}
+                                      </Text>
+                                    : <ScrollView showsVerticalScrollIndicator={false}>
+                                        {venuesList.map(venue => (
+                                            <TouchableOpacity key={venue.id} onPress={() => { setShowVenuesSheet(false); openVenueReview(venue); }}
+                                                style={{ backgroundColor: colors.surface2, borderRadius:12, marginBottom:9, padding:12, borderWidth:1, borderColor: colors.border }}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{venue.name}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:12, marginTop:3 }}>📍 {venue.city}{venue.district ? ` / ${venue.district}` : ''}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>🎾 {venue.courts?.length || 0} kort</Text>
+                                                    </View>
+                                                    <View style={{ alignItems:'flex-end', gap:3 }}>
+                                                        {venue.avgRating
+                                                            ? <Text style={{ color:'#facc15', fontWeight:'800', fontSize:13 }}>⭐ {venue.avgRating.toFixed(1)}</Text>
+                                                            : <Text style={{ color: colors.textMuted, fontSize:11 }}>Henüz puan yok</Text>}
+                                                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>Değerlendir →</Text>
+                                                    </View>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
+                                      </ScrollView>
+                            }
+                        </View>
+                    </View>
+                </Modal>
+            )}
 
             {/* ── Tesis Değerlendirme Modal ── */}
             {!!venueReviewTarget && (
