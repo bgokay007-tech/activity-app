@@ -700,10 +700,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         )}
                         {item.matchTime && (
                             <Text style={{ color: cfg.color, fontSize:moderateScale(16), fontWeight:'700', marginTop:4 }}>
-                                🕐 {item.matchTime}
+                                🕐 {item.matchTime}{item.duration ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const tot=h*60+m+parseInt(item.duration); return `–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`; })() : ''}
+                                {item.duration ? `  ·  ${item.duration} ${t.timeMinSuffix}` : ''}
                             </Text>
                         )}
-                        {item.duration && (
+                        {!item.matchTime && item.duration && (
                             <Text style={{ color: colors.textMuted, fontSize:moderateScale(14), marginTop:4 }}>
                                 ⏱ {item.duration} {t.timeMinSuffix}
                             </Text>
@@ -1335,7 +1336,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text>}
                         {(item.matchTime || item.duration) && (
                             <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1}>
-                                {item.matchTime ? `🕐 ${item.matchTime}` : ''}{item.matchTime && item.duration ? ' · ' : ''}{item.duration ? `⏱ ${item.duration} ${t.timeMinSuffix}` : ''}
+                                {item.matchTime ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const dur=parseInt(item.duration||0); const tot=h*60+m+dur; const endT=dur>0?`–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`:''; return `🕐 ${item.matchTime}${endT}`; })() : ''}{item.matchTime && item.duration ? '  ·  ' : ''}{item.duration ? `${item.duration} ${t.timeMinSuffix}` : ''}
                             </Text>
                         )}
                     </View>
