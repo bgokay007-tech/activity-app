@@ -8561,8 +8561,13 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [loadingNews, setLoadingNews] = useState(false);
     const [showVenuesSheet, setShowVenuesSheet] = useState(false);
     const [venuesList, setVenuesList] = useState([]);
+    const [venuesTotal, setVenuesTotal] = useState(0);
+    const [venuesHasMore, setVenuesHasMore] = useState(false);
     const [loadingVenues, setLoadingVenues] = useState(false);
+    const [loadingMoreVenues, setLoadingMoreVenues] = useState(false);
     const [venuesLoaded, setVenuesLoaded] = useState(false);
+    const [venueFilterCity, setVenueFilterCity] = useState('');
+    const [venueFilterName, setVenueFilterName] = useState('');
     const [venueReviewTarget, setVenueReviewTarget] = useState(null); // { id, name, city, courts, reviews, venueRating, venueReviewCount }
     const [vrLoading, setVrLoading] = useState(false);
     const [vrRating, setVrRating] = useState(0);
@@ -9094,16 +9099,35 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (activeTab === 'news') loadNews();
     }, [activeTab, lang]);
 
-    const loadVenues = useCallback(async () => {
+    const loadVenues = useCallback(async (city = '', name = '') => {
         if (loadingVenues) return;
         setLoadingVenues(true);
         try {
-            const { data } = await api.get('/venues/search', { params: { branch: sub, ratingMode: 'true' } });
-            setVenuesList(Array.isArray(data) ? data : []);
+            const params = { ratingMode: 'true', skip: 0, take: 20 };
+            if (city.trim()) params.city = city.trim();
+            if (name.trim()) params.name = name.trim();
+            const { data } = await api.get('/venues/search', { params });
+            setVenuesList(data?.items || []);
+            setVenuesTotal(data?.total || 0);
+            setVenuesHasMore(data?.hasMore || false);
             setVenuesLoaded(true);
         } catch { setVenuesList([]); setVenuesLoaded(true); }
         finally { setLoadingVenues(false); }
-    }, [sub]);
+    }, []);
+
+    const loadMoreVenues = async () => {
+        if (loadingMoreVenues || !venuesHasMore) return;
+        setLoadingMoreVenues(true);
+        try {
+            const params = { ratingMode: 'true', skip: venuesList.length, take: 20 };
+            if (venueFilterCity.trim()) params.city = venueFilterCity.trim();
+            if (venueFilterName.trim()) params.name = venueFilterName.trim();
+            const { data } = await api.get('/venues/search', { params });
+            setVenuesList(prev => [...prev, ...(data?.items || [])]);
+            setVenuesHasMore(data?.hasMore || false);
+        } catch {}
+        finally { setLoadingMoreVenues(false); }
+    };
 
     useEffect(() => {
     }, [activeTab]);
@@ -9743,7 +9767,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
                 {(sub === 'tennis' || sub === 'padel') && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                        <TouchableOpacity onPress={() => { if (!venuesLoaded) loadVenues(); setShowVenuesSheet(true); }}
+                        <TouchableOpacity onPress={() => { if (!venuesLoaded) loadVenues('', ''); setShowVenuesSheet(true); }}
                             style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
                             <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? '🏟️ Kortlar' : '🏟️ Courts'}</Text>
                         </TouchableOpacity>
@@ -11151,52 +11175,100 @@ export default function SubCategoryScreen({ route, navigation }) {
 
             {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
 
-            {/* ── Kortlar Listesi Modal ── */}
+            {/* ── Kortlar Listesi Modal (tam ekran) ── */}
             {showVenuesSheet && (
-                <Modal visible animationType="slide" transparent onRequestClose={() => setShowVenuesSheet(false)}>
-                    <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
-                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:22, borderTopRightRadius:22, padding:18, paddingBottom:36, maxHeight:'80%' }}>
-                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>
-                                    {lang === 'tr' ? '🏟️ Kayıtlı Kortlar' : '🏟️ Registered Courts'}
-                                </Text>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-                                    <TouchableOpacity onPress={() => { setVenuesLoaded(false); loadVenues(); }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>🔄</Text>
+                <Modal visible animationType="slide" transparent={false} onRequestClose={() => setShowVenuesSheet(false)}>
+                    <View style={{ flex:1, backgroundColor: colors.bg }}>
+                        {/* Header */}
+                        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingTop:52, paddingBottom:12, backgroundColor: colors.surface, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                            <TouchableOpacity onPress={() => setShowVenuesSheet(false)} style={{ paddingRight:12 }}>
+                                <Text style={{ color: cfg.color, fontSize:15, fontWeight:'700' }}>← {lang === 'tr' ? 'Geri' : 'Back'}</Text>
+                            </TouchableOpacity>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>
+                                🏟️ {lang === 'tr' ? 'Kayıtlı Kortlar' : 'Registered Courts'}
+                            </Text>
+                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{venuesTotal} {lang === 'tr' ? 'tesis' : 'venues'}</Text>
+                        </View>
+
+                        {/* Filtreler */}
+                        <View style={{ paddingHorizontal:14, paddingVertical:10, gap:8, backgroundColor: colors.surface, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:10, borderWidth:1, borderColor: colors.border }}>
+                                <Text style={{ fontSize:14, marginRight:6 }}>🔍</Text>
+                                <TextInput
+                                    style={{ flex:1, color:'#fff', fontSize:13, paddingVertical:9 }}
+                                    placeholder={lang === 'tr' ? 'Tesis / kort adı ara...' : 'Search venue / court name...'}
+                                    placeholderTextColor={colors.textMuted}
+                                    value={venueFilterName}
+                                    onChangeText={v => { setVenueFilterName(v); setVenuesLoaded(false); loadVenues(venueFilterCity, v); }}
+                                    returnKeyType="search"
+                                />
+                                {!!venueFilterName && (
+                                    <TouchableOpacity onPress={() => { setVenueFilterName(''); loadVenues(venueFilterCity, ''); }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:16, paddingLeft:6 }}>✕</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setShowVenuesSheet(false)}>
-                                        <Text style={{ color: colors.textMuted, fontSize:18 }}>✕</Text>
-                                    </TouchableOpacity>
-                                </View>
+                                )}
                             </View>
-                            {loadingVenues
-                                ? <ActivityIndicator color={cfg.color} style={{ marginVertical:30 }} />
-                                : venuesList.length === 0
-                                    ? <Text style={{ color: colors.textMuted, textAlign:'center', marginVertical:30 }}>
-                                        {lang === 'tr' ? 'Kayıtlı tesis bulunamadı' : 'No registered venues found'}
+                            <View style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:10, borderWidth:1, borderColor: colors.border }}>
+                                <Text style={{ fontSize:14, marginRight:6 }}>📍</Text>
+                                <TextInput
+                                    style={{ flex:1, color:'#fff', fontSize:13, paddingVertical:9 }}
+                                    placeholder={lang === 'tr' ? 'Şehir / ilçe filtrele...' : 'Filter by city / district...'}
+                                    placeholderTextColor={colors.textMuted}
+                                    value={venueFilterCity}
+                                    onChangeText={v => { setVenueFilterCity(v); setVenuesLoaded(false); loadVenues(v, venueFilterName); }}
+                                    returnKeyType="search"
+                                />
+                                {!!venueFilterCity && (
+                                    <TouchableOpacity onPress={() => { setVenueFilterCity(''); loadVenues('', venueFilterName); }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:16, paddingLeft:6 }}>✕</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        </View>
+
+                        {/* Liste */}
+                        {loadingVenues
+                            ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
+                            : <ScrollView contentContainerStyle={{ padding:14, paddingBottom:30 }} showsVerticalScrollIndicator={false}>
+                                {venuesList.length === 0
+                                    ? <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:40, fontSize:14 }}>
+                                        {lang === 'tr' ? 'Tesis bulunamadı' : 'No venues found'}
                                       </Text>
-                                    : <ScrollView showsVerticalScrollIndicator={false}>
+                                    : <>
                                         {venuesList.map(venue => (
                                             <TouchableOpacity key={venue.id} onPress={() => { setShowVenuesSheet(false); openVenueReview(venue); }}
-                                                style={{ backgroundColor: colors.surface2, borderRadius:12, marginBottom:9, padding:12, borderWidth:1, borderColor: colors.border }}>
+                                                style={{ backgroundColor: colors.surface2, borderRadius:13, marginBottom:10, padding:13, borderWidth:1, borderColor: colors.border }}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{venue.name}</Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:12, marginTop:3 }}>📍 {venue.city}{venue.district ? ` / ${venue.district}` : ''}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>🎾 {venue.courts?.length || 0} kort</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>🎾 {venue.courts?.length || 0} {lang === 'tr' ? 'kort' : 'court'}{venue.branch ? `  ·  ${venue.branch}` : ''}</Text>
                                                     </View>
                                                     <View style={{ alignItems:'flex-end', gap:3 }}>
                                                         {venue.avgRating
-                                                            ? <Text style={{ color:'#facc15', fontWeight:'800', fontSize:13 }}>⭐ {venue.avgRating.toFixed(1)}</Text>
-                                                            : <Text style={{ color: colors.textMuted, fontSize:11 }}>Henüz puan yok</Text>}
-                                                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>Değerlendir →</Text>
+                                                            ? <Text style={{ color:'#facc15', fontWeight:'800', fontSize:14 }}>⭐ {venue.avgRating.toFixed(1)}</Text>
+                                                            : <Text style={{ color: colors.textMuted, fontSize:11 }}>{lang === 'tr' ? 'Puan yok' : 'No rating'}</Text>}
+                                                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang === 'tr' ? 'Değerlendir →' : 'Rate →'}</Text>
                                                     </View>
                                                 </View>
                                             </TouchableOpacity>
                                         ))}
-                                      </ScrollView>
-                            }
-                        </View>
+                                        {venuesHasMore && (
+                                            <TouchableOpacity
+                                                onPress={loadMoreVenues}
+                                                disabled={loadingMoreVenues}
+                                                style={{ backgroundColor: colors.surface, borderRadius:12, paddingVertical:11, alignItems:'center', borderWidth:1, borderColor: colors.border, marginTop:4 }}>
+                                                {loadingMoreVenues
+                                                    ? <ActivityIndicator size="small" color={cfg.color} />
+                                                    : <Text style={{ color: cfg.color, fontWeight:'800', fontSize:13 }}>
+                                                        {lang === 'tr' ? 'Daha Fazla Yükle' : 'Load More'}
+                                                      </Text>}
+                                            </TouchableOpacity>
+                                        )}
+                                    </>
+                                }
+                              </ScrollView>
+                        }
                     </View>
                 </Modal>
             )}

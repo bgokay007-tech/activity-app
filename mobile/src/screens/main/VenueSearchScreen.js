@@ -578,7 +578,7 @@ export default function VenueSearchScreen({ navigation, route }) {
             if (b)                params.branch = b;
             if (venueName.trim()) params.name   = venueName.trim();
             const { data } = await api.get('/venues/search', { params });
-            setVenues(data);
+            setVenues(Array.isArray(data) ? data : (data?.items || []));
         } catch {
             setVenues([]);
         } finally { setLoading(false); }

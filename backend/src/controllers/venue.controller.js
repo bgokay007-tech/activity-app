@@ -1014,9 +1014,10 @@ export const getCancelRequests = async (req, res, next) => {
 
 export const searchVenues = async (req, res, next) => {
     try {
-        const { city, branch, name, ratingMode } = req.query;
+        const { city, branch, name, ratingMode, skip: skipStr, take: takeStr } = req.query;
+        const skip = parseInt(skipStr) || 0;
+        const take = parseInt(takeStr) || (ratingMode ? 20 : 100);
 
-        // Rezervasyon aramasında yalnızca PRO/PREMIUM tesisler; puanlama modunda tüm onaylı tesisler
         let proFilter = {};
         if (!ratingMode) {
             const now = new Date();
@@ -1027,25 +1028,34 @@ export const searchVenues = async (req, res, next) => {
             proFilter = { userId: { in: proSubs.map(s => s.userId) } };
         }
 
-        const venues = await prisma.businessVenue.findMany({
-            where: {
-                status: 'APPROVED',
-                ...proFilter,
-                ...(city   ? { city:   { contains: city,   mode: 'insensitive' } } : {}),
-                ...(branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
-                ...(name   ? {
-                    OR: [
-                        { name:   { contains: name, mode: 'insensitive' } },
-                        { courts: { some: { name: { contains: name, mode: 'insensitive' } } } },
-                    ],
-                } : {}),
-            },
-            include: {
-                courts: { orderBy: { name: 'asc' } },
-                user: { select: { id: true, username: true, businessName: true, businessIban: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+        const where = {
+            status: 'APPROVED',
+            ...proFilter,
+            // ratingMode'da branch filtresi yok (tenis/tenis/tennis eşleşmesi sorunu)
+            ...(!ratingMode && branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
+            ...(city ? { OR: [
+                { city:     { contains: city, mode: 'insensitive' } },
+                { district: { contains: city, mode: 'insensitive' } },
+            ]} : {}),
+            ...(name ? { OR: [
+                { name:   { contains: name, mode: 'insensitive' } },
+                { courts: { some: { name: { contains: name, mode: 'insensitive' } } } },
+            ]} : {}),
+        };
+
+        const [total, venues] = await Promise.all([
+            prisma.businessVenue.count({ where }),
+            prisma.businessVenue.findMany({
+                where,
+                include: {
+                    courts: { orderBy: { name: 'asc' } },
+                    user: { select: { id: true, username: true, businessName: true } },
+                },
+                orderBy: { name: 'asc' },
+                skip,
+                take,
+            }),
+        ]);
 
         const venueIds = venues.map(v => v.id);
         const ratings = venueIds.length ? await prisma.venueReview.groupBy({
@@ -1056,11 +1066,15 @@ export const searchVenues = async (req, res, next) => {
         }) : [];
         const ratingMap = Object.fromEntries(ratings.map(r => [r.venueId, { avg: r._avg.rating, count: r._count.id }]));
 
-        res.json(venues.map(v => ({
-            ...v,
-            avgRating:   ratingMap[v.id]?.avg   ?? null,
-            reviewCount: ratingMap[v.id]?.count  ?? 0,
-        })));
+        res.json({
+            items: venues.map(v => ({
+                ...v,
+                avgRating:   ratingMap[v.id]?.avg   ?? null,
+                reviewCount: ratingMap[v.id]?.count  ?? 0,
+            })),
+            total,
+            hasMore: skip + take < total,
+        });
     } catch (error) { next(error); }
 };
 
