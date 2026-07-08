@@ -3523,11 +3523,12 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         const isWindow = cData && (cData.type === 'FLEXIBLE' || cData.type === 'VAR_DURATION');
         const typeInfo = cData ? slotTypeLabel(cData.type) : null;
 
+        const colWidth = isWindow ? 160 : isStructured ? 110 : 130;
         return (
-            <View key={court.id} style={vb.courtCol}>
+            <View key={court.id} style={[vb.courtCol, { width: colWidth, height: 400 }]}>
                 <Text style={vb.courtColTitle}>{court.name}</Text>
                 {typeInfo && (
-                    <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:6, paddingVertical:2, marginBottom:4, borderWidth:1, borderColor: typeInfo.color+'60' }}>
+                    <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:6, paddingVertical:2, marginBottom:3, borderWidth:1, borderColor: typeInfo.color+'60' }}>
                         <Text style={{ color: typeInfo.color, fontSize:9, fontWeight:'800', letterSpacing:0.3 }}>{typeInfo.label}</Text>
                     </View>
                 )}
@@ -3538,10 +3539,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                         <View style={vb.lightsInfoBtn}><Text style={vb.lightsInfoTxt}>i</Text></View>
                     </TouchableOpacity>
                 )}
-                {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop:8 }} size="small" />}
+                {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop:3 }} size="small" />}
                 {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
 
-                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1, maxHeight:240 }}>
+                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1 }}>
                 {!cs?.loading && isStructured && cData.slots.map((sl, i) => {
                     const isSel    = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
                     const isPend   = !sl.free && sl.status === 'PENDING';
@@ -3607,20 +3608,20 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             const endT = validStart ? toT(startM + dur) : '';
                             const isReserved = selSlot?.courtId === court.id && isWinSel && selSlot?.slot?.start === customStart;
                             return (
-                                <View key={wi} style={{ backgroundColor:'#ffffff08', borderRadius:10, padding:8, marginBottom:8, borderWidth:1, borderColor: isWinSel ? '#9333ea' : '#ffffff15' }}>
+                                <View key={wi} style={{ backgroundColor:'#ffffff08', borderRadius:8, padding:4, marginBottom:3, borderWidth:1, borderColor: isWinSel ? '#9333ea' : '#ffffff15' }}>
                                     <TouchableOpacity
                                         onPress={() => {
                                             setVarStartMap(p => ({ ...p, [court.id]: { winStart: w.start, winEnd: w.end, customStart: w.start } }));
                                             setVarDurMap(p => ({ ...p, [court.id]: 60 }));
                                             setSelSlot(null);
                                         }}
-                                        style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: isWinSel ? 8 : 0 }}
+                                        style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: isWinSel ? 3 : 0 }}
                                         activeOpacity={0.75}>
-                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>🕐 {w.start}–{w.end}</Text>
-                                        <Text style={{ color: isWinSel ? '#c084fc' : '#888', fontSize:10, fontWeight:'700' }}>{isWinSel ? '▲' : '▼'}</Text>
+                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>🕐 {w.start}–{w.end}</Text>
+                                        <Text style={{ color: isWinSel ? '#c084fc' : '#888', fontSize:9, fontWeight:'700' }}>{isWinSel ? '▲' : '▼'}</Text>
                                     </TouchableOpacity>
                                     {isWinSel && (<>
-                                        <Text style={{ color:'#888', fontSize:10, fontWeight:'700', marginBottom:4 }}>Başlangıç</Text>
+                                        <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Başlangıç</Text>
                                         <TextInput
                                             value={sel?.customStart ?? w.start}
                                             onChangeText={v => { setVarStartMap(p => ({ ...p, [court.id]: { ...p[court.id], customStart: v } })); setSelSlot(null); }}
@@ -3628,11 +3629,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                             placeholderTextColor="#555"
                                             keyboardType="numbers-and-punctuation"
                                             maxLength={5}
-                                            style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:5, color:'#fff', fontSize:13, fontWeight:'800', borderWidth:1, borderColor: validStart ? '#9333ea' : '#ffffff20', textAlign:'center', marginBottom:8 }}
+                                            style={{ backgroundColor:'#ffffff10', borderRadius:6, paddingHorizontal:6, paddingVertical:3, color:'#fff', fontSize:12, fontWeight:'800', borderWidth:1, borderColor: validStart ? '#9333ea' : '#ffffff20', textAlign:'center', marginBottom:3 }}
                                         />
                                         {validStart && (<>
-                                            <Text style={{ color:'#888', fontSize:10, fontWeight:'700', marginBottom:4 }}>Süre</Text>
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:6 }}>
+                                            <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Süre</Text>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
                                                 {[60,90,120,150,180].filter(d => startM + d <= winEndM).map(d => {
                                                     const isSd = varDurMap[court.id] === d;
                                                     const dPrice = w.pricePerHour != null ? Math.round(w.pricePerHour*(d/60)) : null;
@@ -3807,8 +3808,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
                             {/* Tüm kortlar sütun sütun (yatay kaydır) */}
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', minHeight:300 }]}
-                                style={{ height:300, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', minHeight:400 }]}
+                                style={{ height:400, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                                 {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                             </ScrollView>
 
@@ -3979,14 +3980,14 @@ const vb = StyleSheet.create({
     continueBtnTxt: { color:'#fff', fontSize:15, fontWeight:'700' },
 
     // Çok sütunlu kort görünümü
-    courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:8, paddingVertical:8, gap:8 },
-    courtCol:     { width:150, height:300, backgroundColor:'#ffffff08', borderRadius:10, padding:8, borderWidth:1, borderColor:'#ffffff12' },
-    courtColTitle:{ color:'#fff', fontSize:13, fontWeight:'800', textAlign:'center', marginBottom:5, letterSpacing:0.3 },
-    lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, marginBottom:5 },
+    courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:6, paddingVertical:6, gap:4 },
+    courtCol:     { backgroundColor:'#ffffff08', borderRadius:10, padding:6, borderWidth:1, borderColor:'#ffffff12' },
+    courtColTitle:{ color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center', marginBottom:3, letterSpacing:0.3 },
+    lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, marginBottom:3 },
     courtColLight:{ color:'#fbbf24', fontSize:10 },
     lightsInfoBtn:{ width:15, height:15, borderRadius:8, backgroundColor:'#fbbf2430', borderWidth:1, borderColor:'#fbbf2460', alignItems:'center', justifyContent:'center' },
     lightsInfoTxt:{ color:'#fbbf24', fontSize:9, fontWeight:'800', lineHeight:13 },
-    colSlot:      { borderRadius:5, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:3, alignItems:'center', borderWidth:1 },
+    colSlot:      { borderRadius:4, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:2, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#5c0a0a', borderColor:'#ef4444', borderWidth:1.5 },
     colSlotPend:  { backgroundColor:'#78350fcc', borderColor:'#f59e0b', borderWidth:1.5 },
