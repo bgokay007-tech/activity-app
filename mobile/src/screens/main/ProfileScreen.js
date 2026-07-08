@@ -21,6 +21,28 @@ import CityPickerModal from '../../components/CityPickerModal';
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
 
+const COUNTRY_CODES = [
+    { flag:'🇹🇷', code:'+90',  name:'Türkiye' },
+    { flag:'🇩🇪', code:'+49',  name:'Almanya' },
+    { flag:'🇳🇱', code:'+31',  name:'Hollanda' },
+    { flag:'🇧🇪', code:'+32',  name:'Belçika' },
+    { flag:'🇦🇹', code:'+43',  name:'Avusturya' },
+    { flag:'🇨🇭', code:'+41',  name:'İsviçre' },
+    { flag:'🇫🇷', code:'+33',  name:'Fransa' },
+    { flag:'🇬🇧', code:'+44',  name:'İngiltere' },
+    { flag:'🇺🇸', code:'+1',   name:'ABD / Kanada' },
+    { flag:'🇬🇷', code:'+30',  name:'Yunanistan' },
+    { flag:'🇧🇬', code:'+359', name:'Bulgaristan' },
+    { flag:'🇷🇴', code:'+40',  name:'Romanya' },
+    { flag:'🇺🇦', code:'+380', name:'Ukrayna' },
+    { flag:'🇷🇺', code:'+7',   name:'Rusya' },
+    { flag:'🇦🇿', code:'+994', name:'Azerbaycan' },
+    { flag:'🇸🇦', code:'+966', name:'S. Arabistan' },
+    { flag:'🇦🇪', code:'+971', name:'BAE' },
+    { flag:'🇶🇦', code:'+974', name:'Katar' },
+    { flag:'🇦🇺', code:'+61',  name:'Avustralya' },
+];
+
 const LEVEL_RANGES = { beginner:[0,1], intermediate:[1,2], advanced:[2,3], expert:[3,4], professional:[4,5] };
 const LEVEL_COLORS_CARD = { beginner:'#4ade80', intermediate:'#facc15', advanced:'#f97316', expert:'#a855f7', professional:'#ef4444' };
 
@@ -1525,6 +1547,8 @@ export default function ProfileScreen({ route, navigation }) {
         instagramPrivacy: 'PUBLIC', instagramSelected: [],
     });
     const [savingInfo, setSavingInfo] = useState(false);
+    const [phoneCC, setPhoneCC]         = useState('+90');
+    const [showCCPicker, setShowCCPicker] = useState(false);
 
     // Profil değişiklik talebi modal
     const [changeReqOpen, setChangeReqOpen] = useState(false);
@@ -3585,13 +3609,23 @@ export default function ProfileScreen({ route, navigation }) {
                             <Text style={s.menuSectionTitle}>📞 {t.contactSection}</Text>
 
                             {[
-                                { field:'contactPhone',    label:t.contactPhone,    ph:t.contactPhonePh,    privPrefix:'phone',    kbd:'phone-pad' },
-                                { field:'contactTelegram', label:t.contactTelegram, ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
-                                { field:'contactEmail',    label:t.contactEmail,    ph:t.contactEmailPh,    privPrefix:'cEmail',   kbd:'email-address' },
-                                { field:'contactInstagram',label:t.contactInstagram,ph:t.contactInstagramPh,privPrefix:'instagram',kbd:'default'   },
-                            ].map(({ field, label, ph, privPrefix, kbd }) => (
+                                { field:'contactPhone',    emoji:'📞💬', label:'Telefon / WhatsApp', ph:t.contactPhonePh,    privPrefix:'phone',    kbd:'phone-pad' },
+                                { field:'contactTelegram', emoji:'✈️',   label:'Telegram',           ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
+                                { field:'contactEmail',    emoji:'✉️',   label:'E-Posta',            ph:t.contactEmailPh,    privPrefix:'cEmail',   kbd:'email-address' },
+                                { field:'contactInstagram',emoji:'📸',   label:'Instagram',          ph:t.contactInstagramPh,privPrefix:'instagram',kbd:'default'   },
+                            ].map(({ field, emoji, label, ph, privPrefix, kbd }) => (
                                 <View key={field} style={s.contactFieldRow}>
-                                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:4 }}>{emoji} {label}</Text>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                        {field === 'contactPhone' && (
+                                            <TouchableOpacity
+                                                onPress={() => setShowCCPicker(true)}
+                                                style={[s.fieldInput, { paddingHorizontal:10, marginBottom:0, justifyContent:'center' }]}>
+                                                <Text style={{ color: colors.text, fontSize:14 }}>
+                                                    {(() => { const cc = COUNTRY_CODES.find(c => c.code === phoneCC); return cc ? `${cc.flag} ${cc.code}` : phoneCC; })()}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
                                         <TextInput
                                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}
                                             value={infoForm[field]}
@@ -3607,6 +3641,11 @@ export default function ProfileScreen({ route, navigation }) {
                                             <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm[`${privPrefix}Privacy`])}</Text>
                                         </TouchableOpacity>
                                     </View>
+                                    {field === 'contactPhone' && (
+                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
+                                            📞 Arama ve 💬 WhatsApp için kullanılır · beni arayabilirsin
+                                        </Text>
+                                    )}
                                 </View>
                             ))}
 
@@ -3893,6 +3932,31 @@ export default function ProfileScreen({ route, navigation }) {
                                 </Text>
                             </TouchableOpacity>
                         )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Country Code Picker Modal ── */}
+            <Modal visible={showCCPicker} animationType="slide" transparent onRequestClose={() => setShowCCPicker(false)}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { maxHeight: '70%' }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>🌍 Ülke Kodu Seç</Text>
+                            <TouchableOpacity onPress={() => setShowCCPicker(false)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView>
+                            {COUNTRY_CODES.map(({ flag, code, name }) => (
+                                <TouchableOpacity
+                                    key={code}
+                                    onPress={() => { setPhoneCC(code); setShowCCPicker(false); }}
+                                    style={[s.privacyOption, phoneCC === code && s.privacyOptionActive]}>
+                                    <Text style={{ color: colors.text, fontSize:15 }}>{flag} {name}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:14, marginLeft:8 }}>{code}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>
