@@ -105,6 +105,7 @@ const en = {
     mediaTab: '📷 Media',
     newsTab: '📰 News',
     postsTab: '✏️ Posts',
+    venuesTab: '🏟️ Venues',
 
     // SubCategory — rival card
     joinedCount: (f, t) => `${f}/${t} joined`,
@@ -757,6 +758,7 @@ const tr = {
     mediaTab: '📷 Medya',
     newsTab: '📰 Haberler',
     postsTab: '✏️ Yazılar',
+    venuesTab: '🏟️ Tesisler',
 
     // SubCategory — rival card
     joinedCount: (f, t) => `${f}/${t} katıldı`,

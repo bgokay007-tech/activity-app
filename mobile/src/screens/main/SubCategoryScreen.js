@@ -93,7 +93,7 @@ function getTabs(sub) {
     if (sub === 'football' || sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', ...(sub==='football' ? ['referee'] : []), 'media'];
     if (sub === 'tennis' || sub === 'padel')
-        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'news', 'posts', 'archive'];
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'venues', 'media', 'news', 'posts', 'archive'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
 }
 
@@ -8559,6 +8559,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
     const [news, setNews] = useState([]);
     const [loadingNews, setLoadingNews] = useState(false);
+    const [venuesList, setVenuesList] = useState([]);
+    const [loadingVenues, setLoadingVenues] = useState(false);
+    const [venuesLoaded, setVenuesLoaded] = useState(false);
+    const [venueReviewTarget, setVenueReviewTarget] = useState(null); // { id, name, city, courts, reviews, venueRating, venueReviewCount }
+    const [vrLoading, setVrLoading] = useState(false);
+    const [vrRating, setVrRating] = useState(0);
+    const [vrComment, setVrComment] = useState('');
+    const [vrSubmitting, setVrSubmitting] = useState(false);
     const [newPostText, setNewPostText] = useState('');
     const [submittingPost, setSubmittingPost] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -9084,6 +9092,46 @@ export default function SubCategoryScreen({ route, navigation }) {
     useEffect(() => {
         if (activeTab === 'news') loadNews();
     }, [activeTab, lang]);
+
+    const loadVenues = useCallback(async () => {
+        if (loadingVenues) return;
+        setLoadingVenues(true);
+        try {
+            const { data } = await api.get('/venues/search', { params: { branch: sub } });
+            setVenuesList(Array.isArray(data) ? data : []);
+            setVenuesLoaded(true);
+        } catch { setVenuesList([]); setVenuesLoaded(true); }
+        finally { setLoadingVenues(false); }
+    }, [sub]);
+
+    useEffect(() => {
+        if (activeTab === 'venues' && !venuesLoaded) loadVenues();
+    }, [activeTab]);
+
+    const openVenueReview = async (venue) => {
+        setVrLoading(true);
+        setVenueReviewTarget({ ...venue, reviews: [], venueRating: null, venueReviewCount: 0 });
+        setVrRating(0);
+        setVrComment('');
+        try {
+            const { data } = await api.get(`/venues/${venue.id}/reviews`);
+            setVenueReviewTarget(prev => prev ? { ...prev, ...data } : null);
+            const myReview = data.reviews?.find(r => !r.courtId && r.user?.id === myId);
+            if (myReview) { setVrRating(myReview.rating); setVrComment(myReview.comment || ''); }
+        } catch {}
+        finally { setVrLoading(false); }
+    };
+
+    const submitVenueReview = async () => {
+        if (!vrRating) return Alert.alert('', lang === 'tr' ? 'Lütfen puan seçin' : 'Please select a rating');
+        setVrSubmitting(true);
+        try {
+            await api.post(`/venues/${venueReviewTarget.id}/reviews`, { rating: vrRating, comment: vrComment.trim() || undefined });
+            const { data } = await api.get(`/venues/${venueReviewTarget.id}/reviews`);
+            setVenueReviewTarget(prev => prev ? { ...prev, ...data } : null);
+        } catch (e) { Alert.alert('', e?.response?.data?.message || (lang === 'tr' ? 'Hata oluştu' : 'An error occurred')); }
+        finally { setVrSubmitting(false); }
+    };
 
     const [mediaShareType, setMediaShareType] = useState('POST'); // POST | STORY | REEL
     const [showMediaTypeSheet, setShowMediaTypeSheet] = useState(false);
@@ -11058,6 +11106,37 @@ export default function SubCategoryScreen({ route, navigation }) {
                                   </>
                     )}
 
+                    {/* ── VENUES ── */}
+                    {activeTab === 'venues' && (
+                        loadingVenues
+                            ? <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
+                            : venuesList.length === 0
+                                ? <EmptyState emoji="🏟️" text={lang === 'tr' ? 'Bu sporda kayıtlı tesis bulunamadı' : 'No venues found for this sport'} />
+                                : <>
+                                    <TouchableOpacity onPress={() => { setVenuesLoaded(false); loadVenues(); }} style={{ alignSelf: 'flex-end', marginBottom: 8, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔄 {lang === 'tr' ? 'Yenile' : 'Refresh'}</Text>
+                                    </TouchableOpacity>
+                                    {venuesList.map(venue => (
+                                        <TouchableOpacity key={venue.id} onPress={() => openVenueReview(venue)}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 13, marginBottom: 10, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{venue.name}{venue.branch ? ` · ${venue.branch}` : ''}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>📍 {venue.city}{venue.district ? ` / ${venue.district}` : ''}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>🎾 {venue.courts?.length || 0} kort</Text>
+                                                </View>
+                                                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                                                    {venue.avgRating
+                                                        ? <Text style={{ color: '#facc15', fontWeight: '800', fontSize: 13 }}>⭐ {venue.avgRating.toFixed(1)}</Text>
+                                                        : <Text style={{ color: colors.textMuted, fontSize: 11 }}>—</Text>}
+                                                    <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>Değerlendir →</Text>
+                                                </View>
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                                  </>
+                    )}
+
                     {/* ── TEXT POSTS ── */}
                     {activeTab === 'posts' && (
                         <>
@@ -11095,6 +11174,89 @@ export default function SubCategoryScreen({ route, navigation }) {
             )}
 
             {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
+
+            {/* ── Tesis Değerlendirme Modal ── */}
+            {!!venueReviewTarget && (
+                <Modal visible animationType="slide" transparent onRequestClose={() => setVenueReviewTarget(null)}>
+                    <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, paddingBottom: 36, maxHeight: '88%' }}>
+                                {/* Başlık */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>{venueReviewTarget.name}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>📍 {venueReviewTarget.city}{venueReviewTarget.district ? ` / ${venueReviewTarget.district}` : ''}</Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => setVenueReviewTarget(null)} style={{ padding: 6 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize: 18 }}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {vrLoading ? <ActivityIndicator color={cfg.color} style={{ marginVertical: 20 }} /> : (
+                                    <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                                        {/* Ortalama puan */}
+                                        {venueReviewTarget.venueRating && (
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, backgroundColor: colors.surface2, borderRadius: 10, padding: 9, borderWidth: 1, borderColor: colors.border }}>
+                                                <Text style={{ color: '#facc15', fontSize: 20, fontWeight: '900' }}>⭐ {venueReviewTarget.venueRating.toFixed(1)}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>({venueReviewTarget.venueReviewCount} {lang === 'tr' ? 'değerlendirme' : 'review'})</Text>
+                                            </View>
+                                        )}
+
+                                        {/* Yorum yaz */}
+                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
+                                            {lang === 'tr' ? 'Değerlendirmeni Yaz' : 'Write Your Review'}
+                                        </Text>
+                                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                                            {[1, 2, 3, 4, 5].map(star => (
+                                                <TouchableOpacity key={star} onPress={() => setVrRating(star)} style={{ padding: 4 }}>
+                                                    <Text style={{ fontSize: 28, opacity: star <= vrRating ? 1 : 0.25 }}>⭐</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                        <View style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 9, marginBottom: 10, borderWidth: 1, borderColor: colors.border }}>
+                                            <TextInput
+                                                style={{ color: '#fff', fontSize: 13, minHeight: 60, textAlignVertical: 'top' }}
+                                                placeholder={lang === 'tr' ? 'Yorum ekle (isteğe bağlı)' : 'Add a comment (optional)'}
+                                                placeholderTextColor={colors.textMuted}
+                                                value={vrComment}
+                                                onChangeText={setVrComment}
+                                                multiline
+                                                maxLength={500}
+                                            />
+                                        </View>
+                                        <TouchableOpacity
+                                            onPress={submitVenueReview}
+                                            disabled={vrSubmitting || !vrRating}
+                                            style={{ backgroundColor: vrRating ? cfg.color : colors.surface2, borderRadius: 12, paddingVertical: 11, alignItems: 'center', marginBottom: 18, opacity: vrSubmitting ? 0.6 : 1 }}>
+                                            {vrSubmitting
+                                                ? <ActivityIndicator size="small" color="#fff" />
+                                                : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{lang === 'tr' ? 'Gönder' : 'Submit'}</Text>}
+                                        </TouchableOpacity>
+
+                                        {/* Mevcut yorumlar */}
+                                        {(venueReviewTarget.reviews?.filter(r => !r.courtId) || []).length > 0 && (
+                                            <>
+                                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
+                                                    {lang === 'tr' ? 'Yorumlar' : 'Reviews'}
+                                                </Text>
+                                                {venueReviewTarget.reviews.filter(r => !r.courtId).map(r => (
+                                                    <View key={r.id} style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 9, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>@{r.user?.username}</Text>
+                                                            <Text style={{ color: '#facc15', fontSize: 12 }}>{'⭐'.repeat(r.rating)}</Text>
+                                                        </View>
+                                                        {!!r.comment && <Text style={{ color: '#ddd', fontSize: 13, lineHeight: 18 }}>{r.comment}</Text>}
+                                                    </View>
+                                                ))}
+                                            </>
+                                        )}
+                                    </ScrollView>
+                                )}
+                            </View>
+                        </KeyboardAvoidingView>
+                    </View>
+                </Modal>
+            )}
             {showCreatePW && <CreatePlayerWantedModal visible onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />}
             {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
             {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} onStatusChange={setTournamentPermStatus} />}

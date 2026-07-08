@@ -1043,7 +1043,21 @@ export const searchVenues = async (req, res, next) => {
             },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(venues);
+
+        const venueIds = venues.map(v => v.id);
+        const ratings = venueIds.length ? await prisma.venueReview.groupBy({
+            by: ['venueId'],
+            where: { venueId: { in: venueIds }, courtId: null },
+            _avg: { rating: true },
+            _count: { id: true },
+        }) : [];
+        const ratingMap = Object.fromEntries(ratings.map(r => [r.venueId, { avg: r._avg.rating, count: r._count.id }]));
+
+        res.json(venues.map(v => ({
+            ...v,
+            avgRating:   ratingMap[v.id]?.avg   ?? null,
+            reviewCount: ratingMap[v.id]?.count  ?? 0,
+        })));
     } catch (error) { next(error); }
 };
 
