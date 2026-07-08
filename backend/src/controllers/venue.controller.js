@@ -1029,7 +1029,9 @@ export const searchVenues = async (req, res, next) => {
         }
 
         const where = {
-            status: 'APPROVED',
+            ...(ratingMode
+                ? { status: { in: ['APPROVED', 'PENDING'] } }
+                : { status: 'APPROVED' }),
             ...proFilter,
             // ratingMode'da branch filtresi yok (tenis/tenis/tennis eşleşmesi sorunu)
             ...(!ratingMode && branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
