@@ -220,6 +220,7 @@ export const createVenue = async (req, res, next) => {
         const sub = await prisma.businessSubscription.findFirst({
             where: { userId: req.userId, status: 'ACTIVE', endDate: { gt: now } },
         });
+        console.log('[createVenue] userId:', req.userId, 'sub:', sub?.packageType ?? 'YOK', 'branch:', branch);
         if (!sub) return res.status(403).json({ message: 'Tesis eklemek için aktif abonelik gerekli' });
         if (!VENUE_ALLOWED_PACKAGES.includes(sub.packageType))
             return res.status(403).json({ message: 'Tesis eklemek için en az Rahatlatıcı paket gereklidir' });
@@ -228,11 +229,13 @@ export const createVenue = async (req, res, next) => {
         const limit = PACKAGE_LIMITS[sub.packageType];
         if (limit) {
             const venueCount = await prisma.businessVenue.count({ where: { userId: req.userId } });
+            console.log('[createVenue] venueCount:', venueCount, 'limit.venues:', limit.venues);
             if (venueCount >= limit.venues)
                 return res.status(403).json({ message: `${sub.packageType === 'PRO' ? 'Pro' : sub.packageType === 'PREMIUM' ? 'Premium' : 'Rahatlatıcı'} pakette en fazla ${limit.venues} tesis ekleyebilirsiniz.` });
             if (limit.courts !== null) {
                 const existingCourts = await prisma.venueCourt.count({ where: { venue: { userId: req.userId } } });
                 const newCourts = courts?.length || 0;
+                console.log('[createVenue] existingCourts:', existingCourts, 'newCourts:', newCourts, 'limit.courts:', limit.courts);
                 if (existingCourts + newCourts > limit.courts)
                     return res.status(403).json({ message: `${sub.packageType === 'PRO' ? 'Pro' : 'Premium'} pakette toplam en fazla ${limit.courts} kort ekleyebilirsiniz. Mevcut: ${existingCourts}` });
             }
