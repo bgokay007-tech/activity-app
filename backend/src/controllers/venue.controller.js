@@ -1029,9 +1029,7 @@ export const searchVenues = async (req, res, next) => {
         }
 
         const where = {
-            ...(ratingMode
-                ? { status: { in: ['APPROVED', 'PENDING'] } }
-                : { status: 'APPROVED' }),
+            ...(ratingMode ? {} : { status: 'APPROVED' }),
             ...proFilter,
             // ratingMode'da branch filtresi yok (tenis/tenis/tennis eşleşmesi sorunu)
             ...(!ratingMode && branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
@@ -1068,6 +1066,7 @@ export const searchVenues = async (req, res, next) => {
         }) : [];
         const ratingMap = Object.fromEntries(ratings.map(r => [r.venueId, { avg: r._avg.rating, count: r._count.id }]));
 
+        if (ratingMode) console.log('[searchVenues ratingMode] total:', total, 'returned:', venues.length, 'statuses:', venues.map(v => `${v.name}:${v.status}`));
         res.json({
             items: venues.map(v => ({
                 ...v,
