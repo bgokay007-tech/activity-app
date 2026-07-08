@@ -339,8 +339,24 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
     );
 }
 
+const VENUE_BRANCHES = [
+    { key: 'football',    label: '⚽ Futbol / Halı Saha', subCategory: 'football' },
+    { key: 'tennis',      label: '🎾 Tenis',              subCategory: 'tennis' },
+    { key: 'padel',       label: '🏓 Padel',              subCategory: 'padel' },
+    { key: 'basketball',  label: '🏀 Basketbol',          subCategory: 'basketball' },
+    { key: 'volleyball',  label: '🏐 Voleybol',           subCategory: 'volleyball' },
+    { key: 'badminton',   label: '🏸 Badminton',          subCategory: 'badminton' },
+    { key: 'swimming',    label: '🏊 Yüzme',              subCategory: 'swimming' },
+    { key: 'boxing',      label: '🥊 Boks',               subCategory: 'boxing' },
+    { key: 'martial_arts',label: '🥋 Dövüş Sanatları',   subCategory: 'martial_arts' },
+    { key: 'wellness',    label: '🧘 Yoga / Pilates',     subCategory: 'wellness' },
+    { key: 'cycling',     label: '🚴 Bisiklet',           subCategory: 'cycling' },
+    { key: 'running',     label: '🏃 Koşu',               subCategory: 'running' },
+];
+
 // ── Tesis Ekleme Modalı (3 adım) ─────────────────────────────────────────────
 function VenueAddModal({ visible, onClose, onSuccess }) {
+    const [showBranchPicker, setShowBranchPicker] = useState(false);
     const [step, setStep] = useState(1);
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState({
@@ -374,6 +390,7 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
 
     const handleClose = () => {
         setStep(1);
+        setShowBranchPicker(false);
         setForm({ name: '', branch: '', city: '', district: '', address: '', phone: '', openTime: '08:00', closeTime: '22:00', openDays: [1,2,3,4,5,6,7], slotType: 'FULL_HOUR', pricePerSlot: '', courts: ['Kort 1'] });
         onClose();
     };
@@ -397,7 +414,23 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
             <View>
                 <Text style={va.stepTitle}>Adım 1 / 3 — Tesis Bilgileri</Text>
                 <TextInput style={va.input} placeholder="Tesis / İşletme Adı *" placeholderTextColor={colors.textMuted} value={form.name} onChangeText={v => set('name', v)} />
-                <TextInput style={va.input} placeholder="Spor Dalı (ör. tenis, futbol) *" placeholderTextColor={colors.textMuted} value={form.branch} onChangeText={v => set('branch', v)} />
+                {/* Spor Dalı — seçim listesi */}
+                <TouchableOpacity style={[va.input, { justifyContent: 'center' }]} onPress={() => setShowBranchPicker(true)} activeOpacity={0.8}>
+                    <Text style={{ color: form.branch ? '#fff' : colors.textMuted, fontSize: 14 }}>
+                        {form.branch ? (VENUE_BRANCHES.find(b => b.key === form.branch)?.label || form.branch) : 'Spor Dalı *'}
+                    </Text>
+                </TouchableOpacity>
+                {showBranchPicker && (
+                    <View style={{ backgroundColor: '#0f0f1a', borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: colors.border }}>
+                        {VENUE_BRANCHES.map(b => (
+                            <TouchableOpacity key={b.key}
+                                style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: '#ffffff10', backgroundColor: form.branch === b.key ? '#7c3aed20' : 'transparent' }}
+                                onPress={() => { set('branch', b.key); setShowBranchPicker(false); }}>
+                                <Text style={{ color: form.branch === b.key ? '#a78bfa' : '#e5e7eb', fontSize: 14, fontWeight: form.branch === b.key ? '700' : '400' }}>{b.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
                 <TextInput style={va.input} placeholder="Şehir *" placeholderTextColor={colors.textMuted} value={form.city} onChangeText={v => set('city', v)} />
                 <TextInput style={va.input} placeholder="İlçe (isteğe bağlı)" placeholderTextColor={colors.textMuted} value={form.district} onChangeText={v => set('district', v)} />
                 <TextInput style={va.input} placeholder="Adres" placeholderTextColor={colors.textMuted} value={form.address} onChangeText={v => set('address', v)} />
