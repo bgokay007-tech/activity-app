@@ -1066,7 +1066,6 @@ export const searchVenues = async (req, res, next) => {
         }) : [];
         const ratingMap = Object.fromEntries(ratings.map(r => [r.venueId, { avg: r._avg.rating, count: r._count.id }]));
 
-        if (ratingMode) console.log('[searchVenues ratingMode] total:', total, 'returned:', venues.length, 'statuses:', venues.map(v => `${v.name}:${v.status}`));
         res.json({
             items: venues.map(v => ({
                 ...v,

@@ -8562,10 +8562,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showVenuesSheet, setShowVenuesSheet] = useState(false);
     const [venuesList, setVenuesList] = useState([]);
     const [venuesTotal, setVenuesTotal] = useState(0);
-    const [venuesHasMore, setVenuesHasMore] = useState(false);
     const [loadingVenues, setLoadingVenues] = useState(false);
-    const [loadingMoreVenues, setLoadingMoreVenues] = useState(false);
-    const [venuesLoaded, setVenuesLoaded] = useState(false);
     const [venueFilterCity, setVenueFilterCity] = useState('');
     const [venueFilterName, setVenueFilterName] = useState('');
     const [venueReviewTarget, setVenueReviewTarget] = useState(null); // { id, name, city, courts, reviews, venueRating, venueReviewCount }
@@ -9102,13 +9099,13 @@ export default function SubCategoryScreen({ route, navigation }) {
     const fetchVenues = async (city, name) => {
         setLoadingVenues(true);
         try {
-            const params = { ratingMode: 'true', skip: 0, take: 20 };
+            const params = { sport: sub };
             if (city && city.trim()) params.city = city.trim();
             if (name && name.trim()) params.name = name.trim();
-            const { data } = await api.get('/venues/search', { params });
-            setVenuesList(data?.items ?? []);
-            setVenuesTotal(data?.total ?? 0);
-            setVenuesHasMore(data?.hasMore ?? false);
+            const { data } = await api.get('/courts/search', { params });
+            const list = Array.isArray(data) ? data : [];
+            setVenuesList(list);
+            setVenuesTotal(list.length);
         } catch (e) {
             console.log('fetchVenues error', e?.response?.status, e?.message);
             setVenuesList([]);
@@ -9121,29 +9118,22 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (showVenuesSheet) fetchVenues('', '');
     }, [showVenuesSheet]);
 
-    const loadMoreVenues = async () => {
-        if (loadingMoreVenues || !venuesHasMore) return;
-        setLoadingMoreVenues(true);
-        try {
-            const params = { ratingMode: 'true', skip: venuesList.length, take: 20 };
-            if (venueFilterCity.trim()) params.city = venueFilterCity.trim();
-            if (venueFilterName.trim()) params.name = venueFilterName.trim();
-            const { data } = await api.get('/venues/search', { params });
-            setVenuesList(prev => [...prev, ...(data?.items || [])]);
-            setVenuesHasMore(data?.hasMore || false);
-        } catch {}
-        finally { setLoadingMoreVenues(false); }
-    };
-
-    const openVenueReview = async (venue) => {
+    const openVenueReview = async (court) => {
         setVrLoading(true);
-        setVenueReviewTarget({ ...venue, reviews: [], venueRating: null, venueReviewCount: 0 });
+        setVenueReviewTarget({ ...court, reviews: [], venueRating: null, venueReviewCount: 0 });
         setVrRating(0);
         setVrComment('');
         try {
-            const { data } = await api.get(`/venues/${venue.id}/reviews`);
+            let data;
+            if (court.isBusinessVenue) {
+                const resp = await api.get(`/venues/${court.venueId}/reviews`);
+                data = resp.data;
+            } else {
+                const resp = await api.get(`/courts/${court.id}/ratings`);
+                data = resp.data;
+            }
             setVenueReviewTarget(prev => prev ? { ...prev, ...data } : null);
-            const myReview = data.reviews?.find(r => !r.courtId && r.user?.id === myId);
+            const myReview = data.reviews?.find(r => r.user?.id === myId);
             if (myReview) { setVrRating(myReview.rating); setVrComment(myReview.comment || ''); }
         } catch {}
         finally { setVrLoading(false); }
@@ -9153,9 +9143,15 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!vrRating) return Alert.alert('', lang === 'tr' ? 'Lütfen puan seçin' : 'Please select a rating');
         setVrSubmitting(true);
         try {
-            await api.post(`/venues/${venueReviewTarget.id}/reviews`, { rating: vrRating, comment: vrComment.trim() || undefined });
-            const { data } = await api.get(`/venues/${venueReviewTarget.id}/reviews`);
-            setVenueReviewTarget(prev => prev ? { ...prev, ...data } : null);
+            if (venueReviewTarget.isBusinessVenue) {
+                await api.post(`/venues/${venueReviewTarget.venueId}/reviews`, { rating: vrRating, comment: vrComment.trim() || undefined });
+                const { data } = await api.get(`/venues/${venueReviewTarget.venueId}/reviews`);
+                setVenueReviewTarget(prev => prev ? { ...prev, ...data } : null);
+            } else {
+                await api.post(`/courts/${venueReviewTarget.id}/ratings`, { rating: vrRating, comment: vrComment.trim() || undefined });
+                const { data } = await api.get(`/courts/${venueReviewTarget.id}/ratings`);
+                setVenueReviewTarget(prev => prev ? { ...prev, ...data } : null);
+            }
         } catch (e) { Alert.alert('', e?.response?.data?.message || (lang === 'tr' ? 'Hata oluştu' : 'An error occurred')); }
         finally { setVrSubmitting(false); }
     };
@@ -11190,7 +11186,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>
                                 🏟️ {lang === 'tr' ? 'Kayıtlı Kortlar' : 'Registered Courts'}
                             </Text>
-                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{venuesTotal} {lang === 'tr' ? 'tesis' : 'venues'}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{venuesTotal} {lang === 'tr' ? 'kort' : 'courts'}</Text>
                         </View>
 
                         {/* Filtreler */}
@@ -11235,39 +11231,38 @@ export default function SubCategoryScreen({ route, navigation }) {
                             : <ScrollView contentContainerStyle={{ padding:14, paddingBottom:30 }} showsVerticalScrollIndicator={false}>
                                 {venuesList.length === 0
                                     ? <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:40, fontSize:14 }}>
-                                        {lang === 'tr' ? 'Tesis bulunamadı' : 'No venues found'}
+                                        {lang === 'tr' ? 'Kort bulunamadı' : 'No courts found'}
                                       </Text>
                                     : <>
-                                        {venuesList.map(venue => (
-                                            <TouchableOpacity key={venue.id} onPress={() => { setShowVenuesSheet(false); openVenueReview(venue); }}
+                                        {venuesList.map(court => (
+                                            <TouchableOpacity key={court.id} onPress={() => { setShowVenuesSheet(false); openVenueReview(court); }}
                                                 style={{ backgroundColor: colors.surface2, borderRadius:13, marginBottom:10, padding:13, borderWidth:1, borderColor: colors.border }}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                                                    <View style={{ flex:1 }}>
-                                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{venue.name}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:12, marginTop:3 }}>📍 {venue.city}{venue.district ? ` / ${venue.district}` : ''}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>🎾 {venue.courts?.length || 0} {lang === 'tr' ? 'kort' : 'court'}{venue.branch ? `  ·  ${venue.branch}` : ''}</Text>
+                                                    <View style={{ flex:1, paddingRight:8 }}>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                            <Text style={{ color:'#fff', fontSize:14, fontWeight:'800', flex:1 }}>{court.name}</Text>
+                                                            {court.isBusinessVenue
+                                                                ? <Text style={{ color:'#a78bfa', fontSize:10, fontWeight:'700', backgroundColor:'#a78bfa20', paddingHorizontal:5, paddingVertical:2, borderRadius:5 }}>PRO</Text>
+                                                                : court.verified
+                                                                    ? <Text style={{ color:'#34d399', fontSize:10, fontWeight:'700', backgroundColor:'#34d39920', paddingHorizontal:5, paddingVertical:2, borderRadius:5 }}>✓</Text>
+                                                                    : null}
+                                                        </View>
+                                                        <Text style={{ color: colors.textMuted, fontSize:12, marginTop:3 }}>📍 {court.city}{court.address ? ` · ${court.address}` : ''}</Text>
+                                                        {!court.isBusinessVenue && (court.surface || court.indoor != null) && (
+                                                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
+                                                                {court.surface ? `⬜ ${court.surface}` : ''}{court.surface && court.indoor != null ? '  ·  ' : ''}{court.indoor != null ? (court.indoor ? (lang === 'tr' ? '🏠 Kapalı' : '🏠 Indoor') : (lang === 'tr' ? '☀️ Açık' : '☀️ Outdoor')) : ''}
+                                                            </Text>
+                                                        )}
                                                     </View>
                                                     <View style={{ alignItems:'flex-end', gap:3 }}>
-                                                        {venue.avgRating
-                                                            ? <Text style={{ color:'#facc15', fontWeight:'800', fontSize:14 }}>⭐ {venue.avgRating.toFixed(1)}</Text>
+                                                        {court.avgRating
+                                                            ? <Text style={{ color:'#facc15', fontWeight:'800', fontSize:14 }}>⭐ {court.avgRating.toFixed(1)}</Text>
                                                             : <Text style={{ color: colors.textMuted, fontSize:11 }}>{lang === 'tr' ? 'Puan yok' : 'No rating'}</Text>}
                                                         <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang === 'tr' ? 'Değerlendir →' : 'Rate →'}</Text>
                                                     </View>
                                                 </View>
                                             </TouchableOpacity>
                                         ))}
-                                        {venuesHasMore && (
-                                            <TouchableOpacity
-                                                onPress={loadMoreVenues}
-                                                disabled={loadingMoreVenues}
-                                                style={{ backgroundColor: colors.surface, borderRadius:12, paddingVertical:11, alignItems:'center', borderWidth:1, borderColor: colors.border, marginTop:4 }}>
-                                                {loadingMoreVenues
-                                                    ? <ActivityIndicator size="small" color={cfg.color} />
-                                                    : <Text style={{ color: cfg.color, fontWeight:'800', fontSize:13 }}>
-                                                        {lang === 'tr' ? 'Daha Fazla Yükle' : 'Load More'}
-                                                      </Text>}
-                                            </TouchableOpacity>
-                                        )}
                                     </>
                                 }
                               </ScrollView>

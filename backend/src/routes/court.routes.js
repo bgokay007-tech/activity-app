@@ -10,6 +10,8 @@ import {
     getPendingCourts,
     verifyCourt,
     rejectCourt,
+    getCourtRatings,
+    upsertCourtRating,
 } from '../controllers/court.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/admin.middleware.js';
@@ -25,6 +27,8 @@ router.get('/',        authenticate, getAllCourts);
 router.get('/search',  authenticate, searchCourts);
 router.post('/', authenticate, addCourt);
 router.post('/import-osm', authenticate, importFromOSM);
+router.get('/:id/ratings',  authenticate, getCourtRatings);
+router.post('/:id/ratings', authenticate, upsertCourtRating);
 router.get('/:id', authenticate, getCourt);
 router.put('/:id', authenticate, updateCourt);
 router.delete('/:id', authenticate, deleteCourt);

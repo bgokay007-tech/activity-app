@@ -62,21 +62,22 @@ export const searchCourts = async (req, res, next) => {
         const { city, sport, surface, indoor } = req.query;
         const name = req.query.name || req.query.q;
 
+        const courtWhere = {
+            ...(name ? { name: { contains: name, mode: 'insensitive' } } : {}),
+            ...(city ? { city: { contains: city, mode: 'insensitive' } } : {}),
+            sport: sport || undefined,
+            surface: surface || undefined,
+            indoor: indoor === 'true' ? true : indoor === 'false' ? false : undefined,
+        };
+
         const [courts, venues] = await Promise.all([
             prisma.court.findMany({
-                where: {
-                    ...(name ? { name: { contains: name, mode: 'insensitive' } } : {}),
-                    ...(city ? { city: { contains: city, mode: 'insensitive' } } : {}),
-                    sport: sport || undefined,
-                    surface: surface || undefined,
-                    indoor: indoor === 'true' ? true : indoor === 'false' ? false : undefined,
-                },
+                where: courtWhere,
                 include: { user: { select: { id: true, username: true } } },
                 orderBy: [{ verified: 'desc' }, { createdAt: 'desc' }],
             }),
             prisma.businessVenue.findMany({
                 where: {
-                    status: 'APPROVED',
                     ...(name
                         ? {
                             OR: [
@@ -95,35 +96,90 @@ export const searchCourts = async (req, res, next) => {
             }),
         ]);
 
-        // Her kort ayrı bir satır olarak döner: "Büro Kort — Kort 1"
+        // Kort rating ortalamaları
+        const courtIds = courts.map(c => c.id);
+        const courtRatings = courtIds.length ? await prisma.courtRating.groupBy({
+            by: ['courtId'],
+            where: { courtId: { in: courtIds } },
+            _avg: { rating: true },
+            _count: { id: true },
+        }) : [];
+        const courtRatingMap = Object.fromEntries(courtRatings.map(r => [r.courtId, { avg: r._avg.rating, count: r._count.id }]));
+
+        // Tesis rating ortalamaları
+        const venueIds = venues.map(v => v.id);
+        const venueRatings = venueIds.length ? await prisma.venueReview.groupBy({
+            by: ['venueId'],
+            where: { venueId: { in: venueIds }, courtId: null },
+            _avg: { rating: true },
+            _count: { id: true },
+        }) : [];
+        const venueRatingMap = Object.fromEntries(venueRatings.map(r => [r.venueId, { avg: r._avg.rating, count: r._count.id }]));
+
+        const courtsWithRating = courts.map(c => ({
+            ...c,
+            avgRating:   courtRatingMap[c.id]?.avg   ?? null,
+            reviewCount: courtRatingMap[c.id]?.count  ?? 0,
+        }));
+
+        // Her tesis ayrı bir satır olarak döner
         const venueAsCourts = venues.flatMap(v =>
-            v.courts.map(c => ({
-                id: `venue_${v.id}_court_${c.id}`,
-                name: `${v.name} — ${c.name}`,
-                venueName: v.name,
-                address: v.address || null,
-                city: v.city,
-                country: null,
-                lat: null,
-                lng: null,
-                sport: v.branch,
-                surface: null,
-                indoor: false,
-                fee: false,
-                feeAmount: null,
-                lights: false,
-                description: `${v.branch} · ${v.openTime}–${v.closeTime}`,
-                addedBy: v.userId,
-                verified: true,
-                pending: false,
-                isBusinessVenue: true,
-                venueId: v.id,
-                courtId: c.id,
-                user: v.user,
-            }))
+            v.courts.length > 0
+                ? v.courts.map(c => ({
+                    id: `venue_${v.id}_court_${c.id}`,
+                    name: `${v.name} — ${c.name}`,
+                    venueName: v.name,
+                    address: v.address || null,
+                    city: v.city,
+                    country: null,
+                    lat: null,
+                    lng: null,
+                    sport: v.branch,
+                    surface: null,
+                    indoor: false,
+                    fee: false,
+                    feeAmount: null,
+                    lights: false,
+                    description: `${v.branch} · ${v.openTime}–${v.closeTime}`,
+                    addedBy: v.userId,
+                    verified: true,
+                    pending: false,
+                    isBusinessVenue: true,
+                    venueId: v.id,
+                    courtId: c.id,
+                    user: v.user,
+                    avgRating:   venueRatingMap[v.id]?.avg   ?? null,
+                    reviewCount: venueRatingMap[v.id]?.count  ?? 0,
+                }))
+                : [{
+                    id: `venue_${v.id}`,
+                    name: v.name,
+                    venueName: v.name,
+                    address: v.address || null,
+                    city: v.city,
+                    country: null,
+                    lat: null,
+                    lng: null,
+                    sport: v.branch,
+                    surface: null,
+                    indoor: false,
+                    fee: false,
+                    feeAmount: null,
+                    lights: false,
+                    description: null,
+                    addedBy: v.userId,
+                    verified: true,
+                    pending: false,
+                    isBusinessVenue: true,
+                    venueId: v.id,
+                    courtId: null,
+                    user: v.user,
+                    avgRating:   venueRatingMap[v.id]?.avg   ?? null,
+                    reviewCount: venueRatingMap[v.id]?.count  ?? 0,
+                }]
         );
 
-        res.json([...courts, ...venueAsCourts]);
+        res.json([...courtsWithRating, ...venueAsCourts]);
     } catch (error) {
         next(error);
     }
@@ -301,4 +357,41 @@ export const importFromOSM = async (req, res, next) => {
     } catch (error) {
         next(error);
     }
+};
+export const getCourtRatings = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const [ratings, agg] = await Promise.all([
+            prisma.courtRating.findMany({
+                where: { courtId: id },
+                include: { user: { select: { id: true, username: true, profileImage: true } } },
+                orderBy: { createdAt: 'desc' },
+                take: 30,
+            }),
+            prisma.courtRating.aggregate({
+                where: { courtId: id },
+                _avg: { rating: true },
+                _count: { id: true },
+            }),
+        ]);
+        res.json({
+            reviews: ratings,
+            venueRating: agg._avg.rating,
+            venueReviewCount: agg._count.id,
+        });
+    } catch (error) { next(error); }
+};
+
+export const upsertCourtRating = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const userId = req.userId;
+        const { rating, comment } = req.body;
+        await prisma.courtRating.upsert({
+            where: { userId_courtId: { userId, courtId: id } },
+            update: { rating, comment: comment || null },
+            create: { courtId: id, userId, rating, comment: comment || null },
+        });
+        res.json({ ok: true });
+    } catch (error) { next(error); }
 };

@@ -119,6 +119,7 @@ model User {
   venueBlocks           VenueBlock[]       @relation("BlockedUser")
   venueOrders           VenueOrder[]
   venueReviews          VenueReview[]
+  courtRatings          CourtRating[]
 }
 
 model ProfileChangeRequest {
@@ -724,6 +725,22 @@ model Court {
   tournamentCourts TournamentCourt[]
   blocks           CourtBlock[]
   matchAssignments TournamentMatch[]
+  ratings          CourtRating[]
+}
+
+model CourtRating {
+  id        String   @id @default(uuid())
+  courtId   String
+  userId    String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId],  references: [id], onDelete: Cascade)
+
+  @@unique([userId, courtId])
 }
 
 // ARKADAŞLIK
