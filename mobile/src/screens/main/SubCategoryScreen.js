@@ -9741,14 +9741,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <Text style={[s.back, { color: cfg.color }]}>{t.back}</Text>
                 </TouchableOpacity>
                 <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
-                {sub === 'tennis' && (
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                {(sub === 'tennis' || sub === 'padel') && (
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                        <TouchableOpacity onPress={() => navigation.navigate('VenueSearch', { branch: sub })}
+                            style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
+                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>🏟️ Kortlar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setActiveTab('archive')}
+                            style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border }}>
+                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'800' }}>🗃️ Arşiv</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
-                            <Text style={{ fontSize:20 }}>ℹ️</Text>
+                            <Text style={{ fontSize:19 }}>ℹ️</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowSpotlight(true)}>
-                            <Text style={{ fontSize:22 }}>🃏</Text>
-                        </TouchableOpacity>
+                        {sub === 'tennis' && (
+                            <TouchableOpacity onPress={() => setShowSpotlight(true)}>
+                                <Text style={{ fontSize:21 }}>🃏</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
             </View>
