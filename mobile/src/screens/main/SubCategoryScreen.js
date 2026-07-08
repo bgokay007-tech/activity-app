@@ -4050,6 +4050,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             venueCourtId:         prefill.venueCourtId    || null,
             venueReservationId:   prefill.reservationId   || null,
             courtFeePerPerson:    prefill.courtFee ? String(prefill.courtFee) : '',
+            surface:    prefill.surface || '',
+            venueType:  prefill.indoor != null ? (prefill.indoor ? 'INDOOR' : 'OUTDOOR') : '',
         };
     };
 
@@ -8461,7 +8463,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
-            openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee } = route.params;
+            openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -8491,6 +8493,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             venueId:      prefillVenueId,
             venueCourtId: prefillVenueCourtId,
             courtFee:     prefillCourtFee,
+            reservationId: prefillReservationId,
+            surface:      prefillSurface,
+            indoor:       prefillIndoor,
         });
         setShowCreateRival(true);
         navigation.setParams({ openCreateRival: undefined });
