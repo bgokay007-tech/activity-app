@@ -3424,7 +3424,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
     // selSlot: { courtId, slot, flexDur } | null
     const [selSlot,     setSelSlot]     = useState(null);
     const [payMethod,   setPayMethod]   = useState('CASH');
-    const [booking,     setBooking]     = useState(false);
     const [booked,      setBooked]      = useState(false);
     const [varStartMap, setVarStartMap] = useState({});
     const [varDurMap,   setVarDurMap]   = useState({});
@@ -3473,7 +3472,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         );
     };
 
-    const confirmBooking = async () => {
+    // Burada gerçek rezervasyon oluşturulmuyor — sadece seçim yapılıp CreateRivalModal'a
+    // aktarılıyor. Kortu fiilen bloke eden rezervasyon, kullanıcı "İlan Oluştur"a
+    // bastığında (submit() içinde) yapılır; böylece ilan yarım kalırsa kort boşta kalmaz.
+    const confirmBooking = () => {
         if (!selSlot) return;
         const { courtId, slot, flexDur } = selSlot;
         const activeCourt = venue?.courts?.find(c => c.id === courtId);
@@ -3483,29 +3485,12 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         const endTime = isFlexible
             ? addMins(slot.start, flexDur)
             : (isVarDur ? slot.end : slot.end);
-        setBooking(true);
-        try {
-            const resResp = await api.post(`/venues/${venueId}/courts/${courtId}/reserve`, {
-                date: selDate, startTime: slot.start, endTime, paymentMethod: payMethod,
-            });
-            const reservationId = resResp.data?.reservation?.id || null;
-            const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
-            const courtTotalPrice = slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0);
-            const effectiveIndoor = activeCourt?.indoor ?? venue?.courtIndoorDefault ?? false;
-            const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, surface: activeCourt?.surface || null, indoor: effectiveIndoor };
-            onBooked?.(courtObj, selDate, slot.start, endTime, reservationId);
-            setBooked(true);
-        } catch (e) {
-            const status  = e?.response?.status;
-            const srvMsg  = e?.response?.data?.message;
-            const netCode = e?.code;
-            const detail  = srvMsg
-                || (netCode === 'ECONNABORTED' ? 'Bağlantı zaman aşımına uğradı (30 sn)' : null)
-                || (netCode ? `Ağ hatası: ${netCode}` : null)
-                || e?.message
-                || 'Rezervasyon yapılamadı';
-            Alert.alert('Hata', status ? `[${status}] ${detail}` : detail);
-        } finally { setBooking(false); }
+        const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
+        const courtTotalPrice = slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0);
+        const effectiveIndoor = activeCourt?.indoor ?? venue?.courtIndoorDefault ?? false;
+        const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, surface: activeCourt?.surface || null, indoor: effectiveIndoor };
+        onBooked?.(courtObj, selDate, slot.start, endTime, payMethod);
+        setBooked(true);
     };
 
     const slotTypeLabel = (type) => {
@@ -3889,11 +3874,12 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                                 )}
                                             </View>
                                         )}
-                                        <TouchableOpacity style={vb.bookBtn} onPress={confirmBooking} disabled={booking}>
-                                            {booking
-                                                ? <ActivityIndicator color="#fff" />
-                                                : <Text style={vb.bookBtnTxt}>Rezervasyon Yap</Text>}
+                                        <TouchableOpacity style={vb.bookBtn} onPress={confirmBooking}>
+                                            <Text style={vb.bookBtnTxt}>Bu Saati Seç</Text>
                                         </TouchableOpacity>
+                                        <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
+                                            Kort, ilanı oluşturduğunuzda rezerve edilir.
+                                        </Text>
                                         <View style={{ height: 24 }} />
                                     </ScrollView>
                                 );
@@ -4031,6 +4017,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         venueId: null,
         venueCourtId: null,
         reservationId: null,
+        venueReservationId: null,
+        reservationEndTime: null,
+        venuePayMethod: 'CASH',
     };
 
     const buildInitialState = () => {
@@ -4205,6 +4194,27 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         }
 
         setSubmitting(true);
+
+        // Kort, tesisten seçilip henüz rezerve edilmemişse (prefill'den gelen mevcut
+        // rezervasyonlarla karışmasın diye venueReservationId boşsa) burada, ilan
+        // oluşturulmadan hemen önce rezerve edilir — böylece ilan yarım kalırsa kort
+        // boşta kalır, kimse gereksiz yere bloke etmez.
+        let venueReservationId = f.venueReservationId || undefined;
+        const reservingNow = !!(f.venueId && f.venueCourtId && !venueReservationId);
+        if (reservingNow) {
+            try {
+                const resResp = await api.post(`/venues/${f.venueId}/courts/${f.venueCourtId}/reserve`, {
+                    date: matchDateStr, startTime: f.matchTime || undefined,
+                    endTime: f.reservationEndTime || undefined, paymentMethod: f.venuePayMethod || 'CASH',
+                });
+                venueReservationId = resResp.data?.reservation?.id || undefined;
+            } catch (e) {
+                setSubmitting(false);
+                Alert.alert('Hata', e?.response?.data?.message || 'Kort rezerve edilemedi. Seçtiğiniz saat dolmuş olabilir, lütfen başka bir saat seçin.');
+                return;
+            }
+        }
+
         try {
             await api.post('/rivals', {
                 category,
@@ -4234,15 +4244,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 partnerInviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
                     ? f.partner.id
                     : undefined,
-                venueId:            f.venueId            || undefined,
-                venueCourtId:       f.venueCourtId       || undefined,
-                venueReservationId: f.venueReservationId || undefined,
+                venueId:            f.venueId       || undefined,
+                venueCourtId:       f.venueCourtId   || undefined,
+                venueReservationId,
             });
             onCreated();
             onClose();
             reset();
         } catch(e) {
             if (e?.response) {
+                // İlan oluşmadı — bu submit sırasında kort rezerve edildiyse geri al, boşta kalsın
+                if (reservingNow && venueReservationId) {
+                    api.delete(`/venues/reservations/${venueReservationId}`).catch(() => {});
+                }
                 Alert.alert(t.error, e.response.data?.message || t.sendFailed);
             } else {
                 // Network drop after server processed — listing likely created
@@ -4514,6 +4528,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 venueId: r.venueId,
                                                                 venueCourtId: r.courtId,
                                                                 reservationId: r.id,
+                                                                venueReservationId: r.id,
                                                                 courtReserved: true,
                                                                 manualCity: venue?.city || '',
                                                                 surface: court?.surface || p.surface,
@@ -4605,7 +4620,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         <View style={s.selectedCourtBox}>
                                             <View style={{ flex:1 }}>
                                                 <Text style={s.selectedCourtText}>✅ {[f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ')}</Text>
-                                                {f.reservationId && f.matchDate && (
+                                                {f.venueId && f.matchDate && (
                                                     <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>
                                                         📅 {f.matchDate.toLocaleDateString('tr-TR')} · {f.matchTime}{f.reservationEndTime ? `–${f.reservationEndTime}` : ''}{f.selectedCourt.totalPrice ? `  💰 ${f.selectedCourt.totalPrice}₺` : ''}
                                                     </Text>
@@ -4838,7 +4853,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             venueId={venueBooking.venueId}
             initialCourtId={venueBooking.initialCourtId}
             onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null })}
-            onBooked={(court, date, startTime, endTime, reservationId) => {
+            onBooked={(court, date, startTime, endTime, payMethod) => {
                 setF(p => ({
                     ...p,
                     selectedCourt: court,
@@ -4849,7 +4864,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     reservationEndTime: endTime || null,
                     venueId: court.venueId || null,
                     venueCourtId: court.courtId || null,
-                    reservationId: reservationId || null,
+                    reservationId: null,
+                    venueReservationId: null,
+                    venuePayMethod: payMethod || 'CASH',
                     courtReserved: true,
                     surface: court.surface || p.surface,
                     venueType: court.indoor != null ? (court.indoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
