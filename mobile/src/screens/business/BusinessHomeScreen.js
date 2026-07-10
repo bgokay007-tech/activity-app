@@ -221,7 +221,14 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
                             </View>
                         );
                     })()}
-                    <Text style={[m.pkgSelectTitle, sub && { marginTop: 4 }]}>{sub ? 'Tüm Paketler' : 'Bir paket seçin'}</Text>
+                    {sub && pendingRequest && (
+                        <View style={[m.pendingCard, { marginBottom: 16, paddingVertical: 14 }]}>
+                            <Text style={m.pendingDesc}>
+                                ⏳ {PACKAGES.find(p => p.key === pendingRequest.packageType)?.name || pendingRequest.packageType} paketine geçiş talebiniz onay bekliyor.
+                            </Text>
+                        </View>
+                    )}
+                    <Text style={[m.pkgSelectTitle, sub && { marginTop: 4 }]}>{sub ? 'Paket Değiştir' : 'Bir paket seçin'}</Text>
                     {PACKAGES.map(pkg => {
                         const isActive = sub?.packageType === pkg.key;
                         return (
@@ -248,12 +255,10 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
                             </TouchableOpacity>
                         );
                     })}
-                    {!sub && (
-                        <TouchableOpacity style={[m.pkgContinueBtn, !selectedPkg && { opacity: 0.4 }]}
-                            onPress={() => setStep('pay')} disabled={!selectedPkg} activeOpacity={0.8}>
-                            <Text style={m.pkgContinueBtnText}>Devam Et →</Text>
-                        </TouchableOpacity>
-                    )}
+                    <TouchableOpacity style={[m.pkgContinueBtn, !selectedPkg && { opacity: 0.4 }]}
+                        onPress={() => setStep('pay')} disabled={!selectedPkg} activeOpacity={0.8}>
+                        <Text style={m.pkgContinueBtnText}>{sub ? 'Paketi Değiştir →' : 'Devam Et →'}</Text>
+                    </TouchableOpacity>
                 </View>
             );
         }
@@ -307,7 +312,7 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
                     ))}
                 </View>
                 <View style={m.noteBox}>
-                    <Text style={m.noteText}>✅  Açıklamaya kullanıcı adınızı yazmayı unutmayın.{'\n\n'}📎  Ödemeyi yaptıktan sonra onay isteği gönderin. Dekontunuzu 24 saat içinde yükleyebilirsiniz.</Text>
+                    <Text style={m.noteText}>✅  Açıklamaya kullanıcı adınızı yazmayı unutmayın.{'\n\n'}📎  Ödemeyi yaptıktan sonra onay isteği gönderin. Dekontunuzu 24 saat içinde yükleyebilirsiniz.{sub ? '\n\n🔄  Onaylandığında mevcut paketinizin yerine yeni paketiniz aktif edilir ve 30 günlük süre yeniden başlar (kalan gün devretmez).' : ''}</Text>
                 </View>
                 <View style={m.eftBtnRow}>
                     <TouchableOpacity style={m.laterBtn} onPress={() => setStep('pay')} activeOpacity={0.8}>
