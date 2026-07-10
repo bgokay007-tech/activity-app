@@ -78,6 +78,8 @@ export const searchCourts = async (req, res, next) => {
             }),
             prisma.businessVenue.findMany({
                 where: {
+                    status: 'APPROVED',
+                    ...(sport ? { branch: { equals: sport, mode: 'insensitive' } } : {}),
                     ...(name
                         ? {
                             OR: [
