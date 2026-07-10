@@ -431,15 +431,13 @@ function VenuesTab() {
     const [venues, setVenues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [editId, setEditId] = useState(null);
-    const [editData, setEditData] = useState({});
     const [rejectId, setRejectId] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
 
     const load = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true); else setLoading(true);
         try {
-            const { data } = await api.get('/courts/admin/pending');
+            const { data } = await api.get('/venues/admin/pending');
             setVenues(Array.isArray(data) ? data : []);
         } catch {}
         if (isRefresh) setRefreshing(false); else setLoading(false);
@@ -449,15 +447,14 @@ function VenuesTab() {
 
     const approve = async (v) => {
         try {
-            await api.patch(`/courts/admin/${v.id}/verify`, editId === v.id ? editData : {});
+            await api.patch(`/venues/${v.id}/approve`);
             setVenues(prev => prev.filter(x => x.id !== v.id));
-            setEditId(null);
         } catch { Alert.alert('Hata', 'Onaylanamadı.'); }
     };
 
     const reject = async () => {
         try {
-            await api.patch(`/courts/admin/${rejectId}/reject`, { reason: rejectReason });
+            await api.patch(`/venues/${rejectId}/reject`, { adminNote: rejectReason });
             setVenues(prev => prev.filter(v => v.id !== rejectId));
             setRejectId(null);
             setRejectReason('');
@@ -476,20 +473,10 @@ function VenuesTab() {
                 renderItem={({ item: v }) => (
                     <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
                         <Text style={s.cardTitle}>{v.name}</Text>
-                        <Text style={s.cardMeta}>{v.city} — {v.sport} {v.surface ? `· ${v.surface}` : ''}</Text>
-                        <Text style={s.cardMeta}>Gönderen: @{v.submittedBy?.username || '?'}</Text>
-                        {editId === v.id && (
-                            <View>
-                                <AdminInput label="Ad" value={editData.name ?? v.name} onChangeText={t => setEditData(p => ({ ...p, name: t }))} />
-                                <AdminInput label="Şehir" value={editData.city ?? v.city} onChangeText={t => setEditData(p => ({ ...p, city: t }))} />
-                                <AdminInput label="Adres" value={editData.address ?? v.address} onChangeText={t => setEditData(p => ({ ...p, address: t }))} />
-                            </View>
-                        )}
+                        <Text style={s.cardMeta}>{v.city} — {v.branch} · {v.courts?.length ?? 0} kort</Text>
+                        <Text style={s.cardMeta}>Gönderen: {v.user?.businessName || (v.user?.username ? '@' + v.user.username : '?')}</Text>
                         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                            {editId === v.id
-                                ? <Btn label="✅ Onayla" onPress={() => approve(v)} color="#10b981" small />
-                                : <Btn label="✏️ Düzenle & Onayla" onPress={() => { setEditId(v.id); setEditData({}); }} color="#10b981" small />
-                            }
+                            <Btn label="✅ Onayla" onPress={() => approve(v)} color="#10b981" small />
                             <Btn label="✕ Reddet" onPress={() => setRejectId(v.id)} color="#ef4444" small />
                         </View>
                     </View>

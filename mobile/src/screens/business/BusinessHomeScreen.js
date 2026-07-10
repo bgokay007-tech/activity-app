@@ -405,7 +405,12 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
             handleClose();
             onSuccess?.();
         } catch (e) {
-            const msg = e?.response?.data?.message || e?.message || 'Sunucu ile bağlantı kurulamadı';
+            const srvMsg  = e?.response?.data?.message;
+            const netCode = e?.code;
+            const msg = srvMsg
+                || (netCode === 'ECONNABORTED' ? 'Bağlantı zaman aşımına uğradı. Başvurunuz sunucuya ulaşmış olabilir, tekrar göndermeden önce lütfen "Tesislerim" listesini kontrol edin.' : null)
+                || (netCode ? `Ağ hatası (${netCode}). Başvurunuz sunucuya ulaşmış olabilir, tekrar göndermeden önce lütfen "Tesislerim" listesini kontrol edin.` : null)
+                || e?.message || 'Sunucu ile bağlantı kurulamadı';
             Alert.alert('Hata', msg);
         } finally { setSaving(false); }
     };

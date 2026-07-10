@@ -262,16 +262,17 @@ export const createVenue = async (req, res, next) => {
             include: { courts: true },
         });
 
-        const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
-        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, businessName: true } });
-        await Promise.all(admins.map(a =>
-            createNotification(a.id, 'VENUE_REQUEST', '🏟️ Yeni Tesis Başvurusu',
-                `${user?.businessName || user?.username} tarafından "${name}" tesisi eklendi. Onay bekliyor.`,
-                { venueId: venue.id }
-            ).then(() => emitToUser(a.id, 'notification', {})).catch(() => {})
-        ));
-
         res.status(201).json({ venue });
+
+        prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } }).then(async admins => {
+            const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, businessName: true } });
+            await Promise.all(admins.map(a =>
+                createNotification(a.id, 'VENUE_REQUEST', '🏟️ Yeni Tesis Başvurusu',
+                    `${user?.businessName || user?.username} tarafından "${name}" tesisi eklendi. Onay bekliyor.`,
+                    { venueId: venue.id }
+                ).then(() => emitToUser(a.id, 'notification', {})).catch(() => {})
+            ));
+        }).catch(() => {});
     } catch (error) { next(error); }
 };
 
