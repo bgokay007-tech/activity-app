@@ -888,12 +888,14 @@ function SubscriptionsTab() {
     };
 
     const PACKAGE_LABELS = {
-        STARTER: 'Başlangıç (299₺)',
-        starter: 'Başlangıç (299₺)',
-        PRO:     'Profesyonel (599₺)',
-        pro:     'Profesyonel (599₺)',
-        PREMIUM: 'Premium (999₺)',
-        premium: 'Premium (999₺)',
+        STARTER:     'Başlangıç (399₺)',
+        starter:     'Başlangıç (399₺)',
+        RAHATLATICI: 'Rahatlatıcı (999₺)',
+        rahatlatici: 'Rahatlatıcı (999₺)',
+        PRO:         'Pro (1999₺)',
+        pro:         'Pro (1999₺)',
+        PREMIUM:     'Premium (2499₺)',
+        premium:     'Premium (2499₺)',
     };
 
     const daysLeft = (endDate) => {
