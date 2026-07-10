@@ -90,7 +90,7 @@ export const sendMessage = async (req, res, next) => {
         const blocked = await prisma.block.findFirst({
             where: { OR: [{ blockerId: req.userId, blockedId: receiverId }, { blockerId: receiverId, blockedId: req.userId }] },
         });
-        if (blocked) return res.status(403).json({ message: 'Cannot message this user' });
+        if (blocked) return res.status(403).json({ message: blocked.blockerId === req.userId ? 'Bu kullanıcıyı engellediniz.' : 'Bu kullanıcı tarafından engellendiniz.' });
 
         const conv = await getOrCreateConversation(req.userId, receiverId);
 
@@ -138,6 +138,12 @@ export const sendMessage = async (req, res, next) => {
 export const getOrStartConversation = async (req, res, next) => {
     try {
         const { userId } = req.params;
+
+        const blocked = await prisma.block.findFirst({
+            where: { OR: [{ blockerId: req.userId, blockedId: userId }, { blockerId: userId, blockedId: req.userId }] },
+        });
+        if (blocked) return res.status(403).json({ message: blocked.blockerId === req.userId ? 'Bu kullanıcıyı engellediniz.' : 'Bu kullanıcı tarafından engellendiniz.' });
+
         const conv = await getOrCreateConversation(req.userId, userId);
         res.json(conv);
     } catch (error) { next(error); }

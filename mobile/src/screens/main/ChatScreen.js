@@ -53,7 +53,13 @@ export default function ChatScreen({ route, navigation }) {
                     await fetchMessages(id);
                     setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
                 }
-            } catch (e) { console.warn('ChatScreen init error:', e?.message); }
+            } catch (e) {
+                console.warn('ChatScreen init error:', e?.message);
+                if (e?.response?.status === 403) {
+                    Alert.alert('', e.response.data?.message || 'Bu kullanıcı tarafından engellendiniz.');
+                    navigation.goBack();
+                }
+            }
             finally { setLoading(false); }
         };
         init();

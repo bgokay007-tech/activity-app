@@ -1481,12 +1481,19 @@ export default function ProfileScreen({ route, navigation }) {
         } finally { setFriendActionLoading(null); }
     };
 
-    const handleSendMessageRequest = (targetUser) => {
+    const handleSendMessageRequest = async (targetUser) => {
         setShowAddFriendModal(false);
-        navigation.push('Chat', {
-            other: { id: targetUser.id, username: targetUser.username },
-            conversation: { id: null },
-        });
+        try {
+            const { data: conv } = await api.get(`/messages/conversation/${targetUser.id}`);
+            const enriched = { ...conv, other: conv.user1Id === myUser?.id ? conv.user2 : conv.user1 };
+            navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other } });
+        } catch (e) {
+            if (e?.response?.status === 403) {
+                Alert.alert('', e.response.data?.message || 'Bu kullanıcı tarafından engellendiniz.');
+            } else {
+                Alert.alert('', t.actionFailed);
+            }
+        }
     };
 
     // Stories
@@ -2263,7 +2270,13 @@ export default function ProfileScreen({ route, navigation }) {
             const { data: conv } = await api.get(`/messages/conversation/${userId}`);
             const enriched = { ...conv, other: conv.user1Id === myUser?.id ? conv.user2 : conv.user1 };
             navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other } });
-        } catch (e) { console.warn(e?.message); }
+        } catch (e) {
+            if (e?.response?.status === 403) {
+                Alert.alert('', e.response.data?.message || 'Bu kullanıcı tarafından engellendiniz.');
+            } else {
+                console.warn(e?.message);
+            }
+        }
     };
 
     const pickPrivacy = async (field, value) => {
