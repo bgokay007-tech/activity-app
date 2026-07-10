@@ -985,10 +985,14 @@ function SubscriptionsTab() {
 }
 
 // ── Main Screen ───────────────────────────────────────────────────────────────────
-export default function AdminPortalScreen({ navigation }) {
+export default function AdminPortalScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [activeTab, setActiveTab] = useState(route?.params?.tab || 'dashboard');
     const tabScrollRef = useRef(null);
+
+    useEffect(() => {
+        if (route?.params?.tab) setActiveTab(route.params.tab);
+    }, [route?.params?.tab]);
 
     const renderContent = () => {
         switch (activeTab) {

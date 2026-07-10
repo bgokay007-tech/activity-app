@@ -157,6 +157,10 @@ export default function NotificationsScreen({ navigation }) {
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });
             }
+        } else if (type === 'VENUE_REQUEST') {
+            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
+        } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
+            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
         } else if (data.category && data.subCategory) {
             goToSub('rivals');
         }
