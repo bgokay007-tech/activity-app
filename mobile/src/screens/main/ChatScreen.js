@@ -90,7 +90,10 @@ export default function ChatScreen({ route, navigation }) {
         setSending(true);
         try {
             const { data } = await api.post(`/messages/send/${other?.id}`, { content: text });
-            setMessages(prev => [...prev, data.message]);
+            // Sunucu bu mesaji "newMessage" socket olayiyla gonderene de geri yansitiyor;
+            // o olay burada olusan cevaptan once ulasmis olabilir, bu yuzden id'ye gore
+            // dedup yapmadan eklersek ayni mesaj iki kez listelenebilir.
+            setMessages(prev => prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message]);
             setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (e) {
             console.warn(e?.message);

@@ -103,35 +103,32 @@ export const sendMessage = async (req, res, next) => {
             prisma.user.findUnique({ where: { id: receiverId }, select: { pushToken: true } }),
         ]);
 
-        await prisma.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } });
-
-        const notifBody = content.trim().slice(0, 100);
-        const senderUsername = sender?.username;
-
-        try {
-            await prisma.notification.create({
-                data: {
-                    userId: receiverId,
-                    type: 'MESSAGE',
-                    title: `@${senderUsername}`,
-                    body: notifBody,
-                    data: { senderId: req.userId, senderUsername, conversationId: conv.id },
-                },
-            });
-        } catch (notifErr) {
-            console.log('NOTIF_CREATE_FAIL:', notifErr?.message);
-        }
-
         res.status(201).json({ message, conversationId: conv.id });
 
-        // Gerçek zamanlı: alıcıya ve gönderene socket event gönder
+        // Yanıttan hemen sonra — DB yazımlarını beklemeden — socket + push gönder,
+        // bildirim gecikmesinin en büyük kaynağı bunların yanıttan önce await edilmesiydi.
         const socketPayload = { message, conversationId: conv.id };
         emitToUser(receiverId, 'newMessage', socketPayload);
         emitToUser(req.userId, 'newMessage', socketPayload);
 
+        const notifBody = content.trim().slice(0, 100);
+        const senderUsername = sender?.username;
+
         if (receiver?.pushToken) {
             sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody);
         }
+
+        prisma.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } }).catch(() => {});
+
+        prisma.notification.create({
+            data: {
+                userId: receiverId,
+                type: 'MESSAGE',
+                title: `@${senderUsername}`,
+                body: notifBody,
+                data: { senderId: req.userId, senderUsername, conversationId: conv.id },
+            },
+        }).catch(notifErr => console.log('NOTIF_CREATE_FAIL:', notifErr?.message));
     } catch (error) { next(error); }
 };
 
