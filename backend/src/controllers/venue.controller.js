@@ -844,6 +844,26 @@ export const updateReservationStatus = async (req, res, next) => {
         const dateStr    = `${res_.date} ${res_.startTime}–${res_.endTime}`;
         const customerId = res_.userId;
 
+        if (action === 'payment_confirm') {
+            // Kort saati geçti, işletmeci müşterinin geldiğini ve ödemeyi aldığını onayladı
+            const updated = await prisma.courtReservation.update({ where: { id: resId }, data: { paymentConfirmStatus: 'CONFIRMED' } });
+            return res.json({ reservation: updated });
+        }
+
+        if (action === 'payment_not_collected') {
+            // Müşteri gelmedi / ödeme alınamadı — adminleri bilgilendir
+            const updated = await prisma.courtReservation.update({ where: { id: resId }, data: { paymentConfirmStatus: 'NOT_COLLECTED', noShow: true } });
+            res.json({ reservation: updated });
+            const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+            for (const admin of admins) {
+                createNotification(admin.id, 'PAYMENT_ALERT', '🚨 Ödeme Tahsil Edilemedi',
+                    `${venueName} — ${courtName}: ${dateStr} rezervasyonunda müşteri gelmedi / ödeme tahsil edilemedi.`,
+                    { reservationId: resId }
+                ).catch(() => {});
+            }
+            return;
+        }
+
         if (action === 'no_payment') {
             // Ödeme alınmadı — iptal et + admini bildir
             const updated = await prisma.courtReservation.update({ where: { id: resId }, data: { status: 'CANCELLED', noShow: true } });

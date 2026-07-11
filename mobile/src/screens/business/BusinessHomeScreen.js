@@ -1482,7 +1482,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const handleUpdateResStatus = async (resId, action) => {
         try {
             const { data } = await api.patch(`/venues/reservations/${resId}/status`, { action });
-            setReservations(p => p.map(r => r.id === resId ? { ...r, status: data.reservation.status, noShow: data.reservation.noShow } : r));
+            setReservations(p => p.map(r => r.id === resId ? { ...r, ...data.reservation } : r));
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Güncellenemedi'); }
     };
 
@@ -2334,6 +2334,11 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                 const nowRes = new Date();
                 const todayResStr = nowRes.toISOString().slice(0, 10);
                 const pendingApproval = reservations.filter(r => r.status === 'PENDING');
+                const paymentConfirmDue = reservations.filter(r =>
+                    r.status === 'CONFIRMED' && ['CASH', 'EFT'].includes(r.paymentMethod) &&
+                    (r.paymentConfirmStatus || 'PENDING') === 'PENDING' &&
+                    new Date(`${r.date}T${r.startTime}:00`).getTime() + 30 * 60 * 1000 <= nowRes.getTime()
+                );
                 const todayList = reservations.filter(r => r.date === todayResStr && r.status !== 'CANCELLED');
                 return (
                 <View style={vc.panel}>
@@ -2438,6 +2443,42 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         </View>
                     )}
 
+                    {/* Ödeme onayı bekleyen (saati geçmiş, nakit/EFT) rezervasyonlar */}
+                    {paymentConfirmDue.length > 0 && (
+                        <View style={{ marginBottom: 16 }}>
+                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                                🕐 ÖDEME ONAYI BEKLİYOR ({paymentConfirmDue.length})
+                            </Text>
+                            {paymentConfirmDue.map(r => {
+                                const payLabel = r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Nakit';
+                                return (
+                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#7c3aed40', borderWidth: 1 }]}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
+                                        <Text style={vc.resMeta}>{payLabel} · Müşteri geldi mi, ödeme alındı mı?</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                            onPress={() => handleUpdateResStatus(r.id, 'payment_confirm')}>
+                                            <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Onaylandı</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
+                                            onPress={() => Alert.alert('Gelmedi / Ödeme Alınamadı', 'Müşteri gelmedi veya ödeme tahsil edilemedi olarak işaretlensin mi? Admine bildirim gidecek.', [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Onayla', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'payment_not_collected') },
+                                            ])}>
+                                            <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Gelmedi</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
                     {/* Bugünün rezervasyonları */}
                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                         BUGÜN
@@ -2464,7 +2505,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             </View>
                         </View>
                     ))}
-                    {resLoaded && todayList.length === 0 && pendingApproval.length === 0 && (
+                    {resLoaded && todayList.length === 0 && pendingApproval.length === 0 && paymentConfirmDue.length === 0 && (
                         <Text style={vc.emptyTxt}>Bugün rezervasyon yok</Text>
                     )}
                 </View>

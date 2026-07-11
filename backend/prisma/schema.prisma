@@ -942,6 +942,8 @@ model CourtReservation {
   notes         String?
   cancelRequested     Boolean  @default(false)
   cancelRequestNote   String?
+  paymentConfirmStatus String @default("PENDING") // PENDING | CONFIRMED | NOT_COLLECTED — CASH/EFT rezervasyonda saatten 30dk sonra işletmeciye sorulur
+  paymentPromptSent    Boolean @default(false)    // "ödeme onayı bekleniyor" bildirimi bir kez gönderilsin diye
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
