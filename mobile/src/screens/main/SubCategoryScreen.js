@@ -4280,6 +4280,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     const courtSurfaces = isFootball ? FOOTBALL_SURFACES : isVolleyball ? VOLLEYBALL_SURFACES : isPadel ? PADEL_SURFACES : TENNIS_SURFACES;
 
+    // Sunucudan gelen sonuçları, kullanıcı fazladan harf yazdıkça (bir sonraki debounce'lı
+    // sorgu tamamlanmadan) anında daraltmak için client tarafında da filtrele — böylece
+    // her harfte network beklemeden liste hemen küçülür, 350ms sonra sunucu sonucuyla güncellenir.
+    const searchQuery = f.courtSearchText.trim().toLowerCase();
+    const visibleCourtResults = searchQuery.length >= 2
+        ? f.courtResults.filter(c => [c.name, c.venueName, c.city].filter(Boolean).join(' ').toLowerCase().includes(searchQuery))
+        : f.courtResults;
+
     return (
         <>
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
@@ -4586,9 +4594,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
                                     {!f.courtMutual && <>
                                     {/* DB Sonuçları */}
-                                    {f.courtResults.length > 0 && !f.selectedCourt && (
+                                    {visibleCourtResults.length > 0 && !f.selectedCourt && (
                                         <View style={s.courtResultsBox}>
-                                            {f.courtResults.map(c => (
+                                            {visibleCourtResults.map(c => (
                                                 c.isBusinessVenue ? (
                                                     <TouchableOpacity key={c.id}
                                                         style={{ padding:10, borderBottomWidth:1, borderBottomColor:colors.border, backgroundColor:'#9333ea08' }}
@@ -4668,7 +4676,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     )}
 
                                     {/* Kort bulunamadı → Manuel giriş */}
-                                    {!f.selectedCourt && f.courtSearchText.length >= 2 && f.courtResults.length === 0 && !searching && (
+                                    {!f.selectedCourt && f.courtSearchText.length >= 2 && visibleCourtResults.length === 0 && !searching && (
                                         <TouchableOpacity style={s.addCourtBtn} onPress={() => set('showManualCourt', !f.showManualCourt)}>
                                             <Text style={s.addCourtBtnText}>
                                                 {f.showManualCourt ? t.closeCourt : t.addCityAddress(f.courtSearchText)}
