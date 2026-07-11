@@ -4496,7 +4496,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </TouchableOpacity>
                                             )}
                                             <TouchableOpacity
-                                                onPress={() => set('courtMutual', !f.courtMutual)}
+                                                onPress={() => setF(p => ({ ...p, courtMutual: !p.courtMutual, courtReserved: p.courtMutual ? p.courtReserved : false }))}
                                                 style={{ flexDirection:'row', alignItems:'center', gap:4, paddingVertical:4, paddingHorizontal:8, borderRadius:10, backgroundColor: f.courtMutual ? cfg.color+'18' : '#ffffff08', borderWidth:1, borderColor: f.courtMutual ? cfg.color+'60' : '#ffffff15' }}
                                             >
                                                 <View style={{ width:14, height:14, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
@@ -4694,13 +4694,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     )}
 
-                                    {/* Kort Rezerve Edildi */}
-                                    <TouchableOpacity style={[s.checkRow, { marginBottom:10 }]} onPress={() => set('courtReserved', !f.courtReserved)}>
-                                        <View style={[s.checkbox, f.courtReserved && s.checkboxChecked]}>
-                                            {f.courtReserved && <Text style={{ color:'#fff', fontSize:12 }}>✓</Text>}
-                                        </View>
-                                        <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
-                                    </TouchableOpacity>
+                                    {/* Kort Rezerve Edildi — kort "ortaklaşa kararlaştırılır" ise anlamsız, gösterilmez */}
+                                    {!f.courtMutual && (
+                                        <TouchableOpacity style={[s.checkRow, { marginBottom:10 }]} onPress={() => set('courtReserved', !f.courtReserved)}>
+                                            <View style={[s.checkbox, f.courtReserved && s.checkboxChecked]}>
+                                                {f.courtReserved && <Text style={{ color:'#fff', fontSize:12 }}>✓</Text>}
+                                            </View>
+                                            <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
+                                        </TouchableOpacity>
+                                    )}
 
                                     {/* Kişi Başı Kort Ücreti */}
                                     {!f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)) && (
