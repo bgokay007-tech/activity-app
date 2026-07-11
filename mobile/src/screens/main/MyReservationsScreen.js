@@ -45,9 +45,13 @@ function ReservationCard({ item, onCancel, onReschedule, onCancelRequested, navi
         CANCELLED: t.resStatusCancelled,
     }[item.status] || item.status;
 
-    const today = new Date().toISOString().slice(0, 10);
-    const isPast = item.date < today;
-    const hoursUntil = (new Date(`${item.date}T${item.startTime}:00`) - new Date()) / 3600000;
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    // Sadece tarihe değil, bitiş saatine de bakılmalı — bugünkü ama saati geçmiş bir
+    // rezervasyon "saat değişikliği talep et" gibi butonları göstermeye devam ediyordu.
+    const isPast = item.date < today ||
+        (item.date === today && item.endTime && new Date(`${item.date}T${item.endTime}:00`) <= now);
+    const hoursUntil = (new Date(`${item.date}T${item.startTime}:00`) - now) / 3600000;
 
     const cb = item.venue?.cancelHoursBefore ?? null;
     const rb = item.venue?.rescheduleHoursBefore ?? null;
