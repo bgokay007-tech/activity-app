@@ -4084,29 +4084,39 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         setPartnerResults([]);
     };
 
-    const searchCourts = async (text) => {
+    const searchCourts = (text) => {
         set('courtSearchText', text);
         set('selectedCourt', null);
-        if (text.length < 2) { set('courtResults', []); return; }
-        setSearching(true);
-        try {
-            const { data } = await api.get('/courts/search', { params: { q: text, sport: sub } });
-            const raw = Array.isArray(data) ? data : [];
-            const seenVenues = new Set();
-            const deduped = [];
-            for (const c of raw) {
-                if (c.isBusinessVenue && c.venueId) {
-                    if (seenVenues.has(c.venueId)) continue;
-                    seenVenues.add(c.venueId);
-                    deduped.push({ ...c, name: c.venueName || c.name });
-                } else {
-                    deduped.push(c);
-                }
-            }
-            set('courtResults', deduped);
-        } catch { set('courtResults', []); }
-        finally { setSearching(false); }
     };
+
+    // Her tuş vuruşunda değil, kullanıcı yazmayı bıraktıktan bir süre sonra ara —
+    // önceden her karakterde ayrı bir istek atılıyordu, form yavaş hissettiriyordu.
+    useEffect(() => {
+        const text = f.courtSearchText;
+        if (f.selectedCourt) return;
+        if (!text || text.length < 2) { set('courtResults', []); setSearching(false); return; }
+        setSearching(true);
+        const task = setTimeout(async () => {
+            try {
+                const { data } = await api.get('/courts/search', { params: { q: text, sport: sub } });
+                const raw = Array.isArray(data) ? data : [];
+                const seenVenues = new Set();
+                const deduped = [];
+                for (const c of raw) {
+                    if (c.isBusinessVenue && c.venueId) {
+                        if (seenVenues.has(c.venueId)) continue;
+                        seenVenues.add(c.venueId);
+                        deduped.push({ ...c, name: c.venueName || c.name });
+                    } else {
+                        deduped.push(c);
+                    }
+                }
+                set('courtResults', deduped);
+            } catch { set('courtResults', []); }
+            finally { setSearching(false); }
+        }, 350);
+        return () => clearTimeout(task);
+    }, [f.courtSearchText, f.selectedCourt]);
 
     const selectCourt = (court) => {
         if (court.isBusinessVenue) {
@@ -4321,7 +4331,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={s.fieldLabel}>{t.formatLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:0 }]}>
                                                 {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
-                                                    <TouchableOpacity key={fmt.id} onPress={() => setF(p => ({ ...p, matchType: fmt.id, partner: fmt.id === 'DOUBLE' ? p.partner : null }))}
+                                                    <TouchableOpacity key={fmt.id} onPress={() => setF(p => ({
+                                                        ...p,
+                                                        matchType: fmt.id,
+                                                        partner: fmt.id === 'DOUBLE' ? p.partner : null,
+                                                        courtFeePerPerson: p.selectedCourt?.totalPrice > 0
+                                                            ? String(Math.round(p.selectedCourt.totalPrice / (fmt.id === 'DOUBLE' ? 4 : 2)))
+                                                            : p.courtFeePerPerson,
+                                                    }))}
                                                         style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, f.matchType===fmt.id && s.chipBtnActive]}>
                                                         <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
                                                     </TouchableOpacity>
@@ -4854,6 +4871,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             initialCourtId={venueBooking.initialCourtId}
             onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null })}
             onBooked={(court, date, startTime, endTime, payMethod) => {
+                const toMin = (tm) => { const [h, m] = tm.split(':').map(Number); return h * 60 + m; };
+                const durMins = (startTime && endTime) ? toMin(endTime) - toMin(startTime) : 0;
                 setF(p => ({
                     ...p,
                     selectedCourt: court,
@@ -4861,6 +4880,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     courtResults: [],
                     matchDate: new Date(date + 'T12:00:00'),
                     matchTime: startTime,
+                    duration: durMins > 0 ? String(durMins) : p.duration,
                     reservationEndTime: endTime || null,
                     venueId: court.venueId || null,
                     venueCourtId: court.courtId || null,
@@ -4868,6 +4888,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     venueReservationId: null,
                     venuePayMethod: payMethod || 'CASH',
                     courtReserved: true,
+                    courtFeePerPerson: court.totalPrice > 0
+                        ? String(Math.round(court.totalPrice / (p.matchType === 'DOUBLE' ? 4 : 2)))
+                        : p.courtFeePerPerson,
                     surface: court.surface || p.surface,
                     venueType: court.indoor != null ? (court.indoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
                 }));
