@@ -296,26 +296,30 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                         );
                     })()}
 
-                    {/* Tarih Seçici */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                        style={{ height:26 }}
-                        contentContainerStyle={{ paddingHorizontal:3, paddingVertical:3, alignItems:'center' }}>
-                        {DATE_OPTIONS.map(item => {
-                            const active = item === date;
-                            const d = new Date(item + 'T12:00:00');
-                            const label = d.toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'short', weekday: 'short' });
-                            return (
-                                <TouchableOpacity key={item}
-                                    onPress={() => handleDateChange(item)}
-                                    activeOpacity={0.75}
-                                    style={{ marginRight:3, paddingVertical:3, paddingHorizontal:3, borderRadius:20,
-                                        backgroundColor: active ? colors.purple : colors.surface2,
-                                        borderWidth:1, borderColor: active ? colors.purple : colors.border }}>
-                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>{label}</Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
+                    {/* Tarih Seçici — sabit yükseklikli sarmalayıcı + overflow:hidden ile
+                        gerçek yükseklik zorlanıyor (bazı cihazlarda ScrollView'a doğrudan
+                        verilen height, ScrollView'ın kendi ölçümüyle çakışıp fazladan boşluk
+                        bırakabiliyor). */}
+                    <View style={{ height:30, overflow:'hidden' }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={{ paddingHorizontal:3, height:30, alignItems:'center' }}>
+                            {DATE_OPTIONS.map(item => {
+                                const active = item === date;
+                                const d = new Date(item + 'T12:00:00');
+                                const label = d.toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'short', weekday: 'short' });
+                                return (
+                                    <TouchableOpacity key={item}
+                                        onPress={() => handleDateChange(item)}
+                                        activeOpacity={0.75}
+                                        style={{ marginRight:3, paddingVertical:3, paddingHorizontal:3, borderRadius:20,
+                                            backgroundColor: active ? colors.purple : colors.surface2,
+                                            borderWidth:1, borderColor: active ? colors.purple : colors.border }}>
+                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>{label}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    </View>
 
                     {/* Kortlar + Slotlar — yatay kaydır, her kort 170px sütun */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}
