@@ -172,8 +172,9 @@ export default function CourtSlotsScreen({ route, navigation }) {
 
     const isVarDuration   = slots?.type === 'VAR_DURATION';
     const isMaintenance   = slots?.type === 'MAINTENANCE';
+    const isNotYetOpen    = slots?.type === 'NOT_YET_OPEN';
 
-    const slotList = isVarDuration ? [] : (slots?.slots || slots?.windows || []);
+    const slotList = (isVarDuration || isNotYetOpen) ? [] : (slots?.slots || slots?.windows || []);
 
     return (
         <View style={s.root}>
@@ -279,7 +280,22 @@ export default function CourtSlotsScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {!loading && slots && !isMaintenance && (
+                {!loading && isNotYetOpen && (
+                    <View style={{ margin: 16, padding: 20, borderRadius: 14,
+                        backgroundColor: '#f59e0b12', borderWidth: 1, borderColor: '#f59e0b40',
+                        alignItems: 'center', gap: 10 }}>
+                        <Text style={{ fontSize: 36 }}>⏳</Text>
+                        <Text style={{ color: '#fbbf24', fontSize: 16, fontWeight: '900', textAlign: 'center' }}>
+                            Rezervasyonlar Henüz Açılmadı
+                        </Text>
+                        <Text style={{ color: '#fcd34d', fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
+                            Bu tarih için rezervasyonlar{'\n'}
+                            {new Date(slots.opensAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} tarihinde açılacak.
+                        </Text>
+                    </View>
+                )}
+
+                {!loading && slots && !isMaintenance && !isNotYetOpen && (
                     <>
                         {isVarDuration ? (
                             <>

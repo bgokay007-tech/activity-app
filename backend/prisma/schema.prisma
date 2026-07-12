@@ -893,6 +893,8 @@ model BusinessVenue {
   businessIbanHolder    String?                            // IBAN hesap sahibi adı
   pricingWindows        Json?                              // [{from,to,price,courtId?}] saat aralığı fiyatları
   contactLinks          Json?                              // {whatsapp?,telegram?,instagram?,email?,phone?}
+  reservationOpenDaysBefore Int?                           // null=sınırsız (her zaman açık); 3|5|7|10|14 = rezervasyon o tarihten N gün önce açılır
+  reservationOpenTime       String?                        // HH:MM, açılış saati (null=00:00)
   lat                   Float?                             // Google Maps enlem
   lng                   Float?                             // Google Maps boylam
   status       String   @default("PENDING")   // PENDING | APPROVED | REJECTED

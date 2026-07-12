@@ -845,6 +845,8 @@ function VenueAnalyticsModal({ visible, venue, onClose }) {
 const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef4444' };
 const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
 const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: '⏳ Onay Bekliyor', CONFIRMED: 'Rezerveli' };
+const PAID_COLOR    = '#f97316'; // rezerveli + ödemesi alındı (turuncu yarı)
+const PAID_LABEL     = '💰 Rezerveli + Ödeme Alındı';
 
 const SURFACE_LABEL = {
     CLAY:      'Toprak',
@@ -977,25 +979,56 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
         { weekday: 'long', day: 'numeric', month: 'long' });
 
     const handleSlotPress = (slot) => {
-        if (slot.status !== 'PENDING' || !slot.reservationId) return;
+        if (!slot.reservationId) return;
         const payLabel = slot.paymentMethod === 'EFT' ? '🏦 EFT' : slot.paymentMethod === 'ONLINE' ? '💳 Online' : '💵 Nakit';
-        Alert.alert(
-            '⏳ Onay Bekliyor',
-            `@${slot.user?.username || '?'}\n${slot.start}–${slot.end}  ${payLabel}`,
-            [
-                { text: 'Vazgeç', style: 'cancel' },
-                { text: '✅ Onayla', onPress: () =>
-                    api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'confirm' })
-                        .then(() => setRefreshTick(t => t + 1))
-                        .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Onaylanamadı'))
-                },
-                { text: '❌ Reddet', style: 'destructive', onPress: () =>
-                    api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'reject' })
-                        .then(() => setRefreshTick(t => t + 1))
-                        .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Reddedilemedi'))
-                },
-            ]
-        );
+
+        if (slot.status === 'PENDING') {
+            Alert.alert(
+                '⏳ Onay Bekliyor',
+                `@${slot.user?.username || '?'}\n${slot.start}–${slot.end}  ${payLabel}`,
+                [
+                    { text: 'Vazgeç', style: 'cancel' },
+                    { text: '✅ Onayla', onPress: () =>
+                        api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'confirm' })
+                            .then(() => setRefreshTick(t => t + 1))
+                            .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Onaylanamadı'))
+                    },
+                    { text: '❌ Reddet', style: 'destructive', onPress: () =>
+                        api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'reject' })
+                            .then(() => setRefreshTick(t => t + 1))
+                            .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Reddedilemedi'))
+                    },
+                ]
+            );
+            return;
+        }
+
+        // Rezerveli ama ödemesi henüz onaylanmamış — nakit olsa bile (ör. tanıdık müşteri)
+        // işletmeci takvimden direkt "ödeme alındı" olarak işaretleyebilsin, 30dk beklemeden.
+        if (slot.status === 'CONFIRMED' && slot.paymentConfirmStatus !== 'CONFIRMED') {
+            Alert.alert(
+                '💰 Ödeme Durumu',
+                `@${slot.user?.username || '?'}\n${slot.start}–${slot.end}  ${payLabel}\nMüşteri geldi mi, ödeme alındı mı?`,
+                [
+                    { text: 'Vazgeç', style: 'cancel' },
+                    { text: '❌ Gelmedi', style: 'destructive', onPress: () =>
+                        Alert.alert('Gelmedi / Ödeme Alınamadı', 'Müşteri gelmedi veya ödeme tahsil edilemedi olarak işaretlensin mi? Admine bildirim gidecek.', [
+                            { text: 'Vazgeç', style: 'cancel' },
+                            { text: 'Onayla', style: 'destructive', onPress: () =>
+                                api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'payment_not_collected' })
+                                    .then(() => setRefreshTick(t => t + 1))
+                                    .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız'))
+                            },
+                        ])
+                    },
+                    { text: '✅ Ödeme Alındı', onPress: () =>
+                        api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'payment_confirm' })
+                            .then(() => setRefreshTick(t => t + 1))
+                            .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız'))
+                    },
+                ]
+            );
+        }
     };
 
     useEffect(() => {
@@ -1053,6 +1086,13 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                             <Text style={{ color: '#aaa', fontSize: 11 }}>{lbl}</Text>
                         </View>
                     ))}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 11, height: 11, borderRadius: 3, overflow: 'hidden' }}>
+                            <View style={{ height: 5.5, backgroundColor: SLOT_STATUS_COLOR.CONFIRMED }} />
+                            <View style={{ height: 5.5, backgroundColor: PAID_COLOR }} />
+                        </View>
+                        <Text style={{ color: '#aaa', fontSize: 11 }}>Rezerveli + Ödeme Alındı</Text>
+                    </View>
                 </View>
 
                 {loading
@@ -1102,20 +1142,30 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                     </View>
                                                 ) : court.slots.map((slot, si) => {
                                                     const st = slot.status || 'FREE';
-                                                    const color = SLOT_STATUS_COLOR[st];
-                                                    const bg    = SLOT_STATUS_BG[st];
+                                                    const isPaid = st === 'CONFIRMED' && slot.paymentConfirmStatus === 'CONFIRMED';
+                                                    const color = isPaid ? SLOT_STATUS_COLOR.CONFIRMED : SLOT_STATUS_COLOR[st];
+                                                    const bg    = isPaid ? undefined : SLOT_STATUS_BG[st];
                                                     const isPending = st === 'PENDING' && slot.reservationId;
+                                                    const isConfirmedUnpaid = st === 'CONFIRMED' && slot.reservationId && !isPaid;
+                                                    const isTappable = isPending || isConfirmedUnpaid;
                                                     return (
                                                         <TouchableOpacity key={si}
-                                                            onPress={() => isPending && handleSlotPress(slot)}
-                                                            activeOpacity={isPending ? 0.7 : 1}
+                                                            onPress={() => isTappable && handleSlotPress(slot)}
+                                                            activeOpacity={isTappable ? 0.7 : 1}
                                                             style={{
                                                                 backgroundColor: bg,
                                                                 borderRadius: 8, padding: 7, marginBottom: 5,
-                                                                borderWidth: isPending ? 1.5 : 1,
-                                                                borderColor: isPending ? color : color + '55',
+                                                                borderWidth: isTappable ? 1.5 : 1,
+                                                                borderColor: isTappable ? color : color + '55',
                                                                 minHeight: 48,
+                                                                overflow: 'hidden',
                                                             }}>
+                                                            {isPaid && (
+                                                                <>
+                                                                    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50%', backgroundColor: SLOT_STATUS_BG.CONFIRMED }} />
+                                                                    <View pointerEvents="none" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '50%', backgroundColor: PAID_COLOR + '1e' }} />
+                                                                </>
+                                                            )}
                                                             <Text style={{ color: color, fontSize: 11, fontWeight: '800' }}>
                                                                 {slot.start}
                                                             </Text>
@@ -1130,8 +1180,8 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                                     </Text>
                                                                 </TouchableOpacity>
                                                             ) : (
-                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 4 }}>
-                                                                    {SLOT_STATUS_LABEL[st]}
+                                                                <Text style={{ color: (isPaid ? PAID_COLOR : color) + '99', fontSize: 10, marginTop: 4 }}>
+                                                                    {isPaid ? PAID_LABEL : SLOT_STATUS_LABEL[st]}
                                                                 </Text>
                                                             )}
                                                             {slot.price != null && (
@@ -1142,6 +1192,11 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                             {isPending && (
                                                                 <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
                                                                     Onayla / Reddet →
+                                                                </Text>
+                                                            )}
+                                                            {isConfirmedUnpaid && (
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
+                                                                    Ödeme Al →
                                                                 </Text>
                                                             )}
                                                         </TouchableOpacity>
@@ -1375,6 +1430,9 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT']
     );
     const [savingPayments, setSavingPayments] = useState(false);
+    const [localReservationOpenDaysBefore, setLocalReservationOpenDaysBefore] = useState(venue.reservationOpenDaysBefore ?? null);
+    const [localReservationOpenTime,       setLocalReservationOpenTime]       = useState(venue.reservationOpenTime || '');
+    const [savingReservationWindow,        setSavingReservationWindow]       = useState(false);
 
     const loadBlocks = async () => {
         try { const { data } = await api.get(`/venues/${venue.id}/blocked`); setBlocks(data); }
@@ -1875,6 +1933,25 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             else setLocalReschedulePolicy(value);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingPolicy(false); }
+    };
+
+    const handleSaveReservationOpenDaysBefore = async (daysBefore) => {
+        setSavingReservationWindow(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { reservationOpenDaysBefore: daysBefore });
+            setLocalReservationOpenDaysBefore(daysBefore);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingReservationWindow(false); }
+    };
+
+    const handleSaveReservationOpenTime = async () => {
+        const t = localReservationOpenTime.trim();
+        if (t && !/^\d{2}:\d{2}$/.test(t)) { Alert.alert('Hata', 'Geçerli saat girin (HH:MM, ör: 09:00)'); return; }
+        setSavingReservationWindow(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { reservationOpenTime: t || null });
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingReservationWindow(false); }
     };
 
     const handleAddWindow = () => {
@@ -3714,6 +3791,62 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         );
                     })}
                     {savingPolicy && <ActivityIndicator color={BIZ_COLOR} size="small" />}
+
+                    {/* ── Rezervasyon Açılış Süresi ──── */}
+                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                        REZERVASYON AÇILIŞ SÜRESİ
+                    </Text>
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>
+                        Bir günün rezervasyonları kaç gün önceden açılsın? (Örn: 3 gün seçilirse, Salı günü rezervasyonları Pazar günü açılır)
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                        {[
+                            { val: null, label: 'Sınırsız' },
+                            { val: 3,    label: '3 Gün' },
+                            { val: 5,    label: '5 Gün' },
+                            { val: 7,    label: '7 Gün' },
+                            { val: 10,   label: '10 Gün' },
+                            { val: 14,   label: '14 Gün' },
+                        ].map(opt => {
+                            const isActive = localReservationOpenDaysBefore === opt.val;
+                            return (
+                                <TouchableOpacity key={String(opt.val)} disabled={savingReservationWindow}
+                                    onPress={() => handleSaveReservationOpenDaysBefore(opt.val)}
+                                    style={{
+                                        paddingHorizontal: 11, paddingVertical: 7,
+                                        borderRadius: 8, borderWidth: 1.5,
+                                        borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
+                                        backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
+                                    }}>
+                                    <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 12, fontWeight: isActive ? '700' : '400' }}>
+                                        {opt.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                    {localReservationOpenDaysBefore != null && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <TextInput
+                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12,
+                                    paddingVertical: 7, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: '#ffffff15' }}
+                                placeholder="Açılış saati (ör: 09:00, boş=00:00)"
+                                placeholderTextColor="#444"
+                                value={localReservationOpenTime}
+                                onChangeText={setLocalReservationOpenTime}
+                                returnKeyType="done"
+                                onSubmitEditing={handleSaveReservationOpenTime}
+                            />
+                            <TouchableOpacity disabled={savingReservationWindow}
+                                onPress={handleSaveReservationOpenTime}
+                                style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
+                                    backgroundColor: BIZ_COLOR + '28', borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
+                                <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Uygula</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                    {savingReservationWindow && <ActivityIndicator color={BIZ_COLOR} size="small" />}
 
                     {/* ── Ödeme Yöntemleri (PRO) ── */}
                     {isPro && (

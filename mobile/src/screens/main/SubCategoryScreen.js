@@ -1939,6 +1939,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const participantsArr = (Array.isArray(match.participants) ? match.participants : []).filter(p => p?.id);
     const senderTeamArr   = (Array.isArray(match.senderTeam)   ? match.senderTeam   : []).filter(p => p?.id);
+    // Maça dahil olmayan kullanıcılar (örn. herkese açık "Yaklaşan Maçlar" listesinde başkasının
+    // maçını görüntüleyen biri) sipariş verme gibi katılımcıya özel aksiyonları görmemeli.
+    const isParticipant = isOwner || match.receiverId === myId
+        || participantsArr.some(p => p.id === myId) || senderTeamArr.some(p => p.id === myId);
 
     // Build player list: sender → partner (DOUBLE) → opponents
     const allPlayers = [
@@ -2374,7 +2378,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             {match.courtName && (
                 <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>🏟️ {match.courtName}</Text>
             )}
-            {match.venueId && (
+            {match.venueId && isParticipant && (
                 <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:4 }}>
                     <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                 </TouchableOpacity>
@@ -2419,7 +2423,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4, textDecorationLine:'underline' }}>🏟️ {match.courtName}</Text>
                             </TouchableOpacity>
                         )}
-                        {match.venueId && (
+                        {match.venueId && isParticipant && (
                             <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
                                 <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                             </TouchableOpacity>

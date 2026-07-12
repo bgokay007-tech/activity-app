@@ -36,6 +36,8 @@ const TYPE_ICON = {
     TOURNAMENT_STARTED: '🚀',
     TOURNAMENT_EXTRA_ROUND: '⚖️',
     TOURNAMENT_COMPLETED: '🏆',
+    TOURNAMENT_MATCH_DEADLINE_WARNING: '⏳',
+    TOURNAMENT_MATCH_AUTO_DRAW: '🤝',
     TOURNAMENT_CANCEL_REQUEST: '⚠️',
     CANCELLATION_REQUEST: '⚠️',
     TOURNAMENT_CANCEL_APPROVED: '✅',
@@ -149,6 +151,15 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('tournaments', 'completed');
         } else if (type === 'TOURNAMENT_CHAT_MESSAGE') {
             goToSub('tournaments', null, data.tournamentId || null);
+        } else if (type === 'TOURNAMENT_MATCH_DEADLINE_WARNING' || type === 'TOURNAMENT_MATCH_AUTO_DRAW') {
+            if (data.tournamentId) {
+                navigation.push('SubCategory', {
+                    category: data.category, sub: data.subCategory, initialTab: 'tournaments',
+                    openMatchId: data.matchId || null, openMatchTournamentId: data.tournamentId,
+                });
+            } else {
+                goToSub('tournaments');
+            }
         } else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') {
             goToSub('tournaments');
         } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'VENUE_ORDER' || type === 'PAYMENT_ALERT') {

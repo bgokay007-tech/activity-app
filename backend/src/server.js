@@ -10,6 +10,7 @@ import { startTournamentAutoStartJob } from './jobs/autoStartTournaments.js';
 import { startSubscriptionExpiryJob } from './jobs/subscriptionExpiry.js';
 import { startHolidayReminderJob } from './jobs/holidayReminder.js';
 import { startAutoApproveReservationsJob } from './jobs/autoApproveReservations.js';
+import { startTournamentDeadlineReminderJob } from './jobs/tournamentDeadlineReminder.js';
 import { startReservationPaymentConfirmJob } from './jobs/reservationPaymentConfirm.js';
 import prisma from './config/prisma.js';
 
@@ -86,6 +87,7 @@ Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
         startSubscriptionExpiryJob();
         startHolidayReminderJob();
         startAutoApproveReservationsJob();
+        startTournamentDeadlineReminderJob();
         startReservationPaymentConfirmJob();
     });
 });
