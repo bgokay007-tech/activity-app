@@ -975,6 +975,10 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
         d.setDate(d.getDate() + n);
         setSelDate(toDateStr(d));
     };
+
+    useEffect(() => {
+        if (visible) setSelDate(toDateStr(new Date()));
+    }, [visible]);
     const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString('tr-TR',
         { weekday: 'long', day: 'numeric', month: 'long' });
 
