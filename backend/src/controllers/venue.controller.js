@@ -97,15 +97,23 @@ function getReservationOpensAt(venue, date) {
 }
 
 // Öncelik: kort+saat aralığı > tüm kurtlar saat aralığı > kort varsayılanı > tesis varsayılanı
+// Fiyat penceresi gece yarısını geçebilir (ör. 20:00–05:00) — bu durumda "to" sayıca
+// "from"dan küçük/eşit olur, normal aralık karşılaştırması hiç eşleşmez.
+const inPriceWindow = (sm, from, to) => {
+    const f = toMins(from), t = toMins(to);
+    if (t <= f) return sm >= f || sm < t;
+    return sm >= f && sm < t;
+};
+
 function getSlotPrice(venue, court, startTime, durationMins = 60) {
     const sm = toMins(startTime);
     const pw = venue.pricingWindows;
     let basePrice;
     if (Array.isArray(pw) && pw.length > 0) {
-        const cw = pw.find(w => w.courtId === court?.id && sm >= toMins(w.from) && sm < toMins(w.to));
+        const cw = pw.find(w => w.courtId === court?.id && inPriceWindow(sm, w.from, w.to));
         if (cw) { basePrice = cw.price; }
         else {
-            const vw = pw.find(w => !w.courtId && sm >= toMins(w.from) && sm < toMins(w.to));
+            const vw = pw.find(w => !w.courtId && inPriceWindow(sm, w.from, w.to));
             if (vw) basePrice = vw.price;
         }
     }

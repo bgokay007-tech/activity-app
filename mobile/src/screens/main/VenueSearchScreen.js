@@ -298,8 +298,8 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
 
                     {/* Tarih Seçici */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                        style={{ height:44 }}
-                        contentContainerStyle={{ paddingHorizontal:3, alignItems:'center' }}>
+                        style={{ height:26 }}
+                        contentContainerStyle={{ paddingHorizontal:3, paddingVertical:3, alignItems:'center' }}>
                         {DATE_OPTIONS.map(item => {
                             const active = item === date;
                             const d = new Date(item + 'T12:00:00');
