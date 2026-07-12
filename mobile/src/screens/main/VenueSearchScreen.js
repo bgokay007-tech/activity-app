@@ -231,9 +231,9 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                         return (
                             <View style={bm.tagRow}>
                                 <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date, t)}</Text></View>
+                                {lightsFrom ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡 {t.vsLightsFrom(lightsFrom)}</Text></View> : null}
                                 <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue, t)}</Text></View>
                                 {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
-                                {lightsFrom ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡 {t.vsLightsFrom(lightsFrom)}</Text></View> : null}
                             </View>
                         );
                     })()}
