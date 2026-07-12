@@ -3,8 +3,10 @@ import {
     View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, Linking,
 } from 'react-native';
+import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
 import api from '../../services/api';
+import useT from '../../hooks/useT';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -15,32 +17,30 @@ function getDateStr(offset = 0) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function formatDateLabel(dateStr) {
+function formatDateLabel(dateStr, locale = 'tr-TR') {
     const [y, m, day] = dateStr.split('-').map(Number);
     const d = new Date(y, m - 1, day);
-    const days   = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
-    const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-    return `${days[d.getDay()]} ${day} ${months[m - 1]}`;
+    return d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 const DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
-const SLOT_LABEL = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk', VAR_DURATION: 'Esnek Saat', FLEXIBLE: 'Esnek Saat' };
-const SLOT_SHORT = { FULL_HOUR: 'Tam', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90dk', VAR_DURATION: 'Esnek', FLEXIBLE: 'Esnek' };
+const SLOT_LABEL_KEY = { FULL_HOUR: 'vsSlotFull', HALF_HOUR: 'vsSlotHalf', NINETY_MIN: 'vsSlot90', VAR_DURATION: 'vsSlotFlex', FLEXIBLE: 'vsSlotFlex' };
+const SLOT_SHORT_KEY = { FULL_HOUR: 'vsSlotFullShort', HALF_HOUR: 'vsSlotHalf', NINETY_MIN: 'vsSlot90Short', VAR_DURATION: 'vsSlotFlexShort', FLEXIBLE: 'vsSlotFlexShort' };
 const VALID_ST   = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION', 'FLEXIBLE'];
-function venueSlotChip(venue) {
+function venueSlotChip(venue, t) {
     const courts = venue.courts || [];
     const base = venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : (venue.slotType || 'FULL_HOUR');
-    if (courts.length === 0) return SLOT_LABEL[venue.slotType] || venue.slotType;
+    if (courts.length === 0) return t[SLOT_LABEL_KEY[venue.slotType]] || venue.slotType;
     const perCourt = courts.map(c => ({
         name: c.name,
         type: (VALID_ST.includes(c.slotType) ? c.slotType : null) || base,
     }));
     const unique = [...new Set(perCourt.map(c => c.type))];
-    if (unique.length === 1) return SLOT_LABEL[unique[0]] || unique[0];
-    return perCourt.map(c => `${c.name}:${SLOT_SHORT[c.type] || c.type}`).join(' · ');
+    if (unique.length === 1) return t[SLOT_LABEL_KEY[unique[0]]] || unique[0];
+    return perCourt.map(c => `${c.name}:${t[SLOT_SHORT_KEY[c.type]] || c.type}`).join(' · ');
 }
 
-function getVenueHoursLabel(venue, dateStr) {
+function getVenueHoursLabel(venue, dateStr, t) {
     const os = venue.openSlots;
     if (os && !Array.isArray(os) && typeof os === 'object') {
         const dow = new Date(dateStr + 'T12:00:00').getDay();
@@ -49,7 +49,7 @@ function getVenueHoursLabel(venue, dateStr) {
         if (os[key] !== undefined) entry = os[key];
         else if (os['0'] !== undefined) entry = os['0'];
         if (entry !== undefined) {
-            if (Array.isArray(entry) && entry.length === 0) return 'Kapalı';
+            if (Array.isArray(entry) && entry.length === 0) return t.vsClosed;
             if (Array.isArray(entry) && entry.length > 0) return entry.map(w => `${w.from}–${w.to}`).join(' / ');
         }
     }
@@ -60,6 +60,7 @@ function getVenueHoursLabel(venue, dateStr) {
 // Sepet mantığı: kullanıcı farklı tesis/kort/tarih/saatlerden istediği kadar
 // slot ekleyip hepsini tek seferde (aynı ödeme yöntemiyle) rezerve edebilir.
 function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }) {
+    const t = useT();
     const [payment, setPayment] = useState('CASH');
     const priceOf = (item) => item.slot?.price ?? item.venue?.pricePerSlot ?? 0;
     const total = cart.reduce((sum, i) => sum + priceOf(i), 0);
@@ -67,19 +68,19 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={cm.overlay}>
                 <View style={[cm.box, { maxHeight: '85%' }]}>
-                    <Text style={cm.title}>🛒 Sepetim {cart.length > 0 ? `(${cart.length})` : ''}</Text>
+                    <Text style={cm.title}>🛒 {t.vsCartTitle} {cart.length > 0 ? `(${cart.length})` : ''}</Text>
                     <ScrollView style={{ maxHeight: 260, marginBottom: cart.length ? 10 : 0 }} showsVerticalScrollIndicator={false}>
                         {cart.length === 0 ? (
                             <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>
-                                Sepetiniz boş. Bir tesisten saat seçip "Sepete Ekle"ye dokunun.
+                                {t.vsCartEmpty}
                             </Text>
                         ) : cart.map(item => (
                             <View key={item.key} style={cm.cartRow}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={cm.cartRowTitle} numberOfLines={1}>{item.venue.name} — {item.court.name}</Text>
-                                    <Text style={cm.cartRowSub}>{formatDateLabel(item.date)} · {item.slot.start}–{item.slot.end}</Text>
+                                    <Text style={cm.cartRowSub}>{formatDateLabel(item.date, t.dateLocale)} · {item.slot.start}–{item.slot.end}</Text>
                                 </View>
-                                <Text style={cm.cartRowPrice}>{priceOf(item) > 0 ? `${priceOf(item)}₺` : 'Ücretsiz'}</Text>
+                                <Text style={cm.cartRowPrice}>{priceOf(item) > 0 ? `${priceOf(item)}₺` : t.vsFree}</Text>
                                 <TouchableOpacity onPress={() => onRemove(item.key)} style={cm.cartRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                                     <Text style={cm.cartRemoveText}>✕</Text>
                                 </TouchableOpacity>
@@ -89,27 +90,27 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                     {cart.length > 0 && (
                         <>
                             <View style={cm.cartTotalRow}>
-                                <Text style={cm.cartTotalLabel}>Toplam</Text>
-                                <Text style={cm.cartTotalValue}>{total > 0 ? `${total}₺` : 'Ücretsiz'}</Text>
+                                <Text style={cm.cartTotalLabel}>{t.vsCartTotal}</Text>
+                                <Text style={cm.cartTotalValue}>{total > 0 ? `${total}₺` : t.vsFree}</Text>
                             </View>
-                            <Text style={cm.payLabel}>Ödeme Yöntemi</Text>
+                            <Text style={cm.payLabel}>{t.vsPaymentMethod}</Text>
                             <TouchableOpacity
                                 style={[cm.payOpt, payment === 'CASH' && cm.payOptActive]}
                                 onPress={() => setPayment('CASH')}
                                 activeOpacity={0.8}
                             >
-                                <Text style={cm.payOptText}>💵 Kort Başında Nakit / Kart</Text>
+                                <Text style={cm.payOptText}>{t.vsPayCash}</Text>
                                 {payment === 'CASH' && <Text style={cm.check}>✓</Text>}
                             </TouchableOpacity>
                             <View style={[cm.payOpt, cm.payOptDisabled]}>
-                                <Text style={[cm.payOptText, { color: colors.textMuted }]}>💳 Online Ödeme</Text>
-                                <View style={cm.soonBadge}><Text style={cm.soonText}>Yakında</Text></View>
+                                <Text style={[cm.payOptText, { color: colors.textMuted }]}>{t.vsPayOnline}</Text>
+                                <View style={cm.soonBadge}><Text style={cm.soonText}>{t.vsComingSoon}</Text></View>
                             </View>
                         </>
                     )}
                     <View style={cm.btnRow}>
                         <TouchableOpacity style={cm.cancelBtn} onPress={onClose} activeOpacity={0.8}>
-                            <Text style={cm.cancelBtnText}>Kapat</Text>
+                            <Text style={cm.cancelBtnText}>{t.vsCartClose}</Text>
                         </TouchableOpacity>
                         {cart.length > 0 && (
                             <TouchableOpacity
@@ -120,7 +121,7 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                             >
                                 {checkingOut
                                     ? <ActivityIndicator size="small" color="#fff" />
-                                    : <Text style={cm.confirmBtnText}>Rezervasyonları Tamamla ✓</Text>}
+                                    : <Text style={cm.confirmBtnText}>{t.vsCartCheckout}</Text>}
                             </TouchableOpacity>
                         )}
                     </View>
@@ -136,6 +137,7 @@ const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60)
 
 
 function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onOpenCart, cartCount }) {
+    const t = useT();
     const [date,        setDate]        = useState(DATE_OPTIONS[0]);
     const [slotsMap,    setSlotsMap]    = useState({});
     const [picked,      setPicked]      = useState(null);
@@ -157,10 +159,10 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                 const slots = data?.slots || (data?.type !== 'VAR_DURATION' ? data?.windows : []) || [];
                 setSlotsMap(prev => ({ ...prev, [court.id]: { slots, loading: false, error: null, type: data?.type, windows: data?.windows || [] } }));
             } catch {
-                setSlotsMap(prev => ({ ...prev, [court.id]: { slots: [], loading: false, error: 'Yüklenemedi', type: null, windows: [] } }));
+                setSlotsMap(prev => ({ ...prev, [court.id]: { slots: [], loading: false, error: t.vsLoadFailed, type: null, windows: [] } }));
             }
         }));
-    }, [venue]);
+    }, [venue, t]);
 
     useEffect(() => {
         if (visible && venue) {
@@ -190,11 +192,9 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
     if (!venue) return null;
 
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
             <View style={bm.overlay}>
                 <View style={bm.sheet}>
-                    <View style={bm.handle} />
-
                     {/* Header */}
                     <View style={bm.header}>
                         <View style={{ flex: 1 }}>
@@ -230,10 +230,10 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                         const lightsFrom = (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom;
                         return (
                             <View style={bm.tagRow}>
-                                <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date)}</Text></View>
-                                <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue)}</Text></View>
+                                <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date, t)}</Text></View>
+                                <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue, t)}</Text></View>
                                 {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
-                                {lightsFrom ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡 {lightsFrom}'dan ışık</Text></View> : null}
+                                {lightsFrom ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡 {t.vsLightsFrom(lightsFrom)}</Text></View> : null}
                             </View>
                         );
                     })()}
@@ -250,24 +250,24 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                             email:     cl.email     || null,
                         };
                         const links = [
-                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp',  url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
-                            { key: 'phone',     icon: '📞', label: 'Beni Ara',  url: v => `tel:${v}` },
-                            { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
-                            { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
-                            { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
+                            { key: 'whatsapp',  icon: '💬', label: t.vsWhatsapp,  url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
+                            { key: 'phone',     icon: '📞', label: t.vsCallMe,    url: v => `tel:${v}` },
+                            { key: 'telegram',  icon: '✈️', label: t.vsTelegram,  url: v => `https://t.me/${v.replace('@','')}` },
+                            { key: 'instagram', icon: '📸', label: t.vsInstagram, url: v => `https://instagram.com/${v.replace('@','')}` },
+                            { key: 'email',     icon: '📧', label: t.vsEmail,     url: v => `mailto:${v}` },
                         ].filter(l => effectiveCl[l.key]);
                         if (links.length === 0) return null;
                         return (
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }}>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, paddingHorizontal: 3, paddingBottom: 3 }}>
                                 {links.map(l => (
                                     <TouchableOpacity key={l.key}
                                         onPress={() => Linking.openURL(l.url(effectiveCl[l.key]))}
-                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 3,
                                             backgroundColor: colors.surface2, borderRadius: 8,
-                                            paddingHorizontal: 10, paddingVertical: 6,
+                                            paddingHorizontal: 3, paddingVertical: 3,
                                             borderWidth: 1, borderColor: colors.border }}>
-                                        <Text style={{ fontSize: 13 }}>{l.icon}</Text>
-                                        <Text style={{ color: '#e5e7eb', fontSize: 11, fontWeight: '700' }}>{l.label}</Text>
+                                        <Text style={{ fontSize: 12 }}>{l.icon}</Text>
+                                        <Text style={{ color: '#e5e7eb', fontSize: 10, fontWeight: '700' }}>{l.label}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
@@ -279,7 +279,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                         const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
                         if (pw.length === 0) return null;
                         return (
-                            <View style={{ paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                            <View style={{ paddingHorizontal: 3, paddingBottom: 3, flexDirection: 'row', flexWrap: 'wrap', gap: 3 }}>
                                 {pw.map((rule, i) => {
                                     const courtName = rule.courtId
                                         ? (venue.courts || []).find(c => c.id === rule.courtId)?.name
@@ -287,7 +287,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                     return (
                                         <View key={i} style={bm.priceTag}>
                                             <Text style={bm.priceTagText}>
-                                                💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{courtName ? ` · ${courtName}` : ''}
+                                                💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : t.vsFree}{courtName ? ` · ${courtName}` : ''}
                                             </Text>
                                         </View>
                                     );
@@ -297,37 +297,30 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                     })()}
 
                     {/* Tarih Seçici */}
-                    {(() => {
-                        const dayNames   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
-                        const monthNames = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
-                        return (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                style={{ height:48 }}
-                                contentContainerStyle={{ paddingHorizontal:14, alignItems:'center' }}>
-                                {DATE_OPTIONS.map(item => {
-                                    const active = item === date;
-                                    const [,mo,day] = item.split('-').map(Number);
-                                    const d = new Date(item + 'T12:00:00');
-                                    const label = `${day} ${monthNames[mo-1]} ${dayNames[d.getDay()]}`;
-                                    return (
-                                        <TouchableOpacity key={item}
-                                            onPress={() => handleDateChange(item)}
-                                            activeOpacity={0.75}
-                                            style={{ marginRight:6, paddingVertical:7, paddingHorizontal:12, borderRadius:20,
-                                                backgroundColor: active ? colors.purple : colors.surface2,
-                                                borderWidth:1, borderColor: active ? colors.purple : colors.border }}>
-                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{label}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
-                        );
-                    })()}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                        style={{ height:44 }}
+                        contentContainerStyle={{ paddingHorizontal:3, alignItems:'center' }}>
+                        {DATE_OPTIONS.map(item => {
+                            const active = item === date;
+                            const d = new Date(item + 'T12:00:00');
+                            const label = d.toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'short', weekday: 'short' });
+                            return (
+                                <TouchableOpacity key={item}
+                                    onPress={() => handleDateChange(item)}
+                                    activeOpacity={0.75}
+                                    style={{ marginRight:3, paddingVertical:3, paddingHorizontal:3, borderRadius:20,
+                                        backgroundColor: active ? colors.purple : colors.surface2,
+                                        borderWidth:1, borderColor: active ? colors.purple : colors.border }}>
+                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>{label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
 
                     {/* Kortlar + Slotlar — yatay kaydır, her kort 170px sütun */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}
                         style={{ height: 300 }}
-                        contentContainerStyle={{ flexDirection:'row', alignItems:'stretch', paddingHorizontal:8, paddingVertical:8, gap:8 }}>
+                        contentContainerStyle={{ flexDirection:'row', alignItems:'stretch', paddingHorizontal:3, paddingVertical:3, gap:3 }}>
                         {venue.courts.map(court => {
                             const entry = slotsMap[court.id] || { slots: [], loading: true, type: null, windows: [] };
                             const isVar   = entry.type === 'VAR_DURATION';
@@ -341,11 +334,11 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                         <Text style={bm.courtName}>🎾 {court.name}</Text>
                                         {!entry.loading && !isMaint && (
                                             <Text style={[bm.courtFree, freeCount === 0 && { color: colors.textMuted }]}>
-                                                {freeCount > 0 ? `${freeCount} müsait` : 'Dolu'}
+                                                {freeCount > 0 ? t.vsAvailable(freeCount) : t.vsFull}
                                             </Text>
                                         )}
                                         {isMaint && (
-                                            <Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '700' }}>🔧 Bakımda</Text>
+                                            <Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '700' }}>{t.vsUnderMaintenance}</Text>
                                         )}
                                     </View>
 
@@ -356,12 +349,12 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                         <Text style={bm.errorText}>{entry.error}</Text>
                                     ) : isMaint ? (
                                         <Text style={{ color: '#f87171', fontSize: 12, marginVertical: 8, lineHeight: 18 }}>
-                                            Bu kort seçilen tarihte bakımda. Farklı bir tarih seçin.
+                                            {t.vsMaintenanceNote}
                                         </Text>
                                     ) : isVar ? (
                                         <>
                                             {entry.windows.length === 0 ? (
-                                                <Text style={bm.noSlotText}>Müsait pencere yok.</Text>
+                                                <Text style={bm.noSlotText}>{t.vsNoWindows}</Text>
                                             ) : entry.windows.map((w, wi) => {
                                                 const sel = varStartMap[court.id];
                                                 const isWinSel = sel?.winStart === w.start;
@@ -375,18 +368,18 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                 const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (dur / 60)) : venue?.pricePerSlot ?? null;
                                                 const isPicked = picked?.court.id === court.id && picked?.slot.start === customStart && isWinSel;
                                                 return (
-                                                    <View key={wi} style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: isWinSel ? colors.purple : colors.border }}>
+                                                    <View key={wi} style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 3, marginBottom: 3, borderWidth: 1, borderColor: isWinSel ? colors.purple : colors.border }}>
                                                         {/* Pencere başlığı */}
                                                         <TouchableOpacity onPress={() => { setVarStartMap(p => ({ ...p, [court.id]: { winStart: w.start, winEnd: w.end, customStart: w.start } })); setVarDurMap(p => ({ ...p, [court.id]: 60 })); setPicked(null); }}
-                                                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: isWinSel ? 10 : 0 }}>
-                                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>🕐 {w.start} – {w.end}</Text>
-                                                            <Text style={{ color: isWinSel ? colors.purple : colors.textMuted, fontSize: 11, fontWeight: '700' }}>{isWinSel ? '▲ Seçili' : '▼ Seç'}</Text>
+                                                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: isWinSel ? 3 : 0 }}>
+                                                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>🕐 {w.start} – {w.end}</Text>
+                                                            <Text style={{ color: isWinSel ? colors.purple : colors.textMuted, fontSize: 10, fontWeight: '700' }}>{isWinSel ? t.vsSelectedArrow : t.vsSelectArrow}</Text>
                                                         </TouchableOpacity>
 
                                                         {isWinSel && (<>
                                                             {/* Başlangıç saati girişi */}
-                                                            <Text style={bv.stepLabel}>Başlangıç Saatini Girin</Text>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                            <Text style={bv.stepLabel}>{t.vsStartTimeLabel}</Text>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 3 }}>
                                                                 <TextInput
                                                                     value={sel?.customStart ?? w.start}
                                                                     onChangeText={v => { setVarStartMap(p => ({ ...p, [court.id]: { ...p[court.id], customStart: v } })); setPicked(null); }}
@@ -394,15 +387,15 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                                     placeholderTextColor={colors.textMuted}
                                                                     keyboardType="numbers-and-punctuation"
                                                                     maxLength={5}
-                                                                    style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: validStart ? colors.purple : colors.border, textAlign: 'center' }}
+                                                                    style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3, color: '#fff', fontSize: 15, fontWeight: '800', borderWidth: 1, borderColor: validStart ? colors.purple : colors.border, textAlign: 'center' }}
                                                                 />
-                                                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>({w.start} – {w.end} arası)</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize: 11 }}>{t.vsBetween(w.start, w.end)}</Text>
                                                             </View>
 
                                                             {/* Süre seçimi */}
                                                             {validStart && (<>
-                                                                <Text style={bv.stepLabel}>Süre Seçin</Text>
-                                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                                                <Text style={bv.stepLabel}>{t.vsDurationLabel}</Text>
+                                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginBottom: 3 }}>
                                                                     {[60, 90, 120, 150, 180].filter(d => customStartM + d <= winEndM).map(d => {
                                                                         const et = toT(customStartM + d);
                                                                         const pr = w.pricePerHour != null ? Math.round(w.pricePerHour * (d / 60)) : null;
@@ -413,7 +406,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                                                 style={[bv.durBtn, isSel && bv.durBtnPicked]}>
                                                                                 <Text style={[bv.durBtnDur, isSel && bv.durBtnTextPicked]}>{d < 60 ? `${d}dk` : `${d/60}sa`}</Text>
                                                                                 <Text style={[bv.durBtnTime, isSel && bv.durBtnTextPicked]}>{customStart}–{et}</Text>
-                                                                                {pr != null && <Text style={[bv.durBtnPrice, isSel && bv.durBtnTextPicked]}>{pr > 0 ? `${pr}₺` : 'Ücretsiz'}</Text>}
+                                                                                {pr != null && <Text style={[bv.durBtnPrice, isSel && bv.durBtnTextPicked]}>{pr > 0 ? `${pr}₺` : t.vsFree}</Text>}
                                                                             </TouchableOpacity>
                                                                         );
                                                                     })}
@@ -422,9 +415,9 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                                 {validEnd && (
                                                                     <TouchableOpacity
                                                                         onPress={() => setPicked({ court, slot: { start: customStart, end: toT(customStartM + dur), free: true, price: w.pricePerHour != null ? Math.round(w.pricePerHour * (dur/60)) : null, durationMins: dur } })}
-                                                                        style={{ backgroundColor: isPicked ? colors.purple : colors.purple+'30', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.purple }}>
+                                                                        style={{ backgroundColor: isPicked ? colors.purple : colors.purple+'30', borderRadius: 8, paddingVertical: 3, alignItems: 'center', borderWidth: 1, borderColor: colors.purple }}>
                                                                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
-                                                                            {isPicked ? '✅ Seçildi' : `${customStart} – ${toT(customStartM + dur)} Seç`}
+                                                                            {isPicked ? t.vsSelected : t.vsSelectRange(customStart, toT(customStartM + dur))}
                                                                         </Text>
                                                                     </TouchableOpacity>
                                                                 )}
@@ -435,7 +428,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                             })}
                                         </>
                                     ) : displaySlots.length === 0 ? (
-                                        <Text style={bm.noSlotText}>Bu tarihte slot tanımlı değil.</Text>
+                                        <Text style={bm.noSlotText}>{t.vsNoSlots}</Text>
                                     ) : (
                                         <View style={bm.slotGrid}>
                                             {displaySlots.map((slot, i) => {
@@ -466,7 +459,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                         </Text>
                                                         {slot.price != null && slot.free !== false && (
                                                             <Text style={{ color: isPicked ? '#ffffffcc' : colors.purple, fontSize: 10, fontWeight: '800', marginTop: 2 }}>
-                                                                {slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz'}
+                                                                {slot.price > 0 ? `${slot.price}₺` : t.vsFree}
                                                             </Text>
                                                         )}
                                                     </TouchableOpacity>
@@ -485,15 +478,15 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                     <View style={[bm.legend, { paddingHorizontal:14, paddingTop:6 }]}>
                         <View style={bm.legendItem}>
                             <View style={[bm.legendDot, { borderColor: colors.purple }]} />
-                            <Text style={bm.legendText}>Müsait</Text>
+                            <Text style={bm.legendText}>{t.vsLegendAvailable}</Text>
                         </View>
                         <View style={bm.legendItem}>
                             <View style={[bm.legendDot, { backgroundColor: colors.surface2, borderColor: colors.border }]} />
-                            <Text style={bm.legendText}>Dolu</Text>
+                            <Text style={bm.legendText}>{t.vsFull}</Text>
                         </View>
                         <View style={bm.legendItem}>
                             <View style={[bm.legendDot, { backgroundColor: '#ef444418', borderColor: '#ef444440' }]} />
-                            <Text style={bm.legendText}>🔧 Bakım</Text>
+                            <Text style={bm.legendText}>{t.vsLegendMaintenance}</Text>
                         </View>
                     </View>
 
@@ -505,11 +498,11 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                     {picked.court.name} · {picked.slot.start}–{picked.slot.end}
                                 </Text>
                                 <Text style={bm.reserveBarSub}>
-                                    {formatDateLabel(date)}{venue.pricePerSlot > 0 ? ` · ${venue.pricePerSlot}₺` : ''}
+                                    {formatDateLabel(date, t.dateLocale)}{venue.pricePerSlot > 0 ? ` · ${venue.pricePerSlot}₺` : ''}
                                 </Text>
                             </View>
                             <TouchableOpacity style={bm.reserveBtn} onPress={handleAddToCart} activeOpacity={0.8}>
-                                <Text style={bm.reserveBtnText}>Sepete Ekle +</Text>
+                                <Text style={bm.reserveBtnText}>{t.vsAddToCart}</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -521,6 +514,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
 
 // ─── Tesis Arama Kartı ────────────────────────────────────────────────────────
 function VenueCard({ venue, onPress }) {
+    const t = useT();
     return (
         <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.8}>
             <View style={s.cardHeader}>
@@ -533,8 +527,8 @@ function VenueCard({ venue, onPress }) {
                 <Text style={s.arrow}>›</Text>
             </View>
             <View style={s.cardTags}>
-                <View style={s.tag}><Text style={s.tagText}>🏟️ {venue.courts?.length || 0} kort</Text></View>
-                <View style={s.tag}><Text style={s.tagText}>⏰ {getVenueHoursLabel(venue, getDateStr(0))}</Text></View>
+                <View style={s.tag}><Text style={s.tagText}>🏟️ {venue.courts?.length || 0} {t.vsCourtSuffix}</Text></View>
+                <View style={s.tag}><Text style={s.tagText}>⏰ {getVenueHoursLabel(venue, getDateStr(0), t)}</Text></View>
                 {venue.pricePerSlot > 0 && (
                     <View style={s.tag}><Text style={s.tagText}>💰 {venue.pricePerSlot}₺/slot</Text></View>
                 )}
@@ -544,7 +538,7 @@ function VenueCard({ venue, onPress }) {
     );
 }
 
-// Expo/React Native sub anahtarlarını Türkçe'ye çevir
+// Expo/React Native sub anahtarlarını Türkçe'ye çevir (yalnızca TR modunda kullanılır)
 const BRANCH_MAP = {
     tennis:     'tenis',
     padel:      'padel',
@@ -572,8 +566,12 @@ const BRANCH_MAP = {
 
 // ─── Ana Ekran ────────────────────────────────────────────────────────────────
 export default function VenueSearchScreen({ navigation, route }) {
+    const t = useT();
+    const lang = useSelector(s => s.lang?.lang || 'en');
     const rawBranch   = route?.params?.branch;
-    const lockedBranch = rawBranch ? (BRANCH_MAP[rawBranch] || rawBranch) : null;
+    const lockedBranch = rawBranch
+        ? (lang === 'tr' ? (BRANCH_MAP[rawBranch] || rawBranch) : rawBranch.replace(/_/g, ' '))
+        : null;
 
     const [city,     setCity]     = useState('');
     const [venueName, setVenueName] = useState('');
@@ -592,9 +590,9 @@ export default function VenueSearchScreen({ navigation, route }) {
 
     // Sayfa açılınca (branch parametresi varsa) otomatik ara
     // NOT: backend BusinessVenue.branch alanı İngilizce anahtarla saklanır (ör. "tennis"),
-    // bu yüzden API'ye lockedBranch (Türkçe görünen etiket, ör. "tenis") değil rawBranch
-    // gönderilmeli — aksi halde "tennis" hiçbir zaman "tenis" alt dizesini içermediği için
-    // hiçbir onaylı tesis eşleşmez (lockedBranch sadece ekrandaki rozet metni içindir).
+    // bu yüzden API'ye lockedBranch (görünen etiket) değil rawBranch gönderilmeli —
+    // aksi halde "tennis" hiçbir zaman "tenis" alt dizesini içermediği için hiçbir
+    // onaylı tesis eşleşmez (lockedBranch sadece ekrandaki rozet metni içindir).
     useEffect(() => {
         if (rawBranch) search(rawBranch);
     }, [rawBranch]);
@@ -644,7 +642,7 @@ export default function VenueSearchScreen({ navigation, route }) {
                 });
                 successCount++;
             } catch (e) {
-                const message = e?.response?.data?.message || e?.message || 'Rezervasyon yapılamadı';
+                const message = e?.response?.data?.message || e?.message || t.vsReserveFailed;
                 failed.push({ item, message });
             }
         }
@@ -653,18 +651,18 @@ export default function VenueSearchScreen({ navigation, route }) {
         if (failed.length === 0) {
             setCartOpen(false);
             Alert.alert(
-                '✅ Rezervasyonlar Tamamlandı',
-                `${successCount} rezervasyon başarıyla oluşturuldu.`,
+                t.vsReservationsCompleteTitle,
+                t.vsReservationsCompleteMsg(successCount),
                 [
-                    { text: 'Rezervasyonlarım', onPress: () => navigation.navigate('MyReservations') },
-                    { text: 'Tamam' },
+                    { text: t.vsMyReservations, onPress: () => navigation.navigate('MyReservations') },
+                    { text: t.vsOk },
                 ]
             );
         } else {
             Alert.alert(
-                '⚠️ Bazı Rezervasyonlar Başarısız',
-                `${successCount} başarılı, ${failed.length} başarısız:\n` +
-                failed.map(f => `• ${f.item.court.name} ${formatDateLabel(f.item.date)} ${f.item.slot.start} — ${f.item.message}`).join('\n')
+                t.vsPartialFailTitle,
+                t.vsPartialFailMsg(successCount, failed.length) + '\n' +
+                failed.map(f => `• ${f.item.court.name} ${formatDateLabel(f.item.date, t.dateLocale)} ${f.item.slot.start} — ${f.message}`).join('\n')
             );
         }
     };
@@ -676,14 +674,14 @@ export default function VenueSearchScreen({ navigation, route }) {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
                 </TouchableOpacity>
-                <Text style={s.title}>🏟️ Tesis Ara</Text>
+                <Text style={s.title}>{t.vsHeaderTitle}</Text>
             </View>
 
             {/* Bilgilendirme banner'ı */}
             <View style={s.infoBanner}>
                 <Text style={s.infoBannerIcon}>🏅</Text>
                 <Text style={s.infoBannerText}>
-                    Burada yalnızca anlaşmalı (Pro/Premium) işletmelerin onaylı tesisleri listelenir. Seçtiğiniz slotu rezerve ettiğinizde o saat bloğu otomatik kapanır.
+                    {t.vsInfoBanner}
                 </Text>
             </View>
 
@@ -691,12 +689,12 @@ export default function VenueSearchScreen({ navigation, route }) {
                 {lockedBranch && (
                     <View style={s.branchBadge}>
                         <Text style={s.branchBadgeIcon}>🏅</Text>
-                        <Text style={s.branchBadgeText}>{lockedBranch.charAt(0).toUpperCase() + lockedBranch.slice(1)} tesisleri</Text>
+                        <Text style={s.branchBadgeText}>{lockedBranch.charAt(0).toUpperCase() + lockedBranch.slice(1)} {t.vsBranchSuffix}</Text>
                     </View>
                 )}
                 <TextInput
                     style={s.input}
-                    placeholder="Şehir (ör. İstanbul)"
+                    placeholder={t.vsCityPh}
                     placeholderTextColor={colors.textMuted}
                     value={city}
                     onChangeText={setCity}
@@ -705,7 +703,7 @@ export default function VenueSearchScreen({ navigation, route }) {
                 />
                 <TextInput
                     style={s.input}
-                    placeholder="Tesis / Kort Adı"
+                    placeholder={t.vsNamePh}
                     placeholderTextColor={colors.textMuted}
                     value={venueName}
                     onChangeText={setVenueName}
@@ -715,7 +713,7 @@ export default function VenueSearchScreen({ navigation, route }) {
                 <TouchableOpacity style={s.searchBtn} onPress={() => search()} disabled={loading} activeOpacity={0.8}>
                     {loading
                         ? <ActivityIndicator size="small" color="#fff" />
-                        : <Text style={s.searchBtnText}>Ara</Text>}
+                        : <Text style={s.searchBtnText}>{t.vsSearchBtn}</Text>}
                 </TouchableOpacity>
             </View>
 
@@ -727,7 +725,7 @@ export default function VenueSearchScreen({ navigation, route }) {
                     ListEmptyComponent={
                         <View style={s.empty}>
                             <Text style={s.emptyIcon}>🔍</Text>
-                            <Text style={s.emptyText}>Sonuç bulunamadı.</Text>
+                            <Text style={s.emptyText}>{t.vsNoResults}</Text>
                         </View>
                     }
                     renderItem={({ item }) => (
@@ -740,7 +738,7 @@ export default function VenueSearchScreen({ navigation, route }) {
                 <View style={s.hint}>
                     <Text style={s.hintIcon}>🏓</Text>
                     <Text style={s.hintText}>
-                        Şehir veya spor dalı yazarak tesis arayın ve online rezervasyon yapın.
+                        {t.vsHint}
                     </Text>
                 </View>
             )}
@@ -748,11 +746,11 @@ export default function VenueSearchScreen({ navigation, route }) {
             {/* Sepet barı — sepette ürün varken her zaman görünür */}
             {cart.length > 0 && (
                 <TouchableOpacity style={s.cartBar} onPress={() => setCartOpen(true)} activeOpacity={0.85}>
-                    <Text style={s.cartBarText}>🛒 Sepet ({cart.length})</Text>
+                    <Text style={s.cartBarText}>{t.vsCartBarLabel(cart.length)}</Text>
                     <Text style={s.cartBarPrice}>
                         {cart.reduce((sum, i) => sum + (i.slot.price ?? i.venue.pricePerSlot ?? 0), 0)}₺
                     </Text>
-                    <Text style={s.cartBarArrow}>Devam Et →</Text>
+                    <Text style={s.cartBarArrow}>{t.vsCartBarContinue}</Text>
                 </TouchableOpacity>
             )}
 
@@ -826,74 +824,78 @@ const s = StyleSheet.create({
 });
 
 const bm = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
-    sheet:   { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '92%', paddingBottom: Platform.OS === 'ios' ? 34 : 12 },
-    handle:  { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 12 },
+    overlay: { flex: 1, backgroundColor: colors.bg },
+    sheet:   { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'ios' ? 50 : 28, paddingBottom: Platform.OS === 'ios' ? 24 : 12 },
 
-    header:      { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, paddingBottom: 10, gap: 10 },
+    header:      { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, paddingBottom: 3, gap: 3 },
     venueName:   { color: '#fff', fontSize: 18, fontWeight: '900' },
-    venueMeta:   { color: colors.textMuted, fontSize: 13, marginTop: 2 },
-    closeBtn:    { paddingHorizontal: 4, paddingVertical: 2 },
+    venueMeta:   { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+    closeBtn:    { paddingHorizontal: 3, paddingVertical: 3 },
     closeBtnText:{ color: colors.textMuted, fontSize: 20 },
-    cartBadge:     { backgroundColor: colors.purple, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginRight: 4 },
-    cartBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+    cartBadge:     { backgroundColor: colors.purple, borderRadius: 14, paddingHorizontal: 3, paddingVertical: 3, marginRight: 3 },
+    cartBadgeText: { color: '#fff', fontSize: 11, fontWeight: '900' },
 
-    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
-    tag:    { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: colors.border },
-    tagText:{ color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
-    priceTag:    { backgroundColor: colors.purple + '18', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: colors.purple + '50' },
-    priceTagText:{ color: colors.purple, fontSize: 11, fontWeight: '700' },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, paddingHorizontal: 16, marginBottom: 3 },
+    tag:    { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
+    tagText:{ color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
+    priceTag:    { backgroundColor: colors.purple + '18', borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3, borderWidth: 1, borderColor: colors.purple + '50' },
+    priceTagText:{ color: colors.purple, fontSize: 10, fontWeight: '700' },
 
-    dateList:         { paddingHorizontal: 14, paddingVertical: 8, gap: 6 },
-    dateBtn:          { paddingVertical:7, paddingHorizontal:12, borderRadius:20, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    dateList:         { paddingHorizontal: 14, paddingVertical: 3, gap: 3 },
+    dateBtn:          { paddingVertical:3, paddingHorizontal:3, borderRadius:20, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     dateBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
-    dateBtnText:      { color:'#e5e7eb', fontSize:12, fontWeight:'700' },
+    dateBtnText:      { color:'#e5e7eb', fontSize:11, fontWeight:'700' },
     dateBtnTextActive:{ color:'#fff' },
 
-    scroll: { paddingHorizontal: 14, paddingTop: 6 },
+    scroll: { paddingHorizontal: 14, paddingTop: 3 },
 
-    courtSection: { width: 170, backgroundColor: colors.surface2 + '40', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: colors.border },
-    courtHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    courtName:    { color: '#fff', fontSize: 14, fontWeight: '900' },
-    courtFree:    { color: colors.purple, fontSize: 12, fontWeight: '700' },
-    errorText:    { color: colors.red, fontSize: 12, marginVertical: 6 },
-    noSlotText:   { color: colors.textMuted, fontSize: 12, marginVertical: 6 },
+    courtSection: { width: 170, backgroundColor: colors.surface2 + '40', borderRadius: 10, padding: 3, borderWidth: 1, borderColor: colors.border },
+    courtHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 },
+    courtName:    { color: '#fff', fontSize: 13, fontWeight: '900' },
+    courtFree:    { color: colors.purple, fontSize: 11, fontWeight: '700' },
+    errorText:    { color: colors.red, fontSize: 11, marginVertical: 3 },
+    noSlotText:   { color: colors.textMuted, fontSize: 11, marginVertical: 3 },
 
-    slotGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-    slotBtn:       { width: '47%', backgroundColor: colors.bg, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '70' },
+    slotGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+    slotBtn:       { width: '47%', backgroundColor: colors.bg, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '70' },
     slotBtnTaken:  { backgroundColor: colors.surface2, borderColor: colors.border, opacity: 0.45 },
     slotBtnMaint:  { backgroundColor: '#ef444418', borderColor: '#ef444440', opacity: 0.9 },
     slotBtnPicked: { backgroundColor: colors.purple, borderColor: colors.purple },
     slotBtnInCart: { backgroundColor: '#22c55e22', borderColor: '#22c55e' },
-    slotTime:      { color: colors.purple, fontSize: 14, fontWeight: '900' },
-    slotEnd:       { color: colors.purple + '99', fontSize: 10, marginTop: 1 },
+    slotTime:      { color: colors.purple, fontSize: 13, fontWeight: '900' },
+    slotEnd:       { color: colors.purple + '99', fontSize: 9, marginTop: 1 },
     slotTimeTaken: { color: colors.textMuted },
     slotTimePicked:{ color: '#fff' },
 
-    legend:     { flexDirection: 'row', gap: 16, marginTop: 10 },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    legendDot:  { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
-    legendText: { color: colors.textMuted, fontSize: 11 },
+    legend:     { flexDirection: 'row', gap: 3, marginTop: 3 },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    legendDot:  { width: 11, height: 11, borderRadius: 6, borderWidth: 1.5 },
+    legendText: { color: colors.textMuted, fontSize: 10 },
 
-    reserveBar:      { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 12, gap: 10, position: 'absolute', bottom: 0, left: 0, right: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-    reserveBarTitle: { color: '#fff', fontSize: 13, fontWeight: '900' },
-    reserveBarSub:   { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+    reserveBar:      { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 3, paddingVertical: 3, gap: 3 },
+    reserveBarTitle: { color: '#fff', fontSize: 12, fontWeight: '900' },
+    reserveBarSub:   { color: colors.textMuted, fontSize: 10, marginTop: 1 },
     reserveBtn:      { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
     reserveBtnText:  { color: '#fff', fontWeight: '900', fontSize: 13 },
+
+    cartTotalBar:      { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.purple, paddingHorizontal: 3, paddingVertical: 3, gap: 3 },
+    cartTotalBarText:  { color: '#fff', fontSize: 12, fontWeight: '900' },
+    cartTotalBarPrice: { color: '#ffffffcc', fontSize: 12, fontWeight: '800', flex: 1 },
+    cartTotalBarArrow: { color: '#fff', fontSize: 12, fontWeight: '900' },
 });
 
 const bv = StyleSheet.create({
-    stepLabel:        { color: colors.textSecondary, fontSize: 11, fontWeight: '800', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
-    timeBtn:          { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface2 },
+    stepLabel:        { color: colors.textSecondary, fontSize: 10, fontWeight: '800', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 },
+    timeBtn:          { paddingVertical: 3, paddingHorizontal: 3, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface2 },
     timeBtnActive:    { borderColor: colors.purple, backgroundColor: colors.purple + '20' },
-    timeBtnText:      { color: '#e5e7eb', fontSize: 14, fontWeight: '900' },
-    timeBtnSub:       { color: colors.textMuted, fontSize: 10, marginTop: 1 },
+    timeBtnText:      { color: '#e5e7eb', fontSize: 13, fontWeight: '900' },
+    timeBtnSub:       { color: colors.textMuted, fontSize: 9, marginTop: 1 },
     timeBtnTextActive:{ color: colors.purple },
-    durBtn:           { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '50', backgroundColor: colors.surface2 },
+    durBtn:           { paddingVertical: 3, paddingHorizontal: 3, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '50', backgroundColor: colors.surface2 },
     durBtnPicked:     { backgroundColor: colors.purple, borderColor: colors.purple },
-    durBtnDur:        { color: colors.purple, fontSize: 14, fontWeight: '900' },
-    durBtnTime:       { color: colors.textMuted, fontSize: 10, marginTop: 1 },
-    durBtnPrice:      { color: colors.purple, fontSize: 11, fontWeight: '800', marginTop: 2 },
+    durBtnDur:        { color: colors.purple, fontSize: 13, fontWeight: '900' },
+    durBtnTime:       { color: colors.textMuted, fontSize: 9, marginTop: 1 },
+    durBtnPrice:      { color: colors.purple, fontSize: 10, fontWeight: '800', marginTop: 2 },
     durBtnTextPicked: { color: '#fff' },
 });
 
