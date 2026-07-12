@@ -118,7 +118,22 @@ export const searchCourts = async (req, res, next) => {
         }) : [];
         const venueRatingMap = Object.fromEntries(venueRatings.map(r => [r.venueId, { avg: r._avg.rating, count: r._count.id }]));
 
-        const courtsWithRating = courts.map(c => ({
+        // Onaylı bir BusinessVenue ile aynı/çakışan community Court kayıtlarını gizle.
+        // Bunlar genelde tesis düzgün kaydedilmeden önce eklenmiş eski/yinelenen kayıtlardır —
+        // seçilirse gerçek rezervasyon sistemine (VenueCourt) bağlanmadığı için işletmenin
+        // takvimi hiç bloklanmaz ("Büro Kort1" gibi hayalet kort sorunu).
+        const normalize = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        const stripTrailingNumber = (s) => normalize(s).replace(/[\s-]*\d+$/, '').trim();
+        const venueNameSet = new Set();
+        for (const v of venues) {
+            venueNameSet.add(normalize(v.name));
+            venueNameSet.add(stripTrailingNumber(v.name));
+        }
+        const courts_ = courts.filter(c =>
+            !venueNameSet.has(normalize(c.name)) && !venueNameSet.has(stripTrailingNumber(c.name))
+        );
+
+        const courtsWithRating = courts_.map(c => ({
             ...c,
             avgRating:   courtRatingMap[c.id]?.avg   ?? null,
             reviewCount: courtRatingMap[c.id]?.count  ?? 0,
