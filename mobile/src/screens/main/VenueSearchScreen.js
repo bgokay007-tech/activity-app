@@ -56,56 +56,73 @@ function getVenueHoursLabel(venue, dateStr) {
     return `${venue.openTime || '08:00'}–${venue.closeTime || '22:00'}`;
 }
 
-// ─── Onay Modalı (en üst seviyede, nested modal sorunu yok) ──────────────────
-function ConfirmModal({ visible, venue, court, slot, date, onConfirm, onClose, confirming }) {
+// ─── Sepet Modalı (en üst seviyede, nested modal sorunu yok) ─────────────────
+// Sepet mantığı: kullanıcı farklı tesis/kort/tarih/saatlerden istediği kadar
+// slot ekleyip hepsini tek seferde (aynı ödeme yöntemiyle) rezerve edebilir.
+function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }) {
     const [payment, setPayment] = useState('CASH');
-    if (!venue || !court || !slot) return null;
+    const priceOf = (item) => item.slot?.price ?? item.venue?.pricePerSlot ?? 0;
+    const total = cart.reduce((sum, i) => sum + priceOf(i), 0);
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={cm.overlay}>
-                <View style={cm.box}>
-                    <Text style={cm.title}>Rezervasyon Onayla</Text>
-                    <View style={cm.infoCard}>
-                        {[
-                            { label: 'Tesis',  value: venue.name },
-                            { label: 'Kort',   value: court.name },
-                            { label: 'Tarih',  value: formatDateLabel(date) },
-                            { label: 'Saat',   value: `${slot.start} – ${slot.end}` },
-                            { label: 'Ücret',  value: (() => { const p = slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() },
-                        ].map(r => (
-                            <View key={r.label} style={cm.infoRow}>
-                                <Text style={cm.infoLabel}>{r.label}</Text>
-                                <Text style={cm.infoValue}>{r.value}</Text>
+                <View style={[cm.box, { maxHeight: '85%' }]}>
+                    <Text style={cm.title}>🛒 Sepetim {cart.length > 0 ? `(${cart.length})` : ''}</Text>
+                    <ScrollView style={{ maxHeight: 260, marginBottom: cart.length ? 10 : 0 }} showsVerticalScrollIndicator={false}>
+                        {cart.length === 0 ? (
+                            <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>
+                                Sepetiniz boş. Bir tesisten saat seçip "Sepete Ekle"ye dokunun.
+                            </Text>
+                        ) : cart.map(item => (
+                            <View key={item.key} style={cm.cartRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={cm.cartRowTitle} numberOfLines={1}>{item.venue.name} — {item.court.name}</Text>
+                                    <Text style={cm.cartRowSub}>{formatDateLabel(item.date)} · {item.slot.start}–{item.slot.end}</Text>
+                                </View>
+                                <Text style={cm.cartRowPrice}>{priceOf(item) > 0 ? `${priceOf(item)}₺` : 'Ücretsiz'}</Text>
+                                <TouchableOpacity onPress={() => onRemove(item.key)} style={cm.cartRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <Text style={cm.cartRemoveText}>✕</Text>
+                                </TouchableOpacity>
                             </View>
                         ))}
-                    </View>
-                    <Text style={cm.payLabel}>Ödeme Yöntemi</Text>
-                    <TouchableOpacity
-                        style={[cm.payOpt, payment === 'CASH' && cm.payOptActive]}
-                        onPress={() => setPayment('CASH')}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={cm.payOptText}>💵 Kort Başında Nakit / Kart</Text>
-                        {payment === 'CASH' && <Text style={cm.check}>✓</Text>}
-                    </TouchableOpacity>
-                    <View style={[cm.payOpt, cm.payOptDisabled]}>
-                        <Text style={[cm.payOptText, { color: colors.textMuted }]}>💳 Online Ödeme</Text>
-                        <View style={cm.soonBadge}><Text style={cm.soonText}>Yakında</Text></View>
-                    </View>
+                    </ScrollView>
+                    {cart.length > 0 && (
+                        <>
+                            <View style={cm.cartTotalRow}>
+                                <Text style={cm.cartTotalLabel}>Toplam</Text>
+                                <Text style={cm.cartTotalValue}>{total > 0 ? `${total}₺` : 'Ücretsiz'}</Text>
+                            </View>
+                            <Text style={cm.payLabel}>Ödeme Yöntemi</Text>
+                            <TouchableOpacity
+                                style={[cm.payOpt, payment === 'CASH' && cm.payOptActive]}
+                                onPress={() => setPayment('CASH')}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={cm.payOptText}>💵 Kort Başında Nakit / Kart</Text>
+                                {payment === 'CASH' && <Text style={cm.check}>✓</Text>}
+                            </TouchableOpacity>
+                            <View style={[cm.payOpt, cm.payOptDisabled]}>
+                                <Text style={[cm.payOptText, { color: colors.textMuted }]}>💳 Online Ödeme</Text>
+                                <View style={cm.soonBadge}><Text style={cm.soonText}>Yakında</Text></View>
+                            </View>
+                        </>
+                    )}
                     <View style={cm.btnRow}>
                         <TouchableOpacity style={cm.cancelBtn} onPress={onClose} activeOpacity={0.8}>
-                            <Text style={cm.cancelBtnText}>Vazgeç</Text>
+                            <Text style={cm.cancelBtnText}>Kapat</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[cm.confirmBtn, confirming && { opacity: 0.6 }]}
-                            onPress={() => onConfirm(payment)}
-                            disabled={confirming}
-                            activeOpacity={0.8}
-                        >
-                            {confirming
-                                ? <ActivityIndicator size="small" color="#fff" />
-                                : <Text style={cm.confirmBtnText}>Rezervasyon Yap ✓</Text>}
-                        </TouchableOpacity>
+                        {cart.length > 0 && (
+                            <TouchableOpacity
+                                style={[cm.confirmBtn, checkingOut && { opacity: 0.6 }]}
+                                onPress={() => onCheckout(payment)}
+                                disabled={checkingOut}
+                                activeOpacity={0.8}
+                            >
+                                {checkingOut
+                                    ? <ActivityIndicator size="small" color="#fff" />
+                                    : <Text style={cm.confirmBtnText}>Rezervasyonları Tamamla ✓</Text>}
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
             </View>
@@ -118,7 +135,7 @@ const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
 
 
-function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
+function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onOpenCart, cartCount }) {
     const [date,        setDate]        = useState(DATE_OPTIONS[0]);
     const [slotsMap,    setSlotsMap]    = useState({});
     const [picked,      setPicked]      = useState(null);
@@ -164,9 +181,10 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
         fetchAllSlots(d);
     };
 
-    const handleReserve = () => {
+    const handleAddToCart = () => {
         if (!picked) return;
-        onPickSlot(picked.court, picked.slot, date);
+        onAddToCart(picked.court, picked.slot, date);
+        setPicked(null); // seçim temizlenir, sheet açık kalır — başka gün/saat eklemeye devam edilebilir
     };
 
     if (!venue) return null;
@@ -197,6 +215,11 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                 </Text>
                             </TouchableOpacity>
                         </View>
+                        {cartCount > 0 && (
+                            <TouchableOpacity onPress={onOpenCart} style={bm.cartBadge} activeOpacity={0.8}>
+                                <Text style={bm.cartBadgeText}>🛒 {cartCount}</Text>
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity onPress={onClose} style={bm.closeBtn}>
                             <Text style={bm.closeBtnText}>✕</Text>
                         </TouchableOpacity>
@@ -401,7 +424,7 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                                                         onPress={() => setPicked({ court, slot: { start: customStart, end: toT(customStartM + dur), free: true, price: w.pricePerHour != null ? Math.round(w.pricePerHour * (dur/60)) : null, durationMins: dur } })}
                                                                         style={{ backgroundColor: isPicked ? colors.purple : colors.purple+'30', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.purple }}>
                                                                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
-                                                                            {isPicked ? '✅ Seçildi' : `${customStart} – ${toT(customStartM + dur)} Rezerve Et`}
+                                                                            {isPicked ? '✅ Seçildi' : `${customStart} – ${toT(customStartM + dur)} Seç`}
                                                                         </Text>
                                                                     </TouchableOpacity>
                                                                 )}
@@ -421,12 +444,14 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                                     picked?.slot.start === slot.start &&
                                                     picked?.slot.end === slot.end;
                                                 const isMaintSlot = slot.maintenance && !slot.free;
+                                                const isInCart = cartKeys?.has(`${venue.id}_${court.id}_${date}_${slot.start}`);
                                                 return (
                                                     <TouchableOpacity
                                                         key={i}
                                                         style={[
                                                             bm.slotBtn,
                                                             !slot.free && (isMaintSlot ? bm.slotBtnMaint : bm.slotBtnTaken),
+                                                            isInCart && bm.slotBtnInCart,
                                                             isPicked && bm.slotBtnPicked,
                                                         ]}
                                                         onPress={() => slot.free && setPicked({ court, slot })}
@@ -434,10 +459,10 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                                         activeOpacity={0.7}
                                                     >
                                                         <Text style={[bm.slotTime, !slot.free && bm.slotTimeTaken, isPicked && bm.slotTimePicked]}>
-                                                            {isMaintSlot ? '🔧' : slot.start}
+                                                            {isMaintSlot ? '🔧' : isInCart ? '🛒' : slot.start}
                                                         </Text>
                                                         <Text style={[bm.slotEnd, !slot.free && bm.slotTimeTaken, isPicked && bm.slotTimePicked]}>
-                                                            {isMaintSlot ? '' : `–${slot.end}`}
+                                                            {isMaintSlot ? '' : isInCart ? slot.start : `–${slot.end}`}
                                                         </Text>
                                                         {slot.price != null && slot.free !== false && (
                                                             <Text style={{ color: isPicked ? '#ffffffcc' : colors.purple, fontSize: 10, fontWeight: '800', marginTop: 2 }}>
@@ -483,8 +508,8 @@ function VenueBookingSheet({ venue, visible, onClose, onPickSlot }) {
                                     {formatDateLabel(date)}{venue.pricePerSlot > 0 ? ` · ${venue.pricePerSlot}₺` : ''}
                                 </Text>
                             </View>
-                            <TouchableOpacity style={bm.reserveBtn} onPress={handleReserve} activeOpacity={0.8}>
-                                <Text style={bm.reserveBtnText}>Rezerve Et →</Text>
+                            <TouchableOpacity style={bm.reserveBtn} onPress={handleAddToCart} activeOpacity={0.8}>
+                                <Text style={bm.reserveBtnText}>Sepete Ekle +</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -559,14 +584,20 @@ export default function VenueSearchScreen({ navigation, route }) {
     // Tesis sayfası modalı
     const [activeVenue, setActive] = useState(null);
 
-    // Onay modalı (nested modal sorununu önlemek için ayrı tutuldu)
-    const [pendingRes, setPendingRes] = useState(null); // { venue, court, slot, date }
-    const [confirming, setConfirming] = useState(false);
+    // Sepet — farklı tesis/kort/tarih/saatlerden eklenen slotlar (nested modal
+    // sorununu önlemek için CartModal ayrı/en üst seviyede tutulur)
+    const [cart, setCart] = useState([]); // [{ key, venue, court, slot, date }]
+    const [cartOpen, setCartOpen] = useState(false);
+    const [checkingOut, setCheckingOut] = useState(false);
 
     // Sayfa açılınca (branch parametresi varsa) otomatik ara
+    // NOT: backend BusinessVenue.branch alanı İngilizce anahtarla saklanır (ör. "tennis"),
+    // bu yüzden API'ye lockedBranch (Türkçe görünen etiket, ör. "tenis") değil rawBranch
+    // gönderilmeli — aksi halde "tennis" hiçbir zaman "tenis" alt dizesini içermediği için
+    // hiçbir onaylı tesis eşleşmez (lockedBranch sadece ekrandaki rozet metni içindir).
     useEffect(() => {
-        if (lockedBranch) search(lockedBranch);
-    }, [lockedBranch]);
+        if (rawBranch) search(rawBranch);
+    }, [rawBranch]);
 
     const search = useCallback(async (branchOverride) => {
         setLoading(true);
@@ -574,7 +605,7 @@ export default function VenueSearchScreen({ navigation, route }) {
         try {
             const params = {};
             if (city.trim())      params.city   = city.trim();
-            const b = branchOverride || lockedBranch;
+            const b = branchOverride || rawBranch;
             if (b)                params.branch = b;
             if (venueName.trim()) params.name   = venueName.trim();
             const { data } = await api.get('/venues/search', { params });
@@ -582,51 +613,60 @@ export default function VenueSearchScreen({ navigation, route }) {
         } catch {
             setVenues([]);
         } finally { setLoading(false); }
-    }, [city, venueName, lockedBranch]);
+    }, [city, venueName, rawBranch]);
 
-    // Slot seçildi → onay modalına geç, sheet kapanır
-    const handlePickSlot = (court, slot, date) => {
-        setActive(null); // sheet'i kapat
-        setPendingRes({ venue: activeVenue, court, slot, date });
+    // Slot "Sepete Ekle"ye basıldığında eklenir — sheet açık kalır, kullanıcı
+    // başka bir tarih/saat/kort seçmeye devam edebilir (aynı tesis içinde).
+    const handleAddToCart = (court, slot, date) => {
+        const venue = activeVenue;
+        if (!venue) return;
+        const key = `${venue.id}_${court.id}_${date}_${slot.start}`;
+        setCart(prev => prev.some(i => i.key === key) ? prev : [...prev, { key, venue, court, slot, date }]);
     };
 
-    // Onay modalından iptal → sheet tekrar açılabilir
-    const handleCancelConfirm = () => {
-        const venue = pendingRes?.venue;
-        setPendingRes(null);
-        if (venue) setActive(venue); // sheet'i geri aç
-    };
+    const handleRemoveFromCart = (key) => setCart(prev => prev.filter(i => i.key !== key));
 
-    const handleConfirm = async (paymentMethod) => {
-        if (!pendingRes) return;
-        setConfirming(true);
-        try {
-            const { venue, court, slot, date } = pendingRes;
-            await api.post(`/venues/${venue.id}/courts/${court.id}/reserve`, {
-                date,
-                startTime: slot.start,
-                endTime:   slot.end,
-                paymentMethod,
-            });
-            setPendingRes(null);
+    // Sepetteki tüm slotlar için sırayla rezervasyon oluşturur. Biri başarısız
+    // olursa (ör. o saat başkasınca alınmışsa) diğerleri denenmeye devam eder;
+    // başarısız olanlar sepette kalır ki kullanıcı tekrar deneyebilsin.
+    const handleCheckout = async (paymentMethod) => {
+        if (cart.length === 0) return;
+        setCheckingOut(true);
+        const failed = [];
+        let successCount = 0;
+        for (const item of cart) {
+            try {
+                await api.post(`/venues/${item.venue.id}/courts/${item.court.id}/reserve`, {
+                    date: item.date,
+                    startTime: item.slot.start,
+                    endTime:   item.slot.end,
+                    paymentMethod,
+                });
+                successCount++;
+            } catch (e) {
+                const message = e?.response?.data?.message || e?.message || 'Rezervasyon yapılamadı';
+                failed.push({ item, message });
+            }
+        }
+        setCheckingOut(false);
+        setCart(failed.map(f => f.item));
+        if (failed.length === 0) {
+            setCartOpen(false);
             Alert.alert(
-                '✅ Rezervasyon Yapıldı',
-                `${formatDateLabel(date)} · ${slot.start}–${slot.end}\n${venue.name} — ${court.name}`,
+                '✅ Rezervasyonlar Tamamlandı',
+                `${successCount} rezervasyon başarıyla oluşturuldu.`,
                 [
                     { text: 'Rezervasyonlarım', onPress: () => navigation.navigate('MyReservations') },
                     { text: 'Tamam' },
                 ]
             );
-        } catch (e) {
-            const status  = e?.response?.status;
-            const srvMsg  = e?.response?.data?.message;
-            const netCode = e?.code;
-            const detail  = srvMsg
-                || (netCode === 'ECONNABORTED' ? 'Bağlantı zaman aşımına uğradı (30 sn)' : null)
-                || (netCode ? `Ağ hatası: ${netCode}` : null)
-                || e?.message || 'Rezervasyon yapılamadı';
-            Alert.alert('Hata', status ? `[${status}] ${detail}` : detail);
-        } finally { setConfirming(false); }
+        } else {
+            Alert.alert(
+                '⚠️ Bazı Rezervasyonlar Başarısız',
+                `${successCount} başarılı, ${failed.length} başarısız:\n` +
+                failed.map(f => `• ${f.item.court.name} ${formatDateLabel(f.item.date)} ${f.item.slot.start} — ${f.item.message}`).join('\n')
+            );
+        }
     };
 
     return (
@@ -705,24 +745,36 @@ export default function VenueSearchScreen({ navigation, route }) {
                 </View>
             )}
 
+            {/* Sepet barı — sepette ürün varken her zaman görünür */}
+            {cart.length > 0 && (
+                <TouchableOpacity style={s.cartBar} onPress={() => setCartOpen(true)} activeOpacity={0.85}>
+                    <Text style={s.cartBarText}>🛒 Sepet ({cart.length})</Text>
+                    <Text style={s.cartBarPrice}>
+                        {cart.reduce((sum, i) => sum + (i.slot.price ?? i.venue.pricePerSlot ?? 0), 0)}₺
+                    </Text>
+                    <Text style={s.cartBarArrow}>Devam Et →</Text>
+                </TouchableOpacity>
+            )}
+
             {/* Tesis sayfası (short liste yok, slot seçimi var) */}
             <VenueBookingSheet
                 venue={activeVenue}
                 visible={!!activeVenue}
                 onClose={() => setActive(null)}
-                onPickSlot={handlePickSlot}
+                onAddToCart={handleAddToCart}
+                cartKeys={new Set(cart.filter(i => i.venue.id === activeVenue?.id).map(i => i.key))}
+                onOpenCart={() => setCartOpen(true)}
+                cartCount={cart.length}
             />
 
-            {/* Onay modalı — ayrı (nested değil) */}
-            <ConfirmModal
-                visible={!!pendingRes}
-                venue={pendingRes?.venue}
-                court={pendingRes?.court}
-                slot={pendingRes?.slot}
-                date={pendingRes?.date}
-                onConfirm={handleConfirm}
-                onClose={handleCancelConfirm}
-                confirming={confirming}
+            {/* Sepet modalı — ayrı (nested değil) */}
+            <CartModal
+                visible={cartOpen}
+                cart={cart}
+                onRemove={handleRemoveFromCart}
+                onCheckout={handleCheckout}
+                onClose={() => setCartOpen(false)}
+                checkingOut={checkingOut}
             />
         </View>
     );
@@ -766,6 +818,11 @@ const s = StyleSheet.create({
     hint:    { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
     hintIcon:{ fontSize: 48, marginBottom: 14 },
     hintText:{ color: colors.textMuted, fontSize: 14, lineHeight: 21, textAlign: 'center' },
+
+    cartBar:      { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.purple, borderRadius: 14, marginHorizontal: 14, marginBottom: 12, paddingHorizontal: 16, paddingVertical: 13, gap: 8 },
+    cartBarText:  { color: '#fff', fontSize: 13, fontWeight: '900' },
+    cartBarPrice: { color: '#ffffffcc', fontSize: 13, fontWeight: '800', flex: 1 },
+    cartBarArrow: { color: '#fff', fontSize: 13, fontWeight: '900' },
 });
 
 const bm = StyleSheet.create({
@@ -778,6 +835,8 @@ const bm = StyleSheet.create({
     venueMeta:   { color: colors.textMuted, fontSize: 13, marginTop: 2 },
     closeBtn:    { paddingHorizontal: 4, paddingVertical: 2 },
     closeBtnText:{ color: colors.textMuted, fontSize: 20 },
+    cartBadge:     { backgroundColor: colors.purple, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginRight: 4 },
+    cartBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900' },
 
     tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
     tag:    { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: colors.border },
@@ -805,6 +864,7 @@ const bm = StyleSheet.create({
     slotBtnTaken:  { backgroundColor: colors.surface2, borderColor: colors.border, opacity: 0.45 },
     slotBtnMaint:  { backgroundColor: '#ef444418', borderColor: '#ef444440', opacity: 0.9 },
     slotBtnPicked: { backgroundColor: colors.purple, borderColor: colors.purple },
+    slotBtnInCart: { backgroundColor: '#22c55e22', borderColor: '#22c55e' },
     slotTime:      { color: colors.purple, fontSize: 14, fontWeight: '900' },
     slotEnd:       { color: colors.purple + '99', fontSize: 10, marginTop: 1 },
     slotTimeTaken: { color: colors.textMuted },
@@ -842,10 +902,15 @@ const cm = StyleSheet.create({
     box:     { backgroundColor: colors.surface, borderRadius: 18, padding: 18, width: '100%' },
     title:   { color: '#fff', fontSize: 17, fontWeight: '900', marginBottom: 14 },
 
-    infoCard: { backgroundColor: colors.surface2, borderRadius: 12, marginBottom: 14, overflow: 'hidden' },
-    infoRow:  { flexDirection: 'row', justifyContent: 'space-between', padding: 11, borderBottomWidth: 1, borderColor: colors.border },
-    infoLabel:{ color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-    infoValue:{ color: '#fff', fontSize: 13, fontWeight: '700' },
+    cartRow:        { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: 10, padding: 10, marginBottom: 8, gap: 8, borderWidth: 1, borderColor: colors.border },
+    cartRowTitle:   { color: '#fff', fontSize: 13, fontWeight: '800' },
+    cartRowSub:     { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+    cartRowPrice:   { color: colors.purple, fontSize: 12, fontWeight: '800' },
+    cartRemoveBtn:  { paddingHorizontal: 6, paddingVertical: 4 },
+    cartRemoveText: { color: colors.red, fontSize: 16, fontWeight: '900' },
+    cartTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, marginBottom: 4, borderTopWidth: 1, borderColor: colors.border },
+    cartTotalLabel: { color: colors.textSecondary, fontSize: 14, fontWeight: '800' },
+    cartTotalValue: { color: '#fff', fontSize: 16, fontWeight: '900' },
 
     payLabel:      { color: colors.textSecondary, fontSize: 13, fontWeight: '700', marginBottom: 8 },
     payOpt:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 10, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
