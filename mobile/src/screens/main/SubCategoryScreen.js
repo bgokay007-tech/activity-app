@@ -5895,16 +5895,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         const stats = {};
         for (const m of tournMatches) {
             if (m.phase !== 'GROUP') continue;
-            if (m.p1Id && !stats[m.p1Id]) stats[m.p1Id] = { id:m.p1Id, name:m.p1Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
-            if (m.p2Id && !stats[m.p2Id]) stats[m.p2Id] = { id:m.p2Id, name:m.p2Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+            if (m.p1Id && !stats[m.p1Id]) stats[m.p1Id] = { id:m.p1Id, name:m.p1Name, played:0, won:0, drawn:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+            if (m.p2Id && !stats[m.p2Id]) stats[m.p2Id] = { id:m.p2Id, name:m.p2Name, played:0, won:0, drawn:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
             if (m.status !== 'COMPLETED' || !m.score || !m.p2Id) continue;
             const sc = m.score;
             const s1 = stats[m.p1Id], s2 = stats[m.p2Id];
             if (!s1 || !s2) continue;
-            // Süre dolunca otomatik kaydedilen 0-0 beraberlikte (autoDraw) kazanan yoktur —
-            // puan tablosuna hiç yansımamalı, aksi halde p1 olmayan taraf hep "galip" sayılıyordu.
-            if (sc.autoDraw || (sc.winner !== 'p1' && sc.winner !== 'p2')) continue;
             s1.played++; s2.played++;
+            // Süre dolunca otomatik kaydedilen 0-0 (autoDraw / kazanan yok) gerçekten oynanmış
+            // bir beraberlik gibi işlenir: ikisine de 1 puan, set/oyun istatistiği eklenmez.
+            if (sc.autoDraw || (sc.winner !== 'p1' && sc.winner !== 'p2')) {
+                s1.drawn++; s2.drawn++; s1.points += 1; s2.points += 1;
+                continue;
+            }
             let p1s=0,p2s=0,p1g=0,p2g=0;
             for (const set of (sc.sets||[])) {
                 p1g+=set.p1||0; p2g+=set.p2||0;
@@ -6242,8 +6245,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         : <View>
                             <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor: colors.border, marginBottom:2 }}>
                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
-                                {['O','G','M','Av','P'].map(h => (
-                                    <Text key={h} style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
+                                {['O','G','B','M','Av','P'].map(h => (
+                                    <Text key={h} style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', width:24, textAlign:'center' }}>{h}</Text>
                                 ))}
                             </View>
                             {standings.map((row, i) => (
@@ -6251,8 +6254,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>
                                         {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ${starEmoji(Number(skillRatingMap[row.id]))} ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
                                     </Text>
-                                    {[row.played, row.won, row.lost, (() => { const t = row.gamesWon + row.gamesLost; return t === 0 ? '-' : `${Math.round((row.gamesWon / t) * 100)}%`; })(), row.points].map((v,j) => (
-                                        <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
+                                    {[row.played, row.won, row.drawn, row.lost, (() => { const t = row.gamesWon + row.gamesLost; return t === 0 ? '-' : `${Math.round((row.gamesWon / t) * 100)}%`; })(), row.points].map((v,j) => (
+                                        <Text key={j} style={{ color: j===5 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===5 ? '800' : '400', width:24, textAlign:'center' }}>{String(v)}</Text>
                                     ))}
                                 </View>
                             ))}
@@ -11806,13 +11809,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 const stats = {};
                                 for (const m of archiveModalMatches) {
                                     if (m.phase !== 'GROUP') continue;
-                                    if (m.p1Id && !stats[m.p1Id]) stats[m.p1Id] = { id:m.p1Id, name:m.p1Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
-                                    if (m.p2Id && !stats[m.p2Id]) stats[m.p2Id] = { id:m.p2Id, name:m.p2Name, played:0, won:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+                                    if (m.p1Id && !stats[m.p1Id]) stats[m.p1Id] = { id:m.p1Id, name:m.p1Name, played:0, won:0, drawn:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
+                                    if (m.p2Id && !stats[m.p2Id]) stats[m.p2Id] = { id:m.p2Id, name:m.p2Name, played:0, won:0, drawn:0, lost:0, setsWon:0, setsLost:0, gamesWon:0, gamesLost:0, points:0 };
                                     if (m.status !== 'COMPLETED' || !m.score || !m.p2Id) continue;
                                     const sc = m.score;
                                     const s1 = stats[m.p1Id], s2 = stats[m.p2Id];
                                     if (!s1 || !s2) continue;
                                     s1.played++; s2.played++;
+                                    if (sc.autoDraw || (sc.winner !== 'p1' && sc.winner !== 'p2')) {
+                                        s1.drawn++; s2.drawn++; s1.points += 1; s2.points += 1;
+                                        continue;
+                                    }
                                     let p1s=0,p2s=0,p1g=0,p2g=0;
                                     for (const set of (sc.sets||[])) {
                                         p1g+=set.p1||0; p2g+=set.p2||0;
@@ -11952,15 +11959,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     : <View>
                                                         <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
                                                             <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
-                                                            {['O','G','M','Av','P'].map(h => (
-                                                                <Text key={h} style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', width:28, textAlign:'center' }}>{h}</Text>
+                                                            {['O','G','B','M','Av','P'].map(h => (
+                                                                <Text key={h} style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', width:24, textAlign:'center' }}>{h}</Text>
                                                             ))}
                                                         </View>
                                                         {archiveStandings.map((row2, i) => (
                                                             <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:2, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row2.name}</Text>
-                                                                {[row2.played, row2.won, row2.lost, (() => { const t = row2.gamesWon + row2.gamesLost; return t === 0 ? '-' : `${Math.round((row2.gamesWon / t) * 100)}%`; })(), row2.points].map((v,j) => (
-                                                                    <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
+                                                                {[row2.played, row2.won, row2.drawn, row2.lost, (() => { const t = row2.gamesWon + row2.gamesLost; return t === 0 ? '-' : `${Math.round((row2.gamesWon / t) * 100)}%`; })(), row2.points].map((v,j) => (
+                                                                    <Text key={j} style={{ color: j===5 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===5 ? '800' : '400', width:24, textAlign:'center' }}>{String(v)}</Text>
                                                                 ))}
                                                             </View>
                                                         ))}

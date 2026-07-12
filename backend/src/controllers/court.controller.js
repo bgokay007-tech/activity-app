@@ -121,17 +121,24 @@ export const searchCourts = async (req, res, next) => {
         // Onaylı bir BusinessVenue ile aynı/çakışan community Court kayıtlarını gizle.
         // Bunlar genelde tesis düzgün kaydedilmeden önce eklenmiş eski/yinelenen kayıtlardır —
         // seçilirse gerçek rezervasyon sistemine (VenueCourt) bağlanmadığı için işletmenin
-        // takvimi hiç bloklanmaz ("Büro Kort1" gibi hayalet kort sorunu).
+        // takvimi hiç bloklanmaz (örn. tesis "Buro", eski Court kaydı "Buro Kort 1").
+        // Kort adı, tesis adıyla aynı kelimeyle başlıyorsa (ardından bir kelime sınırı
+        // geliyorsa — sadece harf/rakam bitişik değilse) yinelenen kabul edilir; bu sayede
+        // "Buro" ile baslayan ama alakasiz bir tesis adi (orn. "Burolar Sahasi") yanlislikla
+        // eslesmez ama "Buro Kort 1", "Buro 1", "Buro-2" gibi turevler yakalanir.
         const normalize = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-        const stripTrailingNumber = (s) => normalize(s).replace(/[\s-]*\d+$/, '').trim();
-        const venueNameSet = new Set();
-        for (const v of venues) {
-            venueNameSet.add(normalize(v.name));
-            venueNameSet.add(stripTrailingNumber(v.name));
-        }
-        const courts_ = courts.filter(c =>
-            !venueNameSet.has(normalize(c.name)) && !venueNameSet.has(stripTrailingNumber(c.name))
-        );
+        const isDuplicateOfVenue = (courtName) => {
+            const c = normalize(courtName);
+            return venues.some(v => {
+                const vn = normalize(v.name);
+                if (!vn) return false;
+                if (c === vn) return true;
+                if (!c.startsWith(vn)) return false;
+                const rest = c.slice(vn.length);
+                return /^[^a-z0-9çğıöşü]/i.test(rest); // sonraki karakter harf/rakam değilse gerçek kelime sınırıdır
+            });
+        };
+        const courts_ = courts.filter(c => !isDuplicateOfVenue(c.name));
 
         const courtsWithRating = courts_.map(c => ({
             ...c,
