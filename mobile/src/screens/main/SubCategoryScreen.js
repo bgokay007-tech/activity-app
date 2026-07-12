@@ -5901,6 +5901,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const sc = m.score;
             const s1 = stats[m.p1Id], s2 = stats[m.p2Id];
             if (!s1 || !s2) continue;
+            // Süre dolunca otomatik kaydedilen 0-0 beraberlikte (autoDraw) kazanan yoktur —
+            // puan tablosuna hiç yansımamalı, aksi halde p1 olmayan taraf hep "galip" sayılıyordu.
+            if (sc.autoDraw || (sc.winner !== 'p1' && sc.winner !== 'p2')) continue;
             s1.played++; s2.played++;
             let p1s=0,p2s=0,p1g=0,p2g=0;
             for (const set of (sc.sets||[])) {
