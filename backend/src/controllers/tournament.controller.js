@@ -710,12 +710,13 @@ export const getTournaments = async (req, res, next) => {
             },
         });
 
-        // Completed tournaments drop off the live list for everyone except their creator,
-        // who still needs access to correct match scores after the tournament auto-completes.
+        // Completed tournaments drop off the live list for everyone except their creator
+        // and accepted participants, who still need to see final standings/scores.
         const where = {
             OR: [
                 { status: { notIn: ['CANCELLED', 'COMPLETED'] } },
                 { status: 'COMPLETED', creatorId: req.userId },
+                { status: 'COMPLETED', participants: { some: { userId: req.userId, status: 'ACCEPTED' } } },
             ],
         };
         if (category)    where.category    = category;

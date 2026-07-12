@@ -6434,7 +6434,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                             </TouchableOpacity>
                                                                         )}
                                                                         {bothConfirmed ? (
-                                                                            <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>✓ Onaylandı</Text>
+                                                                            match.scoreEnteredBy ? (
+                                                                                <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>✓ Onaylandı</Text>
+                                                                            ) : (
+                                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>⌛ Süre Doldu (0-0)</Text>
+                                                                            )
                                                                         ) : (
                                                                             <Text style={{ color: colors.textMuted, fontSize:8 }}>
                                                                                 {match.p1Confirmed && !match.p2Confirmed ? 'Rakip onayı bekleniyor' : !match.p1Confirmed && match.p2Confirmed ? 'Rakip onayı bekleniyor' : 'Onay bekleniyor'}
@@ -8636,10 +8640,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
-    const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
+    const [tournSubTab, setTournSubTab] = useState(['open','inprogress','completed'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
 
     useEffect(() => {
-        if (['open','inprogress'].includes(route.params?.initialTournSubTab)) {
+        if (['open','inprogress','completed'].includes(route.params?.initialTournSubTab)) {
             setTournSubTab(route.params.initialTournSubTab);
         }
     }, [route.params?.initialTournSubTab]);
@@ -9945,7 +9949,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'tournaments' && (() => {
                         const inProgress = filteredTournaments.filter(t => t.status === 'IN_PROGRESS');
                         const open = filteredTournaments.filter(t => t.status === 'OPEN');
-                        const shown = tournSubTab === 'open' ? open : inProgress;
+                        const completed = filteredTournaments.filter(t => t.status === 'COMPLETED');
+                        const shown = tournSubTab === 'open' ? open : tournSubTab === 'inprogress' ? inProgress : completed;
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -9984,6 +9989,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {[
                                         { key:'open',       label: t.tournOpenTab,       count: open.length },
                                         { key:'inprogress', label: t.tournInProgressTab, count: inProgress.length },
+                                        { key:'completed',  label: t.tournCompletedTab,  count: completed.length },
                                     ].map(st => (
                                         <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
                                             style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: tournSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: tournSubTab===st.key ? cfg.color : colors.border }}>
@@ -10001,7 +10007,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (<>
                                         {shown.map(renderCard)}
                                         {shown.length === 0 && (
-                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : t.emptyTournInProgress} />
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : tournSubTab === 'inprogress' ? t.emptyTournInProgress : t.emptyTournCompleted} />
                                         )}
                                     </>)
                                 }
