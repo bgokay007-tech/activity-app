@@ -3472,25 +3472,54 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         setSelSlot(prev =>
             prev?.courtId === cId && prev?.slot?.start === slot.start
                 ? null
-                : { courtId: cId, slot, flexDur: 60 }
+                : { courtId: cId, slot, flexDur: 60, hours: 1 }
         );
+    };
+
+    // Bir başlangıç slotundan itibaren, aralarında boşluk (kapalı pencere) olmadan
+    // art arda gelen `count` kadar BOŞ slotu döner — sepete birden fazla saat eklemek için.
+    // Zincir kırılırsa (dolu slot ya da pencere sınırı) null döner.
+    const getConsecutiveSlots = (courtData, startTime, count) => {
+        const list = courtData?.slots;
+        if (!Array.isArray(list)) return null;
+        const idx = list.findIndex(s => s.start === startTime);
+        if (idx === -1) return null;
+        const result = [];
+        for (let k = 0; k < count; k++) {
+            const s = list[idx + k];
+            if (!s || !s.free) return null;
+            if (k > 0 && s.start !== result[k - 1].end) return null;
+            result.push(s);
+        }
+        return result;
     };
 
     // Burada gerçek rezervasyon oluşturulmuyor — sadece seçim yapılıp CreateRivalModal'a
     // aktarılıyor. Kortu fiilen bloke eden rezervasyon, kullanıcı "İlan Oluştur"a
     // bastığında (submit() içinde) yapılır; böylece ilan yarım kalırsa kort boşta kalmaz.
+    // Yapılandırılmış (FULL_HOUR/HALF_HOUR/NINETY_MIN) slotlarda bir slotun fiyatı
+    // eksikse (venue.pricePerSlot'tan hesaplanan) tekli seçimdeki mevcut mantıkla aynı.
+    const priceForSlot = (s) => (s.price != null && s.price > 0)
+        ? s.price
+        : (venue?.pricePerSlot ? Math.round(((toM(s.end) - toM(s.start)) / 60) * venue.pricePerSlot) : 0);
+
     const confirmBooking = () => {
         if (!selSlot) return;
-        const { courtId, slot, flexDur } = selSlot;
+        const { courtId, slot, flexDur, hours } = selSlot;
         const activeCourt = venue?.courts?.find(c => c.id === courtId);
         const courtData = courtsSlots[courtId]?.data;
         const isFlexible = courtData?.type === 'FLEXIBLE';
         const isVarDur   = courtData?.type === 'VAR_DURATION';
+        const isStructured = !isFlexible && !isVarDur;
+        // Sepet mantığı: yapılandırılmış slot tipinde birden fazla art arda saat seçilmiş olabilir.
+        const consecSlots = isStructured ? getConsecutiveSlots(courtData, slot.start, hours || 1) : null;
         const endTime = isFlexible
             ? addMins(slot.start, flexDur)
-            : (isVarDur ? slot.end : slot.end);
+            : (isVarDur ? slot.end : (consecSlots ? consecSlots[consecSlots.length - 1].end : slot.end));
         const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
-        const courtTotalPrice = slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0);
+        const courtTotalPrice = isStructured
+            ? (consecSlots || [slot]).reduce((sum, s) => sum + priceForSlot(s), 0)
+            : (slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0));
         const effectiveIndoor = activeCourt?.indoor ?? venue?.courtIndoorDefault ?? false;
         const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, surface: activeCourt?.surface || null, indoor: effectiveIndoor };
         onBooked?.(courtObj, selDate, slot.start, endTime, payMethod);
@@ -3533,8 +3562,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                 {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
 
                 <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1 }}>
-                {!cs?.loading && isStructured && cData.slots.map((sl, i) => {
-                    const isSel    = selSlot?.courtId === court.id && selSlot?.slot?.start === sl.start;
+                {!cs?.loading && isStructured && (() => {
+                    // Seçili başlangıç bu kortta ve birden fazla saat seçilmişse, sepetteki
+                    // tüm saatleri gridde vurgula (sadece başlangıç değil).
+                    const selectedRange = selSlot?.courtId === court.id
+                        ? getConsecutiveSlots(cData, selSlot.slot.start, selSlot.hours || 1)
+                        : null;
+                    const selectedStarts = new Set((selectedRange || []).map(s => s.start));
+                    return cData.slots.map((sl, i) => {
+                    const isSel    = selSlot?.courtId === court.id && (selectedStarts.has(sl.start) || selSlot?.slot?.start === sl.start);
                     const isPend   = !sl.free && sl.status === 'PENDING';
                     const slotPrice = sl.price != null ? sl.price : venue?.pricePerSlot;
                     return (
@@ -3561,7 +3597,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             )}
                         </TouchableOpacity>
                     );
-                })}
+                    });
+                })()}
 
                 {!cs?.loading && isWindow && (() => {
                     const freeWins  = cData.windows || [];
@@ -3624,7 +3661,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                         {validStart && (<>
                                             <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Süre</Text>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
-                                                {[60,90,120,150,180].filter(d => startM + d <= winEndM).map(d => {
+                                                {[60,90,120,150,180,240,300,360].filter(d => startM + d <= winEndM).map(d => {
                                                     const isSd = varDurMap[court.id] === d;
                                                     const dPrice = w.pricePerHour != null ? Math.round(w.pricePerHour*(d/60)) : null;
                                                     return (
@@ -3810,15 +3847,32 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             {selSlot && (() => {
                                 const courtData = courtsSlots[selSlot.courtId]?.data;
                                 const needsDur = courtData?.type === 'FLEXIBLE';
+                                const isStructured = courtData?.type === 'FULL_HOUR' || courtData?.type === 'HALF_HOUR' || courtData?.type === 'NINETY_MIN';
                                 const selCourt = venue.courts?.find(c => c.id === selSlot.courtId);
+                                // Sepete kaç saate kadar art arda eklenebilir? (boşluk/dolu slota çarpana kadar)
+                                let maxHours = 1;
+                                if (isStructured) {
+                                    for (let k = 2; k <= 8; k++) {
+                                        if (getConsecutiveSlots(courtData, selSlot.slot.start, k)) maxHours = k; else break;
+                                    }
+                                }
+                                const consecSlots = isStructured ? getConsecutiveSlots(courtData, selSlot.slot.start, selSlot.hours || 1) : null;
+                                const summaryEnd   = consecSlots ? consecSlots[consecSlots.length - 1].end : selSlot.slot.end;
+                                const summaryPrice = consecSlots
+                                    ? consecSlots.reduce((sum, s) => sum + priceForSlot(s), 0)
+                                    : (selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot);
                                 return (
                                     <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
                                         <View style={[vb.selSummary, { flexDirection:'row', alignItems:'center' }]}>
                                             <View style={{ flex:1 }}>
                                                 <Text style={vb.selSummaryTxt}>
-                                                    ✅ {selCourt?.name} · {selSlot.slot.start}{selSlot.slot.end ? ` – ${selSlot.slot.end}` : ''}
+                                                    ✅ {selCourt?.name} · {selSlot.slot.start}{summaryEnd ? ` – ${summaryEnd}` : ''}
                                                 </Text>
-                                                {(() => { const p = selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot; return p > 0 ? <Text style={vb.selSummaryPrice}>💰 {p}₺</Text> : null; })()}
+                                                {summaryPrice > 0 && (
+                                                    <Text style={vb.selSummaryPrice}>
+                                                        💰 {summaryPrice}₺{consecSlots && consecSlots.length > 1 ? ` (${consecSlots.length} saat)` : ''}
+                                                    </Text>
+                                                )}
                                             </View>
                                             <TouchableOpacity
                                                 onPress={() => setSelSlot(null)}
@@ -3827,16 +3881,41 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                                 <Text style={{ color:'#888', fontSize:18 }}>↩</Text>
                                             </TouchableOpacity>
                                         </View>
+                                        {isStructured && maxHours > 1 && (
+                                            <>
+                                                <Text style={vb.sectionLabel}>Kaç Saat?</Text>
+                                                <View style={vb.durRow}>
+                                                    {Array.from({ length: maxHours }, (_, i) => i + 1).map(n => {
+                                                        // Etiket slot SAYISI değil gerçek toplam süreye göre (90dk'lık kortlarda
+                                                        // "n slot" ile "n saat" farklı şeyler).
+                                                        const rangeForN = getConsecutiveSlots(courtData, selSlot.slot.start, n);
+                                                        const totalMin = rangeForN
+                                                            ? toM(rangeForN[rangeForN.length - 1].end) - toM(rangeForN[0].start)
+                                                            : n * 60;
+                                                        const hLabel = totalMin % 60 === 0 ? `${totalMin / 60} Saat` : `${(totalMin / 60).toFixed(1)} Saat`;
+                                                        return (
+                                                            <TouchableOpacity key={n}
+                                                                style={[vb.durBtn, (selSlot.hours || 1)===n && vb.durBtnSel]}
+                                                                onPress={() => setSelSlot(p => ({ ...p, hours: n }))}>
+                                                                <Text style={[vb.durTxt, (selSlot.hours || 1)===n && vb.durTxtSel]}>
+                                                                    {hLabel}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </>
+                                        )}
                                         {needsDur && (
                                             <>
                                                 <Text style={vb.sectionLabel}>Süre Seçin</Text>
                                                 <View style={vb.durRow}>
-                                                    {[60,90,120,150,180].filter(m => m <= selSlot.slot.durationMins).map(m => (
+                                                    {[60,90,120,150,180,240,300,360].filter(m => m <= selSlot.slot.durationMins).map(m => (
                                                         <TouchableOpacity key={m}
                                                             style={[vb.durBtn, selSlot.flexDur===m && vb.durBtnSel]}
                                                             onPress={() => setSelSlot(p => ({ ...p, flexDur: m }))}>
                                                             <Text style={[vb.durTxt, selSlot.flexDur===m && vb.durTxtSel]}>
-                                                                {m<60?m+'dk':m===60?'1s':m===90?'1.5s':m===120?'2s':m===150?'2.5s':'3s'}
+                                                                {m < 60 ? `${m}dk` : (m % 60 === 0 ? `${m / 60}s` : `${(m / 60).toFixed(1)}s`)}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     ))}
@@ -4240,7 +4319,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 matchDate: f.flexibleSchedule ? undefined : matchDateStr,
                 matchTime: f.flexibleSchedule ? undefined : f.matchTime || undefined,
                 duration:  f.flexibleSchedule ? undefined : f.duration,
-                courtName: f.selectedCourt ? [f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') : (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
+                courtName: f.selectedCourt ? (f.selectedCourt.venueName || f.selectedCourt.name) : (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
                 courtId:   f.selectedCourt?.id || undefined,
                 location:  f.selectedCourt?.city || f.manualCity || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
@@ -4648,7 +4727,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {f.selectedCourt && (
                                         <View style={s.selectedCourtBox}>
                                             <View style={{ flex:1 }}>
-                                                <Text style={s.selectedCourtText}>✅ {[f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ')}</Text>
+                                                <Text style={s.selectedCourtText}>✅ {f.selectedCourt.venueName || f.selectedCourt.name}</Text>
                                                 {f.venueId && f.matchDate && (
                                                     <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>
                                                         📅 {f.matchDate.toLocaleDateString('tr-TR')} · {f.matchTime}{f.reservationEndTime ? `–${f.reservationEndTime}` : ''}{f.selectedCourt.totalPrice ? `  💰 ${f.selectedCourt.totalPrice}₺` : ''}
@@ -6132,7 +6211,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </Text>
                         </View>
                     )}
-                    {(item.type === '1' || item.type === '3') && (
+                    {(item.type === '1' || item.type === '2' || item.type === '3') && (
                         <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                             {['matches','standings'].map(tab => (
                                 <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
