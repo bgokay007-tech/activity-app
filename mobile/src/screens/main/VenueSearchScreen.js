@@ -4,6 +4,7 @@ import {
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, Linking,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
@@ -138,6 +139,7 @@ const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60)
 
 function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onOpenCart, cartCount, cartTotal }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     const [date,        setDate]        = useState(DATE_OPTIONS[0]);
     const [slotsMap,    setSlotsMap]    = useState({});
     const [picked,      setPicked]      = useState(null);
@@ -194,7 +196,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
             <View style={bm.overlay}>
-                <View style={bm.sheet}>
+                <View style={[bm.sheet, { paddingBottom: (Platform.OS === 'ios' ? 24 : 12) + insets.bottom }]}>
                     {/* Header */}
                     <View style={bm.header}>
                         <View style={{ flex: 1 }}>
@@ -580,6 +582,7 @@ const BRANCH_MAP = {
 // ─── Ana Ekran ────────────────────────────────────────────────────────────────
 export default function VenueSearchScreen({ navigation, route }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const rawBranch   = route?.params?.branch;
     const lockedBranch = rawBranch
@@ -759,7 +762,7 @@ export default function VenueSearchScreen({ navigation, route }) {
 
             {/* Sepet barı — sepette ürün varken her zaman görünür */}
             {cart.length > 0 && (
-                <TouchableOpacity style={s.cartBar} onPress={() => setCartOpen(true)} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.cartBar, { marginBottom: 12 + insets.bottom }]} onPress={() => setCartOpen(true)} activeOpacity={0.85}>
                     <Text style={s.cartBarText}>{t.vsCartBarLabel(cart.length)}</Text>
                     <Text style={s.cartBarPrice}>{cartTotal}₺</Text>
                     <Text style={s.cartBarArrow}>{t.vsCartBarContinue}</Text>

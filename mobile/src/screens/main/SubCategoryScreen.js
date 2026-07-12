@@ -7,6 +7,7 @@ import {
     InteractionManager, PanResponder, Animated,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -3406,6 +3407,7 @@ const vm = StyleSheet.create({
 // Tüm kortları sekme olarak gösterir; boş=yeşil, dolu=kırmızı
 
 function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked }) {
+    const insets = useSafeAreaInsets();
     const todayStr = () => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -3734,7 +3736,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             onRequestClose={() => { if (selSlot) { setSelSlot(null); } else { onClose(); } }}
             statusBarTranslucent>
             <View style={vb.overlay}>
-                <View style={vb.sheet}>
+                <View style={[vb.sheet, { paddingBottom: insets.bottom }]}>
                     {/* Header */}
                     <View style={vb.header}>
                         <View style={{ flex: 1 }}>
