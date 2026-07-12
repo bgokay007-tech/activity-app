@@ -8823,10 +8823,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
-    const [tournSubTab, setTournSubTab] = useState(['open','inprogress','completed','poll'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
+    const [tournSubTab, setTournSubTab] = useState(['open','inprogress','poll'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
 
     useEffect(() => {
-        if (['open','inprogress','completed','poll'].includes(route.params?.initialTournSubTab)) {
+        if (['open','inprogress','poll'].includes(route.params?.initialTournSubTab)) {
             setTournSubTab(route.params.initialTournSubTab);
         }
     }, [route.params?.initialTournSubTab]);
@@ -10132,9 +10132,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'tournaments' && (() => {
                         const inProgress = filteredTournaments.filter(t => t.status === 'IN_PROGRESS');
                         const open = filteredTournaments.filter(t => t.status === 'OPEN');
-                        const completed = filteredTournaments.filter(t => t.status === 'COMPLETED');
                         const polling = filteredTournaments.filter(t => t.status === 'POLL');
-                        const shown = tournSubTab === 'open' ? open : tournSubTab === 'inprogress' ? inProgress : tournSubTab === 'poll' ? polling : completed;
+                        const shown = tournSubTab === 'open' ? open : tournSubTab === 'inprogress' ? inProgress : polling;
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -10174,7 +10173,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         { key:'open',       label: t.tournOpenTab,       count: open.length },
                                         { key:'poll',       label: t.tournPollTab,       count: polling.length },
                                         { key:'inprogress', label: t.tournInProgressTab, count: inProgress.length },
-                                        { key:'completed',  label: t.tournCompletedTab,  count: completed.length },
                                     ].map(st => (
                                         <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
                                             style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: tournSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: tournSubTab===st.key ? cfg.color : colors.border }}>
@@ -10192,7 +10190,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (<>
                                         {shown.map(renderCard)}
                                         {shown.length === 0 && (
-                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : tournSubTab === 'inprogress' ? t.emptyTournInProgress : tournSubTab === 'poll' ? t.emptyTournPoll : t.emptyTournCompleted} />
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : tournSubTab === 'inprogress' ? t.emptyTournInProgress : t.emptyTournPoll} />
                                         )}
                                     </>)
                                 }
