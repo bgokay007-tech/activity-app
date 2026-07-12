@@ -136,7 +136,7 @@ const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
 
 
-function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onOpenCart, cartCount }) {
+function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onOpenCart, cartCount, cartTotal }) {
     const t = useT();
     const [date,        setDate]        = useState(DATE_OPTIONS[0]);
     const [slotsMap,    setSlotsMap]    = useState({});
@@ -475,7 +475,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                     </ScrollView>
 
                     {/* Lejant */}
-                    <View style={[bm.legend, { paddingHorizontal:14, paddingTop:6 }]}>
+                    <View style={[bm.legend, { paddingHorizontal:3, paddingTop:3 }]}>
                         <View style={bm.legendItem}>
                             <View style={[bm.legendDot, { borderColor: colors.purple }]} />
                             <Text style={bm.legendText}>{t.vsLegendAvailable}</Text>
@@ -505,6 +505,15 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                 <Text style={bm.reserveBtnText}>{t.vsAddToCart}</Text>
                             </TouchableOpacity>
                         </View>
+                    )}
+
+                    {/* Sepet toplamı — sepette ürün varken her zaman altta görünür */}
+                    {cartCount > 0 && (
+                        <TouchableOpacity style={bm.cartTotalBar} onPress={onOpenCart} activeOpacity={0.85}>
+                            <Text style={bm.cartTotalBarText}>{t.vsCartBarLabel(cartCount)}</Text>
+                            <Text style={bm.cartTotalBarPrice}>{cartTotal > 0 ? `${cartTotal}₺` : t.vsFree}</Text>
+                            <Text style={bm.cartTotalBarArrow}>{t.vsCartBarContinue}</Text>
+                        </TouchableOpacity>
                     )}
                 </View>
             </View>
@@ -587,6 +596,7 @@ export default function VenueSearchScreen({ navigation, route }) {
     const [cart, setCart] = useState([]); // [{ key, venue, court, slot, date }]
     const [cartOpen, setCartOpen] = useState(false);
     const [checkingOut, setCheckingOut] = useState(false);
+    const cartTotal = cart.reduce((sum, i) => sum + (i.slot.price ?? i.venue.pricePerSlot ?? 0), 0);
 
     // Sayfa açılınca (branch parametresi varsa) otomatik ara
     // NOT: backend BusinessVenue.branch alanı İngilizce anahtarla saklanır (ör. "tennis"),
@@ -747,9 +757,7 @@ export default function VenueSearchScreen({ navigation, route }) {
             {cart.length > 0 && (
                 <TouchableOpacity style={s.cartBar} onPress={() => setCartOpen(true)} activeOpacity={0.85}>
                     <Text style={s.cartBarText}>{t.vsCartBarLabel(cart.length)}</Text>
-                    <Text style={s.cartBarPrice}>
-                        {cart.reduce((sum, i) => sum + (i.slot.price ?? i.venue.pricePerSlot ?? 0), 0)}₺
-                    </Text>
+                    <Text style={s.cartBarPrice}>{cartTotal}₺</Text>
                     <Text style={s.cartBarArrow}>{t.vsCartBarContinue}</Text>
                 </TouchableOpacity>
             )}
@@ -763,6 +771,7 @@ export default function VenueSearchScreen({ navigation, route }) {
                 cartKeys={new Set(cart.filter(i => i.venue.id === activeVenue?.id).map(i => i.key))}
                 onOpenCart={() => setCartOpen(true)}
                 cartCount={cart.length}
+                cartTotal={cartTotal}
             />
 
             {/* Sepet modalı — ayrı (nested değil) */}
@@ -827,7 +836,7 @@ const bm = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: colors.bg },
     sheet:   { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'ios' ? 50 : 28, paddingBottom: Platform.OS === 'ios' ? 24 : 12 },
 
-    header:      { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, paddingBottom: 3, gap: 3 },
+    header:      { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 3, paddingBottom: 3, gap: 3 },
     venueName:   { color: '#fff', fontSize: 18, fontWeight: '900' },
     venueMeta:   { color: colors.textMuted, fontSize: 11, marginTop: 2 },
     closeBtn:    { paddingHorizontal: 3, paddingVertical: 3 },
@@ -835,7 +844,7 @@ const bm = StyleSheet.create({
     cartBadge:     { backgroundColor: colors.purple, borderRadius: 14, paddingHorizontal: 3, paddingVertical: 3, marginRight: 3 },
     cartBadgeText: { color: '#fff', fontSize: 11, fontWeight: '900' },
 
-    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, paddingHorizontal: 16, marginBottom: 3 },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, paddingHorizontal: 3, marginBottom: 3 },
     tag:    { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
     tagText:{ color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
     priceTag:    { backgroundColor: colors.purple + '18', borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3, borderWidth: 1, borderColor: colors.purple + '50' },
