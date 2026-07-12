@@ -3,6 +3,7 @@ import { authenticate } from '../middlewares/auth.middleware.js';
 import {
     createTournament,
     getTournaments,
+    voteTournamentType,
     joinTournament,
     setTournamentPartner,
     cancelJoin,
@@ -46,6 +47,7 @@ router.post('/permission-request',           requestTournamentPermission);
 router.get('/',                              getTournaments);
 router.get('/archived',                      getArchivedTournaments);
 router.post('/',                             createTournament);
+router.post('/:id/vote-type',                voteTournamentType);
 router.post('/:id/join',                     joinTournament);
 router.patch('/:id/partner',                 setTournamentPartner);
 router.delete('/:id/join',                   cancelJoin);

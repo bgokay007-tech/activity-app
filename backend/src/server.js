@@ -7,6 +7,7 @@ import { startCleanupJob } from './jobs/cleanupRivals.js';
 import { startAutoCompleteJob } from './jobs/autoCompleteMatches.js';
 import { startTournamentCleanupJob } from './jobs/cleanupTournaments.js';
 import { startTournamentAutoStartJob } from './jobs/autoStartTournaments.js';
+import { startTournamentPollCloseJob } from './jobs/tournamentPollClose.js';
 import { startSubscriptionExpiryJob } from './jobs/subscriptionExpiry.js';
 import { startHolidayReminderJob } from './jobs/holidayReminder.js';
 import { startAutoApproveReservationsJob } from './jobs/autoApproveReservations.js';
@@ -84,6 +85,7 @@ Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
         startAutoCompleteJob();
         startTournamentCleanupJob();
         startTournamentAutoStartJob();
+        startTournamentPollCloseJob();
         startSubscriptionExpiryJob();
         startHolidayReminderJob();
         startAutoApproveReservationsJob();

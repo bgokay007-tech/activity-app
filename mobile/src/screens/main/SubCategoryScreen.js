@@ -5676,6 +5676,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         ]);
     };
 
+    const [voting, setVoting] = useState(false);
+    const handleVoteType = async (type) => {
+        setVoting(true);
+        try {
+            await api.post(`/tournaments/${item.id}/vote-type`, { type });
+            onUpdated?.();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setVoting(false); }
+    };
+
     const handleFixDeadlines = async () => {
         try {
             const { data } = await api.post(`/tournaments/${item.id}/fix-deadlines`);
@@ -6060,12 +6071,35 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </View>
                 {!collapsed && (
                 <View style={{ alignItems:'flex-end', gap:3 }}>
-                    <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : infoColor + '20', borderRadius:8, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : infoColor + '50' }}>
-                        <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : infoColor, fontSize:10, fontWeight:'800' }}>
-                            {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : t.tournStatusOpen}
+                    <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:8, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
+                        <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : item.status === 'POLL' ? '#c084fc' : infoColor, fontSize:10, fontWeight:'800' }}>
+                            {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
                         </Text>
                     </View>
-                    {isCreator ? (<>
+                    {item.status === 'POLL' && (
+                        <View style={{ alignItems:'flex-end', gap:3 }}>
+                            {['1', '2'].map(tp => {
+                                const votes = (item.typeVotes || []).filter(v => v.votedType === tp).length;
+                                const voted = (item.typeVotes || []).find(v => v.userId === myId)?.votedType === tp;
+                                return (
+                                    <TouchableOpacity key={tp}
+                                        style={{ backgroundColor: voted ? '#a855f730' : '#a855f715', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: voted ? '#a855f770' : '#a855f740', minWidth:120 }}
+                                        onPress={() => handleVoteType(tp)}
+                                        disabled={voting}>
+                                        <Text style={{ color: voted ? '#c084fc' : '#d8b4fe', fontSize:10, fontWeight:'700' }}>
+                                            {voted ? '✓ ' : ''}{TOURN_TYPE_LABELS(t)[tp]} · {votes}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                            {(item.pollEndDate) && (
+                                <Text style={{ color:'#a78bfa', fontSize:9 }}>
+                                    {t.tournPollEndLabel}: {new Date(item.pollEndDate).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' })}{item.pollEndTime ? ` ${item.pollEndTime}` : ''}
+                                </Text>
+                            )}
+                        </View>
+                    )}
+                    {item.status !== 'POLL' && (isCreator ? (<>
                         {myStatus === null && !isEventStarted() && (
                             <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
                                 <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
@@ -6186,7 +6220,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
                             </TouchableOpacity>
                         </View>
-                    </>)}
+                    </>))}
                 </View>
                 )}
             </View>
@@ -7489,6 +7523,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         eventStartDate: null, eventStartTime: '',
         eventEndDate:   null, eventEndTime:   '',
         regEndDate: null, regEndTime: '',
+        pollEnabled: false, pollEndDate: null, pollEndTime: '',
         courtDecidedByPlayers: true,
         courtSearchText: '', courtResults: [], selectedCourt: null,
         showManualCourt: false, manualCourtName: '', manualCourtCity: '',
@@ -7569,6 +7604,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         if (f.scope === 'YEREL' && !f.scopeCity.trim()) { Alert.alert('', t.tournMissingCity); return; }
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
+        if (f.pollEnabled && !f.pollEndDate) { Alert.alert('', t.tournPollMissingEnd); return; }
+        if (f.pollEnabled && f.pollEndDate && f.regEndDate) {
+            const pollDt = new Date(f.pollEndDate); pollDt.setHours(...( f.pollEndTime ? f.pollEndTime.split(':').map(Number) : [23, 59] ), 0, 0);
+            const regDt  = new Date(f.regEndDate);  regDt.setHours(...( f.regEndTime  ? f.regEndTime.split(':').map(Number)  : [23, 59] ), 0, 0);
+            if (pollDt.getTime() >= regDt.getTime()) { Alert.alert('', t.tournPollAfterReg); return; }
+        }
 
         if (f.isPaid && (!f.prize1.trim() || !f.prize2.trim() || !f.prize3.trim())) { Alert.alert('', t.tournMissingPrizes); return; }
         if (f.isPaid && !f.paymentMethod) { Alert.alert('', 'Ödeme yöntemini seçin.'); return; }
@@ -7600,7 +7641,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         setSubmitting(true);
         try {
             await api.post('/tournaments', {
-                name: f.name.trim(), type: f.type, category, subCategory: sub,
+                name: f.name.trim(), type: f.pollEnabled ? undefined : f.type, category, subCategory: sub,
+                pollEnabled: f.pollEnabled,
+                ...(f.pollEnabled && { pollEndDate: fmtISO(f.pollEndDate), pollEndTime: f.pollEndTime || undefined }),
                 scope: f.scope, genderType: f.genderType, city: cityVal,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
@@ -8035,22 +8078,73 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             ))}
 
 
-                            {/* Tournament type */}
+                            {/* Tournament type — kendim seçerim / kullanıcılar oylasın */}
                             <Text style={s.fieldLabel}>{t.tournTypeLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
-                                {TOURN_TYPES.map(tp => (
-                                    <TouchableOpacity key={tp}
-                                        style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.type === tp && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                        onPress={() => set('type', tp)}>
-                                        <Text style={[s.chipText, f.type === tp && { color: cfg.color, fontWeight:'800' }]}>
-                                            {TOURN_TYPE_LABELS(t)[tp]}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                    onPress={() => set('pollEnabled', false)}>
+                                    <Text style={[s.chipText, !f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{t.tournTypeChooseSelf}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                    onPress={() => set('pollEnabled', true)}>
+                                    <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{t.tournTypePollToggle}</Text>
+                                </TouchableOpacity>
                             </View>
 
+                            {!f.pollEnabled && (
+                                <View style={[s.chipRow, { marginBottom:8 }]}>
+                                    {TOURN_TYPES.map(tp => (
+                                        <TouchableOpacity key={tp}
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.type === tp && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('type', tp)}>
+                                            <Text style={[s.chipText, f.type === tp && { color: cfg.color, fontWeight:'800' }]}>
+                                                {TOURN_TYPE_LABELS(t)[tp]}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+
+                            {f.pollEnabled && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:9, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:16, marginBottom:9 }}>{t.tournPollInfoText}</Text>
+                                    <Text style={s.fieldLabel}>{t.tournPollEndLabel} *</Text>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                        <TouchableOpacity
+                                            style={[s.triBtn, f.pollEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
+                                            onPress={() => { setTimeField(null); setDpField('pollEnd'); }}>
+                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.dateLabel}</Text>
+                                            <Text style={[s.triValue, !f.pollEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1}>
+                                                {f.pollEndDate ? `${String(f.pollEndDate.getDate()).padStart(2,'0')}/${String(f.pollEndDate.getMonth()+1).padStart(2,'0')}` : '—'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.triBtn, f.pollEndTime && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:2 }]}
+                                            onPress={() => { setDpField(null); setTimeField('pollEnd'); }}>
+                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.timeLabel}</Text>
+                                            <Text style={[s.triValue, !f.pollEndTime && s.triPlaceholder, { fontSize:10 }]}>{f.pollEndTime || '—'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <CustomCalendarPicker
+                                        visible={dpField === 'pollEnd'}
+                                        value={f.pollEndDate}
+                                        onSelect={(date) => { set('pollEndDate', date); setDpField(null); }}
+                                        onClose={() => setDpField(null)}
+                                    />
+                                    <TimeGridModal
+                                        visible={timeField === 'pollEnd'}
+                                        title={t.tournPollEndLabel}
+                                        value={f.pollEndTime}
+                                        onSelect={(v) => { set('pollEndTime', v); setTimeField(null); }}
+                                        onClose={() => setTimeField(null)}
+                                    />
+                                </View>
+                            )}
+
                             {/* Bireysel Rekabetçi kuralları */}
-                            {f.type === '1' && (
+                            {!f.pollEnabled && f.type === '1' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Bireysel Rekabetçi Kuralları</Text>
                                     {[
@@ -8070,7 +8164,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             )}
 
                             {/* Çiftler Rekabetçi kuralları */}
-                            {f.type === '2' && (
+                            {!f.pollEnabled && f.type === '2' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Rekabetçi Kuralları</Text>
                                     {[
@@ -8727,10 +8821,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
-    const [tournSubTab, setTournSubTab] = useState(['open','inprogress','completed'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
+    const [tournSubTab, setTournSubTab] = useState(['open','inprogress','completed','poll'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
 
     useEffect(() => {
-        if (['open','inprogress','completed'].includes(route.params?.initialTournSubTab)) {
+        if (['open','inprogress','completed','poll'].includes(route.params?.initialTournSubTab)) {
             setTournSubTab(route.params.initialTournSubTab);
         }
     }, [route.params?.initialTournSubTab]);
@@ -10037,7 +10131,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                         const inProgress = filteredTournaments.filter(t => t.status === 'IN_PROGRESS');
                         const open = filteredTournaments.filter(t => t.status === 'OPEN');
                         const completed = filteredTournaments.filter(t => t.status === 'COMPLETED');
-                        const shown = tournSubTab === 'open' ? open : tournSubTab === 'inprogress' ? inProgress : completed;
+                        const polling = filteredTournaments.filter(t => t.status === 'POLL');
+                        const shown = tournSubTab === 'open' ? open : tournSubTab === 'inprogress' ? inProgress : tournSubTab === 'poll' ? polling : completed;
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -10075,6 +10170,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                     {[
                                         { key:'open',       label: t.tournOpenTab,       count: open.length },
+                                        { key:'poll',       label: t.tournPollTab,       count: polling.length },
                                         { key:'inprogress', label: t.tournInProgressTab, count: inProgress.length },
                                         { key:'completed',  label: t.tournCompletedTab,  count: completed.length },
                                     ].map(st => (
@@ -10094,7 +10190,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (<>
                                         {shown.map(renderCard)}
                                         {shown.length === 0 && (
-                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : tournSubTab === 'inprogress' ? t.emptyTournInProgress : t.emptyTournCompleted} />
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : tournSubTab === 'inprogress' ? t.emptyTournInProgress : tournSubTab === 'poll' ? t.emptyTournPoll : t.emptyTournCompleted} />
                                         )}
                                     </>)
                                 }

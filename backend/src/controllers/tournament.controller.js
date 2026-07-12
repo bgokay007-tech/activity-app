@@ -13,6 +13,14 @@ export function tournamentBaseDate(tournament) {
     return new Date(`${dateStr}T${timeStr}:00+03:00`);
 }
 
+// Tür anketi bitiş zamanını Turkey local time (UTC+3) olarak döner
+export function tournamentPollDeadline(tournament) {
+    if (!tournament.pollEndDate) return new Date();
+    const dateStr = new Date(tournament.pollEndDate).toISOString().split('T')[0];
+    const timeStr = tournament.pollEndTime || '00:00';
+    return new Date(`${dateStr}T${timeStr}:00+03:00`);
+}
+
 // ─── Tournament bracket helpers ───────────────────────────────────────────────
 
 function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
@@ -623,11 +631,18 @@ export const createTournament = async (req, res, next) => {
             surface, isIndoor,
             eventDate, eventTime, eventEndDate, eventEndTime,
             startDate, startTime, endDate, endTime,
+            pollEnabled, pollEndDate, pollEndTime,
         } = req.body;
+        if (pollEnabled === true && !pollEndDate) {
+            return res.status(400).json({ message: 'Anket bitiş tarihi zorunludur.' });
+        }
         const tournament = await prisma.tournament.create({
             data: {
                 name,
-                type: type || '1',
+                type: pollEnabled === true ? null : (type || '1'),
+                status: pollEnabled === true ? 'POLL' : 'OPEN',
+                pollEndDate: pollEnabled === true ? new Date(pollEndDate) : null,
+                pollEndTime: pollEnabled === true ? (pollEndTime || null) : null,
                 category,
                 subCategory,
                 description: description || null,
@@ -669,7 +684,6 @@ export const createTournament = async (req, res, next) => {
                 endTime: endTime || null,
                 rules: Array.isArray(rules) ? rules : [],
                 creatorId: req.userId,
-                status: 'OPEN',
             },
             include: {
                 creator: { select: { id: true, username: true, fullName: true } },
@@ -729,10 +743,41 @@ export const getTournaments = async (req, res, next) => {
                 creator: { select: { id: true, username: true, fullName: true } },
                 _count:  { select: { participants: { where: { status: 'ACCEPTED' } } } },
                 participants: { where: { userId: myId }, select: { userId: true, status: true } },
+                typeVotes: { select: { userId: true, votedType: true } },
             },
             orderBy: { createdAt: 'desc' },
         });
         res.json(tournaments);
+    } catch (e) { next(e); }
+};
+
+export const voteTournamentType = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { type } = req.body;
+        if (type !== '1' && type !== '2') {
+            return res.status(400).json({ message: 'Geçersiz tür seçimi.' });
+        }
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+        if (tournament.status !== 'POLL') {
+            return res.status(400).json({ message: 'Bu turnuvada aktif bir anket yok.' });
+        }
+        await prisma.tournamentTypeVote.upsert({
+            where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
+            update: { votedType: type },
+            create: { tournamentId: id, userId: req.userId, votedType: type },
+        });
+        const tallies = await prisma.tournamentTypeVote.groupBy({
+            by: ['votedType'],
+            where: { tournamentId: id },
+            _count: { id: true },
+        });
+        res.json({
+            votes1: tallies.find(x => x.votedType === '1')?._count.id || 0,
+            votes2: tallies.find(x => x.votedType === '2')?._count.id || 0,
+            myVote: type,
+        });
     } catch (e) { next(e); }
 };
 

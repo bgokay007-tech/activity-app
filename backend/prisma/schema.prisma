@@ -42,6 +42,7 @@ model User {
   sentRequests     ActivityRequest[] @relation("sender")
   receivedRequests ActivityRequest[] @relation("receiver")
   tournaments      TournamentParticipant[]
+  tournamentTypeVotes TournamentTypeVote[]
   createdTournaments Tournament[] @relation("tournamentCreator")
   events           EventParticipant[]
   cards            ActivityCard[]
@@ -519,7 +520,7 @@ model City {
 model Tournament {
   id             String       @id @default(uuid())
   name           String
-  type           String       @default("mix_double") // mix_double | singles | team
+  type           String?      @default("mix_double") // mix_double | singles | team — anket açıksa (status=POLL) anket kapanana kadar null
   category       CategoryType
   subCategory    String
   description    String?
@@ -559,7 +560,9 @@ model Tournament {
   endTime        String?      // registration end time
   startDate      DateTime?
   endDate        DateTime?
-  status         String       @default("OPEN")  // OPEN | IN_PROGRESS | COMPLETED | CANCELLED
+  pollEndDate    DateTime?    // anket bitiş tarihi (tür anketi açıksa)
+  pollEndTime    String?      // anket bitiş saati, örn. "18:00"
+  status         String       @default("OPEN")  // OPEN | IN_PROGRESS | COMPLETED | CANCELLED | POLL
   creatorId      String
   rules          Json?        @default("[]") // seçili kural ID'leri örn. [1, 2, 3]
   bracketData    Json?        // standings + phase info
@@ -571,6 +574,7 @@ model Tournament {
 
   creator          User         @relation("tournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   participants     TournamentParticipant[]
+  typeVotes        TournamentTypeVote[]
   tournamentMatches TournamentMatch[]
   messages         TournamentMessage[]
   chatNotifyPrefs  TournamentChatNotify[]
@@ -650,6 +654,20 @@ model TournamentParticipant {
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   user         User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+}
+
+// TURNUVA TÜR ANKETİ — status=POLL iken kullanıcılar '1' (Bireysel) veya '2' (Çiftler) için oy verir
+model TournamentTypeVote {
+  id           String   @id @default(uuid())
+  tournamentId String
+  userId       String
+  votedType    String   // '1' | '2'
+  createdAt    DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, userId])
 }
