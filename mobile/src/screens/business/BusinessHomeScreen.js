@@ -1582,6 +1582,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         try {
             await api.patch(`/venues/${venue.id}/settings`, { paymentPriceDeltas: next });
             setLocalPaymentDeltas(next);
+            Alert.alert('✅', 'Fiyat farkları kaydedildi.');
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingPaymentDeltas(false); }
     };
