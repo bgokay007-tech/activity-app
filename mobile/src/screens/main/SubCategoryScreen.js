@@ -3936,7 +3936,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                         )}
                                         <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
                                         <View style={vb.payRow}>
-                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['CREDIT_CARD', t.courtPayCreditCard],['ONLINE','🌐 Online']].filter(([m]) => {
+                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['CREDIT_CARD','💳 Kredi Kartı'],['ONLINE','🌐 Online']].filter(([m]) => {
                                                 if (m === 'ONLINE' || m === 'CREDIT_CARD') {
                                                     const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : [];
                                                     return acc.includes(m);
