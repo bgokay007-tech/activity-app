@@ -105,33 +105,39 @@ const inPriceWindow = (sm, from, to) => {
     return sm >= f && sm < t;
 };
 
-function getSlotPrice(venue, court, startTime, durationMins = 60) {
+// Uygulanacak saat aralığı kuralını (varsa) bulur — fiyat VE o kurala özel
+// ödeme yöntemi farkları (paymentDeltas) birlikte döner, ikisi de aynı kuraldan gelir.
+function resolvePriceRule(venue, court, startTime) {
     const sm = toMins(startTime);
     const pw = venue.pricingWindows;
-    let basePrice;
+    let basePrice, paymentDeltas = null;
     if (Array.isArray(pw) && pw.length > 0) {
         const cw = pw.find(w => w.courtId === court?.id && inPriceWindow(sm, w.from, w.to));
-        if (cw) { basePrice = cw.price; }
+        if (cw) { basePrice = cw.price; paymentDeltas = cw.paymentDeltas || null; }
         else {
             const vw = pw.find(w => !w.courtId && inPriceWindow(sm, w.from, w.to));
-            if (vw) basePrice = vw.price;
+            if (vw) { basePrice = vw.price; paymentDeltas = vw.paymentDeltas || null; }
         }
     }
     if (basePrice == null) basePrice = court?.pricePerSlot ?? venue.pricePerSlot ?? 0;
+    return { basePrice, paymentDeltas };
+}
+
+function getSlotPrice(venue, court, startTime, durationMins = 60) {
+    const { basePrice } = resolvePriceRule(venue, court, startTime);
     return Math.round(basePrice * (durationMins / 60));
 }
 
 const PAYMENT_METHODS = ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'];
 
-function applyPaymentDelta(basePrice, venue, method) {
-    const deltas = venue.paymentPriceDeltas || {};
-    const d = parseInt(deltas[method]) || 0;
+function applyPaymentDelta(basePrice, paymentDeltas, method) {
+    const d = parseInt(paymentDeltas?.[method]) || 0;
     return Math.max(0, basePrice + d);
 }
 
-function buildPriceByMethod(venue, basePrice) {
+function buildPriceByMethod(paymentDeltas, basePrice) {
     const out = {};
-    for (const m of PAYMENT_METHODS) out[m] = applyPaymentDelta(basePrice, venue, m);
+    for (const m of PAYMENT_METHODS) out[m] = applyPaymentDelta(basePrice, paymentDeltas, m);
     return out;
 }
 
@@ -389,13 +395,14 @@ export const getVenueSlots = async (req, res, next) => {
         const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId, maintWindows);
         const addSlotPrice = arr => (arr || []).map(s => {
             const dur = s.start && s.end ? toMins(s.end) - toMins(s.start) : 60;
-            const base = getSlotPrice(venue, court, s.start, dur);
-            return { ...s, price: base, priceByMethod: buildPriceByMethod(venue, base) };
+            const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, s.start);
+            const base = Math.round(basePrice * (dur / 60));
+            return { ...s, price: base, priceByMethod: buildPriceByMethod(paymentDeltas, base) };
         });
         // VAR_DURATION pencereleri için: saatlik baz fiyat döndür, frontend seçilen süreyle çarpar
         const addWindowPrice = arr => (arr || []).map(s => {
-            const base = getSlotPrice(venue, court, s.start, 60);
-            return { ...s, pricePerHour: base, pricePerHourByMethod: buildPriceByMethod(venue, base) };
+            const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, s.start);
+            return { ...s, pricePerHour: basePrice, pricePerHourByMethod: buildPriceByMethod(paymentDeltas, basePrice) };
         });
         const resultWithPrice = slotsResult.slots
             ? { ...slotsResult, slots: addSlotPrice(slotsResult.slots) }
@@ -596,7 +603,7 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, paymentPriceDeltas, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder, reservationOpenDaysBefore, reservationOpenTime } = req.body;
+        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder, reservationOpenDaysBefore, reservationOpenTime } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_PAY      = ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'];
         const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
@@ -607,13 +614,19 @@ export const updateVenueSettings = async (req, res, next) => {
             if (!Array.isArray(acceptedPayments) || acceptedPayments.length === 0 || acceptedPayments.some(m => !VALID_PAY.includes(m)))
                 return res.status(400).json({ message: 'Geçersiz ödeme yöntemi' });
         }
-        if (paymentPriceDeltas !== undefined) {
-            if (typeof paymentPriceDeltas !== 'object' || paymentPriceDeltas === null || Array.isArray(paymentPriceDeltas)
-                || Object.keys(paymentPriceDeltas).some(k => !VALID_PAY.includes(k) || !Number.isInteger(paymentPriceDeltas[k]))) {
-                return res.status(400).json({ message: 'Geçersiz ödeme yöntemi fiyat farkı' });
+        if (pricingWindows !== undefined) {
+            if (!Array.isArray(pricingWindows))
+                return res.status(400).json({ message: 'Geçersiz saat aralığı kuralı' });
+            const invalidDeltas = pricingWindows.some(w => w.paymentDeltas != null && (
+                typeof w.paymentDeltas !== 'object' || Array.isArray(w.paymentDeltas)
+                || Object.keys(w.paymentDeltas).some(k => !VALID_PAY.includes(k) || !Number.isInteger(w.paymentDeltas[k]))
+            ));
+            if (invalidDeltas) return res.status(400).json({ message: 'Geçersiz ödeme yöntemi fiyat farkı' });
+            const hasPaymentDeltas = pricingWindows.some(w => w.paymentDeltas && Object.keys(w.paymentDeltas).length > 0);
+            if (hasPaymentDeltas) {
+                const check = await assertProVenueOwner(id, req.userId, 'Ödeme yöntemine göre fiyat farkı');
+                if (check.error) return res.status(check.status).json({ message: check.error });
             }
-            const check = await assertProVenueOwner(id, req.userId, 'Ödeme yöntemine göre fiyat farkı');
-            if (check.error) return res.status(check.status).json({ message: check.error });
         }
         if (approvalMode !== undefined && !VALID_APPROVAL.includes(approvalMode))
             return res.status(400).json({ message: 'Geçersiz onay modu' });
@@ -631,7 +644,6 @@ export const updateVenueSettings = async (req, res, next) => {
         if (openSlots !== undefined)             data.openSlots            = openSlots;
         if (acceptedPayments !== undefined)      data.acceptedPayments     = acceptedPayments;
         if (pricingWindows !== undefined)        data.pricingWindows       = pricingWindows;
-        if (paymentPriceDeltas !== undefined)    data.paymentPriceDeltas   = paymentPriceDeltas;
         if (contactLinks !== undefined)          data.contactLinks         = contactLinks;
         if (lat !== undefined)                   data.lat                  = lat !== null ? parseFloat(lat) : null;
         if (lng !== undefined)                   data.lng                  = lng !== null ? parseFloat(lng) : null;
@@ -688,7 +700,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     for (let t = open; t + 60 <= close; t += 60) {
                         if (close - (t + 60) > 0 && close - (t + 60) < 60) continue;
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: applyPaymentDelta(getSlotPrice(venue, court, toTime(t)), venue, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: (() => { const rr = resolvePriceRule(venue, court, toTime(t)); return applyPaymentDelta(rr.basePrice, rr.paymentDeltas, rs[0]?.paymentMethod || 'CASH'); })() });
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
@@ -700,13 +712,13 @@ export const getOwnerSchedule = async (req, res, next) => {
                         const midnight = endT > 1440;
                         if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; }
                         const rs = findRes(court.id, t, midnight ? 1470 : endT);
-                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: applyPaymentDelta(getSlotPrice(venue, court, toTime(t)), venue, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: (() => { const rr = resolvePriceRule(venue, court, toTime(t)); return applyPaymentDelta(rr.basePrice, rr.paymentDeltas, rs[0]?.paymentMethod || 'CASH'); })() });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
                         if (close - (t + 90) > 0 && close - (t + 90) < 90) continue;
                         const rs = findRes(court.id, t, t + 90);
-                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: applyPaymentDelta(getSlotPrice(venue, court, toTime(t)), venue, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: (() => { const rr = resolvePriceRule(venue, court, toTime(t)); return applyPaymentDelta(rr.basePrice, rr.paymentDeltas, rs[0]?.paymentMethod || 'CASH'); })() });
                     }
                 } else {
                     // VAR_DURATION: gerçek rezervasyon bloklarını ve boş pencereleri göster (saatlik grid değil)
