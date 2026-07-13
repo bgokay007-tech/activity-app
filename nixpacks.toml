@@ -1,9 +1,10 @@
 [phases.setup]
-# nodejs_22 doesn't exist in this pinned nixpkgs snapshot (build error: "undefined
-# variable 'nodejs_22'") — reverted to nodejs_20. The actual root cause of the frontend
-# build failure was a stale package-lock.json (see frontend/package-lock.json fix),
-# not the node version.
-nixPkgs = ["nodejs_20"]
+# nodejs_20 in this pinned nixpkgs snapshot resolves to v20.6.1, which is below the
+# ^20.19.0 minimum required by current frontend deps (vite@8, eslint@10, @vitejs/plugin-react@6).
+# npm ci was silently failing (EBADENGINE + vite binary missing) and `|| true` swallowed
+# it, so the frontend was never actually rebuilt on deploy — it kept serving whatever
+# bundle happened to be committed in backend/public. nodejs_22 satisfies the range.
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [
