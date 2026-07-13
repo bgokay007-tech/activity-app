@@ -98,7 +98,7 @@ export default function NotificationsScreen({ navigation }) {
         } catch (e) { console.warn(e?.message); }
     };
 
-    const handlePress = (item) => {
+    const handlePress = async (item) => {
         markRead(item.id);
         const data = item.data || {};
         const type = item.type;
@@ -172,6 +172,17 @@ export default function NotificationsScreen({ navigation }) {
             navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
         } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
             navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
+        } else if (type === 'VENUE_REVIEW_PENDING') {
+            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venuereviews' } });
+        } else if (type === 'VENUE_REVIEW') {
+            navigation.navigate('BusinessApp', { openReservations: false });
+        } else if (type === 'VENUE_REVIEW_APPROVED' || type === 'VENUE_REVIEW_REJECTED') {
+            if (data.venueId) {
+                try {
+                    const { data: venue } = await api.get(`/venues/${data.venueId}`);
+                    navigation.navigate('ProfileTab', { screen: 'VenueDetail', params: { venue } });
+                } catch (e) { console.warn(e?.message); }
+            }
         } else if (data.category && data.subCategory) {
             goToSub('rivals');
         }
