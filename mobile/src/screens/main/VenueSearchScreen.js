@@ -425,7 +425,8 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginBottom: 3 }}>
                                                                     {[60, 90, 120, 150, 180].filter(d => customStartM + d <= winEndM).map(d => {
                                                                         const et = toT(customStartM + d);
-                                                                        const pr = w.pricePerHour != null ? Math.round(w.pricePerHour * (d / 60)) : null;
+                                                                        const basePerHour = w.pricePerHourByMethod?.CASH ?? w.pricePerHour;
+                                                                        const pr = basePerHour != null ? Math.round(basePerHour * (d / 60)) : null;
                                                                         const isSel = varDurMap[court.id] === d;
                                                                         return (
                                                                             <TouchableOpacity key={d}
@@ -441,7 +442,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                                 {/* Rezerve Et butonu */}
                                                                 {validEnd && (
                                                                     <TouchableOpacity
-                                                                        onPress={() => setPicked({ court, slot: { start: customStart, end: toT(customStartM + dur), free: true, price: w.pricePerHour != null ? Math.round(w.pricePerHour * (dur/60)) : null, durationMins: dur } })}
+                                                                        onPress={() => { const bph = w.pricePerHour != null ? Math.round((w.pricePerHourByMethod?.CASH ?? w.pricePerHour) * (dur/60)) : null; const pbm = w.pricePerHourByMethod ? Object.fromEntries(Object.entries(w.pricePerHourByMethod).map(([k,v]) => [k, Math.round(v * (dur/60))])) : undefined; setPicked({ court, slot: { start: customStart, end: toT(customStartM + dur), free: true, price: bph, priceByMethod: pbm, durationMins: dur } }); }}
                                                                         style={{ backgroundColor: isPicked ? colors.purple : colors.purple+'30', borderRadius: 8, paddingVertical: 3, alignItems: 'center', borderWidth: 1, borderColor: colors.purple }}>
                                                                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
                                                                             {isPicked ? t.vsSelected : t.vsSelectRange(customStart, toT(customStartM + dur))}
@@ -486,7 +487,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                         </Text>
                                                         {slot.price != null && slot.free !== false && (
                                                             <Text style={{ color: isPicked ? '#ffffffcc' : colors.purple, fontSize: 10, fontWeight: '800', marginTop: 2 }}>
-                                                                {slot.price > 0 ? `${slot.price}₺` : t.vsFree}
+                                                                {(() => { const p = slot.priceByMethod?.CASH ?? slot.price; return p > 0 ? `${p}₺` : t.vsFree; })()}
                                                             </Text>
                                                         )}
                                                     </TouchableOpacity>
@@ -624,7 +625,7 @@ export default function VenueSearchScreen({ navigation, route }) {
     const [cart, setCart] = useState([]); // [{ key, venue, court, slot, date }]
     const [cartOpen, setCartOpen] = useState(false);
     const [checkingOut, setCheckingOut] = useState(false);
-    const cartTotal = cart.reduce((sum, i) => sum + (i.slot.price ?? i.venue.pricePerSlot ?? 0), 0);
+    const cartTotal = cart.reduce((sum, i) => sum + (i.slot.priceByMethod?.CASH ?? i.slot.price ?? i.venue.pricePerSlot ?? 0), 0);
 
     // Sayfa açılınca (branch parametresi varsa) otomatik ara
     // NOT: backend BusinessVenue.branch alanı İngilizce anahtarla saklanır (ör. "tennis"),

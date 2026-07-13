@@ -3608,7 +3608,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                     return cData.slots.map((sl, i) => {
                     const isSel    = rangeStartIdx !== -1 && i >= rangeStartIdx && i <= rangeEndIdx;
                     const isPend   = !sl.free && sl.status === 'PENDING';
-                    const slotPrice = sl.price != null ? sl.price : venue?.pricePerSlot;
+                    const slotPrice = sl.priceByMethod?.CASH ?? (sl.price != null ? sl.price : venue?.pricePerSlot);
                     return (
                         <TouchableOpacity key={i} disabled={!sl.free}
                             style={[vb.colSlot,
@@ -3699,7 +3699,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
                                                 {[60,90,120,150,180,240,300,360].filter(d => startM + d <= winEndM).map(d => {
                                                     const isSd = varDurMap[court.id] === d;
-                                                    const dPrice = w.pricePerHour != null ? Math.round(w.pricePerHour*(d/60)) : null;
+                                                    const wBaseHour = w.pricePerHourByMethod?.CASH ?? w.pricePerHour;
+                                                    const dPrice = wBaseHour != null ? Math.round(wBaseHour*(d/60)) : null;
                                                     return (
                                                         <TouchableOpacity key={d}
                                                             onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setSelSlot(null); }}
@@ -3714,13 +3715,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                             </View>
                                             {validEnd && (
                                                 <TouchableOpacity
-                                                    onPress={() => selectSlot(court.id, { start: customStart, end: endT, price: w.pricePerHour != null ? Math.round(w.pricePerHour*(dur/60)) : venue?.pricePerSlot, durationMins: dur })}
+                                                    onPress={() => { const wBaseHour2 = w.pricePerHourByMethod?.CASH ?? w.pricePerHour; const pbm = w.pricePerHourByMethod ? Object.fromEntries(Object.entries(w.pricePerHourByMethod).map(([k,v]) => [k, Math.round(v*(dur/60))])) : undefined; selectSlot(court.id, { start: customStart, end: endT, price: wBaseHour2 != null ? Math.round(wBaseHour2*(dur/60)) : venue?.pricePerSlot, priceByMethod: pbm, durationMins: dur }); }}
                                                     style={{ backgroundColor: isReserved ? '#9333ea' : '#9333ea30', borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#9333ea' }}
                                                     activeOpacity={0.75}>
                                                     <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>
                                                         {isReserved ? '✅ Seçildi' : `${customStart}–${endT} Rezerve Et`}
                                                     </Text>
-                                                    {!isReserved && (() => { const bp = w.pricePerHour != null ? Math.round(w.pricePerHour*(dur/60)) : (venue?.pricePerSlot||null); return bp>0 ? <Text style={{ color:'#bbf7d0', fontSize:10, fontWeight:'700', marginTop:1 }}>{bp}₺</Text> : null; })()}
+                                                    {!isReserved && (() => { const wBaseHour3 = w.pricePerHourByMethod?.CASH ?? w.pricePerHour; const bp = wBaseHour3 != null ? Math.round(wBaseHour3*(dur/60)) : (venue?.pricePerSlot||null); return bp>0 ? <Text style={{ color:'#bbf7d0', fontSize:10, fontWeight:'700', marginTop:1 }}>{bp}₺</Text> : null; })()}
                                                 </TouchableOpacity>
                                             )}
                                         </>)}

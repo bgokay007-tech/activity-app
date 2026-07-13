@@ -27,7 +27,8 @@ const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60)
 
 function SlotBubble({ slot, selected, onPress }) {
     const isMaint = slot.maintenance && !slot.free;
-    const priceLabel = !isMaint && slot.price != null ? (slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz') : null;
+    const displayPrice = slot.priceByMethod?.CASH ?? slot.price;
+    const priceLabel = !isMaint && displayPrice != null ? (displayPrice > 0 ? `${displayPrice}₺` : 'Ücretsiz') : null;
     return (
         <TouchableOpacity
             style={[ss.bubble, !slot.free && (isMaint ? ss.bubbleMaint : ss.bubbleTaken), selected && ss.bubbleSelected]}
