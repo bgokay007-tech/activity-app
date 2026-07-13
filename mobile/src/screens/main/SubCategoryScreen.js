@@ -6109,7 +6109,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     </View>
                     {item.status === 'POLL' && (
                         <View style={{ alignItems:'flex-end', gap:3 }}>
-                            {['1', '2'].map(tp => {
+                            {(Array.isArray(item.pollTypes) ? item.pollTypes : ['1', '2']).map(tp => {
                                 const votes = (item.typeVotes || []).filter(v => v.votedType === tp).length;
                                 const voted = (item.typeVotes || []).find(v => v.userId === myId)?.votedType === tp;
                                 return (
@@ -6284,7 +6284,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </Text>
                         </View>
                     )}
-                    {(item.type === '1' || item.type === '2' || item.type === '3') && (
+                    {TOURN_TYPES.includes(item.type) && (
                         <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                             {['matches','standings'].map(tab => (
                                 <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
@@ -7537,7 +7537,7 @@ const tp = StyleSheet.create({
     statusDesc:  { color: colors.textSecondary, fontSize:13, textAlign:'center', lineHeight:18 },
 });
 
-const TOURN_TYPES   = ['1', '2', '3'];
+const TOURN_TYPES   = ['1', '2', '3', '4', '5', '6', '7', '8'];
 const TOURN_SCOPES  = ['YEREL', 'ULUSAL', 'ULUSLARARASI'];
 const TOURN_GENDERS = ['KADIN', 'ERKEK', 'MIX'];
 
@@ -7554,7 +7554,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         eventStartDate: null, eventStartTime: '',
         eventEndDate:   null, eventEndTime:   '',
         regEndDate: null, regEndTime: '',
-        pollEnabled: false, pollEndDate: null, pollEndTime: '',
+        pollEnabled: false, pollEndDate: null, pollEndTime: '', pollTypes: ['1', '2'],
         courtDecidedByPlayers: true,
         courtSearchText: '', courtResults: [], selectedCourt: null,
         showManualCourt: false, manualCourtName: '', manualCourtCity: '',
@@ -7636,6 +7636,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
         if (f.pollEnabled && !f.pollEndDate) { Alert.alert('', t.tournPollMissingEnd); return; }
+        if (f.pollEnabled && f.pollTypes.length < 2) { Alert.alert('', t.tournPollTypesMin); return; }
         if (f.pollEnabled && f.pollEndDate && f.regEndDate) {
             const pollDt = new Date(f.pollEndDate); pollDt.setHours(...( f.pollEndTime ? f.pollEndTime.split(':').map(Number) : [23, 59] ), 0, 0);
             const regDt  = new Date(f.regEndDate);  regDt.setHours(...( f.regEndTime  ? f.regEndTime.split(':').map(Number)  : [23, 59] ), 0, 0);
@@ -7674,7 +7675,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
             await api.post('/tournaments', {
                 name: f.name.trim(), type: f.pollEnabled ? undefined : f.type, category, subCategory: sub,
                 pollEnabled: f.pollEnabled,
-                ...(f.pollEnabled && { pollEndDate: fmtISO(f.pollEndDate), pollEndTime: f.pollEndTime || undefined }),
+                ...(f.pollEnabled && { pollEndDate: fmtISO(f.pollEndDate), pollEndTime: f.pollEndTime || undefined, pollTypes: f.pollTypes }),
                 scope: f.scope, genderType: f.genderType, city: cityVal,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
@@ -8141,6 +8142,23 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {f.pollEnabled && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:9, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:16, marginBottom:9 }}>{t.tournPollInfoText}</Text>
+
+                                    <Text style={s.fieldLabel}>{t.tournPollTypesLabel} *</Text>
+                                    <View style={[s.chipRow, { marginBottom:9 }]}>
+                                        {TOURN_TYPES.map(tp => {
+                                            const selected = f.pollTypes.includes(tp);
+                                            return (
+                                                <TouchableOpacity key={tp}
+                                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, selected && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                    onPress={() => set('pollTypes', selected ? f.pollTypes.filter(x => x !== tp) : [...f.pollTypes, tp])}>
+                                                    <Text style={[s.chipText, selected && { color: cfg.color, fontWeight:'800' }]}>
+                                                        {selected ? '✓ ' : ''}{TOURN_TYPE_LABELS(t)[tp]}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+
                                     <Text style={s.fieldLabel}>{t.tournPollEndLabel} *</Text>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         <TouchableOpacity

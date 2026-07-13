@@ -3,6 +3,14 @@ import { createNotification } from '../controllers/notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { tournamentPollDeadline, checkPollAutoJoinEligibility } from '../controllers/tournament.controller.js';
 
+// Mobildeki TOURN_TYPE_LABELS ile aynı isimler ('3'-'8' henüz kesinleşmemiş yer
+// tutucular, oradaki gibi burada da genel "Tür N" olarak anılır).
+function typeLabel(tp) {
+    if (tp === '1') return 'Bireysel Rekabetçi';
+    if (tp === '2') return 'Çiftler Rekabetçi';
+    return `Tür ${tp}`;
+}
+
 // Kazanan türe oy verenleri OY SIRASINA göre başvuru kuyruğuna (PENDING) ekler —
 // oy vermek bu türün kazanması halinde kesin katılım taahhüdü sayılır. createdAt
 // bilinçli olarak oyun kendi createdAt'ine eşitlenir ki mevcut sıralama/kapasite/
@@ -50,7 +58,7 @@ async function autoJoinWinningVoters(tournament, winner) {
                 vote.userId,
                 'TOURNAMENT_POLL_AUTO_JOINED',
                 '✅ Turnuvaya Otomatik Başvuruldu',
-                `"${tournament.name}" turnuvasında oyladığınız tür (${winner === '1' ? 'Bireysel' : 'Çiftler'} Rekabetçi) kazandı — oy sıranıza göre başvurunuz otomatik oluşturuldu, organizatör onayı bekleniyor.`,
+                `"${tournament.name}" turnuvasında oyladığınız tür (${typeLabel(winner)}) kazandı — oy sıranıza göre başvurunuz otomatik oluşturuldu, organizatör onayı bekleniyor.`,
                 { tournamentId: tournament.id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
         } catch (err) {
@@ -58,24 +66,48 @@ async function autoJoinWinningVoters(tournament, winner) {
         }
     }
 
-    // Kaybeden türe oy verenler otomatik eklenmez ama kayıtlar açık olduğu sürece
+    // Kaybeden türlere oy verenler otomatik eklenmez ama kayıtlar açık olduğu sürece
     // normal başvuru yapabilirler — bunu kendilerine ayrıca bildir.
-    const otherType = winner === '1' ? '2' : '1';
-    const loserVotes = await prisma.tournamentTypeVote.findMany({
-        where: { tournamentId: tournament.id, votedType: otherType },
-        select: { userId: true },
-    });
-    for (const lv of loserVotes) {
-        createNotification(
-            lv.userId,
-            'TOURNAMENT_POLL_CLOSED',
-            '🗳️ Anket Sonuçlandı',
-            `"${tournament.name}" turnuvasında oyladığınız tür kazanmadı. Yine de kayıtlar açık olduğu sürece bu turnuvaya normal şekilde başvurabilirsiniz.`,
-            { tournamentId: tournament.id, category: tournament.category, subCategory: tournament.subCategory },
-        ).catch(() => {});
+    const pollTypes = Array.isArray(tournament.pollTypes) ? tournament.pollTypes : [];
+    const loserTypes = pollTypes.filter(tp => tp !== winner);
+    if (loserTypes.length > 0) {
+        const loserVotes = await prisma.tournamentTypeVote.findMany({
+            where: { tournamentId: tournament.id, votedType: { in: loserTypes } },
+            select: { userId: true },
+        });
+        for (const lv of loserVotes) {
+            createNotification(
+                lv.userId,
+                'TOURNAMENT_POLL_CLOSED',
+                '🗳️ Anket Sonuçlandı',
+                `"${tournament.name}" turnuvasında oyladığınız tür kazanmadı. Yine de kayıtlar açık olduğu sürece bu turnuvaya normal şekilde başvurabilirsiniz.`,
+                { tournamentId: tournament.id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+        }
     }
 
     return joinedCount;
+}
+
+// pollTypes içindeki en çok oy alan türü döner. Eşitlik (veya hiç oy yoksa) pollTypes
+// dizisindeki İLK türü kazanır — eski "eşitlikte Tür 1 kazanır" kuralının genellemesi
+// (turnuvayı açan kişi genelde tercih ettiği türü listenin başına koyar).
+async function pickPollWinner(tournament) {
+    const pollTypes = Array.isArray(tournament.pollTypes) ? tournament.pollTypes : [];
+    if (pollTypes.length === 0) return '1';
+    const tallies = await prisma.tournamentTypeVote.groupBy({
+        by: ['votedType'],
+        where: { tournamentId: tournament.id },
+        _count: { id: true },
+    });
+    const countOf = (tp) => tallies.find(x => x.votedType === tp)?._count.id || 0;
+    let winner = pollTypes[0];
+    let winnerCount = countOf(winner);
+    for (const tp of pollTypes.slice(1)) {
+        const c = countOf(tp);
+        if (c > winnerCount) { winner = tp; winnerCount = c; }
+    }
+    return winner;
 }
 
 async function closeDuePolls() {
@@ -86,14 +118,7 @@ async function closeDuePolls() {
 
         for (const tournament of due) {
             try {
-                const tallies = await prisma.tournamentTypeVote.groupBy({
-                    by: ['votedType'],
-                    where: { tournamentId: tournament.id },
-                    _count: { id: true },
-                });
-                const c1 = tallies.find(x => x.votedType === '1')?._count.id || 0;
-                const c2 = tallies.find(x => x.votedType === '2')?._count.id || 0;
-                const winner = c2 > c1 ? '2' : '1'; // eşitlik veya oy yoksa Tür 1 (Bireysel Rekabetçi) kazanır
+                const winner = await pickPollWinner(tournament);
 
                 await prisma.tournament.update({
                     where: { id: tournament.id },
@@ -106,7 +131,7 @@ async function closeDuePolls() {
                     tournament.creatorId,
                     'TOURNAMENT_POLL_CLOSED',
                     '🗳️ Anket sonuçlandı',
-                    `"${tournament.name}" turnuvasında ${winner === '1' ? 'Bireysel' : 'Çiftler'} Rekabetçi türü kazandı, kayıtlar açıldı.` +
+                    `"${tournament.name}" turnuvasında ${typeLabel(winner)} türü kazandı, kayıtlar açıldı.` +
                         (joinedCount > 0 ? ` Oy sırasına göre ${joinedCount} kişi otomatik başvuru kuyruğuna eklendi, onayınızı bekliyor.` : ''),
                     { tournamentId: tournament.id }
                 ).catch(() => {});

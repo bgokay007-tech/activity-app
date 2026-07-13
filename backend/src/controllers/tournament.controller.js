@@ -5,6 +5,11 @@ import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
 
+// Geçerli turnuva türü ID'leri — bkz. mobil TOURN_TYPES. Sadece '1' (Bireysel) ve '2'
+// (Çiftler) tam olarak kurallandırılmış/skorlanabilir; '3'-'8' zamanla gerçek formatlara
+// dönüştürülecek yer tutuculardır, ama anketlerde ve doğrudan seçimde şimdiden kullanılabilir.
+export const VALID_TOURN_TYPES = ['1', '2', '3', '4', '5', '6', '7', '8'];
+
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
 export function tournamentBaseDate(tournament) {
     if (!tournament.eventDate) return new Date();
@@ -631,10 +636,18 @@ export const createTournament = async (req, res, next) => {
             surface, isIndoor,
             eventDate, eventTime, eventEndDate, eventEndTime,
             startDate, startTime, endDate, endTime,
-            pollEnabled, pollEndDate, pollEndTime,
+            pollEnabled, pollEndDate, pollEndTime, pollTypes,
         } = req.body;
         if (pollEnabled === true && !pollEndDate) {
             return res.status(400).json({ message: 'Anket bitiş tarihi zorunludur.' });
+        }
+        let validPollTypes = null;
+        if (pollEnabled === true) {
+            const uniq = Array.isArray(pollTypes) ? [...new Set(pollTypes)].filter(tp => VALID_TOURN_TYPES.includes(tp)) : [];
+            if (uniq.length < 2) {
+                return res.status(400).json({ message: 'Anket için en az 2 turnuva türü seçmelisiniz.' });
+            }
+            validPollTypes = uniq;
         }
         const tournament = await prisma.tournament.create({
             data: {
@@ -643,6 +656,7 @@ export const createTournament = async (req, res, next) => {
                 status: pollEnabled === true ? 'POLL' : 'OPEN',
                 pollEndDate: pollEnabled === true ? new Date(pollEndDate) : null,
                 pollEndTime: pollEnabled === true ? (pollEndTime || null) : null,
+                pollTypes: validPollTypes,
                 category,
                 subCategory,
                 description: description || null,
@@ -755,13 +769,14 @@ export const voteTournamentType = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { type } = req.body;
-        if (type !== '1' && type !== '2') {
-            return res.status(400).json({ message: 'Geçersiz tür seçimi.' });
-        }
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.status !== 'POLL') {
             return res.status(400).json({ message: 'Bu turnuvada aktif bir anket yok.' });
+        }
+        const pollTypes = Array.isArray(tournament.pollTypes) ? tournament.pollTypes : [];
+        if (!pollTypes.includes(type)) {
+            return res.status(400).json({ message: 'Geçersiz tür seçimi.' });
         }
         await prisma.tournamentTypeVote.upsert({
             where: { tournamentId_userId: { tournamentId: id, userId: req.userId } },
@@ -774,8 +789,7 @@ export const voteTournamentType = async (req, res, next) => {
             _count: { id: true },
         });
         res.json({
-            votes1: tallies.find(x => x.votedType === '1')?._count.id || 0,
-            votes2: tallies.find(x => x.votedType === '2')?._count.id || 0,
+            votes: Object.fromEntries(pollTypes.map(tp => [tp, tallies.find(x => x.votedType === tp)?._count.id || 0])),
             myVote: type,
         });
         // Anketi görüntüleyen herkese canlı güncelleme — sabit bir katılımcı listesi

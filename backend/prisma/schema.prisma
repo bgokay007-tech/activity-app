@@ -520,7 +520,7 @@ model City {
 model Tournament {
   id             String       @id @default(uuid())
   name           String
-  type           String?      @default("mix_double") // mix_double | singles | team — anket açıksa (status=POLL) anket kapanana kadar null
+  type           String?      @default("mix_double") // '1'..'8' (bkz. TOURN_TYPES) — anket açıksa (status=POLL) anket kapanana kadar null
   category       CategoryType
   subCategory    String
   description    String?
@@ -562,6 +562,7 @@ model Tournament {
   endDate        DateTime?
   pollEndDate    DateTime?    // anket bitiş tarihi (tür anketi açıksa)
   pollEndTime    String?      // anket bitiş saati, örn. "18:00"
+  pollTypes      Json?        // anket açıksa, oylamaya sunulan tür ID'leri, ör. ["1","2"] — turnuvayı açan kişi seçer
   status         String       @default("OPEN")  // OPEN | IN_PROGRESS | COMPLETED | CANCELLED | POLL
   creatorId      String
   rules          Json?        @default("[]") // seçili kural ID'leri örn. [1, 2, 3]
@@ -663,7 +664,7 @@ model TournamentTypeVote {
   id           String   @id @default(uuid())
   tournamentId String
   userId       String
-  votedType    String   // '1' | '2'
+  votedType    String   // Tournament.pollTypes içindeki tür ID'lerinden biri, ör. '1'..'8'
   createdAt    DateTime @default(now())
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
