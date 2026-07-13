@@ -2102,7 +2102,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 'MANUAL':       '✋ Manuel Onay',
                             };
                             const PAY_ICONS = { CASH: '💵', EFT: '🏦', ONLINE: '🌐', CREDIT_CARD: '💳' };
-                            const PAY_NAMES = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kredi Kartı' };
+                            const PAY_NAMES = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kortta Kredi Kartı' };
                             const policyLabel = (v) => v === null || v === undefined ? 'Her zaman' : v === -1 ? 'Asla' : `${v} saat öncesi`;
 
                             const approvalMode   = venue.approvalMode || 'FULL_AUTO';
@@ -3893,7 +3893,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     { key: 'CASH',        label: '💵 Nakit / Kortta' },
                                     { key: 'EFT',         label: '🏦 EFT / Havale' },
                                     { key: 'ONLINE',      label: '🌐 Online Ödeme' },
-                                    { key: 'CREDIT_CARD', label: '💳 Kredi Kartı' },
+                                    { key: 'CREDIT_CARD', label: '💳 Kortta Kredi Kartı' },
                                 ].map(m => {
                                     const isActive = localAcceptedPayments.includes(m.key);
                                     return (
@@ -3925,7 +3925,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             {localAcceptedPayments.map(m => (
                                 <View key={m} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                                     <Text style={{ color: '#aaa', fontSize: 13, flex: 1 }}>
-                                        {{ CASH: '💵 Nakit', EFT: '🏦 EFT', ONLINE: '🌐 Online', CREDIT_CARD: '💳 Kredi Kartı' }[m] || m}
+                                        {{ CASH: '💵 Nakit', EFT: '🏦 EFT', ONLINE: '🌐 Online', CREDIT_CARD: '💳 Kortta Kredi Kartı' }[m] || m}
                                     </Text>
                                     <TextInput
                                         style={{ width: 90, backgroundColor: '#ffffff0a', borderRadius: 8,
