@@ -2147,6 +2147,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         {(venue.courts || []).length > 0 && (() => {
                             const SLOT_SHORT = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk', VAR_DURATION: 'Esnek', FLEXIBLE: 'Esnek' };
                             const SURF_ICON  = { CLAY: '🟤', HARD: '⬜', CARPET: '🟥', GRASS: '🌿', PARQUET: '🟫', SYNTHETIC: '🟩' };
+                            const SURF_LABEL = { CLAY: 'Toprak', HARD: 'Sert Zemin', CARPET: 'Halı Saha', GRASS: 'Çim', PARQUET: 'Parke', SYNTHETIC: 'Sentetik' };
                             return (
                                 <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 }}>
                                     <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 8 }}>KORTLAR</Text>
@@ -2157,9 +2158,9 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         return (
                                             <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#ffffff08', gap: 6 }}>
                                                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', flex: 1 }}>{c.name}</Text>
-                                                {c.surface ? <Text style={{ fontSize: 11 }}>{SURF_ICON[c.surface] || ''}</Text> : null}
+                                                {c.surface ? <Text style={{ color: '#ddd', fontSize: 10 }}>{SURF_ICON[c.surface] || ''} {SURF_LABEL[c.surface] || c.surface}</Text> : null}
                                                 <Text style={{ color: '#a78bfa', fontSize: 10, backgroundColor: '#a78bfa15', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>{SLOT_SHORT[slotT] || slotT}</Text>
-                                                <Text style={{ color: effIndoor ? '#818cf8' : '#22d3ee', fontSize: 10 }}>{effIndoor ? '🏠' : '🌤️'}</Text>
+                                                <Text style={{ color: effIndoor ? '#818cf8' : '#22d3ee', fontSize: 10 }}>{effIndoor ? '🏠 Kapalı' : '🌤️ Açık'}</Text>
                                                 {price > 0 ? <Text style={{ color: '#fbbf24', fontSize: 10 }}>💰{price}₺</Text> : null}
                                             </View>
                                         );
