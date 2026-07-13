@@ -1,6 +1,6 @@
 ﻿import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
-import { emitToUser } from '../config/socket.js';
+import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
@@ -778,6 +778,9 @@ export const voteTournamentType = async (req, res, next) => {
             votes2: tallies.find(x => x.votedType === '2')?._count.id || 0,
             myVote: type,
         });
+        // Anketi görüntüleyen herkese canlı güncelleme — sabit bir katılımcı listesi
+        // olmadığı için (herkes oy verebilir) rivalUpdate ile aynı desende global broadcast.
+        broadcast('tournament:vote_updated', { tournamentId: id });
     } catch (e) { next(e); }
 };
 

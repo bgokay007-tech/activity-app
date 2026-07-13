@@ -3531,9 +3531,14 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
     // bastığında (submit() içinde) yapılır; böylece ilan yarım kalırsa kort boşta kalmaz.
     // Yapılandırılmış (FULL_HOUR/HALF_HOUR/NINETY_MIN) slotlarda bir slotun fiyatı
     // eksikse (venue.pricePerSlot'tan hesaplanan) tekli seçimdeki mevcut mantıkla aynı.
-    const priceForSlot = (s) => (s.price != null && s.price > 0)
-        ? s.price
-        : (venue?.pricePerSlot ? Math.round(((toM(s.end) - toM(s.start)) / 60) * venue.pricePerSlot) : 0);
+    const applyPayDelta = (base) => Math.max(0, (base || 0) + (venue?.paymentPriceDeltas?.[payMethod] || 0));
+    const priceForSlot = (s) => {
+        if (s.priceByMethod?.[payMethod] != null) return s.priceByMethod[payMethod];
+        const base = (s.price != null && s.price > 0)
+            ? s.price
+            : (venue?.pricePerSlot ? Math.round(((toM(s.end) - toM(s.start)) / 60) * venue.pricePerSlot) : 0);
+        return applyPayDelta(base);
+    };
 
     const confirmBooking = () => {
         if (!selSlot) return;
@@ -3551,7 +3556,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
         const courtTotalPrice = isStructured
             ? (rangeSlots || [slot]).reduce((sum, s) => sum + priceForSlot(s), 0)
-            : (slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0));
+            : (slot.priceByMethod?.[payMethod] != null ? slot.priceByMethod[payMethod]
+                : applyPayDelta(slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0)));
         const effectiveIndoor = activeCourt?.indoor ?? venue?.courtIndoorDefault ?? false;
         const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, surface: activeCourt?.surface || null, indoor: effectiveIndoor };
         onBooked?.(courtObj, selDate, slot.start, endTime, payMethod);
@@ -5397,6 +5403,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     // Real-time: tournament started by creator → refresh card so Maçlar butonu görünsün
     useEffect(() => {
         const off = onSocket('tournament:started', ({ tournamentId }) => {
+            if (tournamentId !== item.id) return;
+            onUpdated?.();
+        });
+        return off;
+    }, [item.id]);
+
+    // Real-time: ankette biri oy verdi → oy sayılarını canlı güncelle
+    useEffect(() => {
+        const off = onSocket('tournament:vote_updated', ({ tournamentId }) => {
             if (tournamentId !== item.id) return;
             onUpdated?.();
         });
@@ -8823,10 +8838,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
-    const [tournSubTab, setTournSubTab] = useState(['open','inprogress','poll'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
+    const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
 
     useEffect(() => {
-        if (['open','inprogress','poll'].includes(route.params?.initialTournSubTab)) {
+        if (['open','inprogress'].includes(route.params?.initialTournSubTab)) {
             setTournSubTab(route.params.initialTournSubTab);
         }
     }, [route.params?.initialTournSubTab]);
@@ -8886,7 +8901,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!openChatTournamentId || tournaments.length === 0) return;
         const target = tournaments.find(tn => tn.id === openChatTournamentId);
         if (target) {
-            setTournSubTab(target.status === 'OPEN' ? 'open' : 'inprogress');
+            setTournSubTab((target.status === 'OPEN' || target.status === 'POLL') ? 'open' : 'inprogress');
         }
     }, [openChatTournamentId, tournaments]);
 
@@ -8895,7 +8910,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!openMatchTournamentId || tournaments.length === 0) return;
         const target = tournaments.find(tn => tn.id === openMatchTournamentId);
         if (target) {
-            setTournSubTab(target.status === 'OPEN' ? 'open' : 'inprogress');
+            setTournSubTab((target.status === 'OPEN' || target.status === 'POLL') ? 'open' : 'inprogress');
         }
     }, [openMatchTournamentId, tournaments]);
 
@@ -10131,9 +10146,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── TOURNAMENTS ── */}
                     {activeTab === 'tournaments' && (() => {
                         const inProgress = filteredTournaments.filter(t => t.status === 'IN_PROGRESS');
-                        const open = filteredTournaments.filter(t => t.status === 'OPEN');
-                        const polling = filteredTournaments.filter(t => t.status === 'POLL');
-                        const shown = tournSubTab === 'open' ? open : tournSubTab === 'inprogress' ? inProgress : polling;
+                        // Anket aşamasındaki turnuvalar (status=POLL) ayrı bir sekmede değil,
+                        // doğrudan Açık İlanlar içinde gösterilir — kart üzerindeki oylama
+                        // paneli zaten status'e göre kendini gösteriyor.
+                        const open = filteredTournaments.filter(t => t.status === 'OPEN' || t.status === 'POLL');
+                        const shown = tournSubTab === 'open' ? open : inProgress;
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -10171,7 +10188,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                     {[
                                         { key:'open',       label: t.tournOpenTab,       count: open.length },
-                                        { key:'poll',       label: t.tournPollTab,       count: polling.length },
                                         { key:'inprogress', label: t.tournInProgressTab, count: inProgress.length },
                                     ].map(st => (
                                         <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
@@ -10190,7 +10206,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (<>
                                         {shown.map(renderCard)}
                                         {shown.length === 0 && (
-                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : tournSubTab === 'inprogress' ? t.emptyTournInProgress : t.emptyTournPoll} />
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : t.emptyTournInProgress} />
                                         )}
                                     </>)
                                 }
