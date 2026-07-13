@@ -130,14 +130,17 @@ function getSlotPrice(venue, court, startTime, durationMins = 60) {
 
 const PAYMENT_METHODS = ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'];
 
-function applyPaymentDelta(basePrice, paymentDeltas, method) {
-    const d = parseInt(paymentDeltas?.[method]) || 0;
-    return Math.max(0, basePrice + d);
+// paymentDeltas[method] o yöntemle ödendiğinde saat başı geçerli olacak NİHAİ fiyattır
+// (kuralın taban fiyatına eklenen bir fark değil) — boşsa taban fiyat (basePricePerHour) kullanılır.
+function applyPaymentDelta(basePricePerHour, paymentDeltas, method, durationMins = 60) {
+    const raw = paymentDeltas?.[method];
+    const perHour = (raw != null && !isNaN(parseInt(raw))) ? Math.max(0, parseInt(raw)) : basePricePerHour;
+    return Math.round(perHour * (durationMins / 60));
 }
 
-function buildPriceByMethod(paymentDeltas, basePrice) {
+function buildPriceByMethod(paymentDeltas, basePricePerHour, durationMins = 60) {
     const out = {};
-    for (const m of PAYMENT_METHODS) out[m] = applyPaymentDelta(basePrice, paymentDeltas, m);
+    for (const m of PAYMENT_METHODS) out[m] = applyPaymentDelta(basePricePerHour, paymentDeltas, m, durationMins);
     return out;
 }
 
@@ -397,7 +400,7 @@ export const getVenueSlots = async (req, res, next) => {
             const dur = s.start && s.end ? toMins(s.end) - toMins(s.start) : 60;
             const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, s.start);
             const base = Math.round(basePrice * (dur / 60));
-            return { ...s, price: base, priceByMethod: buildPriceByMethod(paymentDeltas, base) };
+            return { ...s, price: base, priceByMethod: buildPriceByMethod(paymentDeltas, basePrice, dur) };
         });
         // VAR_DURATION pencereleri için: saatlik baz fiyat döndür, frontend seçilen süreyle çarpar
         const addWindowPrice = arr => (arr || []).map(s => {

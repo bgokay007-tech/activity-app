@@ -3515,7 +3515,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     {rule.paymentDeltas && Object.keys(rule.paymentDeltas).length > 0 && (
                                         <Text style={{ color: '#7dd3fc', fontSize: 10, marginTop: 2 }}>
                                             {Object.entries(rule.paymentDeltas).map(([m, v]) =>
-                                                `${{ CASH: '💵', EFT: '🏦', ONLINE: '🌐', CREDIT_CARD: '💳' }[m] || m} ${v > 0 ? '+' : ''}${v}₺`
+                                                `${{ CASH: '💵', EFT: '🏦', ONLINE: '🌐', CREDIT_CARD: '💳' }[m] || m} ${v}₺`
                                             ).join('  ')}
                                         </Text>
                                     )}
@@ -3603,14 +3603,14 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     <TouchableOpacity onPress={() => setShowPaymentDeltas(v => !v)}
                                         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                                         <Text style={{ color: '#666', fontSize: 11, fontWeight: '700' }}>
-                                            💳 Ödeme Yöntemine Göre Fark (opsiyonel)
+                                            💳 Ödeme Yöntemine Göre Fiyat (opsiyonel)
                                         </Text>
                                         <Text style={{ color: BIZ_LIGHT, fontSize: 12 }}>{showPaymentDeltas ? '▲' : '▼'}</Text>
                                     </TouchableOpacity>
                                     {showPaymentDeltas && (
                                         <View style={{ marginTop: 8 }}>
                                             <Text style={{ color: '#555', fontSize: 10, marginBottom: 8, lineHeight: 14 }}>
-                                                Bu kuralın fiyatına ödeme yöntemine göre eklenecek/çıkarılacak sabit TL (boş = fark yok).
+                                                Bu yöntemle ödendiğinde saat başı geçerli olacak NİHAİ fiyat (yukarıdaki fiyata eklenmez, onun yerine geçer). Boş = yukarıdaki fiyat geçerli.
                                             </Text>
                                             {localAcceptedPayments.map(m => (
                                                 <View key={m} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
