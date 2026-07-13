@@ -2126,7 +2126,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 ...(hasPricingWins ? [{ label: `📊 ${venue.pricingWindows.length} fiyat dilimi`, color: '#fbbf24' }] : []),
                                 ...(contactCount > 0 ? [{ label: `📞 ${contactCount} iletişim`, color: '#60a5fa' }] : []),
                                 ...(lightsFrom ? [{ label: `💡 Işık: ${lightsFrom}`, color: '#fbbf24' }] : []),
-                                { label: venue.courtIndoorDefault ? '🏠 Kapalı Alan' : '🌤️ Açık Alan', color: venue.courtIndoorDefault ? '#818cf8' : '#22d3ee' },
+                                { label: globalIndoor ? '🏠 Kapalı Alan' : '🌤️ Açık Alan', color: globalIndoor ? '#818cf8' : '#22d3ee' },
                             ];
 
                             return (
@@ -2153,12 +2153,14 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 8 }}>KORTLAR</Text>
                                     {(venue.courts || []).map(c => {
                                         const slotT  = c.slotType || venue.slotType || 'FULL_HOUR';
-                                        const effIndoor = c.indoor ?? venue.courtIndoorDefault ?? false;
+                                        const surface = courtSurfaces[c.id] !== undefined ? courtSurfaces[c.id] : c.surface;
+                                        const courtIndoor = courtIndoors[c.id] !== undefined ? courtIndoors[c.id] : c.indoor;
+                                        const effIndoor = courtIndoor ?? globalIndoor ?? venue.courtIndoorDefault ?? false;
                                         const price  = c.pricePerSlot != null ? c.pricePerSlot : venue.pricePerSlot;
                                         return (
                                             <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#ffffff08', gap: 6 }}>
                                                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', flex: 1 }}>{c.name}</Text>
-                                                {c.surface ? <Text style={{ color: '#ddd', fontSize: 10 }}>{SURF_ICON[c.surface] || ''} {SURF_LABEL[c.surface] || c.surface}</Text> : null}
+                                                {surface ? <Text style={{ color: '#ddd', fontSize: 10 }}>{SURF_ICON[surface] || ''} {SURF_LABEL[surface] || surface}</Text> : null}
                                                 <Text style={{ color: '#a78bfa', fontSize: 10, backgroundColor: '#a78bfa15', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>{SLOT_SHORT[slotT] || slotT}</Text>
                                                 <Text style={{ color: effIndoor ? '#818cf8' : '#22d3ee', fontSize: 10 }}>{effIndoor ? '🏠 Kapalı' : '🌤️ Açık'}</Text>
                                                 {price > 0 ? <Text style={{ color: '#fbbf24', fontSize: 10 }}>💰{price}₺</Text> : null}
