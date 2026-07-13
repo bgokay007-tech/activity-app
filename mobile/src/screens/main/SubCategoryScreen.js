@@ -1552,8 +1552,11 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     const [form, setForm] = useState({});
     const [saving, setSaving] = useState(false);
     const [calVisible, setCalVisible] = useState(false);
+    const [searching, setSearching] = useState(false);
+    const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null });
     const isTennisPadel = item?.subCategory === 'tennis' || item?.subCategory === 'padel';
     const isDouble = item?.matchType === 'DOUBLE';
+    const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
     useEffect(() => {
         if (visible && item) {
@@ -1570,22 +1573,151 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                 partnerGenderReq: item.partnerGenderReq || 'MIX',
                 opp1GenderReq: item.opp1GenderReq || 'MIX',
                 opp2GenderReq: item.opp2GenderReq || 'MIX',
+                // Kort — CreateRivalModal ile aynı alan adları
+                courtSearchText: item.courtName || '',
+                courtResults: [],
+                selectedCourt: item.courtName ? { id: null, name: item.courtName, venueName: item.venueId ? item.courtName : undefined, city: item.location || '' } : null,
+                showManualCourt: false, manualCourtName: '', manualCity: item.location || '', manualAddress: item.courtAddress || '',
+                courtFeePerPerson: item.courtFeePerPerson != null ? String(item.courtFeePerPerson) : '',
+                venueId: item.venueId || null,
+                venueCourtId: item.venueCourtId || null,
+                reservationId: item.venueReservationId || null,
+                venueReservationId: item.venueReservationId || null,
+                reservationEndTime: null,
+                venuePayMethod: 'CASH',
+                surface: item.surface || '',
+                venueType: item.indoor != null ? (item.indoor ? 'INDOOR' : 'OUTDOOR') : '',
+                courtReserved: item.isCourtReserved || false,
             });
         }
     }, [visible, item?.id]);
 
+    const searchCourts = (text) => {
+        set('courtSearchText', text);
+        set('selectedCourt', null);
+    };
+
+    useEffect(() => {
+        const text = form.courtSearchText;
+        if (!visible || form.selectedCourt) return;
+        if (!text || text.length < 2) { set('courtResults', []); setSearching(false); return; }
+        setSearching(true);
+        const task = setTimeout(async () => {
+            try {
+                const { data } = await api.get('/courts/search', { params: { q: text, sport: item?.subCategory } });
+                const raw = Array.isArray(data) ? data : [];
+                const seenVenues = new Set();
+                const deduped = [];
+                for (const c of raw) {
+                    if (c.isBusinessVenue && c.venueId) {
+                        if (seenVenues.has(c.venueId)) continue;
+                        seenVenues.add(c.venueId);
+                        deduped.push({ ...c, name: c.venueName || c.name });
+                    } else {
+                        deduped.push(c);
+                    }
+                }
+                set('courtResults', deduped);
+            } catch { set('courtResults', []); }
+            finally { setSearching(false); }
+        }, 350);
+        return () => clearTimeout(task);
+    }, [form.courtSearchText, form.selectedCourt, visible]);
+
+    const selectCourt = (court) => {
+        if (court.isBusinessVenue) {
+            setVenueBooking({ visible: true, venueId: court.venueId, initialCourtId: court.courtId });
+            set('courtResults', []);
+            return;
+        }
+        setForm(p => ({
+            ...p,
+            selectedCourt: court,
+            courtSearchText: court.name,
+            courtResults: [],
+            showManualCourt: false,
+            manualCity: court.city || '',
+            surface: court.surface || p.surface,
+            venueType: court.venueType || p.venueType,
+        }));
+    };
+
+    const deselectCourt = () => {
+        setForm(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null, courtReserved: false }));
+    };
+
+    const cancelCourt = async () => {
+        if (!form.reservationId) { deselectCourt(); return; }
+        Alert.alert(
+            'Rezervasyonu İptal Et',
+            'Bu kort rezervasyonunu tamamen iptal etmek istediğinizden emin misiniz? Bu işlem geri alınamaz.',
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'İptal Et', style: 'destructive', onPress: async () => {
+                    try {
+                        await api.delete(`/venues/reservations/${form.reservationId}`);
+                        deselectCourt();
+                    } catch (e) {
+                        Alert.alert('İptal Edilemiyor', e?.response?.data?.message || 'Rezervasyon iptal edilemedi');
+                    }
+                }},
+            ]
+        );
+    };
+
+    const changeCourt = async () => {
+        const vid = form.venueId;
+        if (form.reservationId) {
+            try {
+                await api.delete(`/venues/reservations/${form.reservationId}`);
+            } catch (e) {
+                Alert.alert('Değiştirilemiyor', e?.response?.data?.message || 'Mevcut rezervasyon iptal edilemedi');
+                return;
+            }
+        }
+        setForm(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueCourtId: null }));
+        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: null });
+    };
+
+    const visibleCourtResults = form.courtResults || [];
+
     const handleSave = async () => {
         setSaving(true);
         try {
+            let venueReservationId = form.venueReservationId || null;
+            const reservingNow = !!(form.venueId && form.venueCourtId && !venueReservationId);
+            if (reservingNow) {
+                const matchDateStr = form.matchDate
+                    ? `${form.matchDate.getFullYear()}-${String(form.matchDate.getMonth()+1).padStart(2,'0')}-${String(form.matchDate.getDate()).padStart(2,'0')}`
+                    : undefined;
+                try {
+                    const resResp = await api.post(`/venues/${form.venueId}/courts/${form.venueCourtId}/reserve`, {
+                        date: matchDateStr, startTime: form.matchTime || undefined,
+                        endTime: form.reservationEndTime || undefined, paymentMethod: form.venuePayMethod || 'CASH',
+                    });
+                    venueReservationId = resResp.data?.reservation?.id || null;
+                } catch (e) {
+                    setSaving(false);
+                    Alert.alert('Hata', e?.response?.data?.message || 'Kort rezerve edilemedi. Seçtiğiniz saat dolmuş olabilir, lütfen başka bir saat seçin.');
+                    return;
+                }
+            }
             await api.patch(`/rivals/${item.id}`, {
                 message:   form.message   || null,
                 matchDate: form.matchDate ? form.matchDate.toISOString() : null,
                 matchTime: form.matchTime || null,
                 location:  form.location  || null,
-                courtName: form.courtName || null,
+                courtName: form.selectedCourt ? (form.selectedCourt.venueName || form.selectedCourt.name) : (form.showManualCourt ? form.manualCourtName : null) || form.courtSearchText || null,
+                courtAddress: form.manualAddress || undefined,
                 minRating: form.minRating !== '' ? form.minRating : null,
                 maxRating: form.maxRating !== '' ? form.maxRating : null,
                 matchMode: form.matchMode || 'FREE',
+                venueId: form.venueId || null,
+                venueCourtId: form.venueCourtId || null,
+                venueReservationId,
+                isCourtReserved: form.courtReserved,
+                surface: form.surface || null,
+                courtFeePerPerson: form.courtFeePerPerson !== '' ? form.courtFeePerPerson : null,
                 ...(isTennisPadel && { genderReq: form.genderReq }),
                 ...(isTennisPadel && isDouble && { partnerGenderReq: form.partnerGenderReq, opp1GenderReq: form.opp1GenderReq, opp2GenderReq: form.opp2GenderReq }),
             });
@@ -1599,6 +1731,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     };
 
     return (
+        <>
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: colors.bg }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -1647,14 +1780,138 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         inputStyle={{ borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9, fontSize: 14 }}
                     />
 
-                    <Text style={s.fieldLabel}>🏟️ Saha Adı</Text>
-                    <TextInput
-                        style={s.fieldInput}
-                        value={form.courtName}
-                        onChangeText={v => setForm(f => ({ ...f, courtName: v }))}
-                        placeholder="Saha adı girin..."
-                        placeholderTextColor={colors.textMuted}
-                    />
+                    <Text style={s.fieldLabel}>{t.courtLabel}</Text>
+                    <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                        <TextInput
+                            style={[s.fieldInput, { flex:1, marginBottom:0 }]}
+                            value={form.courtSearchText}
+                            onChangeText={searchCourts}
+                            placeholder={t.courtSearchPlaceholder}
+                            placeholderTextColor={colors.textMuted}
+                        />
+                        {searching && <ActivityIndicator color={colors.purple} style={{ alignSelf:'center' }} />}
+                    </View>
+
+                    {/* DB Sonuçları */}
+                    {visibleCourtResults.length > 0 && !form.selectedCourt && (
+                        <View style={s.courtResultsBox}>
+                            {visibleCourtResults.map(c => (
+                                c.isBusinessVenue ? (
+                                    <TouchableOpacity key={c.id}
+                                        style={{ padding:10, borderBottomWidth:1, borderBottomColor:colors.border, backgroundColor:'#9333ea08' }}
+                                        onPress={() => selectCourt(c)} activeOpacity={0.8}>
+                                        <View style={{ flexDirection:'row', alignItems:'flex-start', marginBottom:6 }}>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'900' }}>{c.name}</Text>
+                                                {c.description ? <Text style={{ color:colors.textMuted, fontSize:11, marginTop:2 }}>{c.description}</Text> : null}
+                                                {c.city ? <Text style={{ color:colors.textMuted, fontSize:11, marginTop:1 }}>📍 {c.city}</Text> : null}
+                                            </View>
+                                            <Text style={{ color:'#c084fc', fontSize:20, fontWeight:'300' }}>›</Text>
+                                        </View>
+                                        <View style={{ flexDirection:'row', gap:5 }}>
+                                            <View style={{ backgroundColor:'#9333ea20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
+                                                <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>🏢 PRO Tesis</Text>
+                                            </View>
+                                            <View style={{ backgroundColor:'#22c55e20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#22c55e40' }}>
+                                                <Text style={{ color:'#22c55e', fontSize:10, fontWeight:'700' }}>📅 Rezerve Et</Text>
+                                            </View>
+                                        </View>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity key={c.id} style={s.courtResultRow} onPress={() => selectCourt(c)}>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={s.courtResultName}>{c.name}</Text>
+                                            {c.city && <Text style={s.courtResultCity}>{c.city}</Text>}
+                                        </View>
+                                        {c.verified && <Text style={{ color:'#4ade80', fontSize:11 }}>{t.courtVerified}</Text>}
+                                    </TouchableOpacity>
+                                )
+                            ))}
+                            <TouchableOpacity
+                                style={[s.courtResultRow, { borderBottomWidth:0, backgroundColor:'#a855f710' }]}
+                                onPress={() => setForm(p => ({ ...p, courtResults:[], showManualCourt:true, manualCourtName: p.courtSearchText }))}
+                            >
+                                <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'700', flex:1 }}>
+                                    {t.useThisName(form.courtSearchText)}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* Seçilen kort */}
+                    {form.selectedCourt && (
+                        <View style={s.selectedCourtBox}>
+                            <View style={{ flex:1 }}>
+                                <Text style={s.selectedCourtText}>✅ {form.selectedCourt.venueName || form.selectedCourt.name}</Text>
+                                {form.venueId && form.matchDate && (
+                                    <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>
+                                        📅 {form.matchDate.toLocaleDateString('tr-TR')} · {form.matchTime}{form.reservationEndTime ? `–${form.reservationEndTime}` : ''}{form.selectedCourt.totalPrice ? `  💰 ${form.selectedCourt.totalPrice}₺` : ''}
+                                    </Text>
+                                )}
+                            </View>
+                            <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', justifyContent:'flex-end', marginTop:4 }}>
+                                <TouchableOpacity
+                                    onPress={deselectCourt}
+                                    style={{ backgroundColor:'#ffffff12', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ffffff25' }}>
+                                    <Text style={{ color:'#aaa', fontSize:11, fontWeight:'700' }}>↩ Vazgeç</Text>
+                                </TouchableOpacity>
+                                {form.venueId && (
+                                    <TouchableOpacity
+                                        onPress={changeCourt}
+                                        style={{ backgroundColor:'#3b82f620', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#3b82f650' }}>
+                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>🔄 Değiştir</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {form.reservationId && (
+                                    <TouchableOpacity
+                                        onPress={cancelCourt}
+                                        style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ef444450' }}>
+                                        <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>🗑 Sil</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Kort bulunamadı → Manuel giriş */}
+                    {!form.selectedCourt && form.courtSearchText?.length >= 2 && visibleCourtResults.length === 0 && !searching && (
+                        <TouchableOpacity style={s.addCourtBtn} onPress={() => set('showManualCourt', !form.showManualCourt)}>
+                            <Text style={s.addCourtBtnText}>
+                                {form.showManualCourt ? t.closeCourt : t.addCityAddress(form.courtSearchText)}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Manuel kort girişi */}
+                    {!form.selectedCourt && form.showManualCourt && (
+                        <View style={s.manualCourtBox}>
+                            <Text style={s.manualCourtNote}>{t.courtSubmitNote}</Text>
+                            <TextInput style={s.fieldInput} value={form.manualCourtName}
+                                onChangeText={v => set('manualCourtName', v)}
+                                placeholder={t.manualCourtLabel} placeholderTextColor={colors.textMuted} />
+                            <TextInput style={s.fieldInput} value={form.manualCity}
+                                onChangeText={v => set('manualCity', v)}
+                                placeholder={t.manualCityLabel} placeholderTextColor={colors.textMuted} />
+                            <TextInput style={s.fieldInput} value={form.manualAddress}
+                                onChangeText={v => set('manualAddress', v)}
+                                placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} />
+                        </View>
+                    )}
+
+                    {/* Kişi Başı Kort Ücreti */}
+                    {(form.selectedCourt || (form.courtSearchText?.length >= 2) || (form.showManualCourt && form.manualCourtName)) && (
+                        <View style={{ marginBottom:10 }}>
+                            <Text style={s.fieldLabel}>{t.courtFeeLabel}</Text>
+                            <TextInput
+                                style={s.fieldInput}
+                                value={form.courtFeePerPerson}
+                                onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
+                                placeholder={t.courtFeePh}
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="numeric"
+                            />
+                        </View>
+                    )}
 
                     <Text style={s.fieldLabel}>💬 Mesaj</Text>
                     <TextInput
@@ -1748,6 +2005,37 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                 />
             </View>
         </Modal>
+        <VenueBookingModal
+            visible={venueBooking.visible}
+            venueId={venueBooking.venueId}
+            initialCourtId={venueBooking.initialCourtId}
+            onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null })}
+            onBooked={(court, date, startTime, endTime, payMethod) => {
+                const toMin = (tm) => { const [h, m] = tm.split(':').map(Number); return h * 60 + m; };
+                const durMins = (startTime && endTime) ? toMin(endTime) - toMin(startTime) : 0;
+                setForm(p => ({
+                    ...p,
+                    selectedCourt: court,
+                    courtSearchText: court.venueName || '',
+                    courtResults: [],
+                    matchDate: new Date(date + 'T12:00:00'),
+                    matchTime: startTime,
+                    reservationEndTime: endTime || null,
+                    venueId: court.venueId || null,
+                    venueCourtId: court.courtId || null,
+                    reservationId: null,
+                    venueReservationId: null,
+                    venuePayMethod: payMethod || 'CASH',
+                    courtReserved: true,
+                    courtFeePerPerson: court.totalPrice > 0
+                        ? String(Math.round(court.totalPrice / (isDouble ? 4 : 2)))
+                        : p.courtFeePerPerson,
+                    surface: court.surface || p.surface,
+                    venueType: court.indoor != null ? (court.indoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
+                }));
+            }}
+        />
+        </>
     );
 }
 
@@ -3945,25 +4233,21 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                         )}
                                         <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
                                         <View style={vb.payRow}>
-                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['CREDIT_CARD','💳 Kortta Kredi Kartı'],['ONLINE','🌐 Online']].filter(([m]) => {
-                                                if (m === 'ONLINE' || m === 'CREDIT_CARD') {
+                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['CREDIT_CARD','💳 Kortta Kredi Kartı'],['ONLINE','🌐 Online (Bakımda)']].filter(([m]) => {
+                                                if (m === 'CREDIT_CARD') {
                                                     const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : [];
                                                     return acc.includes(m);
                                                 }
-                                                return true; // CASH ve EFT her zaman göster
+                                                return true; // CASH, EFT ve ONLINE (bakımda) her zaman göster
                                             }).map(([m, label]) => (
                                                 <TouchableOpacity key={m}
-                                                    style={[vb.payBtn, payMethod===m && vb.payBtnSel]}
-                                                    onPress={() => setPayMethod(m)}>
+                                                    disabled={m === 'ONLINE'}
+                                                    style={[vb.payBtn, payMethod===m && vb.payBtnSel, m === 'ONLINE' && { opacity:0.5 }]}
+                                                    onPress={() => m !== 'ONLINE' && setPayMethod(m)}>
                                                     <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
-                                        {payMethod === 'ONLINE' && (
-                                            <View style={vb.ibanBox}>
-                                                <Text style={[vb.ibanRow, { color:'#a78bfa' }]}>💳 Online ödeme yakında aktif olacak.</Text>
-                                            </View>
-                                        )}
                                         {payMethod === 'EFT' && (
                                             <View style={vb.ibanBox}>
                                                 {(venue?.businessIban || venue?.user?.businessIban) ? (
@@ -6544,7 +6828,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 </TouchableOpacity>
                                                             )}
                                                             {/* Joker butonu — Bireysel Rekabetçi (oyuncu), Çiftler Rekabetçi (takım) ve Bireysel Antrenman (oyuncu) */}
-                                                            {(item.type === '1' || item.type === '2' || item.type === '3') && isReady && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
+                                                            {(item.type === '1' || item.type === '2' || item.type === '3') && !item.dayTrip && isReady && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
                                                                 const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
                                                                 const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
                                                                 if (myJokerRequested) return null;
@@ -7559,7 +7843,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const INIT = {
         name: '', scope: 'YEREL', scopeCity: '', scopeDistrict: '', scopeCountry: '',
         type: '1', minPlayers: '', maxPlayers: '', minRating: '', maxRating: '',
-        matchmakingType: 'ELO', matchFrequency: 'FLEXIBLE', matchTimeStart: '', matchTimeEnd: '',
+        matchmakingType: 'ELO', matchFrequency: 'FLEXIBLE', matchTimeStart: '', matchTimeEnd: '', dayTrip: false,
         eventStartDate: null, eventStartTime: '',
         eventEndDate:   null, eventEndTime:   '',
         regEndDate: null, regEndTime: '',
@@ -7692,6 +7976,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 matchFrequency: f.matchFrequency || 'FLEXIBLE',
                 matchTimeStart: f.matchTimeStart || undefined,
                 matchTimeEnd: f.matchTimeEnd || undefined,
+                dayTrip: f.dayTrip,
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || undefined,
@@ -8120,7 +8405,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
 
                             {/* Tournament type — kendim seçerim / kullanıcılar oylasın */}
-                            <Text style={s.fieldLabel}>{t.tournTypeLabel}</Text>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                                <Text style={s.fieldLabel}>{t.tournTypeLabel}</Text>
+                                <TouchableOpacity
+                                    onPress={() => set('dayTrip', !f.dayTrip)}
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                    <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
+                                </TouchableOpacity>
+                            </View>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
@@ -8212,7 +8504,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
                                         'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
                                         'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
-                                    ].map((kural, i) => (
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
@@ -8228,13 +8520,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     {[
                                         'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken ELO puanı birbirine en yakın olanlarla eşleştirilerek takım yapılır. Tek kalan en düşük ELO puanlı oyuncu turnuvaya katılım sağlayamaz.',
                                         'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
-                                        'Takımların ELO puan ortalaması alınır ve play-off\'lara kadar kaç maç seçildiyse, her takım diğer her takımla en fazla bir kez eşleşecek şekilde, ortalama puanı en yakın olandan başlanarak her turda rakip eşleşmesi sağlanır.',
                                         'Her takımın 1 kez joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
                                         'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
+                                        'Takımların ELO puan ortalaması alınır ve play-off\'lara kadar kaç maç seçildiyse, her takım diğer her takımla en fazla bir kez eşleşecek şekilde, ortalama puanı en yakın olandan başlanarak her turda rakip eşleşmesi sağlanır.',
                                         'Play-off öncesi lig tablosunda puanı eşit olan takımlar varsa averaj (oynanan oyun oranı) dikkate alınır.',
                                         'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
                                         'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
-                                    ].map((kural, i) => (
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
@@ -8255,7 +8547,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
                                         'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
                                         'Oyuncular isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
-                                    ].map((kural, i) => (
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>

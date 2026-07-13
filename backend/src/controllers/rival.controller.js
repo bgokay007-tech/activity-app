@@ -405,8 +405,9 @@ export const updateRivalRequest = async (req, res, next) => {
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Bu ilanı düzenleme yetkiniz yok' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık ilanlar düzenlenebilir' });
 
-        const { message, matchDate, matchTime, location, courtName, courtAddress, minRating, maxRating, matchMode,
-                genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq } = req.body;
+        const { message, matchDate, matchTime, location, courtName, courtAddress, courtLat, courtLng,
+                minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
+                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson } = req.body;
 
         const updated = await prisma.activityRequest.update({
             where: { id },
@@ -417,6 +418,8 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(location !== undefined && { location }),
                 ...(courtName !== undefined && { courtName }),
                 ...(courtAddress !== undefined && { courtAddress }),
+                ...(courtLat !== undefined && { courtLat: courtLat !== null ? Number(courtLat) : null }),
+                ...(courtLng !== undefined && { courtLng: courtLng !== null ? Number(courtLng) : null }),
                 ...(minRating !== undefined && { minRating: minRating !== '' && minRating !== null ? parseFloat(minRating) : null }),
                 ...(maxRating !== undefined && { maxRating: maxRating !== '' && maxRating !== null ? parseFloat(maxRating) : null }),
                 ...(matchMode !== undefined && { matchMode: matchMode.toUpperCase() }),
@@ -424,6 +427,12 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(partnerGenderReq !== undefined && { partnerGenderReq }),
                 ...(opp1GenderReq !== undefined && { opp1GenderReq }),
                 ...(opp2GenderReq !== undefined && { opp2GenderReq }),
+                ...(venueId !== undefined && { venueId: venueId || null }),
+                ...(venueCourtId !== undefined && { venueCourtId: venueCourtId || null }),
+                ...(venueReservationId !== undefined && { venueReservationId: venueReservationId || null }),
+                ...(isCourtReserved !== undefined && { isCourtReserved: !!isCourtReserved }),
+                ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
+                ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
             },
             include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: 'PENDING' }, include: { user: { select: SENDER_SELECT } } } },
         });
