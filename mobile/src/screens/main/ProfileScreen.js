@@ -1519,6 +1519,16 @@ export default function ProfileScreen({ route, navigation }) {
     // Profil kartlarinin (Gonderiler/Reels/Arkadaslar/Aktiviteler) modal gorunumleri
     const [showPostsModal, setShowPostsModal] = useState(false);
     const [showReelsModal, setShowReelsModal] = useState(false);
+
+    // Medya görüntüleyici (yorumlar + beğenenler)
+    const [mediaViewerPost, setMediaViewerPost] = useState(null);
+    const [mediaViewerComments, setMediaViewerComments] = useState([]);
+    const [mediaCommentsHidden, setMediaCommentsHidden] = useState(false);
+    const [loadingMediaComments, setLoadingMediaComments] = useState(false);
+    const [likersModalOpen, setLikersModalOpen] = useState(false);
+    const [likersList, setLikersList] = useState([]);
+    const [likersHidden, setLikersHidden] = useState(false);
+    const [loadingLikers, setLoadingLikers] = useState(false);
     const [showFriendsListModal, setShowFriendsListModal] = useState(false);
     const [showActivitiesViewModal, setShowActivitiesViewModal] = useState(false);
     const [friendsList, setFriendsList] = useState([]);
@@ -1547,6 +1557,7 @@ export default function ProfileScreen({ route, navigation }) {
         reelsPrivacy: 'PUBLIC', reelsExclude: [],
         friendsListPrivacy: 'PUBLIC', friendsListExclude: [],
         activitiesPrivacy: 'PUBLIC', activitiesExclude: [],
+        likesCommentsPrivacy: 'PUBLIC', likesCommentsExclude: [],
         contactPhone: '', contactTelegram: '', contactEmail: '', contactInstagram: '',
         phonePrivacy: 'FRIENDS', phoneSelected: [],
         telegramPrivacy: 'FRIENDS', telegramSelected: [],
@@ -1863,6 +1874,8 @@ export default function ProfileScreen({ route, navigation }) {
                         friendsListExclude: p?.friendsListExclude || [],
                         activitiesPrivacy:  p?.activitiesPrivacy  || 'PUBLIC',
                         activitiesExclude:  p?.activitiesExclude  || [],
+                        likesCommentsPrivacy: p?.likesCommentsPrivacy || 'PUBLIC',
+                        likesCommentsExclude: p?.likesCommentsExclude || [],
                         contactPhone:    (() => {
                             const raw = p?.contactPhone || '';
                             if (raw) {
@@ -2312,6 +2325,29 @@ export default function ProfileScreen({ route, navigation }) {
             const { data } = await api.post('/users/me', { [key]: updated });
             setProfile(p => ({ ...p, ...data }));
         } catch (e) { console.warn(e?.message); }
+    };
+
+    const openMediaViewer = (p) => {
+        setMediaViewerPost(p);
+        setMediaViewerComments([]);
+        setMediaCommentsHidden(false);
+        setLoadingMediaComments(true);
+        api.get(`/posts/${p.id}/comments`)
+            .then(({ data }) => setMediaViewerComments(Array.isArray(data) ? data : []))
+            .catch(e => { if (e?.response?.status === 403) setMediaCommentsHidden(true); })
+            .finally(() => setLoadingMediaComments(false));
+    };
+
+    const openLikers = () => {
+        if (!mediaViewerPost) return;
+        setLikersModalOpen(true);
+        setLikersList([]);
+        setLikersHidden(false);
+        setLoadingLikers(true);
+        api.get(`/posts/${mediaViewerPost.id}/likes`)
+            .then(({ data }) => setLikersList(Array.isArray(data) ? data : []))
+            .catch(e => { if (e?.response?.status === 403) setLikersHidden(true); })
+            .finally(() => setLoadingLikers(false));
     };
 
     if (loading) {
@@ -3155,7 +3191,12 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.postsPrivacy)}</Text>
                                 </TouchableOpacity>
                             )}
-                            <TouchableOpacity onPress={() => setShowPostsModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                            {isOwnProfile && (
+                                <TouchableOpacity onPress={() => setPrivacyPickerField('likesComments')} style={{ marginLeft:10 }}>
+                                    <Text style={{ fontSize:18 }}>❤️{privacyEmoji(infoForm.likesCommentsPrivacy)}</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity onPress={() => setShowPostsModal(false)} style={{ marginLeft:10 }}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
                         {isOwnProfile && (
                             <TouchableOpacity
@@ -3170,14 +3211,14 @@ export default function ProfileScreen({ route, navigation }) {
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {posts.map(p => (
-                                        <View key={p.id} style={{ width:'31.5%', aspectRatio:1, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
+                                        <TouchableOpacity key={p.id} activeOpacity={0.85} onPress={() => openMediaViewer(p)} style={{ width:'31.5%', aspectRatio:1, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
                                             {p.imageUrl || p.videoUrl
                                                 ? <Image source={{ uri: p.imageUrl || p.videoUrl }} style={{ width:'100%', height:'100%' }} />
                                                 : <View style={{ flex:1, padding:3, justifyContent:'center' }}>
                                                     <Text style={{ color: colors.textSecondary, fontSize:10 }} numberOfLines={4}>{p.content}</Text>
                                                   </View>
                                             }
-                                        </View>
+                                        </TouchableOpacity>
                                     ))}
                                 </View>
                             )}
@@ -3197,7 +3238,12 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.reelsPrivacy)}</Text>
                                 </TouchableOpacity>
                             )}
-                            <TouchableOpacity onPress={() => setShowReelsModal(false)}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                            {isOwnProfile && (
+                                <TouchableOpacity onPress={() => setPrivacyPickerField('likesComments')} style={{ marginLeft:10 }}>
+                                    <Text style={{ fontSize:18 }}>❤️{privacyEmoji(infoForm.likesCommentsPrivacy)}</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity onPress={() => setShowReelsModal(false)} style={{ marginLeft:10 }}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
                         {isOwnProfile && (
                             <TouchableOpacity
@@ -3212,18 +3258,120 @@ export default function ProfileScreen({ route, navigation }) {
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {reels.map(r => (
-                                        <View key={r.id} style={{ width:'31.5%', aspectRatio:9/16, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
+                                        <TouchableOpacity key={r.id} activeOpacity={0.85} onPress={() => openMediaViewer(r)} style={{ width:'31.5%', aspectRatio:9/16, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
                                             {r.imageUrl || r.videoUrl
                                                 ? <Image source={{ uri: r.imageUrl || r.videoUrl }} style={{ width:'100%', height:'100%' }} />
                                                 : <View style={{ flex:1, padding:3, justifyContent:'center' }}>
                                                     <Text style={{ color: colors.textSecondary, fontSize:10 }} numberOfLines={4}>{r.content}</Text>
                                                   </View>
                                             }
-                                        </View>
+                                        </TouchableOpacity>
                                     ))}
                                 </View>
                             )}
                         </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Medya görüntüleyici (yorumlar + beğenenler) ── */}
+            <Modal visible={!!mediaViewerPost} animationType="fade" transparent onRequestClose={() => setMediaViewerPost(null)}>
+                <View style={{ flex:1, backgroundColor:'#000000ee' }}>
+                    <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop: Platform.OS === 'ios' ? 54 : 30, paddingHorizontal:17, paddingBottom:10 }}>
+                        {isOwnProfile ? (
+                            <TouchableOpacity onPress={() => setPrivacyPickerField('likesComments')}>
+                                <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.likesCommentsPrivacy)}</Text>
+                            </TouchableOpacity>
+                        ) : <View style={{ width:18 }} />}
+                        <TouchableOpacity onPress={() => setMediaViewerPost(null)}><Text style={{ color:'#fff', fontSize:22 }}>✕</Text></TouchableOpacity>
+                    </View>
+                    {mediaViewerPost && (
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex:1 }}>
+                            {(mediaViewerPost.imageUrl || mediaViewerPost.videoUrl) && (
+                                <Image source={{ uri: mediaViewerPost.imageUrl || mediaViewerPost.videoUrl }} style={{ width:'100%', aspectRatio:1, backgroundColor: colors.surface2 }} resizeMode="contain" />
+                            )}
+                            {mediaViewerPost.content ? (
+                                <Text style={{ color:'#fff', fontSize:13, paddingHorizontal:17, paddingTop:12 }}>{mediaViewerPost.content}</Text>
+                            ) : null}
+                            <View style={{ flexDirection:'row', gap:20, paddingHorizontal:17, paddingTop:14 }}>
+                                <TouchableOpacity onPress={openLikers} style={{ flexDirection:'row', alignItems:'center', gap:5 }}>
+                                    <Text style={{ fontSize:16 }}>❤️</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{t.likesCountText(mediaViewerPost._count?.likes || 0)}</Text>
+                                </TouchableOpacity>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:5 }}>
+                                    <Text style={{ fontSize:16 }}>💬</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{mediaViewerPost._count?.comments || 0}</Text>
+                                </View>
+                            </View>
+
+                            <View style={{ paddingHorizontal:17, paddingTop:16, paddingBottom:30 }}>
+                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:10 }}>{t.commentsLabel}</Text>
+                                {loadingMediaComments ? (
+                                    <ActivityIndicator color={colors.purple} style={{ marginVertical:16 }} />
+                                ) : mediaCommentsHidden ? (
+                                    <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.commentsHiddenText}</Text>
+                                ) : mediaViewerComments.length === 0 ? (
+                                    <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.noCommentsYetText}</Text>
+                                ) : (
+                                    mediaViewerComments.map(c => (
+                                        <View key={c.id} style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
+                                            <View style={{ width:28, height:28, borderRadius:14, backgroundColor: colors.surface2, justifyContent:'center', alignItems:'center', overflow:'hidden' }}>
+                                                {c.user?.avatar
+                                                    ? <Image source={{ uri: c.user.avatar }} style={{ width:28, height:28 }} />
+                                                    : <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>{c.user?.username?.[0]?.toUpperCase()}</Text>}
+                                            </View>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:12 }}>
+                                                    <Text style={{ fontWeight:'800' }}>{c.user?.username}</Text> {c.content}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    ))
+                                )}
+                            </View>
+                        </ScrollView>
+                    )}
+                </View>
+            </Modal>
+
+            {/* ── Beğenenler modalı ── */}
+            <Modal visible={likersModalOpen} animationType="slide" transparent onRequestClose={() => setLikersModalOpen(false)}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { maxHeight: '70%' }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>❤️ {t.likersTitle}</Text>
+                            <TouchableOpacity onPress={() => setLikersModalOpen(false)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {loadingLikers ? (
+                            <ActivityIndicator color={colors.purple} style={{ marginVertical: 20 }} />
+                        ) : likersHidden ? (
+                            <Text style={{ color: colors.textMuted, textAlign: 'center', marginVertical: 20 }}>{t.likersHiddenText}</Text>
+                        ) : likersList.length === 0 ? (
+                            <Text style={{ color: colors.textMuted, textAlign: 'center', marginVertical: 20 }}>{t.noLikesYetText}</Text>
+                        ) : (
+                            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 320 }}>
+                                {likersList.map(l => (
+                                    <TouchableOpacity
+                                        key={l.id}
+                                        style={s.friendRow}
+                                        onPress={() => { setLikersModalOpen(false); setMediaViewerPost(null); navigation.push('Profile', { userId: l.user.id }); }}
+                                    >
+                                        <View style={s.friendAvatar}>
+                                            {l.user?.avatar
+                                                ? <Image source={{ uri: l.user.avatar }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                                                : <Text style={{ color: '#fff', fontWeight: '800' }}>{l.user?.username?.[0]?.toUpperCase()}</Text>
+                                            }
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{l.user?.fullName || l.user?.username}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize: 11 }}>{l.user?.username}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        )}
                     </View>
                 </View>
             </Modal>

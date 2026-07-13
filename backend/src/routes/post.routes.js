@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
     createPost, getPosts, getUserPosts,
     analyzeContent, suggestMusicForImage, toggleLike, addComment,
-    getComments, editPost, toggleVisibility, deletePost,
+    getComments, getPostLikes, editPost, toggleVisibility, deletePost,
     recordView, getStoryViews,
 } from '../controllers/post.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -17,6 +17,7 @@ router.get('/user/:userId',      authenticate, getUserPosts);
 router.post('/:id/like',         authenticate, toggleLike);
 router.post('/:id/comment',      authenticate, addComment);
 router.get('/:id/comments',      authenticate, getComments);
+router.get('/:id/likes',         authenticate, getPostLikes);
 router.patch('/:id',             authenticate, editPost);
 router.patch('/:id/visibility',  authenticate, toggleVisibility);
 router.delete('/:id',            authenticate, deletePost);

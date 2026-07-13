@@ -68,6 +68,8 @@ model User {
   friendsListExclude  Json   @default("[]")
   activitiesPrivacy   String @default("PUBLIC")
   activitiesExclude   Json   @default("[]")
+  likesCommentsPrivacy String @default("PUBLIC")
+  likesCommentsExclude Json   @default("[]")
   isAdmin                Boolean  @default(false)
   isBusiness             Boolean  @default(false)
   businessName           String?

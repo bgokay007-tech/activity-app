@@ -344,15 +344,59 @@ export const addComment = async (req, res, next) => {
     }
 };
 
+// Gonderi sahibinin likesCommentsPrivacy ayarina gore begenen/yorumlayan kimliklerini
+// gorebilir mi kontrol eder. Begenme/yorum yapma eylemi bundan etkilenmez, sadece
+// kim begendi/yorumladi listesinin gorunurlugu kisitlanir.
+async function canSeeLikesComments(postOwnerId, viewerId) {
+    if (postOwnerId === viewerId) return true;
+    const owner = await prisma.user.findUnique({
+        where: { id: postOwnerId },
+        select: { likesCommentsPrivacy: true, likesCommentsExclude: true },
+    });
+    if (!owner) return false;
+    const { isFriend, isFollower } = await getRelation(postOwnerId, viewerId);
+    return canAccess({
+        ownerId: postOwnerId, viewerId,
+        mode: owner.likesCommentsPrivacy, list: owner.likesCommentsExclude,
+        isFriend, isFollower,
+    });
+}
+
 export const getComments = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const post = await prisma.post.findUnique({ where: { id }, select: { userId: true } });
+        if (!post) return res.status(404).json({ message: 'Not found' });
+        if (!(await canSeeLikesComments(post.userId, req.userId))) {
+            return res.status(403).json({ message: 'Bu gönderinin yorumları gizli' });
+        }
+
         const comments = await prisma.comment.findMany({
             where: { postId: id },
             include: { user: { select: { id: true, username: true, avatar: true } } },
             orderBy: { createdAt: 'asc' },
         });
         res.json(comments);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getPostLikes = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const post = await prisma.post.findUnique({ where: { id }, select: { userId: true } });
+        if (!post) return res.status(404).json({ message: 'Not found' });
+        if (!(await canSeeLikesComments(post.userId, req.userId))) {
+            return res.status(403).json({ message: 'Bu gönderinin beğenenleri gizli' });
+        }
+
+        const likes = await prisma.like.findMany({
+            where: { postId: id },
+            orderBy: { createdAt: 'desc' },
+            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
+        });
+        res.json(likes);
     } catch (error) {
         next(error);
     }
