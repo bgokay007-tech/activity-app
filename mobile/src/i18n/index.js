@@ -395,6 +395,7 @@ const en = {
     minuteSuffix: 'min',
     surfaceHARD: 'Hard Court', surfaceCLAY: 'Clay', surfaceGRASS: 'Grass', surfaceCARPET: 'Carpet',
     surfaceARTIFICIAL: 'Artificial', surfaceGLASS: 'Glass', surfaceINDOOR: 'Indoor',
+    surfacePARQUET: 'Parquet', surfaceSYNTHETIC: 'Synthetic',
     'surfaceHALI_SAHA': 'Turf', 'surfaceCIM_SAHA': 'Grass', surfaceFUTSAL: 'Futsal', surfaceSOKAK: 'Street', surfaceBEACH: 'Beach',
 
     // Equipment
@@ -1184,6 +1185,7 @@ const tr = {
     minuteSuffix: 'dk',
     surfaceHARD: 'Sert Zemin', surfaceCLAY: 'Toprak', surfaceGRASS: 'Çim', surfaceCARPET: 'Suni',
     surfaceARTIFICIAL: 'Suni Çim', surfaceGLASS: 'Cam', surfaceINDOOR: 'Kapalı Salon',
+    surfacePARQUET: 'Parke', surfaceSYNTHETIC: 'Sentetik',
     'surfaceHALI_SAHA': 'Halı Saha', 'surfaceCIM_SAHA': 'Çim Saha', surfaceFUTSAL: 'Futsal', surfaceSOKAK: 'Sokak', surfaceBEACH: 'Plaj',
 
     // Equipment

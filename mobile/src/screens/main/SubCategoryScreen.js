@@ -3408,6 +3408,8 @@ const vm = StyleSheet.create({
 
 function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked }) {
     const insets = useSafeAreaInsets();
+    const t = useT();
+    const lang = useSelector(s => s.lang?.lang || 'en');
     const todayStr = () => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -3588,6 +3590,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                     <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:6, paddingVertical:2, marginBottom:3, borderWidth:1, borderColor: typeInfo.color+'60' }}>
                         <Text style={{ color: typeInfo.color, fontSize:9, fontWeight:'800', letterSpacing:0.3 }}>{typeInfo.label}</Text>
                     </View>
+                )}
+                {(court.surface || court.indoor != null) && (
+                    <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginBottom:3 }} numberOfLines={1}>
+                        {court.surface ? `⬜ ${getSurface(t, court.surface)}` : ''}{court.surface && court.indoor != null ? '  ·  ' : ''}{court.indoor != null ? (court.indoor ? (lang === 'tr' ? '🏠 Kapalı' : '🏠 Indoor') : (lang === 'tr' ? '☀️ Açık' : '☀️ Outdoor')) : ''}
+                    </Text>
                 )}
                 {court.lightsFrom && (
                     <TouchableOpacity style={vb.lightsRow} activeOpacity={0.7}
@@ -4335,7 +4342,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtId:   f.selectedCourt?.id || undefined,
                 location:  f.selectedCourt?.city || f.manualCity || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
-                surface:   isPadel ? 'ARTIFICIAL' : (f.surface || undefined),
+                surface:   f.surface || (isPadel ? 'ARTIFICIAL' : undefined),
                 venueType: f.venueType || undefined,
                 isCourtReserved: f.courtReserved,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? parseInt(f.courtFeePerPerson, 10) : undefined,
@@ -10052,7 +10059,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <Text style={[s.back, { color: cfg.color }]}>{t.back}</Text>
                 </TouchableOpacity>
-                <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
+                {sub === 'padel' ? (
+                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
+                        <Image source={require('../../../assets/padel.png')} style={{ width:26, height:26 }} resizeMode="contain" />
+                        <Text style={s.title}>{cfg.name}</Text>
+                    </View>
+                ) : (
+                    <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
+                )}
                 {(sub === 'tennis' || sub === 'padel') && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                         <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
