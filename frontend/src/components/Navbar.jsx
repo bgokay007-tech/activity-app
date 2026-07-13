@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
 import { setLang } from '../store/slices/langSlice';
@@ -117,6 +117,7 @@ const NAV_BTN = 'flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border 
 
 export default function Navbar({ onBack, backLabel, title }) {
     const navigate  = useNavigate();
+    const location  = useLocation();
     const dispatch  = useDispatch();
     const user      = useSelector(state => state.auth.user);
     const lang      = useSelector(state => state.lang.lang);
@@ -202,6 +203,20 @@ export default function Navbar({ onBack, backLabel, title }) {
                         </button>
                     )}
 
+                    {user?.isAdmin && (
+                        location.pathname.startsWith('/admin') ? (
+                            <button onClick={() => navigate('/home')} className={`${NAV_BTN} border-purple-600 text-purple-300 hover:text-purple-200`}>
+                                <span>←</span>
+                                <span className="hidden sm:inline">{t('nav.back_to_app', { defaultValue: 'Uygulamaya Dön' })}</span>
+                            </button>
+                        ) : (
+                            <button onClick={() => navigate('/admin')} className={`${NAV_BTN} border-purple-600 text-purple-300 hover:text-purple-200`}>
+                                <span>👑</span>
+                                <span className="hidden sm:inline">{t('nav.admin')}</span>
+                            </button>
+                        )
+                    )}
+
                     <div className="relative" ref={menuRef}>
                         <button
                             onClick={() => setMenuOpen(v => !v)}
@@ -251,19 +266,6 @@ export default function Navbar({ onBack, backLabel, title }) {
                                     <span className="text-lg">🚪</span>
                                     <span className="text-red-400 text-sm font-bold">{t('nav.logout')}</span>
                                 </button>
-
-                                {user?.isAdmin && (
-                                    <>
-                                        <div className="border-t border-gray-800" />
-                                        <button
-                                            onClick={() => { setMenuOpen(false); navigate('/admin'); }}
-                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-900/40 transition text-left"
-                                        >
-                                            <span className="text-lg">👑</span>
-                                            <span className="text-purple-300 text-sm font-bold">{t('nav.admin')}</span>
-                                        </button>
-                                    </>
-                                )}
                             </div>
                         )}
                     </div>
