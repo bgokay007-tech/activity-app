@@ -121,6 +121,20 @@ function getSlotPrice(venue, court, startTime, durationMins = 60) {
     return Math.round(basePrice * (durationMins / 60));
 }
 
+const PAYMENT_METHODS = ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'];
+
+function applyPaymentDelta(basePrice, venue, method) {
+    const deltas = venue.paymentPriceDeltas || {};
+    const d = parseInt(deltas[method]) || 0;
+    return Math.max(0, basePrice + d);
+}
+
+function buildPriceByMethod(venue, basePrice) {
+    const out = {};
+    for (const m of PAYMENT_METHODS) out[m] = applyPaymentDelta(basePrice, venue, m);
+    return out;
+}
+
 function computeSlots(venue, reservations, date, courtId = null, maintWindows = []) {
     const openWindows = getOpenWindows(venue, date, courtId);
 
@@ -375,12 +389,14 @@ export const getVenueSlots = async (req, res, next) => {
         const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId, maintWindows);
         const addSlotPrice = arr => (arr || []).map(s => {
             const dur = s.start && s.end ? toMins(s.end) - toMins(s.start) : 60;
-            return { ...s, price: getSlotPrice(venue, court, s.start, dur) };
+            const base = getSlotPrice(venue, court, s.start, dur);
+            return { ...s, price: base, priceByMethod: buildPriceByMethod(venue, base) };
         });
         // VAR_DURATION pencereleri için: saatlik baz fiyat döndür, frontend seçilen süreyle çarpar
-        const addWindowPrice = arr => (arr || []).map(s => ({
-            ...s, pricePerHour: getSlotPrice(venue, court, s.start, 60),
-        }));
+        const addWindowPrice = arr => (arr || []).map(s => {
+            const base = getSlotPrice(venue, court, s.start, 60);
+            return { ...s, pricePerHour: base, pricePerHourByMethod: buildPriceByMethod(venue, base) };
+        });
         const resultWithPrice = slotsResult.slots
             ? { ...slotsResult, slots: addSlotPrice(slotsResult.slots) }
             : { ...slotsResult, windows: addWindowPrice(slotsResult.windows) };
@@ -523,7 +539,7 @@ export const makeReservation = async (req, res, next) => {
             initialStatus = pm === 'EFT' ? 'PENDING' : 'CONFIRMED';
         } else if (effectiveMode === 'PAYMENT_AUTO') {
             // CASH veya ONLINE → CONFIRMED, EFT → PENDING (manuel onay gerekli)
-            initialStatus = (pm === 'CASH' || pm === 'ONLINE') ? 'CONFIRMED' : 'PENDING';
+            initialStatus = ['CASH', 'ONLINE', 'CREDIT_CARD'].includes(pm) ? 'CONFIRMED' : 'PENDING';
         }
         // MANUAL → her zaman PENDING (initialStatus zaten PENDING)
 
@@ -580,9 +596,9 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder, reservationOpenDaysBefore, reservationOpenTime } = req.body;
+        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, paymentPriceDeltas, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder, reservationOpenDaysBefore, reservationOpenTime } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
-        const VALID_PAY      = ['CASH', 'EFT', 'ONLINE'];
+        const VALID_PAY      = ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'];
         const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
         const VALID_OPEN_DAYS_BEFORE = [3, 5, 7, 10, 14];
         if (slotType && !VALID_TYPES.includes(slotType))
@@ -590,6 +606,14 @@ export const updateVenueSettings = async (req, res, next) => {
         if (acceptedPayments !== undefined) {
             if (!Array.isArray(acceptedPayments) || acceptedPayments.length === 0 || acceptedPayments.some(m => !VALID_PAY.includes(m)))
                 return res.status(400).json({ message: 'Geçersiz ödeme yöntemi' });
+        }
+        if (paymentPriceDeltas !== undefined) {
+            if (typeof paymentPriceDeltas !== 'object' || paymentPriceDeltas === null || Array.isArray(paymentPriceDeltas)
+                || Object.keys(paymentPriceDeltas).some(k => !VALID_PAY.includes(k) || !Number.isInteger(paymentPriceDeltas[k]))) {
+                return res.status(400).json({ message: 'Geçersiz ödeme yöntemi fiyat farkı' });
+            }
+            const check = await assertProVenueOwner(id, req.userId, 'Ödeme yöntemine göre fiyat farkı');
+            if (check.error) return res.status(check.status).json({ message: check.error });
         }
         if (approvalMode !== undefined && !VALID_APPROVAL.includes(approvalMode))
             return res.status(400).json({ message: 'Geçersiz onay modu' });
@@ -607,6 +631,7 @@ export const updateVenueSettings = async (req, res, next) => {
         if (openSlots !== undefined)             data.openSlots            = openSlots;
         if (acceptedPayments !== undefined)      data.acceptedPayments     = acceptedPayments;
         if (pricingWindows !== undefined)        data.pricingWindows       = pricingWindows;
+        if (paymentPriceDeltas !== undefined)    data.paymentPriceDeltas   = paymentPriceDeltas;
         if (contactLinks !== undefined)          data.contactLinks         = contactLinks;
         if (lat !== undefined)                   data.lat                  = lat !== null ? parseFloat(lat) : null;
         if (lng !== undefined)                   data.lng                  = lng !== null ? parseFloat(lng) : null;
@@ -663,7 +688,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     for (let t = open; t + 60 <= close; t += 60) {
                         if (close - (t + 60) > 0 && close - (t + 60) < 60) continue;
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: getSlotPrice(venue, court, toTime(t)) });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: applyPaymentDelta(getSlotPrice(venue, court, toTime(t)), venue, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
@@ -675,13 +700,13 @@ export const getOwnerSchedule = async (req, res, next) => {
                         const midnight = endT > 1440;
                         if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; }
                         const rs = findRes(court.id, t, midnight ? 1470 : endT);
-                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: getSlotPrice(venue, court, toTime(t)) });
+                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: applyPaymentDelta(getSlotPrice(venue, court, toTime(t)), venue, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
                         if (close - (t + 90) > 0 && close - (t + 90) < 90) continue;
                         const rs = findRes(court.id, t, t + 90);
-                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: getSlotPrice(venue, court, toTime(t)) });
+                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: applyPaymentDelta(getSlotPrice(venue, court, toTime(t)), venue, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else {
                     // VAR_DURATION: gerçek rezervasyon bloklarını ve boş pencereleri göster (saatlik grid değil)
@@ -1268,7 +1293,7 @@ export const getBlockedUsers = async (req, res, next) => {
 
 const PRO_PACKAGES = ['PRO', 'PREMIUM'];
 
-const assertProVenueOwner = async (venueId, userId) => {
+const assertProVenueOwner = async (venueId, userId, featureLabel = 'Menü özelliği') => {
     const venue = await prisma.businessVenue.findUnique({ where: { id: venueId } });
     if (!venue || venue.userId !== userId) return { error: 'Yetkisiz', status: 403 };
     const now = new Date();
@@ -1276,7 +1301,7 @@ const assertProVenueOwner = async (venueId, userId) => {
         where: { userId, status: 'ACTIVE', endDate: { gt: now } },
     });
     if (!sub || !PRO_PACKAGES.includes(sub.packageType))
-        return { error: 'Menü özelliği için Pro veya Premium paket gereklidir', status: 403 };
+        return { error: `${featureLabel} için Pro veya Premium paket gereklidir`, status: 403 };
     return { venue, sub };
 };
 

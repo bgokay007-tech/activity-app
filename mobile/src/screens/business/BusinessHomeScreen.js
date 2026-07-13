@@ -1434,6 +1434,14 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT']
     );
     const [savingPayments, setSavingPayments] = useState(false);
+    const [localPaymentDeltas, setLocalPaymentDeltas] = useState(() => venue.paymentPriceDeltas || {});
+    const [paymentDeltaInputs, setPaymentDeltaInputs] = useState(() => {
+        const init = {};
+        const d = venue.paymentPriceDeltas || {};
+        ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'].forEach(m => { init[m] = d[m] != null ? String(d[m]) : ''; });
+        return init;
+    });
+    const [savingPaymentDeltas, setSavingPaymentDeltas] = useState(false);
     const [localReservationOpenDaysBefore, setLocalReservationOpenDaysBefore] = useState(venue.reservationOpenDaysBefore ?? null);
     const [localReservationOpenTime,       setLocalReservationOpenTime]       = useState(venue.reservationOpenTime || '');
     const [savingReservationWindow,        setSavingReservationWindow]       = useState(false);
@@ -1559,6 +1567,23 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             setLocalAcceptedPayments(next);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingPayments(false); }
+    };
+
+    const handleSavePaymentDeltas = async () => {
+        const next = {};
+        for (const m of ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD']) {
+            const raw = (paymentDeltaInputs[m] || '').trim();
+            if (raw === '') continue;
+            const v = parseInt(raw);
+            if (isNaN(v)) { Alert.alert('Hata', 'Fiyat farkları tam sayı olmalı'); return; }
+            next[m] = v;
+        }
+        setSavingPaymentDeltas(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { paymentPriceDeltas: next });
+            setLocalPaymentDeltas(next);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingPaymentDeltas(false); }
     };
 
     const handleSaveMaintenance = async (courtId, newDates) => {
@@ -2075,8 +2100,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 'PAYMENT_AUTO': '💳 Ödeme=Otomatik',
                                 'MANUAL':       '✋ Manuel Onay',
                             };
-                            const PAY_ICONS = { CASH: '💵', EFT: '🏦', ONLINE: '💳' };
-                            const PAY_NAMES = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online' };
+                            const PAY_ICONS = { CASH: '💵', EFT: '🏦', ONLINE: '🌐', CREDIT_CARD: '💳' };
+                            const PAY_NAMES = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kredi Kartı' };
                             const policyLabel = (v) => v === null || v === undefined ? 'Her zaman' : v === -1 ? 'Asla' : `${v} saat öncesi`;
 
                             const approvalMode   = venue.approvalMode || 'FULL_AUTO';
@@ -3864,9 +3889,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             </Text>
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                                 {[
-                                    { key: 'CASH',   label: '💵 Nakit / Kortta' },
-                                    { key: 'EFT',    label: '🏦 EFT / Havale' },
-                                    { key: 'ONLINE', label: '💳 Online Ödeme' },
+                                    { key: 'CASH',        label: '💵 Nakit / Kortta' },
+                                    { key: 'EFT',         label: '🏦 EFT / Havale' },
+                                    { key: 'ONLINE',      label: '🌐 Online Ödeme' },
+                                    { key: 'CREDIT_CARD', label: '💳 Kredi Kartı' },
                                 ].map(m => {
                                     const isActive = localAcceptedPayments.includes(m.key);
                                     return (
@@ -3886,6 +3912,42 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 })}
                             </View>
                             {savingPayments && <ActivityIndicator color={BIZ_COLOR} size="small" style={{ marginTop: 8 }} />}
+
+                            {/* ── Ödeme Yöntemine Göre Fiyat Farkı (PRO) ── */}
+                            <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                ÖDEME YÖNTEMİNE GÖRE FİYAT FARKI
+                            </Text>
+                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>
+                                Her ödeme yöntemi için taban fiyata eklenecek/çıkarılacak sabit TL tutarı girin (boş = fark yok). Negatif değer indirim anlamına gelir.
+                            </Text>
+                            {localAcceptedPayments.map(m => (
+                                <View key={m} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                    <Text style={{ color: '#aaa', fontSize: 13, flex: 1 }}>
+                                        {{ CASH: '💵 Nakit', EFT: '🏦 EFT', ONLINE: '🌐 Online', CREDIT_CARD: '💳 Kredi Kartı' }[m] || m}
+                                    </Text>
+                                    <TextInput
+                                        style={{ width: 90, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                            paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
+                                            fontSize: 13, textAlign: 'right', borderWidth: 1,
+                                            borderColor: paymentDeltaInputs[m] ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                        placeholder="0"
+                                        placeholderTextColor="#444"
+                                        keyboardType="numbers-and-punctuation"
+                                        value={paymentDeltaInputs[m] ?? ''}
+                                        onChangeText={v => setPaymentDeltaInputs(p => ({ ...p, [m]: v.replace(/[^0-9-]/g, '') }))}
+                                    />
+                                    <Text style={{ color: '#555', fontSize: 13 }}>₺</Text>
+                                </View>
+                            ))}
+                            <TouchableOpacity disabled={savingPaymentDeltas} onPress={handleSavePaymentDeltas}
+                                style={{ backgroundColor: BIZ_COLOR + '30', borderRadius: 8,
+                                    paddingVertical: 10, alignItems: 'center',
+                                    borderWidth: 1, borderColor: BIZ_COLOR + '60', marginTop: 4 }}>
+                                {savingPaymentDeltas
+                                    ? <ActivityIndicator size="small" color={BIZ_COLOR} />
+                                    : <Text style={{ color: BIZ_LIGHT, fontWeight: '700' }}>Kaydet</Text>}
+                            </TouchableOpacity>
                         </>
                     )}
                     </>)}

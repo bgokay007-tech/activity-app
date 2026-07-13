@@ -63,8 +63,9 @@ function getVenueHoursLabel(venue, dateStr, t) {
 function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }) {
     const t = useT();
     const [payment, setPayment] = useState('CASH');
-    const priceOf = (item) => item.slot?.price ?? item.venue?.pricePerSlot ?? 0;
+    const priceOf = (item) => item.slot?.priceByMethod?.[payment] ?? item.slot?.price ?? item.venue?.pricePerSlot ?? 0;
     const total = cart.reduce((sum, i) => sum + priceOf(i), 0);
+    const cartAccepts = (method) => cart.length > 0 && cart.every(i => Array.isArray(i.venue?.acceptedPayments) && i.venue.acceptedPayments.includes(method));
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={cm.overlay}>
@@ -103,6 +104,26 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                                 <Text style={cm.payOptText}>{t.vsPayCash}</Text>
                                 {payment === 'CASH' && <Text style={cm.check}>✓</Text>}
                             </TouchableOpacity>
+                            {cartAccepts('EFT') && (
+                                <TouchableOpacity
+                                    style={[cm.payOpt, payment === 'EFT' && cm.payOptActive]}
+                                    onPress={() => setPayment('EFT')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={cm.payOptText}>{t.vsPayEft}</Text>
+                                    {payment === 'EFT' && <Text style={cm.check}>✓</Text>}
+                                </TouchableOpacity>
+                            )}
+                            {cartAccepts('CREDIT_CARD') && (
+                                <TouchableOpacity
+                                    style={[cm.payOpt, payment === 'CREDIT_CARD' && cm.payOptActive]}
+                                    onPress={() => setPayment('CREDIT_CARD')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={cm.payOptText}>{t.vsPayCreditCard}</Text>
+                                    {payment === 'CREDIT_CARD' && <Text style={cm.check}>✓</Text>}
+                                </TouchableOpacity>
+                            )}
                             <View style={[cm.payOpt, cm.payOptDisabled]}>
                                 <Text style={[cm.payOptText, { color: colors.textMuted }]}>{t.vsPayOnline}</Text>
                                 <View style={cm.soonBadge}><Text style={cm.soonText}>{t.vsComingSoon}</Text></View>

@@ -3890,7 +3890,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                 const summaryEnd   = rangeSlots ? rangeSlots[rangeSlots.length - 1].end : selSlot.slot.end;
                                 const summaryPrice = rangeSlots
                                     ? rangeSlots.reduce((sum, s) => sum + priceForSlot(s), 0)
-                                    : (selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot);
+                                    : (selSlot.slot.priceByMethod?.[payMethod] != null ? selSlot.slot.priceByMethod[payMethod]
+                                        : applyPayDelta(selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot));
                                 return (
                                     <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
                                         <View style={[vb.selSummary, { flexDirection:'row', alignItems:'center' }]}>
@@ -3934,10 +3935,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                         )}
                                         <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
                                         <View style={vb.payRow}>
-                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['ONLINE','💳 Online']].filter(([m]) => {
-                                                if (m === 'ONLINE') {
+                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['CREDIT_CARD', t.courtPayCreditCard],['ONLINE','🌐 Online']].filter(([m]) => {
+                                                if (m === 'ONLINE' || m === 'CREDIT_CARD') {
                                                     const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : [];
-                                                    return acc.includes('ONLINE');
+                                                    return acc.includes(m);
                                                 }
                                                 return true; // CASH ve EFT her zaman göster
                                             }).map(([m, label]) => (

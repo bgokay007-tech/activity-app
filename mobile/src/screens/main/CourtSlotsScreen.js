@@ -64,7 +64,7 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
                             { label: 'Tesis', value: venue.name },
                             { label: 'Kort', value: court.name },
                             { label: 'Saat', value: `${slot.start} – ${slot.end}` },
-                            { label: 'Ücret', value: (() => { const p = slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() },
+                            { label: 'Ücret', value: (() => { const p = slot?.priceByMethod?.[payment] ?? slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() },
                         ].map(row => (
                             <View key={row.label} style={cm.infoRow}>
                                 <Text style={cm.infoLabel}>{row.label}</Text>
@@ -75,9 +75,11 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
 
                     <Text style={cm.payLabel}>Ödeme Yöntemi</Text>
                     {[
-                        { key: 'CASH', label: '💵 Kort Başında Nakit/Kart' },
-                        { key: 'ONLINE', label: '💳 Online Ödeme', disabled: true },
-                    ].map(opt => (
+                        { key: 'CASH', label: '💵 Kort Başında Nakit' },
+                        { key: 'EFT', label: '🏦 EFT / Havale' },
+                        { key: 'CREDIT_CARD', label: '💳 Kort Başında Kredi Kartı' },
+                        { key: 'ONLINE', label: '🌐 Online Ödeme', disabled: true },
+                    ].filter(opt => opt.key === 'CASH' || opt.disabled || (Array.isArray(venue.acceptedPayments) && venue.acceptedPayments.includes(opt.key))).map(opt => (
                         <TouchableOpacity
                             key={opt.key}
                             style={[cm.payOpt, payment === opt.key && cm.payOptActive, opt.disabled && cm.payOptDisabled]}

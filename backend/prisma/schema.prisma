@@ -910,6 +910,7 @@ model BusinessVenue {
   businessIban          String?                            // EFT ödemeler için IBAN (tesis bazında)
   businessIbanHolder    String?                            // IBAN hesap sahibi adı
   pricingWindows        Json?                              // [{from,to,price,courtId?}] saat aralığı fiyatları
+  paymentPriceDeltas    Json?                              // {CASH,EFT,ONLINE,CREDIT_CARD} → taban fiyata eklenen sabit TL farkı (PRO+)
   contactLinks          Json?                              // {whatsapp?,telegram?,instagram?,email?,phone?}
   reservationOpenDaysBefore Int?                           // null=sınırsız (her zaman açık); 3|5|7|10|14 = rezervasyon o tarihten N gün önce açılır
   reservationOpenTime       String?                        // HH:MM, açılış saati (null=00:00)
