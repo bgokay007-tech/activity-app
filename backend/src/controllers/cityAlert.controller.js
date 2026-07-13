@@ -67,6 +67,13 @@ const SUB_NAMES_TR = {
     basketball: 'Basketbol', volleyball: 'Voleybol',
     swimming: 'Yüzme', running: 'Koşu', cycling: 'Bisiklet',
     boxing: 'Boks', martial_arts: 'Dövüş Sanatları', wellness: 'Yoga/Pilates',
+    table_tennis: 'Masa Tenisi', climbing: 'Tırmanış', archery: 'Okçuluk',
+    walking: 'Yürüyüş', foot_tennis: 'Ayak Tenisi', sup_kano: 'Supboard ve Kano',
+    handball: 'Hentbol', badminton: 'Badminton', shooting_hunting: 'Atıcılık ve Avcılık',
+    equestrian: 'Binicilik', golf: 'Golf', fitness_gym: 'Fitness ve Gym',
+    skiing_snowboard: 'Kayak ve Snowboard', ice_skating: 'Buz Pateni',
+    hiking: 'Dağ Bayır Doğa Yürüyüşleri', camping: 'Kamp', motorcycle: 'Sürüş (Motosiklet)',
+    extreme_sports: 'Ekstrem Sporları', paintball: 'Paintball', airsoft: 'Airsoft',
 };
 
 const TAB_LABELS_TR = {

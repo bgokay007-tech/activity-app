@@ -289,7 +289,9 @@ export const createVenue = async (req, res, next) => {
             }
         }
 
-        const VALID_BRANCHES = ['football','tennis','padel','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness','cycling','running'];
+        const VALID_BRANCHES = ['football','tennis','padel','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness','cycling','running',
+            'table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','shooting_hunting','equestrian','golf',
+            'fitness_gym','skiing_snowboard','ice_skating','hiking','camping','motorcycle','extreme_sports','paintball','airsoft'];
         if (!name || !branch || !city) return res.status(400).json({ message: 'İsim, spor dalı ve şehir zorunludur' });
         if (!VALID_BRANCHES.includes(branch)) return res.status(400).json({ message: 'Geçersiz spor dalı. Lütfen listeden seçin.' });
         if (!courts?.length) return res.status(400).json({ message: 'En az bir kort/saha girmelisiniz' });
