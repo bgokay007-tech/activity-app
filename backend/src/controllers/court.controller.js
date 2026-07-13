@@ -112,7 +112,7 @@ export const searchCourts = async (req, res, next) => {
         const venueIds = venues.map(v => v.id);
         const venueRatings = venueIds.length ? await prisma.venueReview.groupBy({
             by: ['venueId'],
-            where: { venueId: { in: venueIds }, courtId: null },
+            where: { venueId: { in: venueIds }, courtId: null, status: 'APPROVED' },
             _avg: { rating: true },
             _count: { id: true },
         }) : [];
