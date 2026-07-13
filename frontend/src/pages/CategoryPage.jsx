@@ -50,6 +50,13 @@ function CategoryPage() {
 
     if (!config) return null;
 
+    // Açık ilan sayısı en çoktan en aza; eşitse (veya ilan yoksa) alfabetik sıra
+    const sortedSubCategories = [...subCategories].sort((a, b) => {
+        const ca = counts[a.id] || 0, cb = counts[b.id] || 0;
+        if (cb !== ca) return cb - ca;
+        return a.name.localeCompare(b.name);
+    });
+
     return (
         <div className="min-h-screen bg-gray-950">
             <Navbar onBack={() => navigate(-1)} />
@@ -69,7 +76,7 @@ function CategoryPage() {
                     <p className="text-gray-400 text-center py-12">Loading...</p>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {subCategories.map(sub => {
+                        {sortedSubCategories.map(sub => {
                             const enabled = ENABLED_SUBS[sub.id] !== false; // unknown subs default open
                             const count   = counts[sub.id] || 0;
                             return (
