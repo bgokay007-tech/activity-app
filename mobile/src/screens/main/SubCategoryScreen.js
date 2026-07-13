@@ -5695,7 +5695,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const [voting, setVoting] = useState(false);
-    const handleVoteType = async (type) => {
+    const castVoteType = async (type) => {
         setVoting(true);
         try {
             await api.post(`/tournaments/${item.id}/vote-type`, { type });
@@ -5703,6 +5703,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setVoting(false); }
+    };
+    // Oy vermek, bu tür kazanırsa turnuvaya kesin katılım taahhüdü sayılır — bu yüzden
+    // her seçimden önce onay isteniyor (poll kapanınca oy sırasına göre otomatik başvurulur).
+    const handleVoteType = (type) => {
+        Alert.alert(
+            'Oy Ver',
+            `${TOURN_TYPE_LABELS(t)[type]} türüne oy veriyorsunuz. Bu tür kazanırsa, oy sıranıza göre bu turnuvaya OTOMATİK BAŞVURMUŞ olacaksınız (organizatör onayı gerekir). Oylama bitene kadar oyunuzu değiştirebilirsiniz.`,
+            [
+                { text: 'İptal', style: 'cancel' },
+                { text: 'Oy Ver', onPress: () => castVoteType(type) },
+            ]
+        );
     };
 
     const handleFixDeadlines = async () => {

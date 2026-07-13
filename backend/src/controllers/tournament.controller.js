@@ -784,6 +784,37 @@ export const voteTournamentType = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Anket kazanan tarafa oy verenleri otomatik başvuru kuyruğuna eklerken kullanılan,
+// salt-okunur uygunluk kontrolü — joinTournament'daki aynı kurallar (derecelendirme
+// anketi, min. maç sayısı, ban, rating aralığı), ama ban sayacını AZALTMAZ (bu sadece
+// pasif bir arkaplan kontrolüdür, kullanıcının aktif bir katılım denemesi değil).
+export async function checkPollAutoJoinEligibility(tournament, userId) {
+    const [interest, userRec] = await Promise.all([
+        prisma.userInterest.findUnique({
+            where: { userId_category_subCategory: { userId, category: tournament.category, subCategory: tournament.subCategory } },
+            select: { assessmentCompleted: true, wins: true, losses: true, skillRating: true },
+        }),
+        prisma.user.findUnique({ where: { id: userId }, select: { tournamentBanRemaining: true } }),
+    ]);
+    if (!interest?.assessmentCompleted) {
+        return { ok: false, message: 'Derecelendirme anketini tamamlamadığınız için otomatik başvurunuz oluşturulamadı.' };
+    }
+    if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) && (interest.wins + interest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
+        return { ok: false, message: `Bu spor dalında en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmadığınız için otomatik başvurunuz oluşturulamadı.` };
+    }
+    if (userRec?.tournamentBanRemaining > 0) {
+        return { ok: false, message: 'Geç iptal cezası nedeniyle şu anda turnuvalara katılamadığınız için otomatik başvurunuz oluşturulamadı.' };
+    }
+    const userRating = interest?.skillRating ?? 0;
+    if (tournament.minRating != null && userRating < tournament.minRating) {
+        return { ok: false, message: `Bu turnuva en az ${tournament.minRating}★ derece gerektirdiği için otomatik başvurunuz oluşturulamadı.` };
+    }
+    if (tournament.maxRating != null && userRating > tournament.maxRating) {
+        return { ok: false, message: `Bu turnuva en fazla ${tournament.maxRating}★ dereceli oyuncular için olduğundan otomatik başvurunuz oluşturulamadı.` };
+    }
+    return { ok: true };
+}
+
 export const joinTournament = async (req, res, next) => {
     try {
         const { id } = req.params;
