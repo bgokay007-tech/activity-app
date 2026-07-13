@@ -8,6 +8,8 @@ import api from '../../services/api';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
+const SURFACE_LABEL = { CLAY: 'Toprak', HARD: 'Sert Zemin', CARPET: 'Halı Saha', GRASS: 'Çim', PARQUET: 'Parke', SYNTHETIC: 'Sentetik' };
+
 function getDateStr(offset = 0) {
     const d = new Date();
     d.setDate(d.getDate() + offset);
@@ -189,6 +191,14 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 <View style={{ flex: 1 }}>
                     <Text style={s.title}>{court.name}</Text>
                     <Text style={s.subtitle}>{venue.name}</Text>
+                    {(() => {
+                        const effIndoor = court.indoor ?? venue?.courtIndoorDefault ?? false;
+                        return (
+                            <Text style={[s.subtitle, { fontSize: 11, marginTop: 1 }]} numberOfLines={1}>
+                                {court.surface ? `⬜ ${SURFACE_LABEL[court.surface] || court.surface}  ·  ` : ''}{effIndoor ? '🏠 Kapalı' : '☀️ Açık'}
+                            </Text>
+                        );
+                    })()}
                 </View>
                 {(venue.lat || venue.address) && (
                     <TouchableOpacity

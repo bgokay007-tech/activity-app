@@ -3409,7 +3409,6 @@ const vm = StyleSheet.create({
 function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked }) {
     const insets = useSafeAreaInsets();
     const t = useT();
-    const lang = useSelector(s => s.lang?.lang || 'en');
     const todayStr = () => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -3591,11 +3590,14 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                         <Text style={{ color: typeInfo.color, fontSize:9, fontWeight:'800', letterSpacing:0.3 }}>{typeInfo.label}</Text>
                     </View>
                 )}
-                {(court.surface || court.indoor != null) && (
-                    <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginBottom:3 }} numberOfLines={1}>
-                        {court.surface ? `⬜ ${getSurface(t, court.surface)}` : ''}{court.surface && court.indoor != null ? '  ·  ' : ''}{court.indoor != null ? (court.indoor ? (lang === 'tr' ? '🏠 Kapalı' : '🏠 Indoor') : (lang === 'tr' ? '☀️ Açık' : '☀️ Outdoor')) : ''}
-                    </Text>
-                )}
+                {(() => {
+                    const effIndoor = court.indoor ?? venue?.courtIndoorDefault ?? false;
+                    return (
+                        <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginBottom:3 }} numberOfLines={1}>
+                            {court.surface ? `⬜ ${getSurface(t, court.surface)}  ·  ` : ''}{effIndoor ? t.indoor : t.outdoor}
+                        </Text>
+                    );
+                })()}
                 {court.lightsFrom && (
                     <TouchableOpacity style={vb.lightsRow} activeOpacity={0.7}
                         onPress={() => Alert.alert('💡 Gece Işıkları', `Bu kortta gece ışıkları ${court.lightsFrom} itibarıyla açılır.\nGündüz saatlerinde ışık olmayabilir.`)}>
@@ -5970,7 +5972,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         }
         return Object.values(stats).sort((a,b) => {
             if (b.points!==a.points) return b.points-a.points;
-            if (item.type === '1' || item.type === '2') {
+            if (item.type === '1' || item.type === '2' || item.type === '3') {
                 const averaj=x=>(x.gamesWon+x.gamesLost)===0?0:x.gamesWon/(x.gamesWon+x.gamesLost);
                 if (Math.abs(averaj(b)-averaj(a))>0.001) return averaj(b)-averaj(a);
             }
@@ -6079,7 +6081,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </Text>
                         )}
                     </>)}
-                    {(item.type === '1' || item.type === '2') && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
+                    {(item.type === '1' || item.type === '2' || item.type === '3') && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:2 }}>
                             {item.setsPerMatch && (
                                 <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor: infoColor+'40' }}>
@@ -6164,7 +6166,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </Text>
                             </TouchableOpacity>
                         )}
-                        {item.status === 'IN_PROGRESS' && item.type !== '2' && (
+                        {item.status === 'IN_PROGRESS' && item.type !== '2' && item.type !== '3' && (
                             <TouchableOpacity
                                 style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}
                                 onPress={handleRematch}>
@@ -6528,7 +6530,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const overdue = dl < new Date();
                                                                 const dateStr = dl.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
                                                                 const timeStr = dl.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-                                                                const dayLabel = item.type === '1' && match.round ? `${match.round * 7}. Gün · ` : '';
+                                                                const dayLabel = (item.type === '1' || item.type === '3') && match.round ? `${match.round * 7}. Gün · ` : '';
                                                                 return (
                                                                     <Text style={{ color: overdue ? '#f87171' : '#fbbf24', fontSize:9, fontWeight:'700' }}>
                                                                         {'⏳'} {dayLabel}{dateStr} {timeStr}
@@ -6541,8 +6543,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>Skor Gir</Text>
                                                                 </TouchableOpacity>
                                                             )}
-                                                            {/* Joker butonu — Bireysel Rekabetçi (oyuncu) ve Çiftler Rekabetçi (takım) */}
-                                                            {(item.type === '1' || item.type === '2') && isReady && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
+                                                            {/* Joker butonu — Bireysel Rekabetçi (oyuncu), Çiftler Rekabetçi (takım) ve Bireysel Antrenman (oyuncu) */}
+                                                            {(item.type === '1' || item.type === '2' || item.type === '3') && isReady && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
                                                                 const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
                                                                 const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
                                                                 if (myJokerRequested) return null;
@@ -6738,8 +6740,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <Switch value={editIsIndoor} onValueChange={setEditIsIndoor} trackColor={{ true: infoColor }} />
                                 </View>
 
-                                {/* Bireysel ve Çiftler Rekabetçi'de geçerli */}
-                                {(item.type === '1' || item.type === '2') && (<>
+                                {/* Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
+                                {(item.type === '1' || item.type === '2' || item.type === '3') && (<>
                                     <Text style={s.fieldLabel}>Set Sayısı</Text>
                                     <View style={s.chipRow}>
                                         {['1','3','5'].map(n => (
@@ -7707,7 +7709,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 prize2: f.prize2.trim() || undefined,
                 prize3: f.prize3.trim() || undefined,
                 contactPhone: f.contactPhone.trim() || undefined,
-                ...((f.type === '1' || f.type === '2') && {
+                ...((f.type === '1' || f.type === '2' || f.type === '3') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : undefined,
                     advantageScoring: f.advantageScoring,
                     matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : undefined,
@@ -8241,6 +8243,27 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             )}
 
+                            {/* Bireysel Antrenman kuralları */}
+                            {!f.pollEnabled && f.type === '3' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Bireysel Antrenman Kuralları</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır.',
+                                        'Kura çekildiğinde her tur rastgele oyuncular eşleşilir ve play-off\'lara kadar kimin kiminle maç yapacağı bellidir.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
+                                        'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
+                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
+                                        'Oyuncular isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
+                                    ].map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
 
                             {/* Gender | Sets — side by side */}
                             <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
@@ -8272,8 +8295,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             </View>
 
-                            {/* Scoring + matches/qualifiers — Bireysel ve Çiftler Rekabetçi'de geçerli */}
-                            {(f.type === '1' || f.type === '2') && (
+                            {/* Scoring + matches/qualifiers — Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
+                            {(f.type === '1' || f.type === '2' || f.type === '3') && (
                                 <>
                                     <Text style={s.fieldLabel}>{t.tournScoringLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
@@ -11991,7 +12014,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 }
                                 return Object.values(stats).sort((a,b) => {
                                     if (b.points!==a.points) return b.points-a.points;
-                                    if (tourn.type === '1' || tourn.type === '2') {
+                                    if (tourn.type === '1' || tourn.type === '2' || tourn.type === '3') {
                                         const averaj=x=>(x.gamesWon+x.gamesLost)===0?0:x.gamesWon/(x.gamesWon+x.gamesLost);
                                         if (Math.abs(averaj(b)-averaj(a))>0.001) return averaj(b)-averaj(a);
                                     }

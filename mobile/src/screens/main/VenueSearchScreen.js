@@ -368,6 +368,14 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                             <Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '700' }}>{t.vsUnderMaintenance}</Text>
                                         )}
                                     </View>
+                                    {(() => {
+                                        const effIndoor = court.indoor ?? venue?.courtIndoorDefault ?? false;
+                                        return (
+                                            <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: 'center', marginBottom: 4 }} numberOfLines={1}>
+                                                {court.surface ? `⬜ ${t['surface' + court.surface] || court.surface}  ·  ` : ''}{effIndoor ? t.indoor : t.outdoor}
+                                            </Text>
+                                        );
+                                    })()}
 
                                     <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1 }}>
                                     {entry.loading ? (
