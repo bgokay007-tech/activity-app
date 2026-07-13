@@ -397,7 +397,11 @@ export const getVenueSlots = async (req, res, next) => {
         const effectiveVenue = { ...venue, slotType: courtSlotType || venueSlotFallback };
         const slotsResult = computeSlots(effectiveVenue, reservations, date, courtId, maintWindows);
         const addSlotPrice = arr => (arr || []).map(s => {
-            const dur = s.start && s.end ? toMins(s.end) - toMins(s.start) : 60;
+            // Gece yarısını geçen slotlarda (ör. 23:30 başlayıp 00:30 biten) end < start olur —
+            // düzeltilmezse süre negatif çıkar ve fiyat da negatife düşüp "ücretsiz" görünür.
+            const dur = s.start && s.end
+                ? (() => { const d = toMins(s.end) - toMins(s.start); return d > 0 ? d : d + 1440; })()
+                : 60;
             const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, s.start);
             const base = Math.round(basePrice * (dur / 60));
             return { ...s, price: base, priceByMethod: buildPriceByMethod(paymentDeltas, basePrice, dur) };
