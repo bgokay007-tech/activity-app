@@ -7,11 +7,32 @@ const reviewInclude = {
     court: { select: { id: true, name: true } },
 };
 
-// GET /venues/:id/reviews — tesis + tüm kortların yorumları
+const PRO_PACKAGES = ['PRO', 'PREMIUM'];
+
+// Tesis sahibi Pro/Premium abonelikte mi? Öyleyse yorumlar yayınlanmadan önce admin onayı gerekir.
+async function isProVenue(venue) {
+    const now = new Date();
+    const sub = await prisma.businessSubscription.findFirst({
+        where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: now } },
+    });
+    return !!sub && PRO_PACKAGES.includes(sub.packageType);
+}
+
+async function notifyAdminsPendingReview(venue, review, targetLabel) {
+    const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+    await Promise.all(admins.map(a =>
+        createNotification(a.id, 'VENUE_REVIEW_PENDING', '⭐ Onay Bekleyen Yorum',
+            `"${venue.name}" (${targetLabel}) için yeni bir yorum admin onayı bekliyor.`,
+            { venueId: venue.id, reviewId: review.id }
+        ).then(() => emitToUser(a.id, 'notification', {}).catch(() => {})).catch(() => {})
+    ));
+}
+
+// GET /venues/:id/reviews — tesis + tüm kortların yorumları (yalnızca onaylanmış + kendi bekleyen yorumun)
 export const getVenueReviews = async (req, res, next) => {
     try {
         const reviews = await prisma.venueReview.findMany({
-            where: { venueId: req.params.id },
+            where: { venueId: req.params.id, OR: [{ status: 'APPROVED' }, { userId: req.userId }] },
             include: {
                 ...reviewInclude,
                 appeals: { where: { appealerId: req.userId }, select: { id: true, status: true, reason: true, adminNote: true } },
@@ -19,13 +40,14 @@ export const getVenueReviews = async (req, res, next) => {
             orderBy: { createdAt: 'desc' },
         });
 
-        const venueReviews = reviews.filter(r => !r.courtId);
+        const approvedReviews = reviews.filter(r => r.status === 'APPROVED');
+        const venueReviews = approvedReviews.filter(r => !r.courtId);
         const venueRating  = venueReviews.length
             ? +(venueReviews.reduce((s, r) => s + r.rating, 0) / venueReviews.length).toFixed(1)
             : null;
 
         const courtMap = {};
-        reviews.filter(r => r.courtId).forEach(r => {
+        approvedReviews.filter(r => r.courtId).forEach(r => {
             if (!courtMap[r.courtId]) courtMap[r.courtId] = { courtId: r.courtId, courtName: r.court?.name, ratings: [] };
             courtMap[r.courtId].ratings.push(r.rating);
         });
@@ -51,20 +73,28 @@ export const upsertVenueReview = async (req, res, next) => {
         const venue = await prisma.businessVenue.findUnique({ where: { id, status: 'APPROVED' } });
         if (!venue) return res.status(404).json({ message: 'Tesis bulunamadı' });
 
-        const review = await prisma.venueReview.upsert({
-            where:  { userId_venueId_courtId: { userId: req.userId, venueId: id, courtId: null } },
-            create: { venueId: id, courtId: null, userId: req.userId, rating, comment: comment?.trim() || null },
-            update: { rating, comment: comment?.trim() || null },
-            include: reviewInclude,
-        });
+        const pro = await isProVenue(venue);
+        const status = pro ? 'PENDING' : 'APPROVED';
+        const data = { rating, comment: comment?.trim() || null, status };
+
+        // @@unique([userId, venueId, courtId]) nullable courtId ile upsert'in compound-key
+        // kısayolunda kullanılamıyor (Prisma null değeri kabul etmiyor) — bu yüzden elle yapılır.
+        const existing = await prisma.venueReview.findFirst({ where: { userId: req.userId, venueId: id, courtId: null } });
+        const review = existing
+            ? await prisma.venueReview.update({ where: { id: existing.id }, data, include: reviewInclude })
+            : await prisma.venueReview.create({ data: { venueId: id, courtId: null, userId: req.userId, ...data }, include: reviewInclude });
 
         if (venue.userId !== req.userId) {
-            const reviewer = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
-            createNotification(
-                venue.userId, 'VENUE_REVIEW', '⭐ Tesisinize Yeni Yorum',
-                `${reviewer?.username} "${venue.name}" tesisinize ${rating} yıldız verdi${comment ? ': ' + comment.slice(0, 60) : ''}`,
-                { venueId: id, reviewId: review.id }
-            ).then(() => emitToUser(venue.userId, 'notification', {}).catch(() => {})).catch(() => {});
+            if (status === 'APPROVED') {
+                const reviewer = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+                createNotification(
+                    venue.userId, 'VENUE_REVIEW', '⭐ Tesisinize Yeni Yorum',
+                    `${reviewer?.username} "${venue.name}" tesisinize ${rating} yıldız verdi${comment ? ': ' + comment.slice(0, 60) : ''}`,
+                    { venueId: id, reviewId: review.id }
+                ).then(() => emitToUser(venue.userId, 'notification', {}).catch(() => {})).catch(() => {});
+            } else {
+                notifyAdminsPendingReview(venue, review, venue.name).catch(() => {});
+            }
         }
 
         res.json({ review });
@@ -84,23 +114,88 @@ export const upsertCourtReview = async (req, res, next) => {
         const court = await prisma.venueCourt.findUnique({ where: { id: courtId } });
         if (!court || court.venueId !== id) return res.status(404).json({ message: 'Kort bulunamadı' });
 
+        const pro = await isProVenue(venue);
+        const status = pro ? 'PENDING' : 'APPROVED';
+        const data = { rating, comment: comment?.trim() || null, status };
+
         const review = await prisma.venueReview.upsert({
             where:  { userId_venueId_courtId: { userId: req.userId, venueId: id, courtId } },
-            create: { venueId: id, courtId, userId: req.userId, rating, comment: comment?.trim() || null },
-            update: { rating, comment: comment?.trim() || null },
+            create: { venueId: id, courtId, userId: req.userId, ...data },
+            update: data,
             include: reviewInclude,
         });
 
         if (venue.userId !== req.userId) {
-            const reviewer = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
-            createNotification(
-                venue.userId, 'VENUE_REVIEW', '⭐ Kortunuza Yeni Yorum',
-                `${reviewer?.username} "${court.name}" kortunuza ${rating} yıldız verdi${comment ? ': ' + comment.slice(0, 60) : ''}`,
-                { venueId: id, reviewId: review.id }
-            ).then(() => emitToUser(venue.userId, 'notification', {}).catch(() => {})).catch(() => {});
+            if (status === 'APPROVED') {
+                const reviewer = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+                createNotification(
+                    venue.userId, 'VENUE_REVIEW', '⭐ Kortunuza Yeni Yorum',
+                    `${reviewer?.username} "${court.name}" kortunuza ${rating} yıldız verdi${comment ? ': ' + comment.slice(0, 60) : ''}`,
+                    { venueId: id, reviewId: review.id }
+                ).then(() => emitToUser(venue.userId, 'notification', {}).catch(() => {})).catch(() => {});
+            } else {
+                notifyAdminsPendingReview(venue, review, court.name).catch(() => {});
+            }
         }
 
         res.json({ review });
+    } catch (e) { next(e); }
+};
+
+// GET /admin/venue-reviews?status=PENDING — admin bekleyen (veya diğer durumdaki) tesis yorumlarını görür
+export const getPendingVenueReviews = async (req, res, next) => {
+    try {
+        const status = ['PENDING', 'APPROVED', 'REJECTED'].includes(req.query.status) ? req.query.status : 'PENDING';
+        const reviews = await prisma.venueReview.findMany({
+            where: { status },
+            include: {
+                ...reviewInclude,
+                venue: { select: { id: true, name: true, branch: true, city: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(reviews);
+    } catch (e) { next(e); }
+};
+
+// PATCH /admin/venue-reviews/:id — admin yorumu onaylar/reddeder
+export const resolveVenueReview = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { action, adminNote } = req.body; // action: 'APPROVE' | 'REJECT'
+        if (!['APPROVE', 'REJECT'].includes(action))
+            return res.status(400).json({ message: 'Geçersiz işlem' });
+
+        const review = await prisma.venueReview.findUnique({
+            where: { id },
+            include: { venue: { select: { id: true, name: true, userId: true } }, court: { select: { name: true } } },
+        });
+        if (!review) return res.status(404).json({ message: 'Yorum bulunamadı' });
+
+        const newStatus = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+        const updated = await prisma.venueReview.update({ where: { id }, data: { status: newStatus } });
+
+        createNotification(
+            review.userId,
+            action === 'APPROVE' ? 'VENUE_REVIEW_APPROVED' : 'VENUE_REVIEW_REJECTED',
+            action === 'APPROVE' ? '✅ Yorumunuz Yayınlandı' : '❌ Yorumunuz Reddedildi',
+            action === 'APPROVE'
+                ? `"${review.venue.name}"${review.court ? ' - ' + review.court.name : ''} için verdiğiniz yorum yayınlandı.`
+                : `"${review.venue.name}"${review.court ? ' - ' + review.court.name : ''} için verdiğiniz yorum reddedildi.${adminNote ? ` Neden: ${adminNote}` : ''}`,
+            { venueId: review.venueId }
+        ).then(() => emitToUser(review.userId, 'notification', {}).catch(() => {})).catch(() => {});
+
+        if (action === 'APPROVE' && review.venue.userId !== review.userId) {
+            const reviewer = await prisma.user.findUnique({ where: { id: review.userId }, select: { username: true } });
+            createNotification(
+                review.venue.userId, 'VENUE_REVIEW',
+                review.court ? '⭐ Kortunuza Yeni Yorum' : '⭐ Tesisinize Yeni Yorum',
+                `${reviewer?.username} ${review.court ? `"${review.court.name}" kortunuza` : `"${review.venue.name}" tesisinize`} ${review.rating} yıldız verdi${review.comment ? ': ' + review.comment.slice(0, 60) : ''}`,
+                { venueId: review.venueId, reviewId: review.id }
+            ).then(() => emitToUser(review.venue.userId, 'notification', {}).catch(() => {})).catch(() => {});
+        }
+
+        res.json({ review: updated });
     } catch (e) { next(e); }
 };
 

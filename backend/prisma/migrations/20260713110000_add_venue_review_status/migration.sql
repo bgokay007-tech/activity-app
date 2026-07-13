@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "VenueReview" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'APPROVED';

@@ -21,6 +21,7 @@ const TABS = [
     { key: 'flagged',          label: '🚩 İlanlar' },
     { key: 'profilechanges',   label: '🪪 Profil' },
     { key: 'subscriptions',    label: '💳 Abonelik' },
+    { key: 'venuereviews',     label: '⭐ Tesis Yorumu' },
 ];
 
 // ── Shared helpers ────────────────────────────────────────────────────────────────
@@ -846,6 +847,89 @@ function ProfileChangesTab() {
     );
 }
 
+// ── Venue Reviews ──────────────────────────────────────────────────────────────────
+function VenueReviewsTab() {
+    const [reviews, setReviews] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState('PENDING');
+    const [refreshing, setRefreshing] = useState(false);
+    const [noteId, setNoteId] = useState(null);
+    const [note, setNote] = useState('');
+
+    const load = useCallback(async (st, isRefresh = false) => {
+        if (isRefresh) setRefreshing(true); else setLoading(true);
+        try {
+            const { data } = await api.get(`/admin/venue-reviews?status=${st}`);
+            setReviews(Array.isArray(data) ? data : []);
+        } catch {}
+        if (isRefresh) setRefreshing(false); else setLoading(false);
+    }, []);
+
+    useEffect(() => { load(statusFilter); }, [statusFilter]);
+
+    const resolve = async (id, action) => {
+        try {
+            await api.patch(`/admin/venue-reviews/${id}`, { action, ...(note ? { adminNote: note } : {}) });
+            setReviews(prev => prev.filter(r => r.id !== id));
+            setNoteId(null);
+            setNote('');
+        } catch { Alert.alert('Hata', 'İşlem başarısız.'); }
+    };
+
+    if (loading) return <LoadingView />;
+
+    return (
+        <View style={{ flex: 1 }}>
+            <FilterRow
+                options={[
+                    { key: 'PENDING',  label: '⏳ Bekleyen' },
+                    { key: 'APPROVED', label: '✅ Onaylı' },
+                    { key: 'REJECTED', label: '❌ Reddedilen' },
+                ]}
+                active={statusFilter}
+                onChange={setStatusFilter}
+            />
+            <FlatList
+                data={reviews}
+                keyExtractor={r => r.id}
+                contentContainerStyle={{ padding: 12 }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(statusFilter, true)} tintColor={colors.purple} />}
+                renderItem={({ item: r }) => (
+                    <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
+                        <Text style={s.cardTitle}>{r.venue?.name || '?'}{r.court ? ` · ${r.court.name}` : ' · Tesis Geneli'}</Text>
+                        <Text style={s.cardMeta}>@{r.user?.username || '?'} — {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</Text>
+                        {r.comment ? <Text style={[s.cardMeta, { color: '#e5e7eb' }]}>{r.comment}</Text> : null}
+                        <Text style={s.cardMeta}>{new Date(r.createdAt).toLocaleDateString('tr-TR')}</Text>
+                        {statusFilter === 'PENDING' && (
+                            <>
+                                {noteId === r.id && (
+                                    <TextInput
+                                        style={[s.textArea, { minHeight: 60 }]}
+                                        placeholder="Ret notu (opsiyonel)..."
+                                        placeholderTextColor={colors.textMuted}
+                                        value={note}
+                                        onChangeText={setNote}
+                                        multiline
+                                    />
+                                )}
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <Btn label="✅ Onayla" onPress={() => resolve(r.id, 'APPROVE')} color="#10b981" small />
+                                    <Btn
+                                        label={noteId === r.id ? '❌ Reddet (gönder)' : '❌ Reddet'}
+                                        onPress={() => noteId === r.id ? resolve(r.id, 'REJECT') : setNoteId(r.id)}
+                                        color="#ef4444" small
+                                    />
+                                </View>
+                            </>
+                        )}
+                    </View>
+                )}
+                ListEmptyComponent={<EmptyView text="Yorum bulunamadı." />}
+            />
+        </View>
+    );
+}
+
 // ── Subscriptions ─────────────────────────────────────────────────────────────────
 function SubscriptionsTab() {
     const [view, setView] = useState('pending');
@@ -1010,6 +1094,7 @@ export default function AdminPortalScreen({ navigation, route }) {
             case 'flagged':        return <FlaggedTab />;
             case 'profilechanges': return <ProfileChangesTab />;
             case 'subscriptions':  return <SubscriptionsTab />;
+            case 'venuereviews':   return <VenueReviewsTab />;
             default:               return null;
         }
     };

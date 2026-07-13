@@ -326,6 +326,12 @@ export default function VenueDetailScreen({ route, navigation }) {
                         </TouchableOpacity>
                     </View>
 
+                    {(myReviews?.venue?.status === 'PENDING' || Object.values(myReviews?.courts || {}).some(r => r.status === 'PENDING')) && (
+                        <View style={{ backgroundColor: '#fbbf2415', borderRadius: 8, padding: 8, marginBottom: 10, borderWidth: 1, borderColor: '#fbbf2440' }}>
+                            <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '700' }}>⏳ Yorumunuz admin onayı bekliyor, onaylanınca herkese görünür olacak.</Text>
+                        </View>
+                    )}
+
                     {/* Tesis genel puanı */}
                     <View style={{ marginBottom: 8 }}>
                         <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>TESİS GENEL</Text>
@@ -356,6 +362,7 @@ export default function VenueDetailScreen({ route, navigation }) {
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                         <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700' }}>@{r.user?.username}</Text>
                                         {r.court && <Text style={{ color: '#6b7280', fontSize: 11 }}>· {r.court.name}</Text>}
+                                        {r.status === 'PENDING' && <Text style={{ color: '#fbbf24', fontSize: 10, fontWeight: '700' }}>⏳ onay bekliyor</Text>}
                                         <View style={{ flex: 1 }} />
                                         <StarsDisplay value={r.rating} size={11} />
                                     </View>

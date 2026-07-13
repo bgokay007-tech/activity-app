@@ -1055,6 +1055,7 @@ model VenueReview {
   userId    String
   rating    Int      // 1–5
   comment   String?
+  status    String   @default("APPROVED") // PENDING | APPROVED | REJECTED — Pro/Premium isletmelerde admin onayi gerekir, digerlerinde direkt APPROVED
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
