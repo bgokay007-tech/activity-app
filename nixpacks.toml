@@ -1,21 +1,24 @@
 [phases.setup]
 # nodejs_20 in this pinned nixpkgs snapshot resolves to v20.6.1, which is below the
-# ^20.19.0 minimum required by current frontend deps (vite@8, eslint@10, @vitejs/plugin-react@6).
-# npm ci was silently failing (EBADENGINE + vite binary missing) and `|| true` swallowed
-# it, so the frontend was never actually rebuilt on deploy — it kept serving whatever
-# bundle happened to be committed in backend/public. nodejs_22 satisfies the range.
-nixPkgs = ["nodejs_22"]
+# ^20.19.0 minimum required by current frontend deps (vite@8, eslint@10, @vitejs/plugin-react@6,
+# and much of their transitive tree — under this node, `npm ci` silently drops ~80% of
+# the dependency tree, including vite's own bin). nodejs_22 does NOT exist as an attribute
+# in this pinned nixpkgs snapshot (predates Node 22 landing in nixpkgs), so it can't be
+# added directly. Backend keeps nodejs_20 (works fine there); the frontend install/build
+# steps instead download an official Node 22 binary and use it explicitly via PATH.
+nixPkgs = ["nodejs_20", "curl", "xz"]
 
 [phases.install]
 cmds = [
   "cd backend && npm ci",
-  "cd frontend && npm ci || true"
+  "curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-x64.tar.xz | tar -xJ -C /opt",
+  "cd frontend && PATH=/opt/node-v22.13.0-linux-x64/bin:$PATH npm ci || true"
 ]
 
 [phases.build]
 cmds = [
   "cd backend && node_modules/.bin/prisma generate",
-  "cd frontend && node_modules/.bin/vite build --outDir ../backend/public || true"
+  "cd frontend && PATH=/opt/node-v22.13.0-linux-x64/bin:$PATH node_modules/.bin/vite build --outDir ../backend/public || true"
 ]
 
 [start]
