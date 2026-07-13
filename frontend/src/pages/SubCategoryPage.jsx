@@ -2538,6 +2538,11 @@ function SubCategoryPage() {
     const [newTournamentSurface, setNewTournamentSurface] = useState('');
     const [newTournamentIsIndoor, setNewTournamentIsIndoor] = useState(null); // null | true | false
     const [selectedTournamentType, setSelectedTournamentType] = useState(null);
+    const [pollEnabled, setPollEnabled] = useState(false);
+    const [pollTypes, setPollTypes] = useState([]);
+    const [pollEndDate, setPollEndDate] = useState('');
+    const [pollEndTime, setPollEndTime] = useState('');
+    const [votingTournamentId, setVotingTournamentId] = useState(null);
     const [expandedTournament, setExpandedTournament] = useState(null);
     const [tournPartnerLoading, setTournPartnerLoading] = useState(false);
     const [tournInvitePicker, setTournInvitePicker] = useState(null); // { tournamentId, candidates }
@@ -2804,6 +2809,13 @@ function SubCategoryPage() {
                     setCompletedMatches(upsertCompleted);
                 }
             }
+        });
+
+        // Turnuva anket oyu degisince ilgili turnuvalari tazele (global broadcast, oda bazli degil)
+        socket.on('tournament:vote_updated', () => {
+            api.get(`/tournaments?category=${categoryUpper}&subCategory=${sub}`)
+                .then(({ data }) => setTournaments(data.map(tn => ({ ...tn, _myRequest: tn.participants?.[0]?.status || null }))))
+                .catch(() => {});
         });
 
         return () => socket.disconnect();
@@ -4192,6 +4204,11 @@ function SubCategoryPage() {
                             { id: '1', label: t('tournament.type1'), emoji: '🏆', desc: t('tournament.type1_desc') },
                             { id: '2', label: t('tournament.type2'), emoji: '👬', desc: t('tournament.type2_desc') },
                         ];
+                        const POLL_TYPE_OPTIONS = ['1','2','3','4','5','6','7','8'].map(id => ({
+                            id,
+                            label: TYPE_LABEL[id] || `🏅 ${t('tournament.type_generic', { n: id, defaultValue: `Type ${id}` })}`,
+                        }));
+                        const togglePollType = (id) => setPollTypes(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
                         const generateBracket = () => {
                             // Accept any player with at least one name field (covers single-word usernames → lastName = "")
@@ -4246,10 +4263,16 @@ function SubCategoryPage() {
                         const handleCreateTournament = async () => {
                             if (!newTournamentName.trim()) { alert('Enter a tournament name'); return; }
                             if (!newTournamentRegDate) { alert(t('tournament.reg_deadline')); return; }
+                            if (pollEnabled) {
+                                if (!pollEndDate) { alert(t('tournament.poll_end_label', { defaultValue: 'Anket Bitiş Tarihi' })); return; }
+                                if (pollTypes.length < 2) { alert(t('tournament.poll_types_min', { defaultValue: 'Anket için en az 2 tür seçmelisiniz.' })); return; }
+                            }
                             try {
                                 const { data } = await api.post('/tournaments', {
                                     name: newTournamentName.trim(),
-                                    type: selectedTournamentType,
+                                    type: pollEnabled ? undefined : selectedTournamentType,
+                                    pollEnabled,
+                                    ...(pollEnabled && { pollEndDate: pollEndDate || undefined, pollEndTime: pollEndTime || undefined, pollTypes }),
                                     category: categoryUpper,
                                     subCategory: sub,
                                     genderType: newTournamentGenderType,
@@ -4280,6 +4303,10 @@ function SubCategoryPage() {
                                 setNewTournamentMaxPlayers('');
                                 setNewTournamentGenderType('MIX');
                                 setSelectedTournamentType(null);
+                                setPollEnabled(false);
+                                setPollTypes([]);
+                                setPollEndDate('');
+                                setPollEndTime('');
                                 setTournamentView(null);
                             } catch (e) { alert(e?.response?.data?.message || 'Error'); }
                         };
@@ -4291,6 +4318,19 @@ function SubCategoryPage() {
                                     t.id === tournamentId ? { ...t, _myRequest: 'PENDING', _count: { participants: (t._count?.participants || 0) + 1 } } : t
                                 ));
                             } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                        };
+
+                        const castVoteType = async (tournamentId, type) => {
+                            setVotingTournamentId(tournamentId);
+                            try {
+                                await api.post(`/tournaments/${tournamentId}/vote-type`, { type });
+                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                            finally { setVotingTournamentId(null); }
+                        };
+                        const handleVoteType = (tournamentId, type) => {
+                            const label = TYPE_LABEL[type] || `🏅 Type ${type}`;
+                            if (!confirm(t('tournament.vote_confirm', { type: label, defaultValue: `${label} türüne oy veriyorsunuz. Bu tür kazanırsa turnuvaya oy sıranıza göre otomatik başvurmuş olacaksınız. Devam edilsin mi?` }))) return;
+                            castVoteType(tournamentId, type);
                         };
 
                         const openManage = async (tournament) => {
@@ -4330,14 +4370,18 @@ function SubCategoryPage() {
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 flex-wrap mb-1">
                                                                     <span className="text-white font-bold text-sm">{t.name}</span>
-                                                                    <span className="text-[10px] bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">{TYPE_LABEL[t.type] || t.type}</span>
-                                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'OPEN' ? 'bg-green-500/20 text-green-400' : 'bg-gray-700 text-gray-500'}`}>
-                                                                        {t.status === 'OPEN' ? '🟢 Open' : t.status}
+                                                                    <span className="text-[10px] bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">
+                                                                        {t.status === 'POLL' ? '🗳️ Poll' : (TYPE_LABEL[t.type] || t.type)}
                                                                     </span>
-                                                                    <button onClick={() => setRulesOpen(t.type)}
-                                                                        className="text-[10px] text-purple-400 hover:text-purple-300 underline underline-offset-2 transition">
-                                                                        Rules
-                                                                    </button>
+                                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'OPEN' ? 'bg-green-500/20 text-green-400' : t.status === 'POLL' ? 'bg-purple-500/20 text-purple-300' : 'bg-gray-700 text-gray-500'}`}>
+                                                                        {t.status === 'OPEN' ? '🟢 Open' : t.status === 'POLL' ? '🗳️ Poll' : t.status}
+                                                                    </span>
+                                                                    {t.status !== 'POLL' && (
+                                                                        <button onClick={() => setRulesOpen(t.type)}
+                                                                            className="text-[10px] text-purple-400 hover:text-purple-300 underline underline-offset-2 transition">
+                                                                            Rules
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                                 <p className="text-gray-500 text-xs">
                                                                     {(() => {
@@ -4358,7 +4402,26 @@ function SubCategoryPage() {
                                                             </div>
                                                             {/* Action buttons */}
                                                             <div className="flex items-center gap-2 flex-shrink-0">
-                                                                {isOwn ? (
+                                                                {t.status === 'POLL' ? (
+                                                                    <div className="flex flex-col items-end gap-1">
+                                                                        {(Array.isArray(t.pollTypes) ? t.pollTypes : ['1', '2']).map(tp => {
+                                                                            const votes = (t.typeVotes || []).filter(v => v.votedType === tp).length;
+                                                                            const voted = (t.typeVotes || []).find(v => v.userId === myId)?.votedType === tp;
+                                                                            return (
+                                                                                <button key={tp} disabled={votingTournamentId === t.id}
+                                                                                    onClick={() => handleVoteType(t.id, tp)}
+                                                                                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition whitespace-nowrap ${voted ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500/50'}`}>
+                                                                                    {voted ? '✓ ' : ''}{TYPE_LABEL[tp] || `🏅 Type ${tp}`} · {votes}
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                        {t.pollEndDate && (
+                                                                            <span className="text-gray-500 text-[10px]">
+                                                                                🗳️ {new Date(t.pollEndDate).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}{t.pollEndTime ? ` ${t.pollEndTime}` : ''}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                ) : isOwn ? (
                                                                     <button onClick={() => openManage(t)}
                                                                         className="bg-purple-600/20 border border-purple-500/40 text-purple-300 font-bold text-xs px-3 py-1.5 rounded-xl hover:bg-purple-600/40 transition">
                                                                         Manage
@@ -4654,19 +4717,53 @@ function SubCategoryPage() {
                                     <button onClick={() => setTournamentView(null)} className="text-gray-400 hover:text-white text-xl transition">←</button>
                                     <h3 className="text-white font-bold">Create Tournament</h3>
                                 </div>
-                                <p className="text-gray-500 text-sm">Select a tournament type:</p>
-                                <div className="space-y-3">
-                                    {TOURNAMENT_TYPES.map(t => (
-                                        <button key={t.id} onClick={() => { setSelectedTournamentType(t.id); setTournamentView('name_entry'); }}
-                                            className="w-full bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-2xl p-4 flex items-center gap-3 transition text-left">
-                                            <span className="text-2xl">{t.emoji}</span>
-                                            <div>
-                                                <p className="text-white font-bold text-sm">{t.label}</p>
-                                                <p className="text-gray-500 text-xs">{t.desc}</p>
-                                            </div>
-                                        </button>
-                                    ))}
+
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => { setPollEnabled(false); setPollTypes([]); }}
+                                        className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition ${!pollEnabled ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'}`}>
+                                        {t('tournament.poll_choose_myself', { defaultValue: '🎯 Türü ben seçeyim' })}
+                                    </button>
+                                    <button type="button" onClick={() => { setPollEnabled(true); setSelectedTournamentType(null); }}
+                                        className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition ${pollEnabled ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'}`}>
+                                        {t('tournament.poll_let_vote', { defaultValue: '🗳️ Oylamaya bırakayım' })}
+                                    </button>
                                 </div>
+
+                                {!pollEnabled ? (
+                                    <>
+                                        <p className="text-gray-500 text-sm">Select a tournament type:</p>
+                                        <div className="space-y-3">
+                                            {TOURNAMENT_TYPES.map(t => (
+                                                <button key={t.id} onClick={() => { setSelectedTournamentType(t.id); setTournamentView('name_entry'); }}
+                                                    className="w-full bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-2xl p-4 flex items-center gap-3 transition text-left">
+                                                    <span className="text-2xl">{t.emoji}</span>
+                                                    <div>
+                                                        <p className="text-white font-bold text-sm">{t.label}</p>
+                                                        <p className="text-gray-500 text-xs">{t.desc}</p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-gray-500 text-sm">{t('tournament.poll_types_label', { defaultValue: 'Oylamaya sunulacak türleri seçin (en az 2):' })}</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {POLL_TYPE_OPTIONS.map(o => (
+                                                <button key={o.id} type="button" onClick={() => togglePollType(o.id)}
+                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${pollTypes.includes(o.id) ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'}`}>
+                                                    {o.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <button
+                                            disabled={pollTypes.length < 2}
+                                            onClick={() => setTournamentView('name_entry')}
+                                            className={`w-full font-bold py-3 rounded-xl text-sm transition ${pollTypes.length < 2 ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : `bg-gradient-to-r ${config.color} text-white hover:opacity-90`}`}>
+                                            {t('common.continue', { defaultValue: 'Devam Et' })}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         );
 
@@ -4679,18 +4776,22 @@ function SubCategoryPage() {
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => setTournamentView('pick')} className="text-gray-400 hover:text-white text-xl transition">←</button>
-                                        <h3 className="text-white font-bold">{typeInfo?.emoji} {typeInfo?.label}</h3>
+                                        <h3 className="text-white font-bold">
+                                            {pollEnabled ? t('tournament.poll_let_vote', { defaultValue: '🗳️ Oylamaya bırakayım' }) : <>{typeInfo?.emoji} {typeInfo?.label}</>}
+                                        </h3>
                                     </div>
 
                                     {/* Rules section */}
-                                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 max-h-48 overflow-y-auto">
-                                        <p className="text-white font-bold text-sm mb-3">📋 Rules</p>
-                                        <div className="space-y-2">
-                                            {(TOURN_RULES[selectedTournamentType] || '').split('\n\n').filter(Boolean).map((para, i) => (
-                                                <p key={i} className="text-gray-400 text-xs leading-relaxed whitespace-pre-line">{para}</p>
-                                            ))}
+                                    {!pollEnabled && (
+                                        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 max-h-48 overflow-y-auto">
+                                            <p className="text-white font-bold text-sm mb-3">📋 Rules</p>
+                                            <div className="space-y-2">
+                                                {(TOURN_RULES[selectedTournamentType] || '').split('\n\n').filter(Boolean).map((para, i) => (
+                                                    <p key={i} className="text-gray-400 text-xs leading-relaxed whitespace-pre-line">{para}</p>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* Tournament name */}
                                     <div>
@@ -4795,6 +4896,22 @@ function SubCategoryPage() {
                                             <TimeSelect value={newTournamentEndTime} onChange={setNewTournamentEndTime} className="w-full" />
                                         </div>
                                     </div>
+
+                                    {/* Poll end date/time (only when letting players vote) */}
+                                    {pollEnabled && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className={labelCls}>🗳️ {t('tournament.poll_end_label', { defaultValue: 'Anket Bitiş Tarihi' })} *</label>
+                                                <input type="date" value={pollEndDate} onChange={e => setPollEndDate(e.target.value)}
+                                                    onClick={e => e.target.showPicker?.()}
+                                                    className={inputCls + " [color-scheme:dark] cursor-pointer"} />
+                                            </div>
+                                            <div>
+                                                <label className={labelCls}>🕐 {t('rival.time')}</label>
+                                                <TimeSelect value={pollEndTime} onChange={setPollEndTime} className="w-full" />
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Registration deadline */}
                                     <div className="grid grid-cols-2 gap-2">
