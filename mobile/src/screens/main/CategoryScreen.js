@@ -65,12 +65,18 @@ const CAT_COLOR = {
 
 export default function CategoryScreen({ route, navigation }) {
     const { category } = route.params;
-    const subs = [...(SUB_MAP[category] || [])].sort((a, b) => a.label.localeCompare(b.label));
     const accentColor = CAT_COLOR[category] || colors.purple;
     const t = useT();
 
     const [counts, setCounts] = useState({});
     const [loading, setLoading] = useState(true);
+
+    // Açık ilan sayısı en çoktan en aza; eşitse (veya ilan yoksa) alfabetik sıra
+    const subs = [...(SUB_MAP[category] || [])].sort((a, b) => {
+        const ca = counts[a.id] || 0, cb = counts[b.id] || 0;
+        if (cb !== ca) return cb - ca;
+        return a.label.localeCompare(b.label);
+    });
 
     const fetchCounts = useCallback(() => {
         api.get(`/rivals/counts?category=${category}`)
