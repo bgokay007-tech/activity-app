@@ -1598,6 +1598,40 @@ export default function ProfileScreen({ route, navigation }) {
     const [changeReqUploading, setChangeReqUploading] = useState(false);
     const [myChangeRequests, setMyChangeRequests] = useState([]);
 
+    // Destek mesajı
+    const [supportOpen, setSupportOpen] = useState(false);
+    const [supportMessages, setSupportMessages] = useState([]);
+    const [supportLoading, setSupportLoading] = useState(false);
+    const [supportText, setSupportText] = useState('');
+    const [supportSending, setSupportSending] = useState(false);
+
+    const loadSupportMessages = () => {
+        setSupportLoading(true);
+        api.get('/users/me/support-messages')
+            .then(r => setSupportMessages(Array.isArray(r.data) ? r.data : []))
+            .catch(() => setSupportMessages([]))
+            .finally(() => setSupportLoading(false));
+    };
+
+    const openSupport = () => {
+        setSupportOpen(true);
+        loadSupportMessages();
+    };
+
+    const sendSupportMessage = async () => {
+        if (!supportText.trim()) return;
+        setSupportSending(true);
+        try {
+            await api.post('/users/me/support-messages', { message: supportText.trim() });
+            setSupportText('');
+            loadSupportMessages();
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Mesaj gönderilemedi');
+        } finally {
+            setSupportSending(false);
+        }
+    };
+
     const openChangeReq = async (field) => {
         setChangeReqField(field);
         setChangeReqNewValue('');
@@ -2399,9 +2433,14 @@ export default function ProfileScreen({ route, navigation }) {
 
                 {/* Right */}
                 {isOwnProfile ? (
-                    <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
-                        <Text style={s.logoutText}>{t.logoutBtn}</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <TouchableOpacity onPress={openSupport} style={s.logoutBtn}>
+                            <Text style={s.logoutText}>💬 Destek</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
+                            <Text style={s.logoutText}>{t.logoutBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
                 ) : friendStatus?.status === 'ACCEPTED' ? (
                     <TouchableOpacity onPress={handleFriendAction} style={s.logoutBtn}>
                         <Text style={s.logoutText}>✕ {t.unfriendBtn || 'Arkadaşlıktan Çık'}</Text>
@@ -4088,6 +4127,61 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={s.saveBtnText}>{changeReqLoading ? t.sendingText : t.sendRequestBtn}</Text>
                                 </TouchableOpacity>
                             </View>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
+            </Modal>
+
+            {/* ── Destek Mesajı Modal ── */}
+            <Modal visible={supportOpen} animationType="slide" transparent onRequestClose={() => setSupportOpen(false)}>
+                <View style={s.modalOverlay}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width:'100%' }}>
+                        <View style={[s.modalBox, { maxHeight:'90%' }]}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>💬 Admine Destek Mesajı</Text>
+                                <TouchableOpacity onPress={() => setSupportOpen(false)}>
+                                    <Text style={s.modalClose}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight:320 }}>
+                                {supportLoading ? (
+                                    <ActivityIndicator color={colors.purple} style={{ marginVertical:16 }} />
+                                ) : supportMessages.length === 0 ? (
+                                    <Text style={{ color:colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Henüz mesaj göndermediniz.</Text>
+                                ) : (
+                                    supportMessages.map(msg => (
+                                        <View key={msg.id} style={{ backgroundColor:'#1e293b', borderRadius:12, padding:10, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                            <Text style={{ color:'#fff', fontSize:13 }}>{msg.message}</Text>
+                                            {msg.status === 'PENDING' ? (
+                                                <Text style={{ color:'#f59e0b', fontSize:11, marginTop:6 }}>⏳ Mesajınız iletildi, ekibimiz en kısa sürede yanıtlayacak.</Text>
+                                            ) : (
+                                                <View style={{ marginTop:6, backgroundColor:'#10b98118', borderRadius:8, padding:8, borderWidth:1, borderColor:'#10b98150' }}>
+                                                    <Text style={{ color:'#10b981', fontSize:11, fontWeight:'700', marginBottom:2 }}>✅ Yanıtlandı</Text>
+                                                    <Text style={{ color:'#fff', fontSize:12 }}>{msg.adminReply}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    ))
+                                )}
+                            </ScrollView>
+                            <TextInput
+                                style={[s.fieldInput, { marginTop:8, minHeight:60, textAlignVertical:'top' }]}
+                                value={supportText}
+                                onChangeText={setSupportText}
+                                placeholder="Mesajınızı yazın..."
+                                placeholderTextColor={colors.textMuted}
+                                multiline
+                            />
+                            <TouchableOpacity
+                                style={[s.saveBtn, { marginTop:8 }, (!supportText.trim() || supportSending) && { opacity:0.4 }]}
+                                onPress={sendSupportMessage}
+                                disabled={!supportText.trim() || supportSending}
+                            >
+                                {supportSending
+                                    ? <ActivityIndicator size="small" color="#fff" />
+                                    : <Text style={s.saveBtnText}>Gönder</Text>}
+                            </TouchableOpacity>
                         </View>
                     </KeyboardAvoidingView>
                 </View>
