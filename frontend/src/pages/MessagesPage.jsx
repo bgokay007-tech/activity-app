@@ -205,6 +205,36 @@ function MessagesPage() {
 
     const [blockedIds, setBlockedIds] = useState(new Set());
 
+    const [supportOpen, setSupportOpen] = useState(false);
+    const [supportMessages, setSupportMessages] = useState([]);
+    const [supportLoading, setSupportLoading] = useState(false);
+    const [supportText, setSupportText] = useState('');
+    const [supportSending, setSupportSending] = useState(false);
+
+    const loadSupportMessages = () => {
+        setSupportLoading(true);
+        api.get('/users/me/support-messages')
+            .then(({ data }) => setSupportMessages(Array.isArray(data) ? data : []))
+            .catch(() => setSupportMessages([]))
+            .finally(() => setSupportLoading(false));
+    };
+
+    const openSupport = () => { setSupportOpen(true); loadSupportMessages(); };
+
+    const sendSupportMessage = async () => {
+        if (!supportText.trim()) return;
+        setSupportSending(true);
+        try {
+            await api.post('/users/me/support-messages', { message: supportText.trim() });
+            setSupportText('');
+            loadSupportMessages();
+        } catch (err) {
+            alert(err?.response?.data?.message || 'Mesaj gönderilemedi');
+        } finally {
+            setSupportSending(false);
+        }
+    };
+
     useEffect(() => {
         api.get('/friends/blocked').then(({ data }) => {
             setBlockedUsers(data);
@@ -306,6 +336,13 @@ function MessagesPage() {
                         >
                             🚫 Blocked {blockedUsers.length > 0 && <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 rounded-full">{blockedUsers.length}</span>}
                         </button>
+                        <button
+                            onClick={openSupport}
+                            title="Destek"
+                            className="px-3 py-3 text-xs font-bold text-gray-500 hover:text-purple-300 transition shrink-0 border-l border-gray-800"
+                        >
+                            🆘 Destek
+                        </button>
                     </div>
                     {/* Messages list */}
                     {!showBlocked && (
@@ -380,6 +417,54 @@ function MessagesPage() {
                     )}
                 </div>
             </div>
+
+            {supportOpen && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setSupportOpen(false)}>
+                    <div className="bg-gray-900 rounded-2xl border border-gray-700 p-6 w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4 shrink-0">
+                            <h3 className="text-white font-bold text-lg">💬 Admine Destek Mesajı</h3>
+                            <button onClick={() => setSupportOpen(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+                        </div>
+
+                        <div className="overflow-y-auto mb-3 space-y-2" style={{ maxHeight: '18rem' }}>
+                            {supportLoading ? (
+                                <p className="text-gray-500 text-sm text-center py-6">Yükleniyor...</p>
+                            ) : supportMessages.length === 0 ? (
+                                <p className="text-gray-500 text-sm text-center py-6">Henüz mesaj göndermediniz.</p>
+                            ) : (
+                                supportMessages.map(msg => (
+                                    <div key={msg.id} className="bg-gray-800 rounded-xl p-3 border border-gray-700">
+                                        <p className="text-white text-sm">{msg.message}</p>
+                                        {msg.status === 'PENDING' ? (
+                                            <p className="text-yellow-500 text-xs mt-1.5">⏳ Mesajınız iletildi, ekibimiz en kısa sürede yanıtlayacak.</p>
+                                        ) : (
+                                            <div className="mt-1.5 bg-green-500/10 border border-green-500/30 rounded-lg p-2">
+                                                <p className="text-green-400 text-xs font-bold mb-0.5">✅ Yanıtlandı</p>
+                                                <p className="text-white text-xs">{msg.adminReply}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <textarea
+                            value={supportText}
+                            onChange={e => setSupportText(e.target.value)}
+                            placeholder="Mesajınızı yazın..."
+                            rows={3}
+                            className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 resize-none text-sm shrink-0"
+                        />
+                        <button
+                            onClick={sendSupportMessage}
+                            disabled={!supportText.trim() || supportSending}
+                            className="mt-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-40 transition hover:opacity-90 shrink-0"
+                        >
+                            {supportSending ? 'Gönderiliyor...' : 'Gönder'}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
