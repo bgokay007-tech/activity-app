@@ -22,6 +22,7 @@ const TABS = [
     { key: 'profilechanges',   label: '🪪 Profil' },
     { key: 'subscriptions',    label: '💳 Abonelik' },
     { key: 'venuereviews',     label: '⭐ Tesis Yorumu' },
+    { key: 'support',          label: '💬 Destek' },
 ];
 
 // ── Shared helpers ────────────────────────────────────────────────────────────────
@@ -847,6 +848,92 @@ function ProfileChangesTab() {
     );
 }
 
+// ── Destek Mesajları ─────────────────────────────────────────────────────────────
+function SupportMessagesTab() {
+    const [msgs, setMsgs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState('PENDING');
+    const [refreshing, setRefreshing] = useState(false);
+    const [replyId, setReplyId] = useState(null);
+    const [reply, setReply] = useState('');
+    const [sending, setSending] = useState(false);
+
+    const load = useCallback(async (st, isRefresh = false) => {
+        if (isRefresh) setRefreshing(true); else setLoading(true);
+        try {
+            const { data } = await api.get(`/admin/support-messages?status=${st}`);
+            setMsgs(Array.isArray(data) ? data : []);
+        } catch {}
+        if (isRefresh) setRefreshing(false); else setLoading(false);
+    }, []);
+
+    useEffect(() => { load(statusFilter); }, [statusFilter]);
+
+    const sendReply = async (id) => {
+        if (!reply.trim()) return;
+        setSending(true);
+        try {
+            await api.patch(`/admin/support-messages/${id}`, { reply: reply.trim() });
+            setMsgs(prev => prev.filter(m => m.id !== id));
+            setReplyId(null);
+            setReply('');
+        } catch { Alert.alert('Hata', 'İşlem başarısız.'); }
+        finally { setSending(false); }
+    };
+
+    if (loading) return <LoadingView />;
+
+    return (
+        <View style={{ flex: 1 }}>
+            <FilterRow
+                options={[
+                    { key: 'PENDING',  label: '⏳ Bekleyen' },
+                    { key: 'ANSWERED', label: '✅ Yanıtlanan' },
+                ]}
+                active={statusFilter}
+                onChange={setStatusFilter}
+            />
+            <FlatList
+                data={msgs}
+                keyExtractor={m => m.id}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(statusFilter, true)} tintColor={colors.purple} />}
+                renderItem={({ item: m }) => (
+                    <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
+                        <Text style={s.cardTitle}>@{m.user?.username || '?'}</Text>
+                        <Text style={s.cardMeta}>{m.message}</Text>
+                        {m.status === 'ANSWERED' && (
+                            <Text style={[s.cardMeta, { color: '#10b981' }]}>Yanıt: {m.adminReply}</Text>
+                        )}
+                        {statusFilter === 'PENDING' && (
+                            <>
+                                {replyId === m.id && (
+                                    <TextInput
+                                        style={[s.textArea, { minHeight: 60 }]}
+                                        placeholder="Yanıtınızı yazın..."
+                                        placeholderTextColor={colors.textMuted}
+                                        value={reply}
+                                        onChangeText={setReply}
+                                        multiline
+                                    />
+                                )}
+                                <Btn
+                                    label={replyId === m.id ? (sending ? '...' : '💬 Yanıtla (gönder)') : '💬 Yanıtla'}
+                                    onPress={() => {
+                                        if (replyId === m.id) sendReply(m.id);
+                                        else { setReplyId(m.id); setReply(''); }
+                                    }}
+                                    color="#3b82f6" small
+                                />
+                            </>
+                        )}
+                    </View>
+                )}
+                ListEmptyComponent={<EmptyView text="Destek mesajı bulunamadı." />}
+            />
+        </View>
+    );
+}
+
 // ── Venue Reviews ──────────────────────────────────────────────────────────────────
 function VenueReviewsTab() {
     const [reviews, setReviews] = useState([]);
@@ -1095,6 +1182,7 @@ export default function AdminPortalScreen({ navigation, route }) {
             case 'profilechanges': return <ProfileChangesTab />;
             case 'subscriptions':  return <SubscriptionsTab />;
             case 'venuereviews':   return <VenueReviewsTab />;
+            case 'support':        return <SupportMessagesTab />;
             default:               return null;
         }
     };

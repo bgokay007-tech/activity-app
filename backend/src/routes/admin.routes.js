@@ -9,6 +9,7 @@ import {
     getTournamentPermissionRequests, approveTournamentPermission, rejectTournamentPermission, revokeTournamentPermission,
     getFlaggedListings, moderateListing,
     getProfileChangeRequests, reviewProfileChangeRequest,
+    getSupportMessages, replySupportMessage,
 } from '../controllers/admin.controller.js';
 import { getNoShowReports, approveNoShow, rejectNoShow } from '../controllers/noshow.controller.js';
 import { adminGetCities, adminUpdateCity } from '../controllers/city.controller.js';
@@ -42,6 +43,9 @@ router.delete('/tournament-permissions/:userId/revoke', revokeTournamentPermissi
 
 router.get('/profile-changes',        getProfileChangeRequests);
 router.patch('/profile-changes/:id',  reviewProfileChangeRequest);
+
+router.get('/support-messages',       getSupportMessages);
+router.patch('/support-messages/:id', replySupportMessage);
 
 router.get('/review-appeals',         getReviewAppeals);
 router.patch('/review-appeals/:id',   resolveReviewAppeal);

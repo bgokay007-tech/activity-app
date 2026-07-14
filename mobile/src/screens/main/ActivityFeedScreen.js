@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
     View, Text, TouchableOpacity, Modal,
     StyleSheet, StatusBar, Platform, ActivityIndicator,
-    TextInput, ScrollView,
+    TextInput, ScrollView, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -490,6 +490,40 @@ export default function ActivityFeedScreen({ navigation }) {
     const [showTimeModal, setShowTimeModal] = useState(false);
     const [showSubsModal, setShowSubsModal] = useState(false);
 
+    // Destek mesajı
+    const [supportOpen, setSupportOpen] = useState(false);
+    const [supportMessages, setSupportMessages] = useState([]);
+    const [supportLoading, setSupportLoading] = useState(false);
+    const [supportText, setSupportText] = useState('');
+    const [supportSending, setSupportSending] = useState(false);
+
+    const loadSupportMessages = () => {
+        setSupportLoading(true);
+        api.get('/users/me/support-messages')
+            .then(r => setSupportMessages(Array.isArray(r.data) ? r.data : []))
+            .catch(() => setSupportMessages([]))
+            .finally(() => setSupportLoading(false));
+    };
+
+    const openSupport = () => {
+        setSupportOpen(true);
+        loadSupportMessages();
+    };
+
+    const sendSupportMessage = async () => {
+        if (!supportText.trim()) return;
+        setSupportSending(true);
+        try {
+            await api.post('/users/me/support-messages', { message: supportText.trim() });
+            setSupportText('');
+            loadSupportMessages();
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Mesaj gönderilemedi');
+        } finally {
+            setSupportSending(false);
+        }
+    };
+
     // Backend'den ekstra subCategory'leri çek (static listede yoksa)
     useEffect(() => {
         api.get('/rivals/sub-categories').then(r => {
@@ -594,11 +628,16 @@ export default function ActivityFeedScreen({ navigation }) {
 
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
                 <RainbowLogo text={logoText} style={{ fontSize: 22, fontWeight: '900', letterSpacing: 2 }} />
-                {hasFilter && (
-                    <TouchableOpacity onPress={clearAll} style={s.clearBtn} activeOpacity={0.8}>
-                        <Text style={s.clearBtnText}>✕ Temizle</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {hasFilter && (
+                        <TouchableOpacity onPress={clearAll} style={s.clearBtn} activeOpacity={0.8}>
+                            <Text style={s.clearBtnText}>✕ Temizle</Text>
+                        </TouchableOpacity>
+                    )}
+                    <TouchableOpacity onPress={openSupport} style={s.supportBtn} activeOpacity={0.8}>
+                        <Text style={s.supportBtnText}>💬 Destek</Text>
                     </TouchableOpacity>
-                )}
+                </View>
             </View>
 
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
@@ -705,6 +744,59 @@ export default function ActivityFeedScreen({ navigation }) {
                 onApply={(subs) => { setSelSubs(subs); setShowSubsModal(false); }}
                 onClose={() => setShowSubsModal(false)}
             />
+
+            {/* Destek mesajı modalı */}
+            <Modal visible={supportOpen} animationType="slide" transparent onRequestClose={() => setSupportOpen(false)}>
+                <View style={m.overlay}>
+                    <View style={m.sheet}>
+                        <View style={sup.header}>
+                            <Text style={m.title}>💬 Admine Destek Mesajı</Text>
+                            <TouchableOpacity onPress={() => setSupportOpen(false)}>
+                                <Text style={sup.closeBtn}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                            {supportLoading ? (
+                                <ActivityIndicator color={colors.purple} style={{ marginVertical: 16 }} />
+                            ) : supportMessages.length === 0 ? (
+                                <Text style={sup.emptyText}>Henüz mesaj göndermediniz.</Text>
+                            ) : (
+                                supportMessages.map(m => (
+                                    <View key={m.id} style={sup.msgBox}>
+                                        <Text style={sup.msgText}>{m.message}</Text>
+                                        {m.status === 'PENDING' ? (
+                                            <Text style={sup.pendingText}>⏳ Mesajınız iletildi, ekibimiz en kısa sürede yanıtlayacak.</Text>
+                                        ) : (
+                                            <View style={sup.replyBox}>
+                                                <Text style={sup.replyLabel}>✅ Yanıtlandı</Text>
+                                                <Text style={sup.replyText}>{m.adminReply}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                ))
+                            )}
+                        </ScrollView>
+                        <TextInput
+                            style={sup.input}
+                            value={supportText}
+                            onChangeText={setSupportText}
+                            placeholder="Mesajınızı yazın..."
+                            placeholderTextColor={colors.textMuted}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            style={[sup.sendBtn, (!supportText.trim() || supportSending) && { opacity: 0.5 }]}
+                            onPress={sendSupportMessage}
+                            disabled={!supportText.trim() || supportSending}
+                            activeOpacity={0.8}
+                        >
+                            {supportSending
+                                ? <ActivityIndicator size="small" color="#fff" />
+                                : <Text style={sup.sendBtnText}>Gönder</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -719,32 +811,34 @@ const s = StyleSheet.create({
     },
     clearBtn:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
     clearBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
+    supportBtn:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.purple, backgroundColor: colors.purple + '18' },
+    supportBtnText: { color: colors.purpleLight || colors.purple, fontSize: 12, fontWeight: '700' },
 
     filterPanel: {
         backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border,
-        paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12, gap: 8,
+        paddingHorizontal: 3, paddingTop: 3, paddingBottom: 3, gap: 3,
     },
-    sectionLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
-    filterRow:    { flexDirection: 'row', gap: 8 },
+    sectionLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
+    filterRow:    { flexDirection: 'row', gap: 3 },
     filterInput:  {
         flex: 1, backgroundColor: colors.surface2, borderRadius: 10,
-        paddingHorizontal: 10, paddingVertical: 8, color: '#fff', fontSize: 13,
+        paddingHorizontal: 3, paddingVertical: 3, color: '#fff', fontSize: 11,
         borderWidth: 1, borderColor: colors.border,
     },
 
     pickerField: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11,
+        backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 3, paddingVertical: 3,
         borderWidth: 1, borderColor: colors.border,
     },
     pickerFieldActive: { borderColor: colors.purple, backgroundColor: colors.purple + '12' },
-    pickerFieldText:   { color: colors.textMuted, fontSize: 13 },
-    pickerArrow:       { color: colors.textMuted, fontSize: 18 },
+    pickerFieldText:   { color: colors.textMuted, fontSize: 11 },
+    pickerArrow:       { color: colors.textMuted, fontSize: 14 },
 
-    chipRow:   { gap: 6, paddingVertical: 2 },
-    chip:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
-    chipEmoji: { fontSize: 14 },
-    chipText:  { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
+    chipRow:   { gap: 3, paddingVertical: 3 },
+    chip:      { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 3, paddingVertical: 3, borderRadius: 20, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    chipEmoji: { fontSize: 12 },
+    chipText:  { color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
 
     suggItem:        { paddingHorizontal: 12, paddingVertical: 9, marginTop: 3, backgroundColor: colors.surface2, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
     suggText:        { color: '#fff', fontSize: 13 },
@@ -827,4 +921,22 @@ const m = StyleSheet.create({
     clearBtnText:{ color: colors.textSecondary, fontWeight: '700' },
     applyBtn:    { flex: 2, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: colors.purple },
     applyBtnText:{ color: '#fff', fontWeight: '900', fontSize: 15 },
+});
+
+const sup = StyleSheet.create({
+    header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+    closeBtn:    { color: colors.textMuted, fontSize: 18, padding: 4 },
+    emptyText:   { color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 16 },
+    msgBox:      { backgroundColor: colors.surface2, borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+    msgText:     { color: '#fff', fontSize: 13 },
+    pendingText: { color: colors.yellow, fontSize: 11, marginTop: 6 },
+    replyBox:    { marginTop: 6, backgroundColor: '#10b98118', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#10b98150' },
+    replyLabel:  { color: '#10b981', fontSize: 11, fontWeight: '700', marginBottom: 2 },
+    replyText:   { color: '#fff', fontSize: 12 },
+    input:       {
+        backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: colors.border,
+        color: '#fff', fontSize: 13, padding: 10, minHeight: 60, textAlignVertical: 'top', marginTop: 8,
+    },
+    sendBtn:     { backgroundColor: colors.purple, borderRadius: 12, paddingVertical: 11, alignItems: 'center', marginTop: 8 },
+    sendBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
 });

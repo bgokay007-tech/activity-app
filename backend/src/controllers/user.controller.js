@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
+import { emitToUser } from '../config/socket.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
 
 export const getProfile = async (req, res, next) => {
@@ -220,6 +221,43 @@ export const getMyProfileChangeRequests = async (req, res, next) => {
             orderBy: { createdAt: 'desc' },
         });
         res.json(requests);
+    } catch (error) { next(error); }
+};
+
+export const submitSupportMessage = async (req, res, next) => {
+    try {
+        const { message } = req.body;
+        if (!message?.trim())
+            return res.status(400).json({ message: 'Mesaj boş olamaz' });
+
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        const supportMessage = await prisma.supportMessage.create({
+            data: { userId: req.userId, message: message.trim(), status: 'PENDING' },
+        });
+
+        // Tüm adminleri bilgilendir
+        const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+        await Promise.all(admins.map(admin =>
+            createNotification(
+                admin.id,
+                'SUPPORT_MESSAGE',
+                '💬 Yeni Destek Mesajı',
+                `${user?.username || '?'}: ${message.trim().slice(0, 80)}`,
+                { messageId: supportMessage.id, userId: req.userId }
+            ).then(() => emitToUser(admin.id, 'notification', {})).catch(() => {})
+        ));
+
+        res.status(201).json(supportMessage);
+    } catch (error) { next(error); }
+};
+
+export const getMySupportMessages = async (req, res, next) => {
+    try {
+        const messages = await prisma.supportMessage.findMany({
+            where: { userId: req.userId },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(messages);
     } catch (error) { next(error); }
 };
 

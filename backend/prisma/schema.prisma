@@ -101,6 +101,7 @@ model User {
   surveyGiven      SportSurvey[] @relation("SurveyRater")
   surveyReceived   SportSurvey[] @relation("SurveySubject")
   profileChangeRequests ProfileChangeRequest[]
+  supportMessages       SupportMessage[]
   subscriptions         BusinessSubscription[]
   subscriptionRequests  SubscriptionRequest[]
   businessIban          String?
@@ -138,6 +139,18 @@ model ProfileChangeRequest {
   adminNote    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// KULLANICIDAN ADMİNE DESTEK MESAJI
+model SupportMessage {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message    String
+  status     String   @default("PENDING") // PENDING | ANSWERED
+  adminReply String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model SportSurvey {
@@ -544,6 +557,7 @@ model Tournament {
   matchFrequency       String?      // 'WEEKLY_1' | 'WEEKLY_2' | 'FLEXIBLE'
   matchTimeStart       String?      // earliest allowed match time e.g. '09:00'
   matchTimeEnd         String?      // latest allowed match time e.g. '22:00'
+  dayTrip              Boolean      @default(false) // Günübirlik: tüm maçlar tek günde oynanır — joker/haftalık süre kuralları (3./4. madde) geçersizdir
   minPlayers           Int          @default(2)
   maxPlayers           Int          @default(32)
   setsPerMatch         Int?         // 1 | 3 | 5

@@ -313,3 +313,44 @@ export const reviewProfileChangeRequest = async (req, res, next) => {
         res.json(updated);
     } catch (e) { next(e); }
 };
+
+export const getSupportMessages = async (req, res, next) => {
+    try {
+        const { status = 'PENDING' } = req.query;
+        const messages = await prisma.supportMessage.findMany({
+            where: { status },
+            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json(messages);
+    } catch (e) { next(e); }
+};
+
+export const replySupportMessage = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { reply } = req.body;
+        if (!reply?.trim())
+            return res.status(400).json({ message: 'Yanıt boş olamaz' });
+
+        const message = await prisma.supportMessage.findUnique({ where: { id } });
+        if (!message) return res.status(404).json({ message: 'Mesaj bulunamadı' });
+        if (message.status !== 'PENDING') return res.status(400).json({ message: 'Mesaj zaten yanıtlanmış' });
+
+        const updated = await prisma.supportMessage.update({
+            where: { id },
+            data: { status: 'ANSWERED', adminReply: reply.trim() },
+        });
+
+        const { createNotification } = await import('./notification.controller.js');
+        createNotification(
+            message.userId,
+            'SUPPORT_MESSAGE_REPLIED',
+            '💬 Destek Mesajınıza Yanıt Geldi',
+            reply.trim().slice(0, 120),
+            {}
+        ).catch(() => {});
+
+        res.json(updated);
+    } catch (e) { next(e); }
+};
