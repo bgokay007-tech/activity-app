@@ -10,6 +10,7 @@ import SubCategoryPage from './pages/SubCategoryPage';
 import ProfilePage from './pages/ProfilePage';
 import MessagesPage from './pages/MessagesPage';
 import CourtsPage from './pages/CourtsPage';
+import VenuesPage from './pages/VenuesPage';
 import AdminPage from './pages/AdminPage';
 import ArchivePage from './pages/ArchivePage';
 
@@ -34,6 +35,7 @@ function App() {
       <Route path="/messages" element={token ? <MessagesPage /> : <Navigate to="/login" />} />
       <Route path="/messages/:userId" element={token ? <MessagesPage /> : <Navigate to="/login" />} />
       <Route path="/courts" element={token ? <CourtsPage /> : <Navigate to="/login" />} />
+      <Route path="/venues" element={token ? <VenuesPage /> : <Navigate to="/login" />} />
       <Route path="/admin" element={token ? <AdminPage /> : <Navigate to="/login" />} />
       <Route path="/archive" element={token ? <ArchivePage /> : <Navigate to="/login" />} />
       <Route path="*" element={<Navigate to={token ? "/home" : "/login"} />} />
