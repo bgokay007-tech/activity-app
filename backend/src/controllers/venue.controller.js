@@ -7,6 +7,24 @@ const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m
 const toTime = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const overlaps = (as, ae, bs, be) => as < be && ae > bs;
 
+// Türkiye saatiyle "şu an" — tarih (YYYY-MM-DD) ve gün içi dakika olarak.
+function nowIstanbul() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const get = type => parts.find(p => p.type === type)?.value;
+    return { dateStr: `${get('year')}-${get('month')}-${get('day')}`, mins: Number(get('hour')) * 60 + Number(get('minute')) };
+}
+
+// date/startTime geçmişte mi? (Türkiye saati baz alınır)
+function isPastDateTime(date, startTime) {
+    const { dateStr: today, mins: nowMins } = nowIstanbul();
+    if (date < today) return true;
+    if (date > today) return false;
+    return toMins(startTime) < nowMins;
+}
+
 async function autoConfirmPastCash(venueId) {
     const now = new Date();
     const pending = await prisma.courtReservation.findMany({
@@ -123,29 +141,66 @@ function resolvePriceRule(venue, court, startTime) {
     return { basePrice, paymentDeltas };
 }
 
+// Bir [rangeStartMins, rangeEndMins) aralığını, işletmecinin pricingWindows'ta belirlediği
+// (slot ızgarasıyla hizalı olmak zorunda olmayan — ör. gün batımına göre 20:30) fiyat
+// sınırlarına göre alt parçalara böler. Her parça kendi resolvePriceRule sonucunu taşır —
+// böylece bir fiyat sınırının ortasına düşen rezervasyonlar (ör. 20:00-21:00, sınır 20:30)
+// tek bir uçtaki fiyattan değil, süre ağırlıklı gerçek karışım fiyatından hesaplanır.
+function splitPriceSegments(venue, court, rangeStartMins, rangeEndMins) {
+    const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
+    const points = new Set([rangeStartMins, rangeEndMins]);
+    for (const w of pw) {
+        if (w.courtId && w.courtId !== court?.id) continue; // sadece bu kort veya tesis geneli kural
+        for (const raw of [toMins(w.from), toMins(w.to)]) {
+            if (raw > rangeStartMins && raw < rangeEndMins) points.add(raw);
+        }
+    }
+    const sorted = [...points].sort((a, b) => a - b);
+    const segments = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+        const segStart = sorted[i], segEnd = sorted[i + 1];
+        if (segEnd <= segStart) continue;
+        const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, toTime(segStart));
+        segments.push({ startMins: segStart, endMins: segEnd, basePrice, paymentDeltas });
+    }
+    return segments;
+}
+
 function getSlotPrice(venue, court, startTime, durationMins = 60) {
-    const { basePrice } = resolvePriceRule(venue, court, startTime);
-    return Math.round(basePrice * (durationMins / 60));
+    const segs = splitPriceSegments(venue, court, toMins(startTime), toMins(startTime) + durationMins);
+    const total = segs.reduce((sum, seg) => sum + seg.basePrice * ((seg.endMins - seg.startMins) / 60), 0);
+    return Math.round(total);
 }
 
 const PAYMENT_METHODS = ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'];
 
 // paymentDeltas[method] o yöntemle ödendiğinde saat başı geçerli olacak NİHAİ fiyattır
 // (kuralın taban fiyatına eklenen bir fark değil) — boşsa taban fiyat (basePricePerHour) kullanılır.
-function applyPaymentDelta(basePricePerHour, paymentDeltas, method, durationMins = 60) {
+function resolveMethodRate(basePricePerHour, paymentDeltas, method) {
     const raw = paymentDeltas?.[method];
-    const perHour = (raw != null && !isNaN(parseInt(raw))) ? Math.max(0, parseInt(raw)) : basePricePerHour;
-    return Math.round(perHour * (durationMins / 60));
+    return (raw != null && !isNaN(parseInt(raw))) ? Math.max(0, parseInt(raw)) : basePricePerHour;
 }
 
-function buildPriceByMethod(paymentDeltas, basePricePerHour, durationMins = 60) {
+// Tek bir ödeme yöntemi için, fiyat sınırlarına bölünerek hesaplanmış nihai tutar.
+function getMethodPrice(venue, court, startTime, durationMins, method) {
+    const segs = splitPriceSegments(venue, court, toMins(startTime), toMins(startTime) + durationMins);
+    const total = segs.reduce((sum, seg) => sum + resolveMethodRate(seg.basePrice, seg.paymentDeltas, method) * ((seg.endMins - seg.startMins) / 60), 0);
+    return Math.round(total);
+}
+
+function buildPriceByMethod(venue, court, startTime, durationMins = 60) {
     const out = {};
-    for (const m of PAYMENT_METHODS) out[m] = applyPaymentDelta(basePricePerHour, paymentDeltas, m, durationMins);
+    for (const m of PAYMENT_METHODS) out[m] = getMethodPrice(venue, court, startTime, durationMins, m);
     return out;
 }
 
 function computeSlots(venue, reservations, date, courtId = null, maintWindows = []) {
     const openWindows = getOpenWindows(venue, date, courtId);
+
+    // Bugünse, geçmişte kalan saatler seçilemesin diye "şu an"ı dakika cinsinden al.
+    const { dateStr: todayStr, mins: nowMins } = nowIstanbul();
+    const isToday = date === todayStr;
+    const isPastMin = t => isToday && t < nowMins;
 
     const taken = [];
     for (const r of reservations.filter(r => r.date === date && r.status !== 'CANCELLED')) {
@@ -167,8 +222,9 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
                 const remaining = close - (t + 60);
                 if (remaining > 0 && remaining < 60) continue; // kapanışta kullanılamaz boşluk bırakır
                 const maint = isMaint(t, t + 60);
-                const free  = !maint && isFree(t, t + 60);
-                slots.push({ start: toTime(t), end: toTime(t + 60), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: slotStatus(t, t + 60) } : {}) });
+                const past  = isPastMin(t);
+                const free  = !maint && !past && isFree(t, t + 60);
+                slots.push({ start: toTime(t), end: toTime(t + 60), free, ...(maint ? { maintenance: true } : {}), ...(past ? { past: true } : {}), ...(!free && !maint && !past ? { status: slotStatus(t, t + 60) } : {}) });
             }
         }
         return { type: 'FULL_HOUR', slots };
@@ -190,9 +246,10 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
                 const midnight = endT > 1440;
                 if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; } // kapanışta kullanılamaz boşluk
                 const maint = midnight ? (isMaint(t, 1440) || isMaint(0, endT - 1440)) : isMaint(t, endT);
-                const free  = !maint && (midnight ? (isFree(t, 1440) && isFree(0, endT - 1440)) : isFree(t, endT));
-                const st    = !free && !maint ? (midnight ? (slotStatus(t, 1440) || slotStatus(0, endT - 1440)) : slotStatus(t, endT)) : undefined;
-                slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: st } : {}) });
+                const past  = isPastMin(t);
+                const free  = !maint && !past && (midnight ? (isFree(t, 1440) && isFree(0, endT - 1440)) : isFree(t, endT));
+                const st    = !free && !maint && !past ? (midnight ? (slotStatus(t, 1440) || slotStatus(0, endT - 1440)) : slotStatus(t, endT)) : undefined;
+                slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), free, ...(maint ? { maintenance: true } : {}), ...(past ? { past: true } : {}), ...(!free && !maint && !past ? { status: st } : {}) });
             }
         }
         return { type: 'HALF_HOUR', slots };
@@ -206,8 +263,9 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
                 const remaining = close - (t + 90);
                 if (remaining > 0 && remaining < 90) continue; // kapanışta kullanılamaz boşluk bırakır
                 const maint = isMaint(t, t + 90);
-                const free  = !maint && isFree(t, t + 90);
-                slots.push({ start: toTime(t), end: toTime(t + 90), free, ...(maint ? { maintenance: true } : {}), ...(!free && !maint ? { status: slotStatus(t, t + 90) } : {}) });
+                const past  = isPastMin(t);
+                const free  = !maint && !past && isFree(t, t + 90);
+                slots.push({ start: toTime(t), end: toTime(t + 90), free, ...(maint ? { maintenance: true } : {}), ...(past ? { past: true } : {}), ...(!free && !maint && !past ? { status: slotStatus(t, t + 90) } : {}) });
             }
         }
         return { type: 'NINETY_MIN', slots };
@@ -221,7 +279,7 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
         for (const w of openWindows) {
             const open = toMins(w.from), close = toMins(w.to);
             const wTaken = allTaken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
-            let prev = open;
+            let prev = isToday ? Math.max(open, nowMins) : open;
             for (const r of wTaken) {
                 if (r.s > prev && r.s - prev >= 60)
                     windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
@@ -242,7 +300,7 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
     for (const w of openWindows) {
         const open = toMins(w.from), close = toMins(w.to);
         const wTaken = allTaken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
-        let prev = open;
+        let prev = isToday ? Math.max(open, nowMins) : open;
         for (const r of wTaken) {
             if (r.s > prev) windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
             prev = Math.max(prev, r.e);
@@ -404,14 +462,21 @@ export const getVenueSlots = async (req, res, next) => {
             const dur = s.start && s.end
                 ? (() => { const d = toMins(s.end) - toMins(s.start); return d > 0 ? d : d + 1440; })()
                 : 60;
-            const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, s.start);
-            const base = Math.round(basePrice * (dur / 60));
-            return { ...s, price: base, priceByMethod: buildPriceByMethod(paymentDeltas, basePrice, dur) };
+            return { ...s, price: getSlotPrice(venue, court, s.start, dur), priceByMethod: buildPriceByMethod(venue, court, s.start, dur) };
         });
-        // VAR_DURATION pencereleri için: saatlik baz fiyat döndür, frontend seçilen süreyle çarpar
+        // VAR_DURATION pencereleri için: pencere başındaki saatlik baz fiyat (basit gösterim/
+        // geriye dönük uyumluluk) YANINDA, pencere içindeki fiyat sınırlarına göre bölünmüş
+        // priceSegments de döner — frontend seçtiği [başlangıç, süre) aralığını bu segmentlere
+        // göre ağırlıklı toplayarak hesaplar, tek bir uçtaki fiyattan hesaplamaz.
         const addWindowPrice = arr => (arr || []).map(s => {
             const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, s.start);
-            return { ...s, pricePerHour: basePrice, pricePerHourByMethod: buildPriceByMethod(paymentDeltas, basePrice) };
+            const segs = splitPriceSegments(venue, court, toMins(s.start), toMins(s.end));
+            const priceSegments = segs.map(seg => {
+                const pricePerHourByMethod = {};
+                for (const m of PAYMENT_METHODS) pricePerHourByMethod[m] = resolveMethodRate(seg.basePrice, seg.paymentDeltas, m);
+                return { from: toTime(seg.startMins), to: toTime(seg.endMins), pricePerHour: seg.basePrice, pricePerHourByMethod };
+            });
+            return { ...s, pricePerHour: basePrice, pricePerHourByMethod: buildPriceByMethod(venue, court, s.start, 60), priceSegments };
         });
         const resultWithPrice = slotsResult.slots
             ? { ...slotsResult, slots: addSlotPrice(slotsResult.slots) }
@@ -454,6 +519,83 @@ export const updateCourtSettings = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Bakım/çakışma/boşluk kontrolleri — hem kullanıcı rezervasyonunda (makeReservation) hem de
+// işletmecinin manuel (telefonla gelen) rezervasyonunda (createManualReservation) ortak.
+// Sorun yoksa null, varsa { status, message } döner.
+async function validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod) {
+    // Tüm-gün bakım kontrolü
+    const courtCheck = await prisma.venueCourt.findUnique({ where: { id: courtId } });
+    const mDates = (Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : []).map(normMaint);
+    if (mDates.some(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime))
+        return { status: 400, message: 'Bu kort seçilen tarihte bakımda. Rezervasyon yapılamaz.' };
+
+    if (paymentMethod === 'ONLINE')
+        return { status: 400, message: 'Online ödeme şu anda bakımda, kullanılamıyor.' };
+
+    const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
+    if (paymentMethod && !accepted.includes(paymentMethod))
+        return { status: 400, message: 'Bu tesis seçilen ödeme yöntemini kabul etmiyor' };
+
+    const startMins = toMins(startTime);
+    const endMins   = toMins(endTime);
+    if (endMins - startMins < 60) return { status: 400, message: 'Minimum rezervasyon süresi 1 saattir' };
+
+    // Saat aralığı bakım kontrolü
+    for (const m of mDates) {
+        if (!m.fromDate || !m.toDate || date < m.fromDate || date > m.toDate) continue;
+        if (!m.fromTime || !m.toTime) continue;
+        const ms = toMins(m.fromTime), me = toMins(m.toTime);
+        if (overlaps(startMins, endMins, ms, me))
+            return { status: 400, message: `Bu kort ${m.fromTime}–${m.toTime} saatleri arası bakımda. Rezervasyon yapılamaz.` };
+    }
+
+    // Çakışma kontrolü
+    const existing = await prisma.courtReservation.findMany({
+        where: { venueId: venue.id, courtId, date, status: { not: 'CANCELLED' } },
+    });
+    const hasConflict = existing.some(r => overlaps(startMins, endMins, toMins(r.startTime), toMins(r.endTime)));
+    if (hasConflict) return { status: 409, message: 'Bu saat aralığı dolu' };
+
+    // Boşluk kontrolü: VAR_DURATION esnek saatlerde uygulanmaz; diğerleri için <minGap dk boşluk bırakamaz
+    {
+        const courtInfo = await prisma.venueCourt.findUnique({ where: { id: courtId } });
+        const VSGT = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
+        const effType = (VSGT.includes(courtInfo?.slotType) ? courtInfo.slotType : null)
+            || (venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : venue.slotType)
+            || 'FULL_HOUR';
+
+        {
+            const minGap = effType === 'NINETY_MIN' ? 90 : 60;
+            const openWins = getOpenWindows(venue, date, courtId);
+            const allBooked = [
+                ...existing.map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime) })),
+                { s: startMins, e: endMins },
+            ].sort((a, b) => a.s - b.s);
+
+            for (const w of openWins) {
+                const wS = toMins(w.from), wE = toMins(w.to);
+                let cur = wS;
+                let effectiveWE = wE;
+                if (effType === 'HALF_HOUR') {
+                    if (cur % 60 !== 30) { cur = Math.floor(cur / 60) * 60 + 30; if (cur < wS) cur += 60; }
+                    effectiveWE = cur + Math.floor((wE - cur) / 60) * 60;
+                }
+                for (const b of allBooked) {
+                    if (b.e <= wS || b.s >= effectiveWE) continue;
+                    const gap = Math.min(b.s, effectiveWE) - cur;
+                    if (gap > 0 && gap < minGap)
+                        return { status: 400, message: `Bu rezervasyon ${toTime(cur)}–${toTime(Math.min(b.s, effectiveWE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` };
+                    cur = Math.max(cur, b.e);
+                }
+                const tail = effectiveWE - cur;
+                if (tail > 0 && tail < minGap)
+                    return { status: 400, message: `Bu rezervasyon sonrasında ${toTime(cur)}–${toTime(effectiveWE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` };
+            }
+        }
+    }
+    return null;
+}
+
 export const makeReservation = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
@@ -468,6 +610,7 @@ export const makeReservation = async (req, res, next) => {
         if (isBlocked) return res.status(403).json({ message: 'Bu tesiste rezervasyon yapamazsınız' });
 
         if (!date || !startTime || !endTime) return res.status(400).json({ message: 'Tarih, başlangıç ve bitiş saati zorunludur' });
+        if (isPastDateTime(date, startTime)) return res.status(400).json({ message: 'Geçmiş bir tarih/saate rezervasyon yapılamaz' });
 
         // Rezervasyon açılış penceresi kontrolü
         const opensAt = getReservationOpensAt(venue, date);
@@ -475,73 +618,8 @@ export const makeReservation = async (req, res, next) => {
             return res.status(403).json({ message: `Bu tarih için rezervasyonlar henüz açılmadı. Açılış: ${opensAt.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}` });
         }
 
-        // Tüm-gün bakım kontrolü
-        const courtCheck = await prisma.venueCourt.findUnique({ where: { id: courtId } });
-        const mDates = (Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : []).map(normMaint);
-        if (mDates.some(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime))
-            return res.status(400).json({ message: 'Bu kort seçilen tarihte bakımda. Rezervasyon yapılamaz.' });
-
-        const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
-        if (paymentMethod && !accepted.includes(paymentMethod))
-            return res.status(400).json({ message: 'Bu tesis seçilen ödeme yöntemini kabul etmiyor' });
-
-        const startMins = toMins(startTime);
-        const endMins   = toMins(endTime);
-        if (endMins - startMins < 60) return res.status(400).json({ message: 'Minimum rezervasyon süresi 1 saattir' });
-
-        // Saat aralığı bakım kontrolü
-        for (const m of mDates) {
-            if (!m.fromDate || !m.toDate || date < m.fromDate || date > m.toDate) continue;
-            if (!m.fromTime || !m.toTime) continue;
-            const ms = toMins(m.fromTime), me = toMins(m.toTime);
-            if (overlaps(startMins, endMins, ms, me))
-                return res.status(400).json({ message: `Bu kort ${m.fromTime}–${m.toTime} saatleri arası bakımda. Rezervasyon yapılamaz.` });
-        }
-
-        // Çakışma kontrolü
-        const existing = await prisma.courtReservation.findMany({
-            where: { venueId: id, courtId, date, status: { not: 'CANCELLED' } },
-        });
-        const hasConflict = existing.some(r => overlaps(startMins, endMins, toMins(r.startTime), toMins(r.endTime)));
-        if (hasConflict) return res.status(409).json({ message: 'Bu saat aralığı dolu' });
-
-        // Boşluk kontrolü: VAR_DURATION esnek saatlerde uygulanmaz; diğerleri için <minGap dk boşluk bırakamaz
-        {
-            const courtInfo = await prisma.venueCourt.findUnique({ where: { id: courtId } });
-            const VSGT = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
-            const effType = (VSGT.includes(courtInfo?.slotType) ? courtInfo.slotType : null)
-                || (venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : venue.slotType)
-                || 'FULL_HOUR';
-
-            {
-                const minGap = effType === 'NINETY_MIN' ? 90 : 60;
-                const openWins = getOpenWindows(venue, date, courtId);
-                const allBooked = [
-                    ...existing.map(r => ({ s: toMins(r.startTime), e: toMins(r.endTime) })),
-                    { s: startMins, e: endMins },
-                ].sort((a, b) => a.s - b.s);
-
-                for (const w of openWins) {
-                    const wS = toMins(w.from), wE = toMins(w.to);
-                    let cur = wS;
-                    let effectiveWE = wE;
-                    if (effType === 'HALF_HOUR') {
-                        if (cur % 60 !== 30) { cur = Math.floor(cur / 60) * 60 + 30; if (cur < wS) cur += 60; }
-                        effectiveWE = cur + Math.floor((wE - cur) / 60) * 60;
-                    }
-                    for (const b of allBooked) {
-                        if (b.e <= wS || b.s >= effectiveWE) continue;
-                        const gap = Math.min(b.s, effectiveWE) - cur;
-                        if (gap > 0 && gap < minGap)
-                            return res.status(400).json({ message: `Bu rezervasyon ${toTime(cur)}–${toTime(Math.min(b.s, effectiveWE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
-                        cur = Math.max(cur, b.e);
-                    }
-                    const tail = effectiveWE - cur;
-                    if (tail > 0 && tail < minGap)
-                        return res.status(400).json({ message: `Bu rezervasyon sonrasında ${toTime(cur)}–${toTime(effectiveWE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` });
-                }
-            }
-        }
+        const slotErr = await validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod);
+        if (slotErr) return res.status(slotErr.status).json({ message: slotErr.message });
 
         const courtForApproval = await prisma.venueCourt.findUnique({ where: { id: courtId } });
         const effectiveMode = courtForApproval?.approvalMode || venue.approvalMode || 'FULL_AUTO';
@@ -591,6 +669,32 @@ export const makeReservation = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// İşletmecinin, uygulamayı kullanmayan (telefonla arayan) bir müşteri için doğrudan takvimden
+// oluşturduğu manuel rezervasyon — her zaman CONFIRMED, gerçek User hesabı olmadan `manualName`
+// ile saklanır.
+export const createManualReservation = async (req, res, next) => {
+    try {
+        const { id, courtId } = req.params;
+        const { date, startTime, endTime, paymentMethod, customerName, notes } = req.body;
+
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        if (!date || !startTime || !endTime) return res.status(400).json({ message: 'Tarih, başlangıç ve bitiş saati zorunludur' });
+        if (!customerName || !customerName.trim()) return res.status(400).json({ message: 'Müşteri adı zorunludur' });
+
+        const slotErr = await validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod);
+        if (slotErr) return res.status(slotErr.status).json({ message: slotErr.message });
+
+        const reservation = await prisma.courtReservation.create({
+            data: { venueId: id, courtId, userId: null, manualName: customerName.trim(), date, startTime, endTime,
+                    paymentMethod: paymentMethod || 'CASH', notes: notes || null, status: 'CONFIRMED' },
+        });
+
+        res.status(201).json({ reservation });
+    } catch (error) { next(error); }
+};
+
 export const getVenueReservations = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -614,7 +718,7 @@ export const updateVenueSettings = async (req, res, next) => {
         const { id } = req.params;
         const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder, reservationOpenDaysBefore, reservationOpenTime } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
-        const VALID_PAY      = ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'];
+        const VALID_PAY      = ['CASH', 'EFT', 'CREDIT_CARD']; // ONLINE şu anda bakımda, kabul edilen yöntemlere eklenemez
         const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
         const VALID_OPEN_DAYS_BEFORE = [3, 5, 7, 10, 14];
         if (slotType && !VALID_TYPES.includes(slotType))
@@ -709,7 +813,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     for (let t = open; t + 60 <= close; t += 60) {
                         if (close - (t + 60) > 0 && close - (t + 60) < 60) continue;
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: (() => { const rr = resolvePriceRule(venue, court, toTime(t)); return applyPaymentDelta(rr.basePrice, rr.paymentDeltas, rs[0]?.paymentMethod || 'CASH'); })() });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
@@ -721,13 +825,13 @@ export const getOwnerSchedule = async (req, res, next) => {
                         const midnight = endT > 1440;
                         if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; }
                         const rs = findRes(court.id, t, midnight ? 1470 : endT);
-                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: (() => { const rr = resolvePriceRule(venue, court, toTime(t)); return applyPaymentDelta(rr.basePrice, rr.paymentDeltas, rs[0]?.paymentMethod || 'CASH'); })() });
+                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
                         if (close - (t + 90) > 0 && close - (t + 90) < 90) continue;
                         const rs = findRes(court.id, t, t + 90);
-                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: (() => { const rr = resolvePriceRule(venue, court, toTime(t)); return applyPaymentDelta(rr.basePrice, rr.paymentDeltas, rs[0]?.paymentMethod || 'CASH'); })() });
+                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, price: getMethodPrice(venue, court, toTime(t), 90, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else {
                     // VAR_DURATION: gerçek rezervasyon bloklarını ve boş pencereleri göster (saatlik grid değil)
@@ -738,7 +842,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     let cur = open;
                     for (const { s, e, r } of courtRes) {
                         if (s > cur) slots.push({ start: toTime(cur), end: toTime(s), status: 'FREE', user: null, reservationId: null, paymentMethod: null, price: 0 });
-                        slots.push({ start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, user: r.user, reservationId: r.id, paymentMethod: r.paymentMethod, paymentConfirmStatus: r.paymentConfirmStatus, price: null });
+                        slots.push({ start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, user: r.user, manualName: r.manualName || null, reservationId: r.id, paymentMethod: r.paymentMethod, paymentConfirmStatus: r.paymentConfirmStatus, price: null });
                         cur = Math.max(cur, e);
                     }
                     if (cur < close) slots.push({ start: toTime(cur), end: toTime(close), status: 'FREE', user: null, reservationId: null, paymentMethod: null, price: 0 });
@@ -935,7 +1039,40 @@ export const updateReservationStatus = async (req, res, next) => {
         const customerId = res_.userId;
 
         if (action === 'payment_confirm') {
-            // Kort saati geçti, işletmeci müşterinin geldiğini ve ödemeyi aldığını onayladı
+            // Kort saati geçti, işletmeci müşterinin geldiğini ve ödemeyi aldığını onayladı.
+            // slotStart/slotEnd = takvimde tıklanan tek saatlik kutunun aralığı. Rezervasyon
+            // bundan daha uzunsa (ör. 6-8 rezervasyonda sadece 6-7 tıklandıysa), rezervasyon
+            // tıklanan saate daraltılır ve o kısım ödendi olarak işaretlenir; kalan saat(ler)
+            // ayrı, hâlâ ödenmemiş bir rezervasyon olarak kalır.
+            const { slotStart, slotEnd } = req.body;
+            if (slotStart && slotEnd && (slotStart !== res_.startTime || slotEnd !== res_.endTime)) {
+                const rs = toMins(res_.startTime), re = toMins(res_.endTime);
+                const ss = toMins(slotStart), se = toMins(slotEnd);
+                const remainders = [];
+                if (ss > rs) remainders.push({ startTime: res_.startTime, endTime: slotStart });
+                if (se < re) remainders.push({ startTime: slotEnd, endTime: res_.endTime });
+
+                if (remainders.length > 0) {
+                    await prisma.$transaction([
+                        ...remainders.map(rr => prisma.courtReservation.create({
+                            data: {
+                                venueId: res_.venueId, courtId: res_.courtId, userId: res_.userId,
+                                manualName: res_.manualName,
+                                date: res_.date, startTime: rr.startTime, endTime: rr.endTime,
+                                paymentMethod: res_.paymentMethod, status: res_.status,
+                                notes: res_.notes,
+                            },
+                        })),
+                        prisma.courtReservation.update({
+                            where: { id: resId },
+                            data: { startTime: slotStart, endTime: slotEnd, paymentConfirmStatus: 'CONFIRMED' },
+                        }),
+                    ]);
+                    const updated = await prisma.courtReservation.findUnique({ where: { id: resId } });
+                    return res.json({ reservation: updated });
+                }
+            }
+
             const updated = await prisma.courtReservation.update({ where: { id: resId }, data: { paymentConfirmStatus: 'CONFIRMED' } });
             return res.json({ reservation: updated });
         }
@@ -1015,6 +1152,8 @@ export const rescheduleReservation = async (req, res, next) => {
         const { newDate, newStartTime, newEndTime } = req.body;
         if (!newDate || !newStartTime || !newEndTime)
             return res.status(400).json({ message: 'newDate, newStartTime ve newEndTime zorunludur' });
+        if (isPastDateTime(newDate, newStartTime))
+            return res.status(400).json({ message: 'Geçmiş bir tarih/saate rezervasyon alınamaz' });
 
         const res_ = await prisma.courtReservation.findUnique({
             where: { id: resId },
@@ -1052,6 +1191,44 @@ export const rescheduleReservation = async (req, res, next) => {
             { reservationId: resId }
         ).catch(() => {});
         emitToUser(res_.venue.userId, 'notification', {});
+
+        // Bu rezervasyondan oluşturulmuş bir ilan varsa (bkz. venueReservationId), ilanın
+        // tarih/saatini de güncelle ve — henüz onaylanmamış katılma isteği bekleyenler dahil —
+        // ilandaki herkese bildirim gönder.
+        const activity = await prisma.activityRequest.findFirst({ where: { venueReservationId: resId } });
+        if (activity) {
+            const updatedActivity = await prisma.activityRequest.update({
+                where: { id: activity.id },
+                data: {
+                    matchDate: new Date(`${newDate}T00:00:00`),
+                    matchTime: newStartTime,
+                    duration: toMins(newEndTime) - toMins(newStartTime),
+                },
+            });
+
+            const pendingReqs = await prisma.rivalJoinRequest.findMany({
+                where: { rivalId: activity.id, status: 'PENDING' },
+                select: { userId: true },
+            });
+            const participantIds = Array.isArray(activity.participants)
+                ? activity.participants.map(p => p?.id).filter(Boolean)
+                : [];
+            const recipients = new Set([
+                ...(activity.receiverId ? [activity.receiverId] : []),
+                ...participantIds,
+                ...pendingReqs.map(r => r.userId),
+            ]);
+            recipients.delete(activity.senderId); // ilan sahibi zaten değişikliği yapan kişi
+
+            for (const uid of recipients) {
+                createNotification(
+                    uid, 'RESERVATION', '📅 Maç Saati Değişti',
+                    `"${activity.courtName || 'Kort'}" için maç ${newDate} ${newStartTime}–${newEndTime} olarak güncellendi.`,
+                    { rivalId: activity.id }
+                ).catch(() => {});
+                emitToUser(uid, 'rivalUpdate', updatedActivity);
+            }
+        }
 
         res.json({ reservation: updated });
     } catch (error) { next(error); }

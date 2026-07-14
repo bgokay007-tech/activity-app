@@ -968,7 +968,8 @@ model CourtReservation {
   id            String   @id @default(uuid())
   venueId       String
   courtId       String
-  userId        String
+  userId        String?
+  manualName    String?  // userId null ise: işletmecinin telefonla girdiği müşteri adı
   date          String
   startTime     String
   endTime       String
@@ -986,7 +987,7 @@ model CourtReservation {
 
   venue   BusinessVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
   court   VenueCourt    @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  user    User          @relation(fields: [userId],  references: [id], onDelete: Cascade)
+  user    User?         @relation(fields: [userId],  references: [id], onDelete: Cascade)
 }
 
 // TESİS KULLANICI ENGELİ

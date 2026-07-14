@@ -3,7 +3,7 @@ import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
     createVenue, getMyVenues, deleteVenue, updateIban,
-    getVenueSlots, makeReservation, getVenueReservations, cancelReservation,
+    getVenueSlots, makeReservation, createManualReservation, getVenueReservations, cancelReservation,
     updateReservationStatus, rescheduleReservation,
     getMyReservations, getUnlistedReservations, getOwnerSchedule, getVenueAnalytics, updateVenueSettings,
     updateCourtSettings, searchVenues, getVenueById,
@@ -60,6 +60,7 @@ router.get('/:id/menu',                  getVenueMenu);
 router.post('/:id/orders',               placeOrder);
 router.get('/:id/courts/:courtId/slots', getVenueSlots);
 router.post('/:id/courts/:courtId/reserve', makeReservation);
+router.post('/:id/courts/:courtId/manual-reserve', createManualReservation);
 router.patch('/:id/courts/:courtId/settings', updateCourtSettings);
 // Yorumlar
 router.get('/:id/reviews',                              getVenueReviews);

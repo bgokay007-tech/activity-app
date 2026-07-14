@@ -864,7 +864,8 @@ function VenueAnalyticsModal({ visible, venue, onClose }) {
 const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef4444' };
 const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
 const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: '⏳ Onay Bekliyor', CONFIRMED: 'Rezerveli' };
-const PAID_COLOR    = '#f97316'; // rezerveli + ödemesi alındı (turuncu yarı)
+const PAID_COLOR    = '#f97316'; // rezerveli + ödemesi alındı (belirgin turuncu)
+const PAID_BG        = '#f9731630';
 const PAID_LABEL     = '💰 Rezerveli + Ödeme Alındı';
 
 const SURFACE_LABEL = {
@@ -982,17 +983,143 @@ function TimePickerModal({ visible, value, onSelect, onClose }) {
     );
 }
 
+// 60 dakika ekleyerek yeni bir "HH:MM" saat döndürür (24:00 sonrasını sarmalamaz, takvim zaten
+// gün içinde çalışıyor).
+function addOneHour(t) {
+    const [h, m] = t.split(':').map(Number);
+    const total = Math.min(h * 60 + m + 60, 24 * 60);
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+// İşletmecinin takvimden boş bir hücreye dokunup telefonla gelen bir müşteri için manuel
+// rezervasyon oluşturduğu form.
+function ManualReservationModal({ visible, venueId, court, date, initialStart, initialEnd, acceptedPayments, onClose, onCreated }) {
+    const [name, setName] = useState('');
+    const [startTime, setStartTime] = useState(initialStart || '');
+    const [endTime, setEndTime] = useState(initialEnd || '');
+    const [payMethod, setPayMethod] = useState('CASH');
+    const [showStartPicker, setShowStartPicker] = useState(false);
+    const [showEndPicker, setShowEndPicker] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (visible) {
+            setName('');
+            setStartTime(initialStart || '');
+            setEndTime(initialEnd || '');
+            setPayMethod('CASH');
+        }
+    }, [visible, initialStart, initialEnd]);
+
+    const payOptions = (Array.isArray(acceptedPayments) ? acceptedPayments : ['CASH', 'EFT']).filter(p => p !== 'ONLINE');
+
+    const submit = async () => {
+        if (!name.trim()) { Alert.alert('Hata', 'Müşteri adı girin'); return; }
+        setSaving(true);
+        try {
+            await api.post(`/venues/${venueId}/courts/${court.courtId}/manual-reserve`, {
+                date, startTime, endTime, paymentMethod: payMethod, customerName: name.trim(),
+            });
+            onCreated?.();
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon oluşturulamadı');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: '#000a', justifyContent: 'flex-end' }}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                    <View style={{ backgroundColor: '#12121e', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                        padding: 16, paddingBottom: Platform.OS === 'ios' ? 34 : 20 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, flex: 1 }}>📞 Manuel Rezervasyon</Text>
+                            <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
+                                <Text style={{ color: '#aaa', fontSize: 20 }}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={{ color: '#888', fontSize: 12, marginBottom: 14 }}>{court?.courtName} · {date}</Text>
+
+                        <Text style={{ color: '#aaa', fontSize: 11, fontWeight: '700', marginBottom: 5 }}>Müşteri Adı</Text>
+                        <TextInput
+                            style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9,
+                                color: '#fff', fontSize: 14, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 14 }}
+                            placeholder="ör. Ahmet Yılmaz" placeholderTextColor="#555"
+                            value={name} onChangeText={setName}
+                        />
+
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#aaa', fontSize: 11, fontWeight: '700', marginBottom: 5 }}>Başlangıç</Text>
+                                <TouchableOpacity onPress={() => setShowStartPicker(true)}
+                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#ffffff20' }}>
+                                    <Text style={{ color: '#fff', fontSize: 14 }}>{startTime}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#aaa', fontSize: 11, fontWeight: '700', marginBottom: 5 }}>Bitiş</Text>
+                                <TouchableOpacity onPress={() => setShowEndPicker(true)}
+                                    style={{ backgroundColor: '#ffffff10', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#ffffff20' }}>
+                                    <Text style={{ color: '#fff', fontSize: 14 }}>{endTime}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        <Text style={{ color: '#aaa', fontSize: 11, fontWeight: '700', marginBottom: 5 }}>Ödeme Yöntemi</Text>
+                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 18 }}>
+                            {payOptions.map(p => (
+                                <TouchableOpacity key={p} onPress={() => setPayMethod(p)}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5,
+                                        borderColor: payMethod === p ? BIZ_COLOR : '#ffffff18',
+                                        backgroundColor: payMethod === p ? BIZ_COLOR + '28' : '#ffffff08' }}>
+                                    <Text style={{ color: payMethod === p ? BIZ_LIGHT : '#ccc', fontWeight: payMethod === p ? '800' : '400', fontSize: 12 }}>
+                                        {p === 'CASH' ? '💵 Nakit' : p === 'EFT' ? '🏦 EFT' : p}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <TouchableOpacity onPress={submit} disabled={saving}
+                            style={{ backgroundColor: BIZ_COLOR, borderRadius: 10, paddingVertical: 12, alignItems: 'center', opacity: saving ? 0.6 : 1 }}>
+                            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Rezervasyonu Oluştur</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+            <TimePickerModal visible={showStartPicker} value={startTime}
+                onSelect={(t) => { setStartTime(t); setShowStartPicker(false); }} onClose={() => setShowStartPicker(false)} />
+            <TimePickerModal visible={showEndPicker} value={endTime}
+                onSelect={(t) => { setEndTime(t); setShowEndPicker(false); }} onClose={() => setShowEndPicker(false)} />
+        </Modal>
+    );
+}
+
 function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
     const [schedule, setSchedule] = useState(null);
     const [loading, setLoading]   = useState(false);
     const [refreshTick, setRefreshTick] = useState(0);
+    const [manualModal, setManualModal] = useState({ visible: false, court: null, startTime: '', endTime: '' });
 
     const shiftDate = (n) => {
         const d = new Date(selDate + 'T12:00:00');
         d.setDate(d.getDate() + n);
         setSelDate(toDateStr(d));
+    };
+
+    const openManualBooking = (court, slot) => {
+        const durationMins = (() => {
+            const [sh, sm] = slot.start.split(':').map(Number);
+            const [eh, em] = slot.end.split(':').map(Number);
+            return (eh * 60 + em) - (sh * 60 + sm);
+        })();
+        // VAR_DURATION'daki boş bloklar tüm günü kapsayabilir — varsayılan bitişi 1 saatle sınırla,
+        // sabit ızgara tiplerinde (FULL_HOUR/HALF_HOUR/NINETY_MIN) zaten tek hücre kadar (60-90dk).
+        const defaultEnd = durationMins > 90 ? addOneHour(slot.start) : slot.end;
+        setManualModal({ visible: true, court, startTime: slot.start, endTime: defaultEnd });
     };
 
     useEffect(() => {
@@ -1045,7 +1172,7 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                         ])
                     },
                     { text: '✅ Ödeme Alındı', onPress: () =>
-                        api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'payment_confirm' })
+                        api.patch(`/venues/reservations/${slot.reservationId}/status`, { action: 'payment_confirm', slotStart: slot.start, slotEnd: slot.end })
                             .then(() => setRefreshTick(t => t + 1))
                             .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız'))
                     },
@@ -1110,10 +1237,7 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                         </View>
                     ))}
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                        <View style={{ width: 11, height: 11, borderRadius: 3, overflow: 'hidden' }}>
-                            <View style={{ height: 5.5, backgroundColor: SLOT_STATUS_COLOR.CONFIRMED }} />
-                            <View style={{ height: 5.5, backgroundColor: PAID_COLOR }} />
-                        </View>
+                        <View style={{ width: 11, height: 11, borderRadius: 3, backgroundColor: PAID_COLOR }} />
                         <Text style={{ color: '#aaa', fontSize: 11 }}>Rezerveli + Ödeme Alındı</Text>
                     </View>
                 </View>
@@ -1166,14 +1290,15 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                 ) : court.slots.map((slot, si) => {
                                                     const st = slot.status || 'FREE';
                                                     const isPaid = st === 'CONFIRMED' && slot.paymentConfirmStatus === 'CONFIRMED';
-                                                    const color = isPaid ? SLOT_STATUS_COLOR.CONFIRMED : SLOT_STATUS_COLOR[st];
-                                                    const bg    = isPaid ? undefined : SLOT_STATUS_BG[st];
+                                                    const color = isPaid ? PAID_COLOR : SLOT_STATUS_COLOR[st];
+                                                    const bg    = isPaid ? PAID_BG : SLOT_STATUS_BG[st];
                                                     const isPending = st === 'PENDING' && slot.reservationId;
                                                     const isConfirmedUnpaid = st === 'CONFIRMED' && slot.reservationId && !isPaid;
-                                                    const isTappable = isPending || isConfirmedUnpaid;
+                                                    const isFree = st === 'FREE';
+                                                    const isTappable = isPending || isConfirmedUnpaid || isFree;
                                                     return (
                                                         <TouchableOpacity key={si}
-                                                            onPress={() => isTappable && handleSlotPress(slot)}
+                                                            onPress={() => { if (isFree) openManualBooking(court, slot); else if (isTappable) handleSlotPress(slot); }}
                                                             activeOpacity={isTappable ? 0.7 : 1}
                                                             style={{
                                                                 backgroundColor: bg,
@@ -1183,12 +1308,6 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                                 minHeight: 48,
                                                                 overflow: 'hidden',
                                                             }}>
-                                                            {isPaid && (
-                                                                <>
-                                                                    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50%', backgroundColor: SLOT_STATUS_BG.CONFIRMED }} />
-                                                                    <View pointerEvents="none" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '50%', backgroundColor: PAID_COLOR + '1e' }} />
-                                                                </>
-                                                            )}
                                                             <Text style={{ color: color, fontSize: 11, fontWeight: '800' }}>
                                                                 {slot.start}
                                                             </Text>
@@ -1202,9 +1321,18 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                                         @{slot.user.username}
                                                                     </Text>
                                                                 </TouchableOpacity>
+                                                            ) : slot.manualName ? (
+                                                                <Text style={{ color: color + 'cc', fontSize: 10, marginTop: 4, fontWeight: '700' }} numberOfLines={1}>
+                                                                    📞 {slot.manualName}
+                                                                </Text>
                                                             ) : (
-                                                                <Text style={{ color: (isPaid ? PAID_COLOR : color) + '99', fontSize: 10, marginTop: 4 }}>
+                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 4 }}>
                                                                     {isPaid ? PAID_LABEL : SLOT_STATUS_LABEL[st]}
+                                                                </Text>
+                                                            )}
+                                                            {(slot.user || slot.manualName) && isPaid && (
+                                                                <Text style={{ color: PAID_COLOR, fontSize: 9, marginTop: 2, fontWeight: '800' }}>
+                                                                    💰 Ödeme Alındı
                                                                 </Text>
                                                             )}
                                                             {slot.price != null && (
@@ -1222,6 +1350,11 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                                     Ödeme Al →
                                                                 </Text>
                                                             )}
+                                                            {isFree && (
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
+                                                                    + Manuel Ekle
+                                                                </Text>
+                                                            )}
                                                         </TouchableOpacity>
                                                     );
                                                 })}
@@ -1233,6 +1366,20 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                         )
                 }
             </View>
+            <ManualReservationModal
+                visible={manualModal.visible}
+                venueId={venue?.id}
+                court={manualModal.court}
+                date={selDate}
+                initialStart={manualModal.startTime}
+                initialEnd={manualModal.endTime}
+                acceptedPayments={venue?.acceptedPayments}
+                onClose={() => setManualModal(m => ({ ...m, visible: false }))}
+                onCreated={() => {
+                    setManualModal(m => ({ ...m, visible: false }));
+                    setRefreshTick(t => t + 1);
+                }}
+            />
         </Modal>
     );
 }
@@ -3947,18 +4094,19 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 {[
                                     { key: 'CASH',        label: '💵 Nakit / Kortta' },
                                     { key: 'EFT',         label: '🏦 EFT / Havale' },
-                                    { key: 'ONLINE',      label: '🌐 Online Ödeme' },
+                                    { key: 'ONLINE',      label: '🌐 Online Ödeme (Bakımda)', disabled: true },
                                     { key: 'CREDIT_CARD', label: '💳 Kortta Kredi Kartı' },
                                 ].map(m => {
                                     const isActive = localAcceptedPayments.includes(m.key);
                                     return (
-                                        <TouchableOpacity key={m.key} disabled={savingPayments}
+                                        <TouchableOpacity key={m.key} disabled={savingPayments || m.disabled}
                                             onPress={() => handleTogglePayment(m.key)}
                                             style={{
                                                 paddingHorizontal: 12, paddingVertical: 8,
                                                 borderRadius: 8, borderWidth: 1.5,
                                                 borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
                                                 backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
+                                                opacity: m.disabled ? 0.5 : 1,
                                             }}>
                                             <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: isActive ? '700' : '400' }}>
                                                 {m.label}
