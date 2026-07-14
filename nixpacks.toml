@@ -12,7 +12,12 @@
 # every single deploy — silently discarding the build phase's own vite output. Since
 # nothing runs after [start], the frontend build is done there instead, on the
 # container's live filesystem, where nothing can clobber it afterward.
-nixPkgs = ["nodejs_20"]
+#
+# One more layer: vite@8 (rolldown) genuinely cannot RUN on this snapshot's nodejs_20
+# (v20.6.1) — it imports `styleText` from `node:util`, only added in Node 20.12/22.
+# nodejs_22 doesn't exist as a nix attribute here, so [start] fetches a real Node 22
+# binary once per container start and uses it just for the vite invocation.
+nixPkgs = ["nodejs_20", "curl", "xz"]
 
 [phases.install]
 cmds = [
@@ -27,5 +32,5 @@ cmds = [
 
 [start]
 # NOTE: railway.toml's [deploy].startCommand overrides this section entirely on Railway —
-# keep the two in sync if either changes.
-cmd = "cd frontend && (node_modules/.bin/vite build --outDir ../backend/public || true) && cd ../backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"
+# keep the two in sync if either changes. vite needs a real Node 22 (see setup phase note).
+cmd = "cd frontend && (curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-x64.tar.xz | tar -xJ -C /tmp && PATH=/tmp/node-v22.13.0-linux-x64/bin:$PATH node_modules/.bin/vite build --outDir ../backend/public || true) && cd ../backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"
