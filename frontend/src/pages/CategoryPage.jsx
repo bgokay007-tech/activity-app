@@ -4,6 +4,7 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import { ENABLED_SUBS } from '../config/features';
 import { useTranslation } from 'react-i18next';
+import padelImg from '../assets/padel.png';
 
 const CATEGORY_CONFIG = {
     sports: {
@@ -90,7 +91,9 @@ function CategoryPage() {
                                             {t('common.soon')}
                                         </span>
                                     )}
-                                    <span className="text-4xl block mb-3">{sub.emoji}</span>
+                                    {sub.id === 'padel'
+                                        ? <img src={padelImg} alt="" className="w-10 h-10 object-contain mb-3" />
+                                        : <span className="text-4xl block mb-3">{sub.emoji}</span>}
                                     <h3 className="text-white font-bold text-sm mb-3">{sub.name}</h3>
                                     <div className={`w-full text-xs font-bold py-2 rounded-lg text-center ${enabled ? `bg-gradient-to-r ${config.color} text-white` : 'bg-gray-700 text-gray-400'}`}>
                                         {enabled
