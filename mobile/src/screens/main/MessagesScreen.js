@@ -157,7 +157,7 @@ export default function MessagesScreen({ navigation }) {
                                 </TouchableOpacity>
                             </View>
 
-                            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 320 }}>
+                            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                                 {supportLoading ? (
                                     <ActivityIndicator color={colors.purple} style={{ marginVertical: 16 }} />
                                 ) : supportMessages.length === 0 ? (
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     emptyText: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 6 },
     emptySubText: { color: colors.textMuted, fontSize: 13 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    modalBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, maxHeight: '90%' },
+    modalBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, height: '88%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13 },
     modalTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
     modalClose: { color: colors.textMuted, fontSize: 20, fontWeight: '700', paddingHorizontal: 4 },

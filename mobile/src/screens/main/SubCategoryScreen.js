@@ -8462,19 +8462,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
 
                             {/* Tournament type — kendim seçerim / kullanıcılar oylasın */}
-                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:3 }}>
                                 <Text style={s.fieldLabel}>{t.tournTypeLabel}</Text>
+                                <TouchableOpacity
+                                    onPress={() => set('pollEnabled', !f.pollEnabled)}
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                    <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
+                                </TouchableOpacity>
                                 <TouchableOpacity
                                     onPress={() => set('dayTrip', !f.dayTrip)}
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
                                     <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
                                 </TouchableOpacity>
                             </View>
-                            <TouchableOpacity
-                                onPress={() => set('pollEnabled', !f.pollEnabled)}
-                                style={[s.chip, { paddingVertical:2, paddingHorizontal:7, alignSelf:'flex-end', marginBottom:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
-                            </TouchableOpacity>
 
                             {!f.pollEnabled && (
                                 <View style={[s.chipRow, { marginBottom:8 }]}>
