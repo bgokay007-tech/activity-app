@@ -1558,8 +1558,24 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     const isDouble = item?.matchType === 'DOUBLE';
     const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
+    // Kort/tesis değiştiğinde "aynı kort mı, farklı kort mu" ayrımı yapabilmek için
+    // ilk yüklemedeki gerçek rezervasyon kimliğini sabit tutuyoruz (form.venueId vb.
+    // kullanıcı yeni bir slot seçtikçe değişir, original* hiç değişmez).
+    const originalRef = useRef({ venueId: null, venueCourtId: null, reservationId: null });
+
     useEffect(() => {
         if (visible && item) {
+            const addMinsToTime = (time, mins) => {
+                if (!time || !mins) return null;
+                const [h, m] = time.split(':').map(Number);
+                const total = h * 60 + m + mins;
+                return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+            };
+            originalRef.current = {
+                venueId: item.venueId || null,
+                venueCourtId: item.venueCourtId || null,
+                reservationId: item.venueReservationId || null,
+            };
             setForm({
                 message:   item.message   || '',
                 matchDate: item.matchDate ? new Date(item.matchDate) : null,
@@ -1583,7 +1599,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                 venueCourtId: item.venueCourtId || null,
                 reservationId: item.venueReservationId || null,
                 venueReservationId: item.venueReservationId || null,
-                reservationEndTime: null,
+                reservationEndTime: addMinsToTime(item.matchTime, item.duration),
                 venuePayMethod: 'CASH',
                 surface: item.surface || '',
                 venueType: item.indoor != null ? (item.indoor ? 'INDOOR' : 'OUTDOOR') : '',
@@ -1643,7 +1659,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     };
 
     const deselectCourt = () => {
-        setForm(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null, courtReserved: false }));
+        setForm(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueReservationId: null, venueId: null, venueCourtId: null, courtReserved: false }));
     };
 
     const cancelCourt = async () => {
@@ -1665,18 +1681,14 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
         );
     };
 
-    const changeCourt = async () => {
+    // Mevcut rezervasyon burada HENÜZ iptal edilmiyor — kullanıcı yeni bir kort/saat
+    // seçip "Kaydet"e basana kadar eski rezervasyon geçerliliğini korur. İptal/değiştirme
+    // işletmenin politikasına göre (reschedule ise rescheduleHoursBefore, farklı korta
+    // geçiliyorsa cancelHoursBefore) handleSave içinde, gerçekten kaydedilirken yapılır.
+    const changeCourt = () => {
         const vid = form.venueId;
-        if (form.reservationId) {
-            try {
-                await api.delete(`/venues/reservations/${form.reservationId}`);
-            } catch (e) {
-                Alert.alert('Değiştirilemiyor', e?.response?.data?.message || 'Mevcut rezervasyon iptal edilemedi');
-                return;
-            }
-        }
-        setForm(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueCourtId: null }));
-        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: null });
+        setForm(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueReservationId: null, venueCourtId: null }));
+        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: form.venueCourtId || null });
     };
 
     const visibleCourtResults = form.courtResults || [];
@@ -1685,21 +1697,51 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
         setSaving(true);
         try {
             let venueReservationId = form.venueReservationId || null;
-            const reservingNow = !!(form.venueId && form.venueCourtId && !venueReservationId);
-            if (reservingNow) {
+            const pickedNewSlot = !!(form.venueId && form.venueCourtId && !venueReservationId);
+            if (pickedNewSlot) {
+                const orig = originalRef.current;
                 const matchDateStr = form.matchDate
                     ? `${form.matchDate.getFullYear()}-${String(form.matchDate.getMonth()+1).padStart(2,'0')}-${String(form.matchDate.getDate()).padStart(2,'0')}`
                     : undefined;
-                try {
-                    const resResp = await api.post(`/venues/${form.venueId}/courts/${form.venueCourtId}/reserve`, {
-                        date: matchDateStr, startTime: form.matchTime || undefined,
-                        endTime: form.reservationEndTime || undefined, paymentMethod: form.venuePayMethod || 'CASH',
-                    });
-                    venueReservationId = resResp.data?.reservation?.id || null;
-                } catch (e) {
-                    setSaving(false);
-                    Alert.alert('Hata', e?.response?.data?.message || 'Kort rezerve edilemedi. Seçtiğiniz saat dolmuş olabilir, lütfen başka bir saat seçin.');
-                    return;
+                const sameCourt = orig.reservationId && orig.venueId === form.venueId && orig.venueCourtId === form.venueCourtId;
+
+                if (sameCourt) {
+                    // Aynı kort, sadece tarih/saat değişti — mevcut rezervasyonu yeniden
+                    // planla (işletmenin rescheduleHoursBefore politikasına tabi).
+                    try {
+                        const r = await api.patch(`/venues/reservations/${orig.reservationId}/reschedule`, {
+                            newDate: matchDateStr, newStartTime: form.matchTime || undefined,
+                            newEndTime: form.reservationEndTime || undefined,
+                        });
+                        venueReservationId = r.data?.reservation?.id || orig.reservationId;
+                    } catch (e) {
+                        setSaving(false);
+                        Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon değiştirilemedi.');
+                        return;
+                    }
+                } else {
+                    // Farklı kort/tesis — önce yeni rezervasyonu oluştur, ancak o
+                    // başarılı olursa eski rezervasyonu iptal et (işletmenin
+                    // cancelHoursBefore politikasına tabi). Yeni rezervasyon
+                    // oluşmadan eskisine dokunulmaz ki kort hiç boşta kalmasın.
+                    try {
+                        const resResp = await api.post(`/venues/${form.venueId}/courts/${form.venueCourtId}/reserve`, {
+                            date: matchDateStr, startTime: form.matchTime || undefined,
+                            endTime: form.reservationEndTime || undefined, paymentMethod: form.venuePayMethod || 'CASH',
+                        });
+                        venueReservationId = resResp.data?.reservation?.id || null;
+                    } catch (e) {
+                        setSaving(false);
+                        Alert.alert('Hata', e?.response?.data?.message || 'Kort rezerve edilemedi. Seçtiğiniz saat dolmuş olabilir, lütfen başka bir saat seçin.');
+                        return;
+                    }
+                    if (orig.reservationId) {
+                        try {
+                            await api.delete(`/venues/reservations/${orig.reservationId}`);
+                        } catch (e) {
+                            Alert.alert('Uyarı', `Yeni kort rezerve edildi ama eski rezervasyon iptal edilemedi: ${e?.response?.data?.message || 'bilinmeyen hata'}. İşletmeyle iletişime geçin.`);
+                        }
+                    }
                 }
             }
             await api.patch(`/rivals/${item.id}`, {
@@ -1843,9 +1885,9 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         <View style={s.selectedCourtBox}>
                             <View style={{ flex:1 }}>
                                 <Text style={s.selectedCourtText}>✅ {form.selectedCourt.venueName || form.selectedCourt.name}</Text>
-                                {form.venueId && form.matchDate && (
-                                    <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>
-                                        📅 {form.matchDate.toLocaleDateString('tr-TR')} · {form.matchTime}{form.reservationEndTime ? `–${form.reservationEndTime}` : ''}{form.selectedCourt.totalPrice ? `  💰 ${form.selectedCourt.totalPrice}₺` : ''}
+                                {form.venueId && (form.matchDate || form.matchTime) && (
+                                    <Text style={{ color:'#22c55e', fontSize:11, fontWeight:'700', marginTop:2 }}>
+                                        📅 {form.matchDate ? form.matchDate.toLocaleDateString('tr-TR') : '—'}{form.matchTime ? ` · ${form.matchTime}` : ''}{form.reservationEndTime ? `–${form.reservationEndTime}` : ''}{form.selectedCourt.totalPrice ? `  💰 ${form.selectedCourt.totalPrice}₺` : ''}
                                     </Text>
                                 )}
                             </View>
