@@ -8472,7 +8472,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </View>
                             <TouchableOpacity
                                 onPress={() => set('pollEnabled', !f.pollEnabled)}
-                                style={[s.chip, { paddingVertical:2, paddingHorizontal:7, alignSelf:'flex-start', marginBottom:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                style={[s.chip, { paddingVertical:2, paddingHorizontal:7, alignSelf:'flex-end', marginBottom:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
                                 <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
                             </TouchableOpacity>
 
