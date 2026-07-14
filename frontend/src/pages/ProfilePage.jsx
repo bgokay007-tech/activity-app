@@ -95,6 +95,125 @@ function EditProfileModal({ user, onClose, onSave }) {
     );
 }
 
+const PRIVACY_MODES = [
+    { value: 'PUBLIC',           label: '🌍 Herkese Açık' },
+    { value: 'FRIENDS',          label: '👥 Sadece Arkadaşlarım' },
+    { value: 'FOLLOWERS',        label: '🔔 Takipçilerim' },
+    { value: 'FRIENDS_EXCEPT',   label: '🚫 Seçili Arkadaşlar Hariç' },
+    { value: 'FRIENDS_SELECTED', label: '✅ Sadece Seçili Arkadaşlar' },
+    { value: 'NOBODY',           label: '🔒 Kimseye Gösterme' },
+];
+
+function PrivacySelect({ value, onChange }) {
+    return (
+        <select value={value} onChange={e => onChange(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs focus:outline-none focus:border-purple-500 shrink-0">
+            {PRIVACY_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+    );
+}
+
+function FriendPicker({ friends, selected, onToggle }) {
+    if (friends.length === 0) return <p className="text-gray-600 text-xs mt-2">Henüz arkadaşın yok.</p>;
+    return (
+        <div className="mt-2 max-h-32 overflow-y-auto space-y-1 bg-gray-800/50 rounded-lg p-2">
+            {friends.map(f => (
+                <label key={f.id} className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer hover:text-white">
+                    <input type="checkbox" checked={selected.includes(f.id)} onChange={() => onToggle(f.id)} className="w-3.5 h-3.5 accent-purple-500" />
+                    @{f.username}
+                </label>
+            ))}
+        </div>
+    );
+}
+
+function PersonalInfoModal({ user, onClose, onSave }) {
+    const [form, setForm] = useState({
+        city:              user.city || '',
+        cityPrivacy:       user.cityPrivacy || 'PUBLIC',
+        cityExclude:       user.cityExclude || [],
+        contactPhone:      user.contactPhone || '',
+        phonePrivacy:      user.phonePrivacy || 'FRIENDS',
+        phoneSelected:     user.phoneSelected || [],
+        contactTelegram:   user.contactTelegram || '',
+        telegramPrivacy:   user.telegramPrivacy || 'FRIENDS',
+        telegramSelected:  user.telegramSelected || [],
+        contactEmail:      user.contactEmail || '',
+        cEmailPrivacy:     user.cEmailPrivacy || 'FRIENDS',
+        cEmailSelected:    user.cEmailSelected || [],
+        contactInstagram:  user.contactInstagram || '',
+        instagramPrivacy:  user.instagramPrivacy || 'PUBLIC',
+        instagramSelected: user.instagramSelected || [],
+    });
+    const [friends, setFriends] = useState([]);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => { api.get('/friends').then(({ data }) => setFriends(data || [])).catch(() => {}); }, []);
+
+    const toggleSelected = (key, friendId) => {
+        setForm(prev => {
+            const list = prev[key] || [];
+            return { ...prev, [key]: list.includes(friendId) ? list.filter(id => id !== friendId) : [...list, friendId] };
+        });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try { const { data } = await api.patch('/users/me', form); onSave(data); onClose(); }
+        catch (err) { console.error(err); }
+        finally { setSaving(false); }
+    };
+
+    const Field = ({ label, valueKey, privacyKey, selectedKey, placeholder }) => (
+        <div className="bg-gray-800/60 rounded-xl p-3">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label className="text-gray-400 text-xs font-bold">{label}</label>
+                <PrivacySelect value={form[privacyKey]} onChange={v => setForm({ ...form, [privacyKey]: v })} />
+            </div>
+            <input value={form[valueKey]} onChange={e => setForm({ ...form, [valueKey]: e.target.value })}
+                placeholder={placeholder}
+                className="w-full bg-gray-900 text-white rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm" />
+            {(form[privacyKey] === 'FRIENDS_EXCEPT' || form[privacyKey] === 'FRIENDS_SELECTED') && (
+                <FriendPicker friends={friends} selected={form[selectedKey] || []} onToggle={id => toggleSelected(selectedKey, id)} />
+            )}
+        </div>
+    );
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-900 rounded-2xl border border-gray-700 p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-5">
+                    <h3 className="text-white font-bold text-lg">🪪 Kişisel Bilgiler</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
+                </div>
+
+                <div className="bg-gray-800/30 rounded-xl p-3 mb-4 text-xs text-gray-500">
+                    <p><span className="text-gray-400 font-bold">Ad Soyad:</span> {user.fullName || '—'}</p>
+                    <p><span className="text-gray-400 font-bold">Cinsiyet:</span> {user.gender || '—'}</p>
+                    <p><span className="text-gray-400 font-bold">Doğum Tarihi:</span> {user.birthDate ? new Date(user.birthDate).toLocaleDateString('tr-TR') : '—'}</p>
+                    <p className="mt-1.5 italic">Bu alanları değiştirmek için lütfen destek ile iletişime geçin.</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-3">
+                    <Field label="📍 Şehir" valueKey="city" privacyKey="cityPrivacy" selectedKey="cityExclude" placeholder="Şehir" />
+                    <Field label="📞 Telefon" valueKey="contactPhone" privacyKey="phonePrivacy" selectedKey="phoneSelected" placeholder="+90..." />
+                    <Field label="✈️ Telegram" valueKey="contactTelegram" privacyKey="telegramPrivacy" selectedKey="telegramSelected" placeholder="@kullaniciadi" />
+                    <Field label="📧 E-posta" valueKey="contactEmail" privacyKey="cEmailPrivacy" selectedKey="cEmailSelected" placeholder="ornek@mail.com" />
+                    <Field label="📸 Instagram" valueKey="contactInstagram" privacyKey="instagramPrivacy" selectedKey="instagramSelected" placeholder="@kullaniciadi" />
+
+                    <div className="flex gap-3 pt-1">
+                        <button type="button" onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition">İptal</button>
+                        <button type="submit" disabled={saving} className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-50 transition hover:opacity-90">
+                            {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
 const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball']);
 
 function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
@@ -998,6 +1117,7 @@ function ProfilePage() {
     const [friendsLoaded, setFriendsLoaded] = useState(false);
 
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showInfoModal, setShowInfoModal] = useState(false);
     const [showActivityModal, setShowActivityModal] = useState(false);
     const [assessmentTarget, setAssessmentTarget] = useState(null); // {id, subCategory, categoryColor}
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1167,6 +1287,13 @@ function ProfilePage() {
                                                 className={`absolute -bottom-1 -left-1 w-6 h-6 rounded-full flex items-center justify-center text-white font-black text-sm border-2 border-gray-900 transition z-10 ${showArchive ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                                                 title="Story Archive"
                                             >−</button>
+                                        )}
+                                        {isOwnProfile && (
+                                            <button
+                                                onClick={() => setShowInfoModal(true)}
+                                                className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center text-white font-black text-xs border-2 border-gray-900 transition z-10"
+                                                title="Kişisel Bilgiler"
+                                            >🪪</button>
                                         )}
                                     </div>
                                     <h2 className="text-white font-black text-xl mt-3">{profile.fullName || profile.username}</h2>
@@ -1402,6 +1529,10 @@ function ProfilePage() {
             {showEditModal && (
                 <EditProfileModal user={profile} onClose={() => setShowEditModal(false)}
                     onSave={(updated) => { setProfile(prev => ({ ...prev, ...updated })); setShowEditModal(false); }} />
+            )}
+            {showInfoModal && (
+                <PersonalInfoModal user={profile} onClose={() => setShowInfoModal(false)}
+                    onSave={(updated) => setProfile(prev => ({ ...prev, ...updated }))} />
             )}
             {showActivityModal && (
                 <AddActivityModal currentInterests={profile?.interests || []} onClose={() => setShowActivityModal(false)}
