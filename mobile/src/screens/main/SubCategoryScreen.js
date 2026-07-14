@@ -5777,10 +5777,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     }, [item.id]);
 
     const updateRequest = async (userId, status, reason) => {
+        // İyimser güncelleme — yanıt beklenmeden buton anında değişsin, hata olursa geri alınır.
+        const prevStatus = requests.find(r => r.userId === userId)?.status;
+        setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status } : r));
         try {
             await api.patch(`/tournaments/${item.id}/requests/${userId}`, { status, reason });
-            setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status } : r));
         } catch (e) {
+            setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status: prevStatus } : r));
             if (!e?.response) {
                 // Ağ kopması — sunucu işlemi yapmış olabilir; gerçek durumu almak için yenile
                 fetchRequests();

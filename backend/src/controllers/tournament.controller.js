@@ -1143,22 +1143,21 @@ export const updateJoinRequest = async (req, res, next) => {
             include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
         });
 
-        // Notify all accepted participants so their open modals refresh in real-time
+        res.json(updated);
+
+        // Bildirimler yanıtı bekletmesin — arka planda gönderilir.
         if (status === 'ACCEPTED') {
-            const accepted = await prisma.tournamentParticipant.findMany({
+            prisma.tournamentParticipant.findMany({
                 where: { tournamentId: id, status: 'ACCEPTED' },
                 select: { userId: true },
-            });
-            const payload = { tournamentId: id, participant: updated };
-            accepted.forEach(p => emitToUser(p.userId, 'tournament:participant_accepted', payload));
-        }
-
-        if (status === 'REJECTED') {
+            }).then(accepted => {
+                const payload = { tournamentId: id, participant: updated };
+                accepted.forEach(p => emitToUser(p.userId, 'tournament:participant_accepted', payload));
+            }).catch(() => {});
+        } else if (status === 'REJECTED') {
             const body = reason ? `"${tournament.name}" turnuvasına başvurunuz reddedildi. Neden: ${reason}` : `"${tournament.name}" turnuvasına başvurunuz reddedildi.`;
-            await createNotification(userId, 'TOURNAMENT_REJECT', '❌ Başvurunuz Reddedildi', body, { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
+            createNotification(userId, 'TOURNAMENT_REJECT', '❌ Başvurunuz Reddedildi', body, { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory }).catch(() => {});
         }
-
-        res.json(updated);
     } catch (e) { next(e); }
 };
 
