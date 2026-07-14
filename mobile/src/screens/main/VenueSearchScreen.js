@@ -41,6 +41,21 @@ function venueSlotChip(venue, t) {
     return perCourt.map(c => `${c.name}:${t[SLOT_SHORT_KEY[c.type]] || c.type}`).join(' · ');
 }
 
+// Gece yarısını geçen çalışma saatleri arka arkaya iki pencere olarak saklanabiliyor
+// (ör. 17:00–24:00 + 00:00–01:00) — gösterimde bunlar tek bir aralığa birleştirilir (17:00–01:00).
+function mergeAdjacentWindows(windows) {
+    const merged = [];
+    for (const w of windows) {
+        const last = merged[merged.length - 1];
+        if (last && (last.to === w.from || (last.to === '24:00' && w.from === '00:00'))) {
+            last.to = w.to;
+        } else {
+            merged.push({ ...w });
+        }
+    }
+    return merged;
+}
+
 function getVenueHoursLabel(venue, dateStr, t) {
     const os = venue.openSlots;
     if (os && !Array.isArray(os) && typeof os === 'object') {
@@ -51,7 +66,7 @@ function getVenueHoursLabel(venue, dateStr, t) {
         else if (os['0'] !== undefined) entry = os['0'];
         if (entry !== undefined) {
             if (Array.isArray(entry) && entry.length === 0) return t.vsClosed;
-            if (Array.isArray(entry) && entry.length > 0) return entry.map(w => `${w.from}–${w.to}`).join(' / ');
+            if (Array.isArray(entry) && entry.length > 0) return mergeAdjacentWindows(entry).map(w => `${w.from}–${w.to}`).join(' / ');
         }
     }
     return `${venue.openTime || '08:00'}–${venue.closeTime || '22:00'}`;
@@ -251,40 +266,44 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                     {/* Rozetler */}
                     {(() => {
                         const lightsFrom = (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom;
+                        const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
+                        const whatsappV = cl.whatsapp || venue.phone || null;
+                        const callV     = cl.phone    || venue.phone || null;
                         return (
                             <View style={bm.tagRow}>
                                 <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date, t)}</Text></View>
                                 {lightsFrom ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡 {t.vsLightsFrom(lightsFrom)}</Text></View> : null}
                                 <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue, t)}</Text></View>
                                 {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
+                                {whatsappV ? (
+                                    <TouchableOpacity style={bm.tag}
+                                        onPress={() => { const d = whatsappV.replace(/\D/g,''); Linking.openURL(`https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`); }}>
+                                        <Text style={bm.tagText}>💬</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                                {callV ? (
+                                    <TouchableOpacity style={bm.tag} onPress={() => Linking.openURL(`tel:${callV}`)}>
+                                        <Text style={bm.tagText}>📲</Text>
+                                    </TouchableOpacity>
+                                ) : null}
                             </View>
                         );
                     })()}
 
-                    {/* İletişim butonları */}
+                    {/* İletişim butonları (telegram / instagram / email) */}
                     {(() => {
                         const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
-                        // venue.phone'u whatsapp ve phone için fallback olarak kullan
-                        const effectiveCl = {
-                            whatsapp:  cl.whatsapp  || venue.phone || null,
-                            phone:     cl.phone     || venue.phone || null,
-                            telegram:  cl.telegram  || null,
-                            instagram: cl.instagram || null,
-                            email:     cl.email     || null,
-                        };
                         const links = [
-                            { key: 'whatsapp',  icon: '💬', label: t.vsWhatsapp,  url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
-                            { key: 'phone',     icon: '📞', label: t.vsCallMe,    url: v => `tel:${v}` },
                             { key: 'telegram',  icon: '✈️', label: t.vsTelegram,  url: v => `https://t.me/${v.replace('@','')}` },
                             { key: 'instagram', icon: '📸', label: t.vsInstagram, url: v => `https://instagram.com/${v.replace('@','')}` },
                             { key: 'email',     icon: '📧', label: t.vsEmail,     url: v => `mailto:${v}` },
-                        ].filter(l => effectiveCl[l.key]);
+                        ].filter(l => cl[l.key]);
                         if (links.length === 0) return null;
                         return (
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, paddingHorizontal: 3, paddingBottom: 3 }}>
                                 {links.map(l => (
                                     <TouchableOpacity key={l.key}
-                                        onPress={() => Linking.openURL(l.url(effectiveCl[l.key]))}
+                                        onPress={() => Linking.openURL(l.url(cl[l.key]))}
                                         style={{ flexDirection: 'row', alignItems: 'center', gap: 3,
                                             backgroundColor: colors.surface2, borderRadius: 8,
                                             paddingHorizontal: 3, paddingVertical: 3,

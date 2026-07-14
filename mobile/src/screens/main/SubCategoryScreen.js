@@ -3748,6 +3748,13 @@ const vm = StyleSheet.create({
 // ─── Venue Multi-Court Booking Modal ─────────────────────────────────────────
 // Tüm kortları sekme olarak gösterir; boş=yeşil, dolu=kırmızı
 
+// Slot listesi yüklendikten sonra saat ilerlemiş olabilir (gece yarısı geçişi vb.) —
+// tıklama anında cihaz saatiyle tekrar kontrol edilir, sadece ilk yüklemedeki backend
+// verisine güvenilmez.
+function isPastSlot(dateStr, timeStr) {
+    return new Date(`${dateStr}T${timeStr}:00`).getTime() < Date.now();
+}
+
 function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked }) {
     const insets = useSafeAreaInsets();
     const t = useT();
@@ -3814,6 +3821,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
     }, [venue, selDate]);
 
     const selectSlot = (cId, slot) => {
+        if (isPastSlot(selDate, slot.start)) {
+            Alert.alert('Geçmiş Saat', 'Geçmişte kalan bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
+            return;
+        }
         setSelSlot(prev =>
             prev?.courtId === cId && prev?.slot?.start === slot.start
                 ? null
@@ -3826,6 +3837,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
     // dokunmak seçimi oradan yeniden başlatır.
     const tapGridSlot = (court, cData, tappedSlot) => {
         if (!tappedSlot.free) return;
+        if (isPastSlot(selDate, tappedSlot.start)) {
+            Alert.alert('Geçmiş Saat', 'Geçmişte kalan bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
+            return;
+        }
         setSelSlot(prev => {
             if (!prev || prev.courtId !== court.id) {
                 return { courtId: court.id, slot: tappedSlot, rangeEnd: tappedSlot, flexDur: 60 };

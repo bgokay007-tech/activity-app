@@ -27,6 +27,13 @@ function formatDateLabel(dateStr) {
 const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
 
+// Slot listesi ekrana yüklendikten sonra saat ilerlemiş olabilir (gece yarısı geçişi vb.) —
+// tıklama anında cihaz saatiyle tekrar kontrol edilir, sadece ilk yüklemedeki backend
+// verisine güvenilmez.
+function isPastSlot(dateStr, timeStr) {
+    return new Date(`${dateStr}T${timeStr}:00`).getTime() < Date.now();
+}
+
 function SlotBubble({ slot, selected, onPress }) {
     const isMaint = slot.maintenance && !slot.free;
     const displayPrice = slot.priceByMethod?.CASH ?? slot.price;
@@ -145,6 +152,10 @@ export default function CourtSlotsScreen({ route, navigation }) {
     useEffect(() => { fetchSlots(selectedDate); }, [selectedDate]);
 
     const handleSelectSlot = (slot) => {
+        if (isPastSlot(selectedDate, slot.start)) {
+            Alert.alert('Geçmiş Saat', 'Geçmişte kalan bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
+            return;
+        }
         setPicked(slot);
         setModal(true);
     };
@@ -319,7 +330,13 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                         <Text style={s.noSlotsText}>Bu tarihte müsait pencere yok.</Text>
                                     ) : (slots?.windows || []).map((w, i) => (
                                         <TouchableOpacity key={i}
-                                            onPress={() => { setVarStartTime(w.start); setPicked(null); }}
+                                            onPress={() => {
+                                                if (isPastSlot(selectedDate, w.start)) {
+                                                    Alert.alert('Geçmiş Saat', 'Geçmişte kalan bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
+                                                    return;
+                                                }
+                                                setVarStartTime(w.start); setPicked(null);
+                                            }}
                                             style={[vs.timeBtn, varStartTime === w.start && vs.timeBtnActive]}
                                         >
                                             <Text style={[vs.timeBtnText, varStartTime === w.start && vs.timeBtnTextActive]}>{w.start}</Text>

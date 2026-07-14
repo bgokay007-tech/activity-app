@@ -16,6 +16,11 @@ function dateLabel(str) {
     return dt.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+// Slot listesi yüklendikten sonra saat ilerlemiş olabilir (gece yarısı geçişi vb.) —
+// sepete eklerken tarayıcı saatiyle tekrar kontrol edilir, sadece ilk yüklemedeki
+// backend verisine güvenilmez.
+function isPastSlot(date, timeStr) { return new Date(`${date}T${timeStr}:00`).getTime() < Date.now(); }
+
 const SLOT_TYPE_LABEL = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 Dakika', VAR_DURATION: 'Esnek Saat', FLEXIBLE: 'Esnek Saat' };
 const PAY_LABEL = { CASH: '💵 Nakit (Kortta)', EFT: '🏦 EFT / Havale', ONLINE: '🌐 Online', CREDIT_CARD: '💳 Kortta Kredi Kartı' };
 
@@ -322,6 +327,10 @@ export default function VenuesPage() {
     useEffect(() => { search(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleAddToCart = (venue, court, slot, date) => {
+        if (isPastSlot(date, slot.start)) {
+            alert('Geçmiş bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
+            return;
+        }
         const key = `${venue.id}_${court.id}_${date}_${slot.start}`;
         setCart(prev => prev.some(i => i.key === key) ? prev : [...prev, { key, venue, court, slot, date }]);
     };
