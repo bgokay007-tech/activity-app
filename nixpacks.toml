@@ -1,23 +1,26 @@
 [phases.setup]
-# The earlier "old node version" diagnosis was a red herring: even after fetching a
-# fresh Node 22 binary and using it explicitly (see git history), `npm ci` for frontend
-# STILL only installed ~101 of ~494 packages, silently dropping vite's own bin. The real
-# cause was nixpacks setting NODE_ENV=production globally for the whole build — npm ci
-# skips devDependencies (vite, eslint, @vitejs/plugin-react...) under NODE_ENV=production
-# unless told otherwise. `--include=dev` fixed that (verified: 495 packages installed).
-#
-# BUT that alone still wasn't enough: nixpacks' generated Dockerfile does a final
-# `COPY . /app` AFTER the build phase runs (to sync any remaining context files),
-# which re-copies the git-committed (stale) backend/public over the freshly-built one
-# every single deploy — silently discarding the build phase's own vite output. Since
-# nothing runs after [start], the frontend build is done there instead, on the
-# container's live filesystem, where nothing can clobber it afterward.
-#
-# One more layer: vite@8 (rolldown) genuinely cannot RUN on this snapshot's nodejs_20
-# (v20.6.1) — it imports `styleText` from `node:util`, only added in Node 20.12/22.
-# nodejs_22 doesn't exist as a nix attribute here, so [start] fetches a real Node 22
-# binary once per container start and uses it just for the vite invocation.
-nixPkgs = ["nodejs_20", "curl", "xz"]
+# AUTOMATED FRONTEND REBUILD IS STILL BROKEN — full investigation trail, in order of
+# discovery (each was independently real, fixing one just exposed the next):
+#   1. nixpacks sets NODE_ENV=production for the whole build, so `npm ci` for frontend
+#      silently skipped ALL devDependencies (vite, eslint, @vitejs/plugin-react...) —
+#      only ~101 of ~494 packages installed, vite's own bin never existed.
+#      Fixed with `npm ci --include=dev` below (verified: 495 packages installed).
+#   2. Even after that, the live site never picked up a rebuilt bundle. Cause: nixpacks'
+#      generated Dockerfile does a final `COPY . /app` AFTER [phases.build] runs, which
+#      re-copies the git-committed (stale) backend/public over whatever vite just built.
+#   3. Moving the vite build into the start command (see railway.toml — that file's
+#      startCommand is what Railway actually uses, NOT [start] below) sidesteps #2, but
+#      hit a third wall: vite@8/rolldown cannot even RUN on this nixpkgs snapshot's
+#      nodejs_20 (v20.6.1) — confirmed via vite's own error, it needs Node 20.19+/22.12+.
+#   4. Fetching a real Node 22 binary at start time got past #3, but then hit a FOURTH
+#      wall: rolldown's native binding fails to load (MODULE_NOT_FOUND) in this
+#      environment — likely a glibc/musl or arch mismatch for the prebuilt native addon.
+#      This needs real investigation (matching build target, or a non-rolldown vite
+#      version), not more trial-and-error here.
+# Until #4 is solved, ship frontend changes by running `vite build --outDir backend/public`
+# on a normal machine (none of these problems exist there) and committing the output —
+# already verified working repeatedly this session.
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
 cmds = [
@@ -31,6 +34,6 @@ cmds = [
 ]
 
 [start]
-# NOTE: railway.toml's [deploy].startCommand overrides this section entirely on Railway —
-# keep the two in sync if either changes. vite needs a real Node 22 (see setup phase note).
-cmd = "cd frontend && (curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-x64.tar.xz | tar -xJ -C /tmp && PATH=/tmp/node-v22.13.0-linux-x64/bin:$PATH node_modules/.bin/vite build --outDir ../backend/public || true) && cd ../backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"
+# NOTE: railway.toml's [deploy].startCommand is what Railway actually runs — it overrides
+# this section entirely. Keep the two in sync if either changes.
+cmd = "cd backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"

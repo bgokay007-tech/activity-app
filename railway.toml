@@ -2,15 +2,14 @@
 builder = "nixpacks"
 
 [deploy]
-# railway.toml's startCommand overrides nixpacks.toml's [start].cmd entirely (that's why
-# an earlier fix there had zero effect — Railway never even looked at it). The frontend
-# vite build has to run here, after nixpacks' final `COPY . /app` (build-phase output
-# gets clobbered by that copy every deploy, see nixpacks.toml for the full story).
-#
-# vite@8 genuinely cannot RUN on this nixpkgs snapshot's nodejs_20 (v20.6.1) — it imports
-# `styleText` from `node:util`, added in Node 20.12/22 — confirmed by vite's own runtime
-# error ("Vite requires Node.js version 20.19+ or 22.12+"). nodejs_22 doesn't exist as a
-# nix attribute in this snapshot, so a real Node 22 binary is fetched once at container
-# start and used just for the vite invocation; everything else (npm ci, prisma, the
-# actual server) stays on the nixpkgs-provided nodejs_20.
-startCommand = "cd frontend && (curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-x64.tar.xz | tar -xJ -C /tmp && PATH=/tmp/node-v22.13.0-linux-x64/bin:$PATH node_modules/.bin/vite build --outDir ../backend/public || true) && cd ../backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"
+# AUTOMATED FRONTEND REBUILD IS STILL BROKEN — see nixpacks.toml for the full investigation
+# trail (three independently-real blockers found and fixed: missing --include=dev, a final
+# `COPY . /app` clobbering build-phase output, and vite@8/rolldown refusing to run at all
+# on this nixpkgs snapshot's Node — a real Node 22 download got past that but then hit a
+# missing native rolldown binding (MODULE_NOT_FOUND), an environment-specific native-module
+# problem that needs proper investigation (likely: build rolldown's native binding on a
+# matching glibc target, or drop to a non-rolldown vite version), not more guessing here.
+# Until that's resolved, ship frontend changes by running `vite build --outDir backend/public`
+# locally (a normal machine's Node has none of these problems) and committing the output —
+# already verified working. Reverted to the simple, always-safe start command below.
+startCommand = "cd backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"
