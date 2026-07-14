@@ -33,7 +33,18 @@ import venueRoutes from './routes/venue.routes.js';
 
 const app = express();
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+// Varsayilan CSP img-src'i 'self' data: ile sinirliyor - Cloudinary'de barindirilan
+// tum avatar/gonderi/tesis fotograflari (harici origin) bu yuzden hic yuklenmiyordu,
+// web'de tarayici sessizce engelliyordu (network/console hatasi disinda belirti yok).
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'img-src': ["'self'", 'data:', 'https:'],
+    },
+  },
+}));
 app.use(cors({
   origin: (origin, cb) => cb(null, true),
   credentials: true,
