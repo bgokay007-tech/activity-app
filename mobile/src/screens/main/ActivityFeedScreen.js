@@ -710,7 +710,7 @@ export default function ActivityFeedScreen({ navigation }) {
                         <Text style={s.emptyHint}>Filtreni değiştir veya daha sonra tekrar bak</Text>
                     </View>
                 ) : (
-                    <View style={{ padding: 12, gap: 10 }}>
+                    <View style={{ padding: 3, gap: 3 }}>
                         {items.map(item => (
                             <ActivityCard key={item.id} item={item} navigation={navigation}
                                 onJoin={handleJoin} joining={joiningId === item.id} />
@@ -854,23 +854,23 @@ const s = StyleSheet.create({
 
     card:      { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
     cardStripe:{ width: 4 },
-    cardBody:  { flex: 1, padding: 12, gap: 6 },
-    cardTop:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    cardEmoji: { fontSize: 26 },
-    cardSub:   { color: '#fff', fontSize: 13, fontWeight: '900' },
-    cardUser:  { color: colors.textSecondary, fontSize: 11, marginTop: 1 },
-    catBadge:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
+    cardBody:  { flex: 1, padding: 3, gap: 3 },
+    cardTop:   { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    cardEmoji: { fontSize: 20 },
+    cardSub:   { color: '#fff', fontSize: 11, fontWeight: '900' },
+    cardUser:  { color: colors.textSecondary, fontSize: 10, marginTop: 1 },
+    catBadge:  { paddingHorizontal: 3, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
     catBadgeText: { fontSize: 9, fontWeight: '800' },
-    infoRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    infoChip:  { color: colors.textSecondary, fontSize: 11, backgroundColor: colors.surface2, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-    cardMsg:   { color: colors.textMuted, fontSize: 12, fontStyle: 'italic' },
-    cardFooter:{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-    spotsText: { flex: 1, color: colors.textMuted, fontSize: 11 },
-    feeText:   { color: colors.yellow, fontSize: 11, fontWeight: '700' },
-    pendingBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: colors.yellow+'22', borderWidth: 1, borderColor: colors.yellow+'55' },
-    pendingText:  { color: colors.yellow, fontSize: 11, fontWeight: '700' },
-    joinBtn:      { backgroundColor: colors.purple, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
-    joinBtnText:  { color: '#fff', fontSize: 12, fontWeight: '800' },
+    infoRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+    infoChip:  { color: colors.textSecondary, fontSize: 10, backgroundColor: colors.surface2, borderRadius: 6, paddingHorizontal: 3, paddingVertical: 3 },
+    cardMsg:   { color: colors.textMuted, fontSize: 11, fontStyle: 'italic' },
+    cardFooter:{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+    spotsText: { flex: 1, color: colors.textMuted, fontSize: 10 },
+    feeText:   { color: colors.yellow, fontSize: 10, fontWeight: '700' },
+    pendingBadge: { paddingHorizontal: 3, paddingVertical: 3, borderRadius: 8, backgroundColor: colors.yellow+'22', borderWidth: 1, borderColor: colors.yellow+'55' },
+    pendingText:  { color: colors.yellow, fontSize: 10, fontWeight: '700' },
+    joinBtn:      { backgroundColor: colors.purple, paddingHorizontal: 3, paddingVertical: 3, borderRadius: 10 },
+    joinBtnText:  { color: '#fff', fontSize: 11, fontWeight: '800' },
 });
 
 const cal = StyleSheet.create({
