@@ -10,12 +10,12 @@ const WINDOWS = [
     { key: '12h', hours: 12, label: '12 saat' },
 ];
 
-// tournament.type === '2' (Çiftler Rekabetçi) maçlarında p1Id/p2Id bir TournamentTeam id'sidir,
-// gerçek kullanıcı id'lerine buradan çözülür (bkz. cleanupTournaments.js).
+// tournament.type === '2'/'4' (Çiftler Rekabetçi/Çiftler Antrenman) maçlarında p1Id/p2Id bir
+// TournamentTeam id'sidir, gerçek kullanıcı id'lerine buradan çözülür (bkz. cleanupTournaments.js).
 function buildRecipientResolver(tournamentMap, teamMap) {
     return (match) => {
         const tournament = tournamentMap[match.tournamentId];
-        if (tournament?.type === '2') {
+        if (tournament?.type === '2' || tournament?.type === '4') {
             const t1 = teamMap[match.p1Id], t2 = teamMap[match.p2Id];
             return [...new Set([t1?.player1Id, t1?.player2Id, t2?.player1Id, t2?.player2Id].filter(Boolean))];
         }
@@ -29,7 +29,7 @@ async function loadTournamentAndTeamMaps(matches) {
     const tournamentMap = Object.fromEntries(tournaments.map(t => [t.id, t]));
 
     const teamIds = [...new Set(
-        matches.filter(m => tournamentMap[m.tournamentId]?.type === '2').flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean)
+        matches.filter(m => ['2', '4'].includes(tournamentMap[m.tournamentId]?.type)).flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean)
     )];
     const teams = teamIds.length ? await prisma.tournamentTeam.findMany({ where: { id: { in: teamIds } } }) : [];
     const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
@@ -121,7 +121,7 @@ async function autoDrawExpiredMatches() {
                 });
                 if (!tournament || tournament.status !== 'IN_PROGRESS') continue;
 
-                const isTeamTournament = tournament.type === '2';
+                const isTeamTournament = tournament.type === '2' || tournament.type === '4';
                 let p1Members = [match.p1Id].filter(Boolean);
                 let p2Members = [match.p2Id].filter(Boolean);
                 if (isTeamTournament) {

@@ -5448,7 +5448,7 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
 
 // ─── Tournament Card ──────────────────────────────────────────────────────────
 
-const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t.tournType3 });
+const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t.tournType3, '4': t.tournType4 });
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
 const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
@@ -5575,7 +5575,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [tournTeams, setTournTeams] = useState([]); // Çiftler Rekabetçi: takım id -> avgRating (skorlanmamış maçlarda da puan göstermek için)
     const [tournPlayerRatings, setTournPlayerRatings] = useState({}); // userId -> güncel bireysel skillRating (backend'den canlı)
     const [matchesError, setMatchesError] = useState(false); // /matches isteği başarısız oldu — "maç yok" ile karıştırılmasın
-    const mySideId = item.type === '2' ? myTeamId : myId;
+    const mySideId = (item.type === '2' || item.type === '4') ? myTeamId : myId;
     const [loadingMatches, setLoadingMatches] = useState(false);
     const [showMatchesModal, setShowMatchesModal] = useState(false);
     const [matchTab, setMatchTab] = useState('matches');
@@ -5822,7 +5822,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         setPartnerActionLoading(true);
         try {
             await api.patch(`/tournaments/${item.id}/partner`, { partnerId: partnerId || null });
-            if (isCreator || item.type === '2') await fetchRequests();
+            if (isCreator || item.type === '2' || item.type === '4') await fetchRequests();
             if (!isCreator) await fetchParticipants();
             setShowInvitePicker(false);
         } catch (e) {
@@ -5836,7 +5836,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     useEffect(() => {
         const off = onSocket('tournament:partner_request', ({ tournamentId }) => {
             if (tournamentId !== item.id) return;
-            if (isCreator || item.type === '2') fetchRequests();
+            if (isCreator || item.type === '2' || item.type === '4') fetchRequests();
             if (!isCreator) fetchParticipants();
         });
         return off;
@@ -6310,7 +6310,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         }
         return Object.values(stats).sort((a,b) => {
             if (b.points!==a.points) return b.points-a.points;
-            if (item.type === '1' || item.type === '2' || item.type === '3') {
+            if (item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4') {
                 const averaj=x=>(x.gamesWon+x.gamesLost)===0?0:x.gamesWon/(x.gamesWon+x.gamesLost);
                 if (Math.abs(averaj(b)-averaj(a))>0.001) return averaj(b)-averaj(a);
             }
@@ -6419,7 +6419,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </Text>
                         )}
                     </>)}
-                    {(item.type === '1' || item.type === '2' || item.type === '3') && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
+                    {(item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4') && (item.setsPerMatch || item.matchesBeforePlayoff || item.playoffQualifiers) && (
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:2 }}>
                             {item.setsPerMatch && (
                                 <View style={{ backgroundColor: infoColor+'15', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor: infoColor+'40' }}>
@@ -6590,7 +6590,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             )}
                             <TouchableOpacity
                                 style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#1e40af40' }}
-                                onPress={() => { item.type === '2' ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
+                                onPress={() => { (item.type === '2' || item.type === '4') ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
                                 {participantCount > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{participantCount}</Text>}
                                 <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
                                     {'Katılımcı'.split('').join('\n')}
@@ -6747,7 +6747,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                             const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                             return (
-                                                <View key={match.id} style={{ width: isEntering ? '100%' : (item.type === '2' ? '48.5%' : '100%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
+                                                <View key={match.id} style={{ width: isEntering ? '100%' : ((item.type === '2' || item.type === '4') ? '48.5%' : '100%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
                                                         <View style={{ flex:1 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
@@ -6757,7 +6757,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                         <Text style={{ color: isW ? '#4ade80' : '#475569', fontSize:10, fontWeight:'800', minWidth:12, textAlign:'center' }}>{p1SW}</Text>
                                                                     </View>
                                                                 );
-                                                                if (item.type === '2') {
+                                                                if (item.type === '2' || item.type === '4') {
                                                                     const team = tournTeams.find(tm => tm.id === match.p1Id);
                                                                     const memberRatings = match.score?.p1MemberRatings || [];
                                                                     const playerLine = (uid, name) => {
@@ -6813,7 +6813,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                         <Text style={{ color: isW ? '#4ade80' : '#475569', fontSize:10, fontWeight:'800', minWidth:12, textAlign:'center' }}>{p2SW}</Text>
                                                                     </View>
                                                                 );
-                                                                if (item.type === '2') {
+                                                                if (item.type === '2' || item.type === '4') {
                                                                     const team = tournTeams.find(tm => tm.id === match.p2Id);
                                                                     const memberRatings = match.score?.p2MemberRatings || [];
                                                                     const playerLine = (uid, name) => {
@@ -6868,7 +6868,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const overdue = dl < new Date();
                                                                 const dateStr = dl.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
                                                                 const timeStr = dl.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-                                                                const dayLabel = (item.type === '1' || item.type === '3') && match.round ? `${match.round * 7}. Gün · ` : '';
+                                                                const dayLabel = (item.type === '1' || item.type === '3' || item.type === '4') && match.round ? `${match.round * 7}. Gün · ` : '';
                                                                 return (
                                                                     <Text style={{ color: overdue ? '#f87171' : '#fbbf24', fontSize:9, fontWeight:'700' }}>
                                                                         {'⏳'} {dayLabel}{dateStr} {timeStr}
@@ -6882,7 +6882,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 </TouchableOpacity>
                                                             )}
                                                             {/* Joker butonu — Bireysel Rekabetçi (oyuncu), Çiftler Rekabetçi (takım) ve Bireysel Antrenman (oyuncu) */}
-                                                            {(item.type === '1' || item.type === '2' || item.type === '3') && !item.dayTrip && isReady && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
+                                                            {(item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4') && !item.dayTrip && isReady && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
                                                                 const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
                                                                 const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
                                                                 if (myJokerRequested) return null;
@@ -7079,7 +7079,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </View>
 
                                 {/* Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
-                                {(item.type === '1' || item.type === '2' || item.type === '3') && (<>
+                                {(item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4') && (<>
                                     <Text style={s.fieldLabel}>Set Sayısı</Text>
                                     <View style={s.chipRow}>
                                         {['1','3','5'].map(n => (
@@ -7341,7 +7341,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
                             // OPEN status — show AS/YDK labels + PENDING section with action buttons
                             let mainIdx = 0;
-                            const isDoubles = item.type === '2';
+                            const isDoubles = item.type === '2' || item.type === '4';
                             const listRows = isDoubles ? requests.filter(r => r.status !== 'ACCEPTED') : requests;
                             return (
                                 <View>
@@ -7467,7 +7467,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </View>
                             );
                         })() : (() => {
-                            if (item.type === '2' ? loadingRequests : loadingParticipants) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
+                            if ((item.type === '2' || item.type === '4') ? loadingRequests : loadingParticipants) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
                             const maxP = item.maxPlayers || participants.length;
 
                             if (item.status === 'IN_PROGRESS') {
@@ -7532,7 +7532,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </View>
                                     </View>
                                 )}
-                                {item.type === '2' ? (() => {
+                                {(item.type === '2' || item.type === '4') ? (() => {
                                     const pending = requests.filter(r => r.status === 'PENDING');
                                     const accepted = requests.filter(r => r.status === 'ACCEPTED');
                                     const { pairs, solos, byUserId } = groupDoublesPairs(accepted);
@@ -8048,7 +8048,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 prize2: f.prize2.trim() || undefined,
                 prize3: f.prize3.trim() || undefined,
                 contactPhone: f.contactPhone.trim() || undefined,
-                ...((f.type === '1' || f.type === '2' || f.type === '3') && {
+                ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : undefined,
                     advantageScoring: f.advantageScoring,
                     matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : undefined,
@@ -8610,6 +8610,29 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             )}
 
+                            {/* Çiftler Antrenman kuralları */}
+                            {!f.pollEnabled && f.type === '4' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Antrenman Kuralları</Text>
+                                    {[
+                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken ELO puanı birbirine en yakın olanlarla eşleştirilerek takım yapılır. Tek kalan en düşük ELO puanlı oyuncu turnuvaya katılım sağlayamaz.',
+                                        'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
+                                        'Her takımın 1 joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
+                                        'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
+                                        'Kura çekildiğinde her tur rastgele takımlar eşleşilir ve play-off\'lara kadar hangi takımın hangi takımla maç yapacağı bellidir.',
+                                        'Aynı puanlı takımlar play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
+                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
+                                        'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
+                                        'Takımlar isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
 
                             {/* Gender | Sets — side by side */}
                             <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
@@ -8642,7 +8665,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </View>
 
                             {/* Scoring + matches/qualifiers — Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
-                            {(f.type === '1' || f.type === '2' || f.type === '3') && (
+                            {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
                                 <>
                                     <Text style={s.fieldLabel}>{t.tournScoringLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
@@ -12360,7 +12383,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 }
                                 return Object.values(stats).sort((a,b) => {
                                     if (b.points!==a.points) return b.points-a.points;
-                                    if (tourn.type === '1' || tourn.type === '2' || tourn.type === '3') {
+                                    if (tourn.type === '1' || tourn.type === '2' || tourn.type === '3' || tourn.type === '4') {
                                         const averaj=x=>(x.gamesWon+x.gamesLost)===0?0:x.gamesWon/(x.gamesWon+x.gamesLost);
                                         if (Math.abs(averaj(b)-averaj(a))>0.001) return averaj(b)-averaj(a);
                                     }
