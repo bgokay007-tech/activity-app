@@ -2,10 +2,16 @@
 # The earlier "old node version" diagnosis was a red herring: even after fetching a
 # fresh Node 22 binary and using it explicitly (see git history), `npm ci` for frontend
 # STILL only installed ~101 of ~494 packages, silently dropping vite's own bin. The real
-# cause is nixpacks setting NODE_ENV=production globally for the whole build — npm ci
+# cause was nixpacks setting NODE_ENV=production globally for the whole build — npm ci
 # skips devDependencies (vite, eslint, @vitejs/plugin-react...) under NODE_ENV=production
-# unless told otherwise. `--include=dev` below forces them in regardless of node version,
-# so nodejs_20 (whatever patch this nixpkgs snapshot has) is fine again.
+# unless told otherwise. `--include=dev` fixed that (verified: 495 packages installed).
+#
+# BUT that alone still wasn't enough: nixpacks' generated Dockerfile does a final
+# `COPY . /app` AFTER the build phase runs (to sync any remaining context files),
+# which re-copies the git-committed (stale) backend/public over the freshly-built one
+# every single deploy — silently discarding the build phase's own vite output. Since
+# nothing runs after [start], the frontend build is done there instead, on the
+# container's live filesystem, where nothing can clobber it afterward.
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
@@ -16,9 +22,8 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "cd backend && node_modules/.bin/prisma generate",
-  "cd frontend && node_modules/.bin/vite build --outDir ../backend/public || true"
+  "cd backend && node_modules/.bin/prisma generate"
 ]
 
 [start]
-cmd = "cd backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"
+cmd = "cd frontend && (node_modules/.bin/vite build --outDir ../backend/public || true) && cd ../backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"
