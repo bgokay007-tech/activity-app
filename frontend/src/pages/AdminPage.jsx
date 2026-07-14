@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
@@ -1157,12 +1157,18 @@ function BusinessVenuesPanel() {
 export default function AdminPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const user = useSelector(s => s.auth.user);
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [activeTab, setActiveTab] = useState(TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'dashboard');
 
     useEffect(() => {
         if (user && !user.isAdmin) navigate('/home');
     }, [user]);
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && TABS.includes(tab)) setActiveTab(tab);
+    }, [searchParams]);
 
     const dynamicTabLabels = {
         ...TAB_LABEL,

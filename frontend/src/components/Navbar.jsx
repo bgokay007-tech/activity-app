@@ -58,21 +58,43 @@ function RainbowTitle() {
 function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
     const navigate = useNavigate();
 
+    const ADMIN_TAB_BY_TYPE = {
+        VENUE_REQUEST: 'venues',
+        VENUE_SUBMISSION: 'venues',
+        SUBSCRIPTION_REQUEST: 'subscriptions',
+        SUBSCRIPTION_RECEIPT: 'subscriptions',
+        VENUE_REVIEW_PENDING: 'venue-reviews',
+        REVIEW_APPEAL: 'venue-reviews',
+        TOURNAMENT_PERMISSION_REQUEST: 'tournament-perms',
+    };
+    const OUTCOME_TYPES = new Set([
+        'VENUE_APPROVED', 'VENUE_REJECTED',
+        'SUBSCRIPTION_APPROVED', 'SUBSCRIPTION_REJECTED', 'SUBSCRIPTION_CANCELLED', 'SUBSCRIPTION_WARNING',
+        'TOURNAMENT_PERMISSION_APPROVED', 'TOURNAMENT_PERMISSION_REJECTED',
+        'PROFILE_CHANGE_APPROVED', 'PROFILE_CHANGE_REJECTED',
+        'APPEAL_RESOLVED', 'VENUE_REVIEW_APPROVED', 'VENUE_REVIEW_REJECTED', 'HOLIDAY_REMINDER',
+    ]);
+
     const handleClick = (n) => {
         onMarkOne(n.id);
         onClose();
-        if (n.type === 'TOURNAMENT_JOIN' && n.data?.tournamentId && n.data?.category && n.data?.subCategory) {
-            navigate(`/category/${n.data.category}/${n.data.subCategory}?manageTournament=${n.data.tournamentId}`);
-        } else if (n.data?.rivalId && n.data?.category && n.data?.subCategory) {
-            navigate(`/category/${n.data.category}/${n.data.subCategory}`);
-        } else if (n.data?.rivalId) {
-            navigate(`/category/sports/football`);
-        } else if (n.type === 'FRIEND_REQUEST') {
+        const { type, data = {} } = n;
+        const catPath = data.category && data.subCategory ? `/category/${data.category.toLowerCase()}/${data.subCategory}` : null;
+
+        if (type === 'MESSAGE') {
+            navigate(data.senderId ? `/messages/${data.senderId}` : '/messages');
+        } else if (['FRIEND_REQUEST', 'FRIEND_ACCEPTED', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPTED'].includes(type)) {
+            navigate(data.senderId ? `/profile/${data.senderId}` : '/profile');
+        } else if (ADMIN_TAB_BY_TYPE[type]) {
+            navigate(`/admin?tab=${ADMIN_TAB_BY_TYPE[type]}`);
+        } else if (type?.startsWith('TOURNAMENT') && data.tournamentId && catPath) {
+            navigate(`${catPath}?manageTournament=${data.tournamentId}`);
+        } else if (catPath) {
+            navigate(catPath);
+        } else if (data.rivalId) {
+            navigate('/category/sports/football');
+        } else if (OUTCOME_TYPES.has(type)) {
             navigate('/profile');
-        } else if (n.type === 'MESSAGE') {
-            navigate('/messages');
-        } else if (n.type === 'VENUE_SUBMISSION') {
-            navigate('/admin');
         }
     };
 
