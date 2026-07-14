@@ -8086,12 +8086,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
                             {/* Name */}
-                            <Text style={s.fieldLabel}>{t.tournNameLabel}</Text>
+                            <Text style={s.fieldLabelRed}>{t.tournNameLabel}</Text>
                             <TextInput style={[s.fieldInput, ti]} value={f.name} onChangeText={v => set('name', v)}
                                 placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
 
                             {/* Scope */}
-                            <Text style={s.fieldLabel}>{t.tournScopeLabel}</Text>
+                            <Text style={s.fieldLabelRed}>{t.tournScopeLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 {TOURN_SCOPES.map(sc => (
                                     <TouchableOpacity key={sc}
@@ -8105,7 +8105,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </View>
                             {f.scope === 'YEREL' && (
                                 <>
-                                    <Text style={s.fieldLabel}>{t.tournCityLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournCityLabel}</Text>
                                     <TextInput style={[s.fieldInput, ti]} value={f.scopeCity}
                                         onChangeText={searchCityProvince}
                                         placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
@@ -8119,7 +8119,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             ))}
                                         </View>
                                     )}
-                                    <Text style={s.fieldLabel}>{t.tournDistrictLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournDistrictLabel}</Text>
                                     <TextInput style={[s.fieldInput, ti]} value={f.scopeDistrict}
                                         onChangeText={searchDistrict}
                                         placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
@@ -8137,7 +8137,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             )}
                             {f.scope === 'ULUSAL' && (
                                 <>
-                                    <Text style={s.fieldLabel}>{t.tournCountryLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournCountryLabel}</Text>
                                     <TextInput style={[s.fieldInput, ti]} value={f.scopeCountry} onChangeText={v => set('scopeCountry', v)}
                                         placeholder={t.tournCountryPh} placeholderTextColor={colors.textMuted} />
                                 </>
@@ -8149,7 +8149,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             )}
 
                             {/* Court */}
-                            <Text style={s.fieldLabel}>{t.tournCourtLabel}</Text>
+                            <Text style={s.fieldLabelRed}>{t.tournCourtLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
@@ -8210,7 +8210,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     {/* Surface (tennis / padel) */}
                                     {(sub === 'tennis' || sub === 'padel') && (
                                         <>
-                                            <Text style={s.fieldLabel}>{t.tournSurfaceLabel}</Text>
+                                            <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                                 {(sub === 'padel' ? PADEL_SURFACES : TENNIS_SURFACES).map(sf => (
                                                     <TouchableOpacity key={sf.id}
@@ -8223,7 +8223,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </>
                                     )}
                                     {/* Indoor / Outdoor */}
-                                    <Text style={s.fieldLabel}>{t.venueLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.venueLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
                                         <TouchableOpacity
                                             style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.isIndoor && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
@@ -8243,7 +8243,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
                                 {/* Son Başvuru */}
                                 <View style={{ width:110 }}>
-                                    <Text style={s.fieldLabel}>{t.tournRegEndLabel} *</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournRegEndLabel} *</Text>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         <TouchableOpacity
                                             style={[s.triBtn, f.regEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
@@ -8263,7 +8263,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                                 {/* Cinsiyet */}
                                 <View style={{ flex:1 }}>
-                                    <Text style={s.fieldLabel}>{t.tournGenderLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournGenderLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         {TOURN_GENDERS.map(g => (
                                             <TouchableOpacity key={g}
@@ -8278,7 +8278,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                                 {/* Set */}
                                 <View style={{ width:48 }}>
-                                    <Text style={s.fieldLabel}>{t.tournSetsLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournSetsLabel}</Text>
                                     <TextInput
                                         style={[s.fieldInput, ti, { marginBottom:0, textAlign:'center', paddingHorizontal:1 }]}
                                         value={f.setsPerMatch}
@@ -8311,7 +8311,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     { field:'evEnd',   label: t.tournEventEndLabel,   dateVal: f.eventEndDate,   timeVal: f.eventEndTime   },
                                 ].map(({ field, label, dateVal, timeVal }) => (
                                     <View key={field} style={{ flex:1 }}>
-                                        <Text style={s.fieldLabel}>{label}</Text>
+                                        <Text style={s.fieldLabelRed}>{label}</Text>
                                         <View style={{ flexDirection:'row', gap:3 }}>
                                             <TouchableOpacity
                                                 style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:4, paddingHorizontal:3 }]}
@@ -8346,7 +8346,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             />
 
                             {/* Entry fee */}
-                            <Text style={s.fieldLabel}>{t.tournFeeLabel}</Text>
+                            <Text style={s.fieldLabelRed}>{t.tournFeeLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:6 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.isPaid && { backgroundColor: '#16a34a30', borderColor: '#16a34a' }]}
@@ -8366,7 +8366,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </View>
 
                             {/* Kort ücreti kim öder — ücretsizde ve ücretlide farklı seçenekler */}
-                            <Text style={s.fieldLabel}>{t.tournCourtFeeWho}</Text>
+                            <Text style={s.fieldLabelRed}>{t.tournCourtFeeWho}</Text>
                             <View style={[s.chipRow, { marginBottom:10 }]}>
                                 {(f.isPaid
                                     ? [{ id:'INCLUDED', label: t.tournFeeIncluded }, { id:'SHARED', label: t.tournFeeShared }]
@@ -8382,7 +8382,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Payment options — only when paid */}
                             {f.isPaid && (<>
-                                <Text style={s.fieldLabel}>Turnuva Katılım Ücreti (₺)</Text>
+                                <Text style={s.fieldLabelRed}>Turnuva Katılım Ücreti (₺)</Text>
                                 <TextInput
                                     style={[s.fieldInput, ti, { marginBottom:10 }]}
                                     value={f.playerFee}
@@ -8391,7 +8391,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     placeholder="örn. 150"
                                     placeholderTextColor={colors.textMuted} />
 
-                                <Text style={[s.fieldLabel, { marginTop:4 }]}>Ödeme Yöntemi</Text>
+                                <Text style={[s.fieldLabelRed, { marginTop:4 }]}>Ödeme Yöntemi</Text>
                                 {/* Online payment — disabled */}
                                 <View style={{ opacity:0.4, marginBottom:6 }}>
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:7, borderWidth:1, borderColor: colors.border }}>
@@ -8427,7 +8427,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                                 {/* EFT fields */}
                                 {f.paymentMethod === 'EFT' && (<>
-                                    <Text style={s.fieldLabel}>IBAN Numarası</Text>
+                                    <Text style={s.fieldLabelRed}>IBAN Numarası</Text>
                                     <TextInput
                                         style={[s.fieldInput, ti]}
                                         value={f.ibanNumber}
@@ -8435,7 +8435,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         placeholder="TR00 0000 0000 0000 0000 0000 00"
                                         placeholderTextColor={colors.textMuted}
                                         autoCapitalize="characters" maxLength={32} />
-                                    <Text style={s.fieldLabel}>Hesap Sahibi (Ad Soyad)</Text>
+                                    <Text style={s.fieldLabelRed}>Hesap Sahibi (Ad Soyad)</Text>
                                     <TextInput
                                         style={[s.fieldInput, ti]}
                                         value={f.ibanHolder}
@@ -8453,7 +8453,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 { key:'prize3', label: f.isPaid ? t.tournPrize3 : t.tournPrize3Opt },
                             ].map(({ key, label }) => (
                                 <View key={key}>
-                                    <Text style={s.fieldLabel}>{label}</Text>
+                                    <Text style={s.fieldLabelRed}>{label}</Text>
                                     <TextInput style={[s.fieldInput, ti]} value={f[key]}
                                         onChangeText={v => set(key, v)}
                                         placeholder={t.tournPrizePh} placeholderTextColor={colors.textMuted} />
@@ -8463,7 +8463,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Tournament type — kendim seçerim / kullanıcılar oylasın */}
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:3 }}>
-                                <Text style={s.fieldLabel}>{t.tournTypeLabel}</Text>
+                                <Text style={s.fieldLabelRed}>{t.tournTypeLabel}</Text>
                                 <TouchableOpacity
                                     onPress={() => set('pollEnabled', !f.pollEnabled)}
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
@@ -8494,7 +8494,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:9, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:16, marginBottom:9 }}>{t.tournPollInfoText}</Text>
 
-                                    <Text style={s.fieldLabel}>{t.tournPollTypesLabel} *</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournPollTypesLabel} *</Text>
                                     <View style={[s.chipRow, { marginBottom:9 }]}>
                                         {TOURN_TYPES.map(tp => {
                                             const selected = f.pollTypes.includes(tp);
@@ -8510,7 +8510,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         })}
                                     </View>
 
-                                    <Text style={s.fieldLabel}>{t.tournPollEndLabel} *</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournPollEndLabel} *</Text>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         <TouchableOpacity
                                             style={[s.triBtn, f.pollEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
@@ -8633,7 +8633,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {/* Gender | Sets — side by side */}
                             <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
                                 <View style={{ flex:1 }}>
-                                    <Text style={s.fieldLabel}>{t.tournGenderLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournGenderLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         {TOURN_GENDERS.map(g => (
                                             <TouchableOpacity key={g}
@@ -8647,7 +8647,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 </View>
                                 <View style={{ width:72 }}>
-                                    <Text style={s.fieldLabel}>{t.tournSetsLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournSetsLabel}</Text>
                                     <TextInput
                                         style={[s.fieldInput, ti, { marginBottom:0, textAlign:'center' }]}
                                         value={f.setsPerMatch}
@@ -8663,7 +8663,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {/* Scoring + matches/qualifiers — Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
                             {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
                                 <>
-                                    <Text style={s.fieldLabel}>{t.tournScoringLabel}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournScoringLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
                                         <TouchableOpacity
                                             style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === true && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
@@ -8683,13 +8683,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         <View style={{ flex:1 }}>
-                                            <Text style={s.fieldLabel}>{t.tournMatchesBeforePlayoff}</Text>
+                                            <Text style={s.fieldLabelRed}>{t.tournMatchesBeforePlayoff}</Text>
                                             <TextInput style={[s.fieldInput, ti]} value={f.matchesBeforePlayoff}
                                                 onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournMatchesPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                         </View>
                                         <View style={{ flex:1 }}>
-                                            <Text style={s.fieldLabel}>{t.tournPlayoffQualifiers}</Text>
+                                            <Text style={s.fieldLabelRed}>{t.tournPlayoffQualifiers}</Text>
                                             <TextInput style={[s.fieldInput, ti]} value={f.playoffQualifiers}
                                                 onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournPlayoffPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
@@ -8731,7 +8731,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </View>
 
                             {/* Contact phone */}
-                            <Text style={s.fieldLabel}>{t.tournContactPhoneLabel}</Text>
+                            <Text style={s.fieldLabelRed}>{t.tournContactPhoneLabel}</Text>
                             <TextInput style={[s.fieldInput, ti]} value={f.contactPhone}
                                 onChangeText={v => set('contactPhone', v)}
                                 placeholder={t.tournContactPhonePh}
@@ -8739,7 +8739,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 keyboardType="phone-pad" />
 
                             {/* Description */}
-                            <Text style={s.fieldLabel}>{t.tournDescLabel}</Text>
+                            <Text style={s.fieldLabelRed}>{t.tournDescLabel}</Text>
                             <TextInput style={[s.fieldInput, ti, { minHeight:55, textAlignVertical:'top' }]} value={f.description}
                                 onChangeText={v => set('description', v)} placeholder={t.tournDescPh}
                                 placeholderTextColor={colors.textMuted} multiline />
@@ -12752,6 +12752,7 @@ const s = StyleSheet.create({
     modalClose:       { color: colors.textMuted, fontSize:22 },
 
     fieldLabel:       { color: colors.textSecondary, fontSize:12, fontWeight:'700', marginBottom:6 },
+    fieldLabelRed:    { color: '#ef4444', fontSize:12, fontWeight:'700', marginBottom:6 },
     fieldHint:        { color: colors.textMuted, fontSize:10, marginBottom:8 },
     fieldInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:12, paddingHorizontal:11, paddingVertical:9, borderWidth:1, borderColor: colors.border, fontSize:14, marginBottom:14 },
     chipRow:          { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:14 },
