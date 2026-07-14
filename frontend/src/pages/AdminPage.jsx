@@ -5,7 +5,7 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions', 'venue-reviews'];
 
 const TAB_LABEL = {
     dashboard:          '📊 Dashboard',
@@ -21,6 +21,7 @@ const TAB_LABEL = {
     'flagged-listings': '🚩 Şüpheli İlanlar',
     'profile-changes':  '🪪 Profil Değişiklik',
     'subscriptions':    '💳 Abonelik Talepleri',
+    'venue-reviews':    '⭐ Tesis Yorumu',
 };
 
 function StatCard({ label, value, color = 'text-white' }) {
@@ -858,6 +859,88 @@ function ProfileChangesPanel() {
     );
 }
 
+// ── TESİS YORUMU ONAYI ─────────────────────────────────────────────────────
+function VenueReviewsPanel() {
+    const [reviews, setReviews] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState('PENDING');
+    const [notes, setNotes] = useState({}); // id → note text
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get(`/admin/venue-reviews?status=${statusFilter}`)
+            .then(r => setReviews(r.data))
+            .finally(() => setLoading(false));
+    }, [statusFilter]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const resolve = async (id, action) => {
+        try {
+            await api.patch(`/admin/venue-reviews/${id}`, { action, adminNote: notes[id] || '' });
+            load();
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex gap-2 mb-4">
+                {['PENDING', 'APPROVED', 'REJECTED'].map(s => (
+                    <button key={s} onClick={() => setStatusFilter(s)}
+                        className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${statusFilter === s ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
+                        {s === 'PENDING' ? '⏳ Bekleyen' : s === 'APPROVED' ? '✅ Onaylı' : '❌ Reddedilen'}
+                    </button>
+                ))}
+            </div>
+
+            {loading && <p className="text-gray-500 text-center py-16">Yükleniyor...</p>}
+            {!loading && reviews.length === 0 && (
+                <p className="text-gray-500 text-center py-16">Yorum bulunamadı.</p>
+            )}
+
+            {reviews.map(r => (
+                <div key={r.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5">
+                    <div className="flex items-start gap-4">
+                        {r.user?.avatar && (
+                            <img src={r.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-gray-700 shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-2">
+                                <span className="text-white font-bold text-sm">{r.venue?.name || '?'}{r.court ? ` · ${r.court.name}` : ' · Tesis Geneli'}</span>
+                                <span className="text-gray-500 text-xs">@{r.user?.username}</span>
+                                <span className="text-yellow-400 text-xs font-bold">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                            </div>
+                            {r.comment && <p className="text-gray-300 text-sm mb-2">{r.comment}</p>}
+                            <p className="text-gray-600 text-xs mb-3">{new Date(r.createdAt).toLocaleString('tr-TR')}</p>
+
+                            {statusFilter === 'PENDING' && (
+                                <div className="flex flex-col gap-2">
+                                    <input
+                                        value={notes[r.id] || ''}
+                                        onChange={e => setNotes(n => ({ ...n, [r.id]: e.target.value }))}
+                                        placeholder="Red notu (isteğe bağlı)..."
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={() => resolve(r.id, 'APPROVE')}
+                                            className="flex-1 py-2 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition">
+                                            ✅ Onayla
+                                        </button>
+                                        <button onClick={() => resolve(r.id, 'REJECT')}
+                                            className="flex-1 py-2 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition">
+                                            ❌ Reddet
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 // ── ABONELİK TALEPLERİ ─────────────────────────────────────────────────────
 function SubscriptionsPanel() {
     const { t } = useTranslation();
@@ -1121,6 +1204,7 @@ export default function AdminPage() {
                     {activeTab === 'flagged-listings'  && <FlaggedListingsPanel />}
                     {activeTab === 'profile-changes'  && <ProfileChangesPanel />}
                     {activeTab === 'subscriptions'    && <SubscriptionsPanel />}
+                    {activeTab === 'venue-reviews'    && <VenueReviewsPanel />}
                 </div>
             </div>
         </div>
