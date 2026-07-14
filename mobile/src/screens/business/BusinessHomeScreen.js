@@ -1111,6 +1111,7 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
     };
 
     const openManualBooking = (court, slot) => {
+        if (slot.past) { Alert.alert('⛔ Geçmiş Saat', 'Geçmiş bir tarih/saate rezervasyon oluşturamazsınız.'); return; }
         const durationMins = (() => {
             const [sh, sm] = slot.start.split(':').map(Number);
             const [eh, em] = slot.end.split(':').map(Number);
@@ -1290,11 +1291,12 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                 ) : court.slots.map((slot, si) => {
                                                     const st = slot.status || 'FREE';
                                                     const isPaid = st === 'CONFIRMED' && slot.paymentConfirmStatus === 'CONFIRMED';
-                                                    const color = isPaid ? PAID_COLOR : SLOT_STATUS_COLOR[st];
-                                                    const bg    = isPaid ? PAID_BG : SLOT_STATUS_BG[st];
+                                                    const isFree = st === 'FREE';
+                                                    const isPastFree = isFree && slot.past;
+                                                    const color = isPaid ? PAID_COLOR : isPastFree ? '#64748b' : SLOT_STATUS_COLOR[st];
+                                                    const bg    = isPaid ? PAID_BG : isPastFree ? '#64748b12' : SLOT_STATUS_BG[st];
                                                     const isPending = st === 'PENDING' && slot.reservationId;
                                                     const isConfirmedUnpaid = st === 'CONFIRMED' && slot.reservationId && !isPaid;
-                                                    const isFree = st === 'FREE';
                                                     const isTappable = isPending || isConfirmedUnpaid || isFree;
                                                     return (
                                                         <TouchableOpacity key={si}
@@ -1352,7 +1354,7 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                             )}
                                                             {isFree && (
                                                                 <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
-                                                                    + Manuel Ekle
+                                                                    {isPastFree ? 'Geçmiş saat' : '+ Manuel Ekle'}
                                                                 </Text>
                                                             )}
                                                         </TouchableOpacity>
