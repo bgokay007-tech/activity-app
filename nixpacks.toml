@@ -26,4 +26,6 @@ cmds = [
 ]
 
 [start]
+# NOTE: railway.toml's [deploy].startCommand overrides this section entirely on Railway —
+# keep the two in sync if either changes.
 cmd = "cd frontend && (node_modules/.bin/vite build --outDir ../backend/public || true) && cd ../backend && node_modules/.bin/prisma db push --skip-generate --accept-data-loss && node src/server.js"
