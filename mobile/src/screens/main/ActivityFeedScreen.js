@@ -645,30 +645,22 @@ export default function ActivityFeedScreen({ navigation }) {
                 {/* ── Filtre paneli ── */}
                 <View style={s.filterPanel}>
 
-                    {/* Konum */}
+                    {/* Konum + Tarih + Saat — tek satır */}
                     <Text style={s.sectionLabel}>📍 Konum</Text>
                     <View style={s.filterRow}>
                         <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" />
                         <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} />
+                        <TouchableOpacity style={[s.pickerField, { flex: 1 }, dateLabel && s.pickerFieldActive]} onPress={() => setShowDateModal(true)} activeOpacity={0.8}>
+                            <Text style={[s.pickerFieldText, dateLabel && { color: colors.purpleLight }]} numberOfLines={1}>
+                                {dateLabel || '📅 Tarih'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[s.pickerField, { flex: 1 }, timeLabel && s.pickerFieldActive]} onPress={() => setShowTimeModal(true)} activeOpacity={0.8}>
+                            <Text style={[s.pickerFieldText, timeLabel && { color: colors.purpleLight }]} numberOfLines={1}>
+                                {timeLabel || '🕐 Saat'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
-
-                    {/* Tarih aralığı — form alanı */}
-                    <Text style={s.sectionLabel}>📅 Tarih Aralığı</Text>
-                    <TouchableOpacity style={[s.pickerField, dateLabel && s.pickerFieldActive]} onPress={() => setShowDateModal(true)} activeOpacity={0.8}>
-                        <Text style={[s.pickerFieldText, dateLabel && { color: colors.purpleLight }]}>
-                            {dateLabel || 'Tarih seç…'}
-                        </Text>
-                        <Text style={s.pickerArrow}>›</Text>
-                    </TouchableOpacity>
-
-                    {/* Saat aralığı — form alanı */}
-                    <Text style={s.sectionLabel}>🕐 Saat Aralığı</Text>
-                    <TouchableOpacity style={[s.pickerField, timeLabel && s.pickerFieldActive]} onPress={() => setShowTimeModal(true)} activeOpacity={0.8}>
-                        <Text style={[s.pickerFieldText, timeLabel && { color: colors.purpleLight }]}>
-                            {timeLabel || 'Saat aralığı seç…'}
-                        </Text>
-                        <Text style={s.pickerArrow}>›</Text>
-                    </TouchableOpacity>
 
                     {/* Kategoriler */}
                     <Text style={s.sectionLabel}>🏷 Kategori</Text>
