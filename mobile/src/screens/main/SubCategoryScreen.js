@@ -1705,6 +1705,12 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     : undefined;
                 const sameCourt = orig.reservationId && orig.venueId === form.venueId && orig.venueCourtId === form.venueCourtId;
 
+                // Eski rezervasyon (ör. işletmeci tarafında ayrıca iptal edilmiş/kaybolmuşsa)
+                // artık gerçekten yoksa "reschedule" 400/404 döner — bu durumda politika
+                // ihlali değil, sadece devam eden bir rezervasyon kalmadığı için sıfırdan
+                // rezerve etmeye düşülür. Gerçek politika ihlalinde (403) veya çakışmada
+                // (409) düşülmez, kullanıcıya olduğu gibi hata gösterilir.
+                let reservationGone = false;
                 if (sameCourt) {
                     // Aynı kort, sadece tarih/saat değişti — mevcut rezervasyonu yeniden
                     // planla (işletmenin rescheduleHoursBefore politikasına tabi).
@@ -1715,11 +1721,17 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         });
                         venueReservationId = r.data?.reservation?.id || orig.reservationId;
                     } catch (e) {
-                        setSaving(false);
-                        Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon değiştirilemedi.');
-                        return;
+                        const st = e?.response?.status;
+                        if (st === 400 || st === 404) {
+                            reservationGone = true;
+                        } else {
+                            setSaving(false);
+                            Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon değiştirilemedi.');
+                            return;
+                        }
                     }
-                } else {
+                }
+                if (!sameCourt || reservationGone) {
                     // Farklı kort/tesis — önce yeni rezervasyonu oluştur, ancak o
                     // başarılı olursa eski rezervasyonu iptal et (işletmenin
                     // cancelHoursBefore politikasına tabi). Yeni rezervasyon
@@ -1735,7 +1747,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         Alert.alert('Hata', e?.response?.data?.message || 'Kort rezerve edilemedi. Seçtiğiniz saat dolmuş olabilir, lütfen başka bir saat seçin.');
                         return;
                     }
-                    if (orig.reservationId) {
+                    if (orig.reservationId && !reservationGone) {
                         try {
                             await api.delete(`/venues/reservations/${orig.reservationId}`);
                         } catch (e) {
