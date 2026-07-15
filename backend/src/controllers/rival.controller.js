@@ -852,6 +852,14 @@ export const sendJoinRequest = async (req, res, next) => {
 
         res.status(201).json({ message: '✓ Join request sent! Waiting for the organizer to accept.' });
 
+        createNotification(
+            request.senderId,
+            'RIVAL_JOIN_REQUEST',
+            '📥 Yeni Katılım İsteği',
+            `${me?.fullName || me?.username || 'Biri'}, "${request.subCategory}" ilanınıza katılmak istiyor.`,
+            { rivalId: id, category: request.category, subCategory: request.subCategory }
+        ).catch(() => {});
+
         if (partnerId) {
             const partnerReq = await prisma.rivalJoinRequest.findUnique({
                 where: { rivalId_userId: { rivalId: id, userId: partnerId } },
