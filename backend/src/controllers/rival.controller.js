@@ -408,7 +408,7 @@ export const updateRivalRequest = async (req, res, next) => {
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Bu ilanı düzenleme yetkiniz yok' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık ilanlar düzenlenebilir' });
 
-        const { message, matchDate, matchTime, location, courtName, courtAddress, courtLat, courtLng,
+        const { message, matchDate, matchTime, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson } = req.body;
 
@@ -419,6 +419,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(matchDate !== undefined && { matchDate: matchDate ? new Date(matchDate) : null }),
                 ...(matchTime !== undefined && { matchTime }),
                 ...(location !== undefined && { location }),
+                ...(ticketUrl !== undefined && { ticketUrl: ticketUrl || null }),
                 ...(courtName !== undefined && { courtName }),
                 ...(courtAddress !== undefined && { courtAddress }),
                 ...(courtLat !== undefined && { courtLat: courtLat !== null ? Number(courtLat) : null }),
@@ -450,7 +451,7 @@ export const createRivalRequest = async (req, res, next) => {
     try {
         const {
             category, subCategory, message, level, levelDetail,
-            location, courtName, courtAddress, courtLat, courtLng,
+            location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
             venueId, venueCourtId, venueReservationId,
             isCourtReserved, flexibleSchedule, matchDate, matchTime,
             matchType = 'SINGLE', matchMode = 'PRACTICE', teamFlexibility = 'FLEXIBLE',
@@ -500,6 +501,7 @@ export const createRivalRequest = async (req, res, next) => {
                 level,
                 levelDetail,
                 location,
+                ...(ticketUrl && { ticketUrl }),
                 courtName: resolvedCourtName,
                 courtAddress,
                 courtLat: courtLat ? Number(courtLat) : null,

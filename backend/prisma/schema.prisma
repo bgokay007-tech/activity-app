@@ -459,6 +459,7 @@ model ActivityRequest {
   message         String?
   level           String?
   location        String?
+  ticketUrl       String?   // Sanat kategorisi (tiyatro/müzik/sinema vb.) için gerçek bilet satış sayfası linki
   courtName       String?
   courtAddress    String?
   courtLat        Float?
