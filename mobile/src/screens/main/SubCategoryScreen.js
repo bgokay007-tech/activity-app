@@ -778,16 +778,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // Slot kutusu: seçiliyse altın border, doluysa dokunulabilir
                             const SlotBox = ({ slot, gReqLabel, p, fallback, onRemove, locked }) => {
                                 const isSelected = swapSlot === slot;
-                                const isTarget   = !!swapSlot && !locked && !!p && swapSlot !== slot;
+                                // Hedef slot boş da olabilir — o zaman oyuncu oraya taşınır (swap değil, move).
+                                const isTarget   = !!swapSlot && !locked && swapSlot !== slot;
                                 const borderColor = isSelected ? '#f59e0b' : isTarget ? '#a855f7' : colors.border + '40';
                                 const bg = isSelected ? '#f59e0b18' : isTarget ? '#a855f710' : undefined;
                                 return (
                                     <TouchableOpacity
-                                        onPress={() => { if (!locked && p && isOwner && swapSlot) handleSlotTap(slot); }}
+                                        onPress={() => { if (!locked && isOwner && swapSlot) handleSlotTap(slot); }}
                                         onLongPress={() => { if (!locked && p && isOwner && !swapSlot) handleSlotTap(slot); }}
-                                        delayLongPress={400}
-                                        activeOpacity={locked || !p || !isOwner ? 1 : 0.7}
-                                        style={{ borderWidth: isSelected || isTarget ? 1.5 : 0, borderColor, borderRadius:6, padding:1, backgroundColor: bg }}
+                                        delayLongPress={300}
+                                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                        activeOpacity={locked || !isOwner || (!p && !isTarget) ? 1 : 0.7}
+                                        style={{ borderWidth: isSelected || isTarget ? 1.5 : 0, borderColor, borderRadius:6, padding:4, backgroundColor: bg }}
                                     >
                                         {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
                                         {p ? (
@@ -810,7 +812,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 )}
                                             </View>
                                         ) : (
-                                            <Text style={{ color: colors.textMuted, fontSize:9 }}>{fallback}</Text>
+                                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                <Text style={{ color: isTarget ? '#a855f7' : colors.textMuted, fontSize:9, fontWeight: isTarget ? '700' : '400' }}>{fallback}</Text>
+                                                {isTarget && <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'900', marginLeft:4 }}>⇄</Text>}
+                                            </View>
                                         )}
                                     </TouchableOpacity>
                                 );
