@@ -3951,7 +3951,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
         const colWidth = isWindow ? 160 : isStructured ? 110 : 130;
         return (
-            <View key={court.id} style={[vb.courtCol, { width: colWidth, height: 400 }]}>
+            <View key={court.id} style={[vb.courtCol, { width: colWidth, height: 480 }]}>
                 <Text style={vb.courtColTitle}>{court.name}</Text>
                 {typeInfo && (
                     <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:6, paddingVertical:2, marginBottom:3, borderWidth:1, borderColor: typeInfo.color+'60' }}>
@@ -4122,7 +4122,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             <View style={vb.overlay}>
                 <View style={[vb.sheet, { paddingBottom: insets.bottom }]}>
                     {/* Header */}
-                    <View style={vb.header}>
+                    <View style={[vb.header, { padding: 3 }]}>
                         <View style={{ flex: 1 }}>
                             <Text style={vb.title} numberOfLines={1}>{venue?.name || 'Tesis'}</Text>
                             {venue && <Text style={vb.subtitle}>{venue.branch} · {venue.city}</Text>}
@@ -4132,7 +4132,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                         </TouchableOpacity>
                     </View>
 
-                    {/* İletişim butonları */}
+                    {/* İletişim butonları + Konum — tek satır */}
                     {venue && (() => {
                         const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
                         const effectiveCl = {
@@ -4149,29 +4149,25 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
                             { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
                         ].filter(l => effectiveCl[l.key]);
-                        if (links.length === 0) return null;
+                        if (links.length === 0 && !(initialCourtId)) return null;
                         return (
-                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, paddingHorizontal:14, paddingTop:6, paddingBottom:4 }}>
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingHorizontal:3, paddingTop:3, paddingBottom:3 }}>
                                 {links.map(l => (
                                     <TouchableOpacity key={l.key}
                                         onPress={() => Linking.openURL(l.url(effectiveCl[l.key]))}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#ffffff0f', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
+                                        style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#ffffff0f', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#ffffff20' }}>
                                         <Text style={{ fontSize:13 }}>{l.icon}</Text>
                                         <Text style={{ color:'#e5e7eb', fontSize:11, fontWeight:'700' }}>{l.label}</Text>
                                     </TouchableOpacity>
                                 ))}
+                                {initialCourtId && (
+                                    <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea50', justifyContent:'center' }}>
+                                        <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }} numberOfLines={1}>📍 {venue.name}</Text>
+                                    </View>
+                                )}
                             </View>
                         );
                     })()}
-
-                    {/* İşletme konumu chip */}
-                    {venue && initialCourtId && (
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:14, paddingBottom:6 }}>
-                            <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#9333ea50' }}>
-                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📍 {venue.name}</Text>
-                            </View>
-                        </View>
-                    )}
 
                     {loadingV && <ActivityIndicator color="#22c55e" style={{ marginVertical: 28 }} />}
 
@@ -4183,16 +4179,16 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                                 const base = venue.pricePerSlot;
                                 if (pw.length === 0 && !(base > 0)) return null;
                                 return (
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5, paddingHorizontal:14, paddingTop:6, paddingBottom:4 }}>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingHorizontal:3, paddingTop:3, paddingBottom:3 }}>
                                         {base > 0 && pw.length === 0 && (
-                                            <View style={{ backgroundColor:'#9333ea18', borderRadius:7, paddingHorizontal:9, paddingVertical:4, borderWidth:1, borderColor:'#9333ea40' }}>
+                                            <View style={{ backgroundColor:'#9333ea18', borderRadius:7, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
                                                 <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>💰 {base}₺/slot</Text>
                                             </View>
                                         )}
                                         {pw.map((rule, i) => {
                                             const cName = rule.courtId ? (venue.courts||[]).find(c=>c.id===rule.courtId)?.name : null;
                                             return (
-                                                <View key={i} style={{ backgroundColor:'#9333ea18', borderRadius:7, paddingHorizontal:9, paddingVertical:4, borderWidth:1, borderColor:'#9333ea40' }}>
+                                                <View key={i} style={{ backgroundColor:'#9333ea18', borderRadius:7, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
                                                     <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>
                                                         💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{cName ? ` · ${cName}` : ''}
                                                     </Text>
@@ -4207,7 +4203,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             <View style={vb.dateStrip}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
                                     style={{ flex:1 }}
-                                    contentContainerStyle={{ paddingHorizontal:10, paddingVertical:8, gap:6, alignItems:'center' }}>
+                                    contentContainerStyle={{ paddingHorizontal:3, paddingVertical:3, gap:3, alignItems:'center' }}>
                                     {Array.from({length:14}, (_,i) => {
                                         const d = new Date();
                                         d.setDate(d.getDate() + i);
@@ -4232,7 +4228,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
                             </View>
 
                             {/* Legend */}
-                            <View style={[vb.legend, { paddingHorizontal:14, marginBottom:4 }]}>
+                            <View style={[vb.legend, { paddingHorizontal:3, marginBottom:3 }]}>
                                 <View style={vb.legendItem}>
                                     <View style={[vb.legendDot, { backgroundColor:'#16a34a' }]} />
                                     <Text style={vb.legendTxt}>Boş</Text>
@@ -4249,8 +4245,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
 
                             {/* Tüm kortlar sütun sütun (yatay kaydır) */}
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', minHeight:400 }]}
-                                style={{ height:400, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', minHeight:480 }]}
+                                style={{ height:480, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                                 {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                             </ScrollView>
 
@@ -4383,7 +4379,7 @@ const vb = StyleSheet.create({
     tabTxtActive: { color:'#c084fc', fontWeight:'700' },
 
     dateStrip:        { minHeight:88, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
-    dateChip:         { alignItems:'center', paddingVertical:7, paddingHorizontal:9, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:50 },
+    dateChip:         { alignItems:'center', paddingVertical:3, paddingHorizontal:3, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:50 },
     dateChipSel:      { backgroundColor:'#16a34a30', borderColor:'#22c55e' },
     dateChipDay:      { color:'#888', fontSize:9, fontWeight:'700', textTransform:'uppercase' },
     dateChipDaySel:   { color:'#4ade80' },
@@ -4392,14 +4388,14 @@ const vb = StyleSheet.create({
     dateChipMonth:    { color:'#888', fontSize:9, marginTop:1 },
     dateChipMonthSel: { color:'#4ade80' },
 
-    body:         { padding:16, maxHeight:260 },
+    body:         { padding:3, maxHeight:260 },
 
-    legend:       { flexDirection:'row', gap:14, marginBottom:10 },
-    legendItem:   { flexDirection:'row', alignItems:'center', gap:5 },
+    legend:       { flexDirection:'row', gap:3, marginBottom:3 },
+    legendItem:   { flexDirection:'row', alignItems:'center', gap:3 },
     legendDot:    { width:11, height:11, borderRadius:6 },
     legendTxt:    { color:'#888', fontSize:12 },
 
-    slotGrid:     { flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:4 },
+    slotGrid:     { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 },
     slot:         { width:'22%', aspectRatio:1.15, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1.5 },
     slotFree:     { backgroundColor:'#14532d', borderColor:'#16a34a' },
     slotTaken:    { backgroundColor:'#450a0a', borderColor:'#7f1d1d', opacity:0.75 },
@@ -4409,40 +4405,40 @@ const vb = StyleSheet.create({
     colSlotPrice: { color:'#86efac', fontSize:11, fontWeight:'700', marginTop:2 },
     selSummaryPrice: { color:'#4ade80', fontSize:12, fontWeight:'700', marginTop:3 },
 
-    sectionLabel: { color:'#888', fontSize:11, fontWeight:'700', marginBottom:8, letterSpacing:0.5, textTransform:'uppercase' },
-    takenRow:     { color:'#ef4444', fontSize:13, marginBottom:4 },
-    flexWin:      { backgroundColor:'#16a34a18', borderRadius:8, borderWidth:1, borderColor:'#22c55e55', padding:12, marginBottom:8 },
+    sectionLabel: { color:'#888', fontSize:11, fontWeight:'700', marginBottom:3, letterSpacing:0.5, textTransform:'uppercase' },
+    takenRow:     { color:'#ef4444', fontSize:13, marginBottom:3 },
+    flexWin:      { backgroundColor:'#16a34a18', borderRadius:8, borderWidth:1, borderColor:'#22c55e55', padding:3, marginBottom:3 },
     flexWinSel:   { borderColor:'#22c55e', backgroundColor:'#16a34a30' },
     flexWinTxt:   { color:'#22c55e', fontSize:14, fontWeight:'700' },
     flexWinSub:   { color:'#86efac', fontSize:11, marginTop:2 },
-    durRow:       { flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:4 },
-    durBtn:       { paddingHorizontal:14, paddingVertical:8, borderRadius:8, borderWidth:1, borderColor:'#ffffff20', backgroundColor:'#ffffff08' },
+    durRow:       { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 },
+    durBtn:       { paddingHorizontal:3, paddingVertical:3, borderRadius:8, borderWidth:1, borderColor:'#ffffff20', backgroundColor:'#ffffff08' },
     durBtnSel:    { borderColor:'#22c55e', backgroundColor:'#16a34a30' },
     durTxt:       { color:'#aaa', fontSize:13, fontWeight:'600' },
     durTxtSel:    { color:'#22c55e' },
     emptyTxt:     { color:'#555', textAlign:'center', marginTop:24, fontSize:13 },
-    payRow:       { flexDirection:'row', gap:10, marginBottom:10 },
-    payBtn:       { flex:1, padding:10, borderRadius:8, borderWidth:1, borderColor:'#ffffff18', backgroundColor:'#ffffff06', alignItems:'center' },
+    payRow:       { flexDirection:'row', gap:3, marginBottom:3 },
+    payBtn:       { flex:1, padding:3, borderRadius:8, borderWidth:1, borderColor:'#ffffff18', backgroundColor:'#ffffff06', alignItems:'center' },
     payBtnSel:    { borderColor:'#22c55e', backgroundColor:'#16a34a25' },
     payBtnTxt:    { color:'#888', fontSize:13, fontWeight:'600' },
     payBtnTxtSel: { color:'#22c55e' },
-    ibanBox:      { backgroundColor:'#ffffff08', borderRadius:8, padding:10, marginBottom:10 },
-    ibanRow:      { color:'#888', fontSize:12, marginBottom:4 },
+    ibanBox:      { backgroundColor:'#ffffff08', borderRadius:8, padding:3, marginBottom:3 },
+    ibanRow:      { color:'#888', fontSize:12, marginBottom:3 },
     ibanVal:      { color:'#fff', fontWeight:'600' },
-    bookBtn:      { backgroundColor:'#22c55e', borderRadius:10, padding:14, alignItems:'center', marginTop:4 },
+    bookBtn:      { backgroundColor:'#22c55e', borderRadius:10, padding:3, alignItems:'center', marginTop:3 },
     bookBtnTxt:   { color:'#fff', fontSize:15, fontWeight:'700' },
-    continueBtn:  { backgroundColor:'#7c3aed', borderRadius:10, padding:14, alignItems:'center', margin:16, marginTop:8 },
+    continueBtn:  { backgroundColor:'#7c3aed', borderRadius:10, padding:3, alignItems:'center', margin:3, marginTop:3 },
     continueBtnTxt: { color:'#fff', fontSize:15, fontWeight:'700' },
 
     // Çok sütunlu kort görünümü
-    courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:6, paddingVertical:6, gap:4 },
-    courtCol:     { backgroundColor:'#ffffff08', borderRadius:10, padding:6, borderWidth:1, borderColor:'#ffffff12' },
+    courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:3, paddingVertical:3, gap:3 },
+    courtCol:     { backgroundColor:'#ffffff08', borderRadius:10, padding:3, borderWidth:1, borderColor:'#ffffff12' },
     courtColTitle:{ color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center', marginBottom:3, letterSpacing:0.3 },
     lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, marginBottom:3 },
     courtColLight:{ color:'#fbbf24', fontSize:10 },
     lightsInfoBtn:{ width:15, height:15, borderRadius:8, backgroundColor:'#fbbf2430', borderWidth:1, borderColor:'#fbbf2460', alignItems:'center', justifyContent:'center' },
     lightsInfoTxt:{ color:'#fbbf24', fontSize:9, fontWeight:'800', lineHeight:13 },
-    colSlot:      { borderRadius:4, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:2, alignItems:'center', borderWidth:1 },
+    colSlot:      { borderRadius:4, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:3, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#5c0a0a', borderColor:'#ef4444', borderWidth:1.5 },
     colSlotPend:  { backgroundColor:'#78350fcc', borderColor:'#f59e0b', borderWidth:1.5 },
@@ -4450,7 +4446,7 @@ const vb = StyleSheet.create({
     colSlotT:     { color:'#4ade80', fontSize:12, fontWeight:'700' },
     colSlotSub:   { color:'#4ade80', fontSize:9, opacity:0.7 },
     colEmpty:     { color:'#555', fontSize:11, textAlign:'center', marginTop:8 },
-    selSummary:   { backgroundColor:'#22c55e18', borderRadius:8, padding:10, marginBottom:10, borderWidth:1, borderColor:'#22c55e40' },
+    selSummary:   { backgroundColor:'#22c55e18', borderRadius:8, padding:3, marginBottom:3, borderWidth:1, borderColor:'#22c55e40' },
     selSummaryTxt:{ color:'#4ade80', fontSize:13, fontWeight:'700', textAlign:'center' },
 });
 
