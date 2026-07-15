@@ -30,6 +30,9 @@ import achievementRoutes from './routes/achievement.routes.js';
 import spotlightRoutes from './routes/spotlight.routes.js';
 import subscriptionRoutes from './routes/subscription.routes.js';
 import venueRoutes from './routes/venue.routes.js';
+import shareRoutes from './routes/share.routes.js';
+import musicRoutes from './routes/music.routes.js';
+import playlistRoutes from './routes/playlist.routes.js';
 
 const app = express();
 
@@ -77,6 +80,9 @@ app.use('/api/achievements', achievementRoutes);
 app.use('/api/spotlight', spotlightRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/venues', venueRoutes);
+app.use('/api/music', musicRoutes);
+app.use('/api/playlists', playlistRoutes);
+app.use('/share', shareRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });

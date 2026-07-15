@@ -37,6 +37,8 @@ model User {
   posts            Post[]
   comments         Comment[]
   likes            Like[]
+  playlists        Playlist[]
+  likedTracks      LikedTrack[]
   followers        Follow[]  @relation("following")
   following        Follow[]  @relation("follower")
   sentRequests     ActivityRequest[] @relation("sender")
@@ -399,6 +401,37 @@ model Like {
   post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
+}
+
+// MÜZİK — çalma listesi (şarkılar sıralı Json dizi, ayrı join tablosu yok — kod
+// tabanındaki diğer sıralı-küçük-liste alanlarıyla (senderTeam, participants vb.) aynı desen)
+model Playlist {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  tracks    Json     @default("[]") // [{trackId,title,artist,imageUrl,streamUrl,duration}]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// MÜZİK — beğenilen şarkı (dış API'den gelen track meta verisi önbelleğe alınır,
+// her listelemede tekrar dış API'ye sorulmasın diye)
+model LikedTrack {
+  id        String   @id @default(uuid())
+  userId    String
+  trackId   String   // Jamendo track id (dış kaynak, FK değil)
+  title     String
+  artist    String
+  imageUrl  String?
+  streamUrl String
+  duration  Int?
+  createdAt DateTime @default(now())
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
 }
 
 // TAKİP — istek/onay gerektirir (PENDING -> ACCEPTED | REJECTED), her yon birbirinden bagimsizdir
