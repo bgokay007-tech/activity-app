@@ -1011,6 +1011,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(13) }]}>{seedingDemoRival ? '...' : '🤖 Demo Başvuru Gönder'}</Text>
                             </TouchableOpacity>
                         )}
+                        {item.ticketUrl && (
+                            <TouchableOpacity
+                                style={{ backgroundColor: cfg.color, borderRadius: moderateScale(10), paddingVertical: moderateScale(8), marginBottom: 3, alignItems:'center' }}
+                                onPress={() => Linking.openURL(item.ticketUrl)}
+                            >
+                                <Text style={{ color:'#fff', fontWeight:'800', fontSize: moderateScale(13) }}>{t.buyTicketBtn}</Text>
+                            </TouchableOpacity>
+                        )}
                         {isOwner ? (
                             <View style={{ flexDirection: 'row', gap: 3 }}>
                                 <TouchableOpacity
@@ -1613,6 +1621,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
             };
             setForm({
                 message:   item.message   || '',
+                ticketUrl: item.ticketUrl || '',
                 matchDate: item.matchDate ? new Date(item.matchDate) : null,
                 matchTime: item.matchTime || '',
                 location:  item.location  || '',
@@ -1796,6 +1805,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
             }
             await api.patch(`/rivals/${item.id}`, {
                 message:   form.message   || null,
+                ...(item?.category === 'ARTS' && { ticketUrl: form.ticketUrl || null }),
                 matchDate: form.matchDate ? form.matchDate.toISOString() : null,
                 matchTime: form.matchTime || null,
                 location:  form.location  || null,
@@ -2041,6 +2051,20 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         placeholderTextColor={colors.textMuted}
                         multiline
                     />
+
+                    {item?.category === 'ARTS' && (
+                        <>
+                            <Text style={s.fieldLabel}>{t.ticketUrlLabel}</Text>
+                            <TextInput
+                                style={[s.fieldInput, { marginBottom: 3 }]}
+                                value={form.ticketUrl}
+                                onChangeText={v => setForm(f => ({ ...f, ticketUrl: v }))}
+                                placeholder={t.ticketUrlPh}
+                                placeholderTextColor={colors.textMuted}
+                                autoCapitalize="none" keyboardType="url"
+                            />
+                        </>
+                    )}
 
                     <Text style={s.fieldLabel}>💰 Maç Modu</Text>
                     <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
@@ -4520,6 +4544,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         surface: '', venueType: '', courtReserved: false, courtMutual: false,
         courtFeePerPerson: '',
         message: '',
+        ticketUrl: '',
         minRating: '', maxRating: '',
         partner: null,
         genderReq: 'MIX',
@@ -4757,6 +4782,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 isCourtReserved: f.courtReserved,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? parseInt(f.courtFeePerPerson, 10) : undefined,
                 message:   f.message || undefined,
+                ticketUrl: category === 'ARTS' ? (f.ticketUrl || undefined) : undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
                 genderReq: (sub === 'tennis' || sub === 'padel') ? f.genderReq : undefined,
@@ -5338,6 +5364,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 value={f.message} onChangeText={v => set('message', v)}
                                 placeholder={t.messagePh}
                                 placeholderTextColor={colors.textMuted} multiline />
+
+                            {category === 'ARTS' && (
+                                <>
+                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
+                                    <TextInput style={s.fieldInput}
+                                        value={f.ticketUrl} onChangeText={v => set('ticketUrl', v)}
+                                        placeholder={t.ticketUrlPh}
+                                        placeholderTextColor={colors.textMuted}
+                                        autoCapitalize="none" keyboardType="url" />
+                                </>
+                            )}
 
                             <TouchableOpacity style={[s.submitBtn, { backgroundColor: cfg.color }, submitting && { opacity:0.6 }]}
                                 onPress={submit} disabled={submitting}>
