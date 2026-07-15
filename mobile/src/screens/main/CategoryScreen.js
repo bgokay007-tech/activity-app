@@ -6,7 +6,7 @@ import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball']);
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'theater']);
 
 const SUB_MAP = {
     SPORTS:  [
