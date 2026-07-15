@@ -3958,10 +3958,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
 
         const colWidth = isWindow ? 160 : isStructured ? 110 : 130;
         return (
-            <View key={court.id} style={[vb.courtCol, { width: colWidth, height: 480 }]}>
+            <View key={court.id} style={[vb.courtCol, { width: colWidth, height: '100%' }]}>
                 <Text style={vb.courtColTitle}>{court.name}</Text>
                 {typeInfo && (
-                    <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:6, paddingVertical:2, marginBottom:3, borderWidth:1, borderColor: typeInfo.color+'60' }}>
+                    <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:3, paddingVertical:3, marginBottom:3, borderWidth:1, borderColor: typeInfo.color+'60' }}>
                         <Text style={{ color: typeInfo.color, fontSize:9, fontWeight:'800', letterSpacing:0.3 }}>{typeInfo.label}</Text>
                     </View>
                 )}
@@ -4032,7 +4032,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                         if (block._t !== 'free') {
                             const isPend = block._t === 'pending';
                             return (
-                                <View key={wi} style={{ backgroundColor: isPend ? '#78350f99' : '#450a0a99', borderRadius:10, padding:8, marginBottom:8, borderWidth:1.5, borderColor: isPend ? '#f59e0b' : '#ef4444' }}>
+                                <View key={wi} style={{ backgroundColor: isPend ? '#78350f99' : '#450a0a99', borderRadius:10, padding:3, marginBottom:3, borderWidth:1.5, borderColor: isPend ? '#f59e0b' : '#ef4444' }}>
                                     <Text style={{ color: isPend ? '#fde68a' : '#fca5a5', fontSize:12, fontWeight:'800' }}>
                                         {isPend ? '⏳' : '🔴'} {block.start}–{block.end}
                                     </Text>
@@ -4048,14 +4048,20 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             const isWinSel = sel?.winStart === w.start;
                             const customStart = isWinSel ? (sel?.customStart ?? w.start) : w.start;
                             const dur = isWinSel ? (varDurMap[court.id] ?? 60) : 60;
-                            const startM  = /^\d{2}:\d{2}$/.test(customStart) ? toM(customStart) : -1;
-                            const winEndM = toM(w.end);
-                            const validStart = startM >= toM(w.start) && startM < winEndM;
+                            const winStartM = toM(w.start);
+                            // Gece yarısını geçen pencerede (ör. 17:00–01:00) winEndM 1440'ın üzerine
+                            // taşınır; kullanıcının girdiği saat de pencere başlangıcından küçükse
+                            // (ör. "00:30") ertesi güne ait sayılıp aynı şekilde kaydırılır.
+                            let winEndM = toM(w.end);
+                            if (winEndM <= winStartM) winEndM += 1440;
+                            let startM = /^\d{2}:\d{2}$/.test(customStart) ? toM(customStart) : -1;
+                            if (startM !== -1 && startM < winStartM) startM += 1440;
+                            const validStart = startM >= winStartM && startM < winEndM;
                             const validEnd   = validStart && (startM + dur) <= winEndM;
-                            const endT = validStart ? toT(startM + dur) : '';
+                            const endT = validStart ? toT((startM + dur) % 1440) : '';
                             const isReserved = selSlot?.courtId === court.id && isWinSel && selSlot?.slot?.start === customStart;
                             return (
-                                <View key={wi} style={{ backgroundColor:'#ffffff08', borderRadius:8, padding:4, marginBottom:3, borderWidth:1, borderColor: isWinSel ? '#9333ea' : '#ffffff15' }}>
+                                <View key={wi} style={{ backgroundColor:'#ffffff08', borderRadius:8, padding:3, marginBottom:3, borderWidth:1, borderColor: isWinSel ? '#9333ea' : '#ffffff15' }}>
                                     <TouchableOpacity
                                         onPress={() => {
                                             setVarStartMap(p => ({ ...p, [court.id]: { winStart: w.start, winEnd: w.end, customStart: w.start } }));
@@ -4076,7 +4082,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                             placeholderTextColor="#555"
                                             keyboardType="numbers-and-punctuation"
                                             maxLength={5}
-                                            style={{ backgroundColor:'#ffffff10', borderRadius:6, paddingHorizontal:6, paddingVertical:3, color:'#fff', fontSize:12, fontWeight:'800', borderWidth:1, borderColor: validStart ? '#9333ea' : '#ffffff20', textAlign:'center', marginBottom:3 }}
+                                            style={{ backgroundColor:'#ffffff10', borderRadius:6, paddingHorizontal:3, paddingVertical:3, color:'#fff', fontSize:12, fontWeight:'800', borderWidth:1, borderColor: validStart ? '#9333ea' : '#ffffff20', textAlign:'center', marginBottom:3 }}
                                         />
                                         {validStart && (<>
                                             <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Süre</Text>
@@ -4088,7 +4094,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                     return (
                                                         <TouchableOpacity key={d}
                                                             onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setSelSlot(null); }}
-                                                            style={{ flex:1, minWidth:36, paddingVertical:5, borderRadius:8, backgroundColor: isSd ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSd ? '#9333ea' : '#ffffff20' }}>
+                                                            style={{ flex:1, minWidth:36, paddingVertical:3, borderRadius:8, backgroundColor: isSd ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSd ? '#9333ea' : '#ffffff20' }}>
                                                             <Text style={{ color: isSd ? '#fff' : '#aaa', fontSize:10, fontWeight:'700' }}>{d<60?`${d}dk`:`${d/60}sa`}</Text>
                                                             {dPrice != null && dPrice > 0 && (
                                                                 <Text style={{ color: isSd ? '#bbf7d0' : '#6b7280', fontSize:9, fontWeight:'700', marginTop:1 }}>{dPrice}₺</Text>
@@ -4252,8 +4258,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
 
                             {/* Tüm kortlar sütun sütun (yatay kaydır) */}
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', minHeight:480 }]}
-                                style={{ height:480, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', flexGrow:1 }]}
+                                style={{ flex:1, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                                 {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                             </ScrollView>
 

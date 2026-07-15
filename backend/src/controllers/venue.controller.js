@@ -83,7 +83,7 @@ const normMaint = m => ({
 // openSlots format: { "0":[global şablon], "1":[Pzt override], "courtId_1":[Pzt+Kort override] }
 // Öncelik: kort+gün > gün > global şablon('0') > tesis varsayılanı
 // Kapalı: ilgili key = [] (boş dizi)
-function getOpenWindows(venue, date, courtId = null) {
+function getOpenWindows(venue, date, courtId = null, keepOvernight = false) {
     const os = venue.openSlots;
     let raw;
     if (os && !Array.isArray(os) && typeof os === 'object') {
@@ -106,6 +106,20 @@ function getOpenWindows(venue, date, courtId = null) {
         raw = os;
     } else {
         raw = [{ from: venue.openTime, to: venue.closeTime }];
+    }
+    // keepOvernight: VAR_DURATION pencereleri için — gece yarısını geçen bir pencereyi
+    // (ör. 17:00–01:00) 00:00'da ikiye BÖLMEDEN, "to" değerini 1440'ın üzerine taşıyarak
+    // (ör. "25:00" = ertesi gün 01:00) TEK pencere olarak döner; böylece kullanıcı esnek
+    // saat seçiminde tüm aralığı tek "17:00–01:00" bloğu olarak görür ve seçebilir.
+    if (keepOvernight) {
+        return raw
+            .map(w => {
+                const open = toMins(w.from);
+                let close = toMins(w.to);
+                if (close <= open) close += 1440;
+                return { from: w.from, to: toTime(close) };
+            })
+            .sort((a, b) => toMins(a.from) - toMins(b.from));
     }
     // Gece yarısını geçen pencereler bölündükten sonra başlangıç saatine göre sırala — böylece
     // ör. 23:00–01:00 gibi bir pencerenin 00:00–01:00 parçası, takvimde günün EN BAŞINDA
@@ -291,18 +305,28 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
     const allTaken = [...taken, ...maintWindows].sort((a, b) => a.s - b.s);
 
     if (venue.slotType === 'VAR_DURATION') {
+        // Esnek saatte gece yarısını geçen pencere (ör. 17:00–01:00) BÖLÜNMEDEN tek blok
+        // olarak gelir (keepOvernight) — "to" 1440'ı geçebilir (ör. "25:00" = ertesi 01:00).
+        const varWindows = getOpenWindows(venue, date, courtId, true);
         const windows = [];
-        for (const w of openWindows) {
-            const open = toMins(w.from), close = toMins(w.to);
-            const wTaken = allTaken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
+        for (const w of varWindows) {
+            const open = toMins(w.from);
+            const close = toMins(w.to); // >1440 olabilir
+            const overnight = close > 1440;
+            // Gece yarısını geçen pencerede, 00:00 sonrasına düşen alınan/bakım kayıtları da
+            // aynı sürekli sayı uzayına (+1440) taşınır ki köprüleme doğru karşılaştırılsın.
+            const wTaken = allTaken
+                .map(r => (overnight && r.s < open ? { ...r, s: r.s + 1440, e: r.e + 1440 } : r))
+                .filter(r => r.s < close && r.e > open)
+                .sort((a, b) => a.s - b.s);
             let prev = isToday ? Math.max(open, nowMins) : open;
             for (const r of wTaken) {
                 if (r.s > prev && r.s - prev >= 60)
-                    windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
+                    windows.push({ start: toTime(prev % 1440), end: toTime(r.s % 1440), durationMins: r.s - prev });
                 prev = Math.max(prev, r.e);
             }
             if (prev < close && close - prev >= 60)
-                windows.push({ start: toTime(prev), end: toTime(close), durationMins: close - prev });
+                windows.push({ start: toTime(prev % 1440), end: toTime(close % 1440), durationMins: close - prev });
         }
         return {
             type: 'VAR_DURATION',
@@ -561,7 +585,9 @@ async function validateReservationSlot(venue, courtId, date, startTime, endTime,
         return { status: 400, message: 'Bu tesis seçilen ödeme yöntemini kabul etmiyor' };
 
     const startMins = toMins(startTime);
-    const endMins   = toMins(endTime);
+    // Gece yarısını geçen rezervasyon (ör. 23:00–01:00): endTime sayıca startTime'dan
+    // küçük/eşit çıkar — bu durumda ertesi güne taştığı kabul edilip +1440 ile normalize edilir.
+    const endMins = toMins(endTime) <= startMins ? toMins(endTime) + 1440 : toMins(endTime);
     if (endMins - startMins < 60) return { status: 400, message: 'Minimum rezervasyon süresi 1 saattir' };
 
     // Saat aralığı bakım kontrolü
@@ -577,7 +603,11 @@ async function validateReservationSlot(venue, courtId, date, startTime, endTime,
     const existing = await prisma.courtReservation.findMany({
         where: { venueId: venue.id, courtId, date, status: { not: 'CANCELLED' } },
     });
-    const hasConflict = existing.some(r => overlaps(startMins, endMins, toMins(r.startTime), toMins(r.endTime)));
+    const hasConflict = existing.some(r => {
+        const rs = toMins(r.startTime);
+        const re = toMins(r.endTime) <= rs ? toMins(r.endTime) + 1440 : toMins(r.endTime);
+        return overlaps(startMins, endMins, rs, re);
+    });
     if (hasConflict) return { status: 409, message: 'Bu saat aralığı dolu' };
 
     // Boşluk kontrolü: VAR_DURATION esnek saatlerde uygulanmaz; diğerleri için <minGap dk boşluk bırakamaz
