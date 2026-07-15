@@ -448,8 +448,9 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
 // Bireysel başvuranları ELO'ya en yakın olandan eşleştirir; aynı takımda iki kadın
 // oluşmasına izin vermez (Rule 2). Eşi bulunamayan kalırsa (tek sayı veya cinsiyet
 // uyumsuzluğu) en düşük ELO'lu olandan başlayarak dışarıda bırakılır (Rule 1).
-function pairSoloPlayers(solo, avoidSameGenderFemale) {
-    let pool = [...solo].sort((a, b) => a.rating - b.rating);
+// random=true: takım eşleşmesi ELO değil, rastgele kura ile yapılır (Çiftler Antrenman, type '4').
+function pairSoloPlayers(solo, avoidSameGenderFemale, random = false) {
+    let pool = random ? shuffle(solo) : [...solo].sort((a, b) => a.rating - b.rating);
     const pairs = [];
     const excluded = [];
 
@@ -462,8 +463,8 @@ function pairSoloPlayers(solo, avoidSameGenderFemale) {
             pool = rest;
             continue;
         }
-        compatible.sort((x, y) => Math.abs(x.rating - a.rating) - Math.abs(y.rating - a.rating));
-        const partner = compatible[0];
+        const partner = random ? compatible[0]
+            : [...compatible].sort((x, y) => Math.abs(x.rating - a.rating) - Math.abs(y.rating - a.rating))[0];
         pairs.push([a, partner]);
         pool = pool.filter(p => p.userId !== a.userId && p.userId !== partner.userId);
     }
@@ -476,7 +477,8 @@ function pairSoloPlayers(solo, avoidSameGenderFemale) {
 // Eşleştirme tüm havuzda yapılır, sonra sonuç maxPlayers/2 takıma göre kesilir —
 // böylece ilk maxPlayers içinde eşi bulunamayan biri, sıradaki yedeklerden uygun
 // bir eş varsa onunla eşleşip turnuvaya girebilir; kapasite sınırı yine de korunur.
-async function formTeamsForTournament(tournament, acceptedList) {
+// random=true: bireysel başvuranlar ELO yerine rastgele eşleştirilir (type '4').
+async function formTeamsForTournament(tournament, acceptedList, random = false) {
     const byUserId = new Map(acceptedList.filter(p => p.userId).map(p => [p.userId, p]));
     const ratingOf = (p) => p.user?.interests?.[0]?.skillRating || 0;
     const nameOf   = (p) => p.user?.fullName || p.user?.username || 'Oyuncu';
@@ -504,7 +506,7 @@ async function formTeamsForTournament(tournament, acceptedList) {
         .filter(p => p.userId && !paired.has(p.userId))
         .map(p => ({ userId: p.userId, name: nameOf(p), rating: ratingOf(p), gender: genderOf(p), order: orderOf(p) }));
 
-    const { pairs, excluded } = pairSoloPlayers(solo, tournament.genderType === 'MIX');
+    const { pairs, excluded } = pairSoloPlayers(solo, tournament.genderType === 'MIX', random);
     for (const [a, b] of pairs) {
         teamsData.push({
             tournamentId: tournament.id,
@@ -767,6 +769,24 @@ export const getTournaments = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+export const getTournamentById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const myId = req.userId;
+        const tournament = await prisma.tournament.findUnique({
+            where: { id },
+            include: {
+                creator: { select: { id: true, username: true, fullName: true } },
+                _count:  { select: { participants: { where: { status: 'ACCEPTED' } } } },
+                participants: { where: { userId: myId }, select: { userId: true, status: true } },
+                typeVotes: { select: { userId: true, votedType: true } },
+            },
+        });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        res.json(tournament);
+    } catch (e) { next(e); }
+};
+
 export const voteTournamentType = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -840,7 +860,7 @@ export const joinTournament = async (req, res, next) => {
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
 
         if (partnerId) {
-            if (tournament.type !== '2') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi turnuvalarda mümkün' });
+            if (tournament.type !== '2' && tournament.type !== '4') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi ve Çiftler Antrenman turnuvalarda mümkün' });
             if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
             const partnerInterest = await prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
@@ -977,7 +997,7 @@ export const setTournamentPartner = async (req, res, next) => {
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        if (tournament.type !== '2') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi turnuvalarda mümkün' });
+        if (tournament.type !== '2' && tournament.type !== '4') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi ve Çiftler Antrenman turnuvalarda mümkün' });
 
         if (tournament.endDate) {
             const regEnd = new Date(tournament.endDate);
@@ -1070,8 +1090,8 @@ export const getJoinRequests = async (req, res, next) => {
         const { id } = req.params;
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        // Çiftler Rekabetçi: katılımcılar da başvuru listesini ve eşleşen takımları görebilsin
-        if (tournament.creatorId !== req.userId && tournament.type !== '2') {
+        // Çiftler Rekabetçi / Çiftler Antrenman: katılımcılar da başvuru listesini ve eşleşen takımları görebilsin
+        if (tournament.creatorId !== req.userId && tournament.type !== '2' && tournament.type !== '4') {
             return res.status(403).json({ message: 'Not your tournament' });
         }
 
@@ -1652,11 +1672,12 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         // round 1 always contains the globally closest pairings.
         matches = fullRoundRobinByElo(teamPlayers, id, baseDate);
     } else if (tournament.type === '4') {
-        // Çiftler Antrenman: takım oluşturma Çiftler Rekabetçi ile birebir aynı (partner
-        // eşleşenler + ELO'ya en yakın bireysel eşleştirme), ama takımlar arası maçlar
-        // ELO round-robin yerine Bireysel Antrenman gibi kura ile ve TÜM GROUP turları
+        // Çiftler Antrenman: takım oluşturma Çiftler Rekabetçi ile aynı adımları izler
+        // (önce karşılıklı partner seçenler eşlenir), ama ELO kullanılmaz — eşi olmayan
+        // bireysel başvuranlar rastgele eşleştirilerek takım yapılır. Takımlar arası maçlar
+        // da ELO round-robin yerine Bireysel Antrenman gibi kura ile ve TÜM GROUP turları
         // baştan oluşturulur (play-off'a kadar kimin kiminle maç yapacağı bellidir).
-        const { teamsData, excluded } = await formTeamsForTournament(tournament, rawParticipants);
+        const { teamsData, excluded } = await formTeamsForTournament(tournament, rawParticipants, true);
         excludedFromTeams = excluded;
         if (teamsData.length < 2) {
             throw Object.assign(new Error('Çiftler Antrenman turnuvası için en az 2 takım (4 oyuncu) gerekli.'), { status: 400 });

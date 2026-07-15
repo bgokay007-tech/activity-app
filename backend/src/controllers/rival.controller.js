@@ -237,6 +237,9 @@ export const swapMatchPositions = async (req, res, next) => {
         if (rival.senderId !== req.userId && !isParticipant) {
             return res.status(403).json({ message: 'Bu maçın katılımcısı değilsiniz' });
         }
+        if (rival.teamFlexibility === 'STRICT') {
+            return res.status(403).json({ message: 'Bu ilan katı ayarlı, oyuncu pozisyonu değiştirilemez' });
+        }
 
         const getP = (slot) => {
             if (slot === 'partner') return senderTeam[0] || null;
@@ -450,7 +453,7 @@ export const createRivalRequest = async (req, res, next) => {
             location, courtName, courtAddress, courtLat, courtLng,
             venueId, venueCourtId, venueReservationId,
             isCourtReserved, flexibleSchedule, matchDate, matchTime,
-            matchType = 'SINGLE', matchMode = 'PRACTICE',
+            matchType = 'SINGLE', matchMode = 'PRACTICE', teamFlexibility = 'FLEXIBLE',
             surface, teamSize = 1, courtFeePerPerson,
             senderTeam, // COMPETITIVE football: [{id,username,fullName,skillRating}]
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
@@ -519,6 +522,7 @@ export const createRivalRequest = async (req, res, next) => {
                 matchDate: matchDate ? new Date(matchDate) : null,
                 matchTime,
                 matchType: matchType.toUpperCase(),
+                teamFlexibility: matchType.toUpperCase() === 'DOUBLE' && teamFlexibility === 'STRICT' ? 'STRICT' : 'FLEXIBLE',
                 matchMode: matchMode.toUpperCase(),
                 ...(surface && { surface: surface.toUpperCase() }),
                 teamSize: Number(teamSize) || 1,

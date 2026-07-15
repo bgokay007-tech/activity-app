@@ -3,11 +3,13 @@ import { createNotification } from '../controllers/notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { tournamentPollDeadline, checkPollAutoJoinEligibility } from '../controllers/tournament.controller.js';
 
-// Mobildeki TOURN_TYPE_LABELS ile aynı isimler ('3'-'8' henüz kesinleşmemiş yer
+// Mobildeki TOURN_TYPE_LABELS ile aynı isimler ('5'-'8' henüz kesinleşmemiş yer
 // tutucular, oradaki gibi burada da genel "Tür N" olarak anılır).
 function typeLabel(tp) {
     if (tp === '1') return 'Bireysel Rekabetçi';
     if (tp === '2') return 'Çiftler Rekabetçi';
+    if (tp === '3') return 'Bireysel Antrenman';
+    if (tp === '4') return 'Çiftler Antrenman';
     return `Tür ${tp}`;
 }
 
