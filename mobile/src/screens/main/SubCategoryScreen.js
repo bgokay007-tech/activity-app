@@ -1552,6 +1552,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     const [form, setForm] = useState({});
     const [saving, setSaving] = useState(false);
     const [calVisible, setCalVisible] = useState(false);
+    const [timeVisible, setTimeVisible] = useState(false);
     const [searching, setSearching] = useState(false);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null });
     const isTennisPadel = item?.subCategory === 'tennis' || item?.subCategory === 'padel';
@@ -1802,40 +1803,67 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 13 }} keyboardShouldPersistTaps="handled">
-                    <Text style={s.fieldLabel}>📅 Tarih</Text>
-                    <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center' }]} onPress={() => setCalVisible(true)}>
-                        <Text style={{ color: form.matchDate ? '#fff' : colors.textMuted, fontSize: 14 }}>
-                            {form.matchDate
-                                ? form.matchDate.toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'long', weekday: 'long' })
-                                : 'Tarih seçin...'}
-                        </Text>
-                    </TouchableOpacity>
-
-                    <Text style={s.fieldLabel}>🕐 Saat</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-                        {TIME_OPTS.slice(0, 50).map(o => (
-                            <TouchableOpacity
-                                key={o.value || 'none'}
-                                style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, marginRight: 6, backgroundColor: form.matchTime === o.value ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchTime === o.value ? colors.purple : colors.border }}
-                                onPress={() => setForm(f => ({ ...f, matchTime: o.value }))}
-                            >
-                                <Text style={{ color: form.matchTime === o.value ? '#fff' : colors.textMuted, fontSize: 12, fontWeight: '700' }}>{o.label}</Text>
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 3 }} keyboardShouldPersistTaps="handled">
+                    {/* Tarih / Saat — yan yana, ikisi de ayrı modal pencerede seçiliyor */}
+                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.fieldLabel}>📅 Tarih</Text>
+                            <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center', paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0 }]} onPress={() => setCalVisible(true)}>
+                                <Text style={{ color: form.matchDate ? '#fff' : colors.textMuted, fontSize: 13 }} numberOfLines={1}>
+                                    {form.matchDate
+                                        ? form.matchDate.toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'short' })
+                                        : 'Tarih seçin...'}
+                                </Text>
                             </TouchableOpacity>
-                        ))}
-                    </ScrollView>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.fieldLabel}>🕐 Saat</Text>
+                            <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center', paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0 }]} onPress={() => setTimeVisible(true)}>
+                                <Text style={{ color: form.matchTime ? '#fff' : colors.textMuted, fontSize: 13 }} numberOfLines={1}>
+                                    {form.matchTime || 'Saat seçin...'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
 
-                    <Text style={s.fieldLabel}>📍 Konum</Text>
-                    <CityAutocomplete
-                        value={form.location || ''}
-                        onChangeText={v => setForm(f => ({ ...f, location: v }))}
-                        placeholder="Konum girin..."
-                        style={{ marginBottom: 14 }}
-                        inputStyle={{ borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9, fontSize: 14 }}
-                    />
+                    {/* Konum / Min-Max Puan — yan yana, konum nadiren değiştiği için küçük */}
+                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
+                        <View style={{ flex: 2 }}>
+                            <Text style={s.fieldLabel}>📍 Konum</Text>
+                            <CityAutocomplete
+                                value={form.location || ''}
+                                onChangeText={v => setForm(f => ({ ...f, location: v }))}
+                                placeholder="Konum..."
+                                style={{ marginBottom: 0 }}
+                                inputStyle={{ borderRadius: 10, paddingHorizontal: 3, paddingVertical: 3, fontSize: 13 }}
+                            />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.fieldLabel}>⭐ Min</Text>
+                            <TextInput
+                                style={[s.fieldInput, { paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0, textAlign: 'center' }]}
+                                value={form.minRating}
+                                onChangeText={v => setForm(f => ({ ...f, minRating: v }))}
+                                placeholder="0"
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="decimal-pad"
+                            />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.fieldLabel}>⭐ Max</Text>
+                            <TextInput
+                                style={[s.fieldInput, { paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0, textAlign: 'center' }]}
+                                value={form.maxRating}
+                                onChangeText={v => setForm(f => ({ ...f, maxRating: v }))}
+                                placeholder="5"
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="decimal-pad"
+                            />
+                        </View>
+                    </View>
 
                     <Text style={s.fieldLabel}>{t.courtLabel}</Text>
-                    <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                    <View style={{ flexDirection:'row', gap:3, marginBottom:3 }}>
                         <TextInput
                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}
                             value={form.courtSearchText}
@@ -1862,11 +1890,11 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                                             </View>
                                             <Text style={{ color:'#c084fc', fontSize:20, fontWeight:'300' }}>›</Text>
                                         </View>
-                                        <View style={{ flexDirection:'row', gap:5 }}>
-                                            <View style={{ backgroundColor:'#9333ea20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
+                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                            <View style={{ backgroundColor:'#9333ea20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
                                                 <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>🏢 PRO Tesis</Text>
                                             </View>
-                                            <View style={{ backgroundColor:'#22c55e20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#22c55e40' }}>
+                                            <View style={{ backgroundColor:'#22c55e20', borderRadius:6, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#22c55e40' }}>
                                                 <Text style={{ color:'#22c55e', fontSize:10, fontWeight:'700' }}>📅 Rezerve Et</Text>
                                             </View>
                                         </View>
@@ -1903,23 +1931,23 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                                     </Text>
                                 )}
                             </View>
-                            <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', justifyContent:'flex-end', marginTop:4 }}>
+                            <View style={{ flexDirection:'row', gap:3, flexWrap:'wrap', justifyContent:'flex-end', marginTop:3 }}>
                                 <TouchableOpacity
                                     onPress={deselectCourt}
-                                    style={{ backgroundColor:'#ffffff12', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ffffff25' }}>
+                                    style={{ backgroundColor:'#ffffff12', borderRadius:7, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#ffffff25' }}>
                                     <Text style={{ color:'#aaa', fontSize:11, fontWeight:'700' }}>↩ Vazgeç</Text>
                                 </TouchableOpacity>
                                 {form.venueId && (
                                     <TouchableOpacity
                                         onPress={changeCourt}
-                                        style={{ backgroundColor:'#3b82f620', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#3b82f650' }}>
+                                        style={{ backgroundColor:'#3b82f620', borderRadius:7, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#3b82f650' }}>
                                         <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>🔄 Değiştir</Text>
                                     </TouchableOpacity>
                                 )}
                                 {form.reservationId && (
                                     <TouchableOpacity
                                         onPress={cancelCourt}
-                                        style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ef444450' }}>
+                                        style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#ef444450' }}>
                                         <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>🗑 Sil</Text>
                                     </TouchableOpacity>
                                 )}
@@ -1954,7 +1982,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
 
                     {/* Kişi Başı Kort Ücreti */}
                     {(form.selectedCourt || (form.courtSearchText?.length >= 2) || (form.showManualCourt && form.manualCourtName)) && (
-                        <View style={{ marginBottom:10 }}>
+                        <View style={{ marginBottom:3 }}>
                             <Text style={s.fieldLabel}>{t.courtFeeLabel}</Text>
                             <TextInput
                                 style={s.fieldInput}
@@ -1969,7 +1997,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
 
                     <Text style={s.fieldLabel}>💬 Mesaj</Text>
                     <TextInput
-                        style={[s.fieldInput, { height: 80, textAlignVertical: 'top', paddingTop: 7 }]}
+                        style={[s.fieldInput, { height: 80, textAlignVertical: 'top', paddingTop: 3, paddingHorizontal: 3, marginBottom: 3 }]}
                         value={form.message}
                         onChangeText={v => setForm(f => ({ ...f, message: v }))}
                         placeholder="Mesajınızı girin..."
@@ -1977,37 +2005,12 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         multiline
                     />
 
-                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 0 }}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={s.fieldLabel}>⭐ Min Puan</Text>
-                            <TextInput
-                                style={s.fieldInput}
-                                value={form.minRating}
-                                onChangeText={v => setForm(f => ({ ...f, minRating: v }))}
-                                placeholder="0"
-                                placeholderTextColor={colors.textMuted}
-                                keyboardType="decimal-pad"
-                            />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={s.fieldLabel}>⭐ Max Puan</Text>
-                            <TextInput
-                                style={s.fieldInput}
-                                value={form.maxRating}
-                                onChangeText={v => setForm(f => ({ ...f, maxRating: v }))}
-                                placeholder="5"
-                                placeholderTextColor={colors.textMuted}
-                                keyboardType="decimal-pad"
-                            />
-                        </View>
-                    </View>
-
                     <Text style={s.fieldLabel}>💰 Maç Modu</Text>
-                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
                         {['FREE', 'PAID'].map(mode => (
                             <TouchableOpacity
                                 key={mode}
-                                style={{ flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center', backgroundColor: form.matchMode === mode ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchMode === mode ? colors.purple : colors.border }}
+                                style={{ flex: 1, paddingVertical: 3, borderRadius: 10, alignItems: 'center', backgroundColor: form.matchMode === mode ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchMode === mode ? colors.purple : colors.border }}
                                 onPress={() => setForm(f => ({ ...f, matchMode: mode }))}
                             >
                                 <Text style={{ color: form.matchMode === mode ? '#fff' : colors.textMuted, fontWeight: '700' }}>
@@ -2020,13 +2023,13 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     {isTennisPadel && (() => {
                         const GENDERS = [{ id:'MIX', label:'⚥ Mix' }, { id:'MALE', label:'♂ Erkek' }, { id:'FEMALE', label:'♀ Kadın' }];
                         const GenderRow = ({ label, field }) => (
-                            <View style={{ marginBottom: 12 }}>
+                            <View style={{ marginBottom: 3 }}>
                                 <Text style={s.fieldLabel}>{label}</Text>
                                 <View style={{ flexDirection:'row', gap:3 }}>
                                     {GENDERS.map(g => (
                                         <TouchableOpacity
                                             key={g.id}
-                                            style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: form[field] === g.id ? colors.purple : colors.surface2, borderWidth:1, borderColor: form[field] === g.id ? colors.purple : colors.border }}
+                                            style={{ flex:1, paddingVertical:3, borderRadius:8, alignItems:'center', backgroundColor: form[field] === g.id ? colors.purple : colors.surface2, borderWidth:1, borderColor: form[field] === g.id ? colors.purple : colors.border }}
                                             onPress={() => setForm(f => ({ ...f, [field]: g.id }))}
                                         >
                                             <Text style={{ color: form[field] === g.id ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'700' }}>{g.label}</Text>
@@ -2056,6 +2059,14 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     value={form.matchDate}
                     onSelect={date => { setForm(f => ({ ...f, matchDate: date })); setCalVisible(false); }}
                     onClose={() => setCalVisible(false)}
+                />
+                <TimeGridModal
+                    visible={timeVisible}
+                    title="Saat Seç"
+                    value={form.matchTime}
+                    step={30}
+                    onSelect={(v) => { setForm(f => ({ ...f, matchTime: v })); setTimeVisible(false); }}
+                    onClose={() => setTimeVisible(false)}
                 />
             </View>
         </Modal>
@@ -3503,10 +3514,10 @@ const opt = StyleSheet.create({
     itemTextActive:{ color:'#fff', fontWeight:'800' },
 });
 
-function TimeGridModal({ visible, title, value, onSelect, onClose }) {
+function TimeGridModal({ visible, title, value, onSelect, onClose, step = 15 }) {
     const times = [];
     for (let h = 0; h < 24; h++) {
-        for (let m = 0; m < 60; m += 15) {
+        for (let m = 0; m < 60; m += step) {
             times.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
         }
     }
