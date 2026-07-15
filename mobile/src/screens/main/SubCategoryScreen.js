@@ -1554,7 +1554,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     const [calVisible, setCalVisible] = useState(false);
     const [timeVisible, setTimeVisible] = useState(false);
     const [searching, setSearching] = useState(false);
-    const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null });
+    const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
     const isTennisPadel = item?.subCategory === 'tennis' || item?.subCategory === 'padel';
     const isDouble = item?.matchType === 'DOUBLE';
     const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
@@ -1689,7 +1689,10 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     const changeCourt = () => {
         const vid = form.venueId;
         setForm(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueReservationId: null, venueCourtId: null }));
-        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: form.venueCourtId || null });
+        // Mevcut rezervasyon henüz iptal edilmedi (bkz. yukarıdaki not) — bu yüzden
+        // gridde hâlâ "Dolu" görünüyor. excludeReservationId ile bu kendi rezervasyonumuz
+        // "dolu" hesabından hariç tutulur, gridde tekrar boş/tıklanabilir görünür.
+        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: form.venueCourtId || null, excludeReservationId: originalRef.current.reservationId || null });
     };
 
     const visibleCourtResults = form.courtResults || [];
@@ -2074,7 +2077,8 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
             visible={venueBooking.visible}
             venueId={venueBooking.venueId}
             initialCourtId={venueBooking.initialCourtId}
-            onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null })}
+            excludeReservationId={venueBooking.excludeReservationId}
+            onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null })}
             onBooked={(court, date, startTime, endTime, payMethod) => {
                 const toMin = (tm) => { const [h, m] = tm.split(':').map(Number); return h * 60 + m; };
                 const durMins = (startTime && endTime) ? toMin(endTime) - toMin(startTime) : 0;
@@ -3766,7 +3770,7 @@ function isPastSlot(dateStr, timeStr) {
     return new Date(`${dateStr}T${timeStr}:00`).getTime() < Date.now();
 }
 
-function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked }) {
+function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservationId, onClose, onBooked }) {
     const insets = useSafeAreaInsets();
     const t = useT();
     const todayStr = () => {
@@ -3820,7 +3824,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
         setCourtsSlots(initMap);
         Promise.all(
             courts.map(c =>
-                api.get(`/venues/${venueId}/courts/${c.id}/slots`, { params: { date: selDate } })
+                // excludeReservationId: "Değiştir" akışında henüz iptal edilmemiş mevcut
+                // rezervasyonumuz "dolu" hesabından hariç tutulur, gridde boş/tıklanabilir görünür
+                // (backend sahiplik kontrolü yapar — başkasının rezervasyonu asla hariç tutulmaz).
+                api.get(`/venues/${venueId}/courts/${c.id}/slots`, { params: { date: selDate, ...(excludeReservationId ? { excludeReservationId } : {}) } })
                     .then(r => ({ id: c.id, data: r.data }))
                     .catch(() => ({ id: c.id, data: null }))
             )
@@ -3829,7 +3836,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, onClose, onBooked
             results.forEach(({ id, data }) => { next[id] = { loading: false, data }; });
             setCourtsSlots(next);
         });
-    }, [venue, selDate]);
+    }, [venue, selDate, excludeReservationId]);
 
     const selectSlot = (cId, slot) => {
         if (isPastSlot(selDate, slot.start)) {
