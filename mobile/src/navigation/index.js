@@ -11,13 +11,14 @@ import { ActivityIndicator, View, Text, Platform } from 'react-native';
 import RainbowLogo from '../components/RainbowLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import * as ExpoLinking from 'expo-linking';
 import Constants from 'expo-constants';
 import api from '../services/api';
 import { connectSocket, disconnectSocket, onSocket } from '../services/socket';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 
-const navigationRef = createNavigationContainerRef();
+export const navigationRef = createNavigationContainerRef();
 
 function navigateFromNotif(data) {
     if (!navigationRef.isReady() || !data) return;
@@ -55,6 +56,33 @@ function navigateFromNotif(data) {
     }
 }
 
+// Paylaşılan link (activityapp://rival/<id> veya activityapp://tournament/<id>) ile
+// açılış: id üzerinden category/subCategory çözülüp mevcut bildirim navigasyonuyla
+// aynı hedefe (SubCategory ekranı, ilgili ilan/turnuva vurgulanmış halde) gidilir.
+async function resolveDeepLinkAndNavigate(url) {
+    if (!url) return;
+    try {
+        const { path } = ExpoLinking.parse(url);
+        const [kind, id] = (path || '').replace(/^\/+/, '').split('/');
+        if (!id) return;
+        if (kind === 'rival') {
+            const { data } = await api.get(`/rivals/${id}`);
+            if (!navigationRef.isReady()) return;
+            navigationRef.navigate('HomeTab', {
+                screen: 'SubCategory',
+                params: { category: data.category, sub: data.subCategory, initialTab: 'rivals', highlightRivalId: id },
+            });
+        } else if (kind === 'tournament') {
+            const { data } = await api.get(`/tournaments/${id}`);
+            if (!navigationRef.isReady()) return;
+            navigationRef.navigate('HomeTab', {
+                screen: 'SubCategory',
+                params: { category: data.category, sub: data.subCategory, initialTab: 'tournaments', openMatchTournamentId: id, openMatchId: null },
+            });
+        }
+    } catch { /* ilan/turnuva bulunamadı veya oturum hazır değil — sessizce yut */ }
+}
+
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
         shouldShowBanner: true,
@@ -84,6 +112,12 @@ import VenueDetailScreen from '../screens/main/VenueDetailScreen';
 import CourtSlotsScreen from '../screens/main/CourtSlotsScreen';
 import MyReservationsScreen from '../screens/main/MyReservationsScreen';
 import ActivityFeedScreen from '../screens/main/ActivityFeedScreen';
+import MusicHomeScreen from '../screens/main/MusicHomeScreen';
+import MusicPlaylistDetailScreen from '../screens/main/MusicPlaylistDetailScreen';
+import NowPlayingScreen from '../screens/main/NowPlayingScreen';
+import CinemaHomeScreen from '../screens/main/CinemaHomeScreen';
+import TheaterHomeScreen from '../screens/main/TheaterHomeScreen';
+import MiniPlayer from '../components/MiniPlayer';
 import colors from '../theme/colors';
 
 const Stack = createNativeStackNavigator();
@@ -107,6 +141,11 @@ function HomeStackNav() {
             <HomeStack.Screen name="VenueDetail" component={VenueDetailScreen} />
             <HomeStack.Screen name="CourtSlots" component={CourtSlotsScreen} />
             <HomeStack.Screen name="MyReservations" component={MyReservationsScreen} />
+            <HomeStack.Screen name="MusicHome" component={MusicHomeScreen} />
+            <HomeStack.Screen name="MusicPlaylistDetail" component={MusicPlaylistDetailScreen} />
+            <HomeStack.Screen name="NowPlaying" component={NowPlayingScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <HomeStack.Screen name="CinemaHome" component={CinemaHomeScreen} />
+            <HomeStack.Screen name="TheaterHome" component={TheaterHomeScreen} />
         </HomeStack.Navigator>
     );
 }
@@ -223,6 +262,7 @@ function AppTabs() {
     }, [userId]);
 
     return (
+        <View style={{ flex: 1 }}>
         <Tab.Navigator
             screenOptions={{
                 headerShown: false,
@@ -294,6 +334,8 @@ function AppTabs() {
                 options={{ tabBarLabel: t.profile, tabBarIcon: ({ focused }) => <TabIcon label="Profile" active={focused} /> }}
             />
         </Tab.Navigator>
+        <MiniPlayer />
+        </View>
     );
 }
 
@@ -303,6 +345,7 @@ export default function Navigation() {
     const isBusiness = useSelector(s => s.auth.user?.isBusiness);
     const [bootstrapping, setBootstrapping] = useState(true);
     const pendingNavRef = useRef(null);
+    const pendingDeepLinkRef = useRef(null);
 
     useEffect(() => {
         if (isExpoGo) return;
@@ -314,6 +357,14 @@ export default function Navigation() {
         const sub = Notifications.addNotificationResponseReceivedListener(response => {
             navigateFromNotif(response.notification.request.content.data || {});
         });
+        return () => sub.remove();
+    }, []);
+
+    useEffect(() => {
+        ExpoLinking.getInitialURL().then(url => {
+            if (url) pendingDeepLinkRef.current = url;
+        }).catch(() => {});
+        const sub = ExpoLinking.addEventListener('url', ({ url }) => resolveDeepLinkAndNavigate(url));
         return () => sub.remove();
     }, []);
 
@@ -367,6 +418,10 @@ export default function Navigation() {
             if (pendingNavRef.current) {
                 navigateFromNotif(pendingNavRef.current);
                 pendingNavRef.current = null;
+            }
+            if (pendingDeepLinkRef.current) {
+                resolveDeepLinkAndNavigate(pendingDeepLinkRef.current);
+                pendingDeepLinkRef.current = null;
             }
         }}>
             <Stack.Navigator screenOptions={{ headerShown: false }}>

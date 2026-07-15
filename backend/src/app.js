@@ -34,6 +34,8 @@ import shareRoutes from './routes/share.routes.js';
 import musicRoutes from './routes/music.routes.js';
 import playlistRoutes from './routes/playlist.routes.js';
 import concertRoutes from './routes/concert.routes.js';
+import movieRoutes from './routes/movie.routes.js';
+import theaterRoutes from './routes/theater.routes.js';
 
 const app = express();
 
@@ -84,6 +86,8 @@ app.use('/api/venues', venueRoutes);
 app.use('/api/music', musicRoutes);
 app.use('/api/playlists', playlistRoutes);
 app.use('/api/concerts', concertRoutes);
+app.use('/api/movies', movieRoutes);
+app.use('/api/theater', theaterRoutes);
 app.use('/share', shareRoutes);
 
 app.get('/health', (req, res) => {

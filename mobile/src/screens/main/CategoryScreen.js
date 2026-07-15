@@ -1,58 +1,72 @@
 ﻿import { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'theater']);
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater']);
+
+// Bu dallar "ilan" (rakip bul) mantığına değil kendi özel ekranlarına gider —
+// SubCategory yerine bu ekran adına yönlendirilir, ilan sayacı da gösterilmez.
+const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome' };
+const SPECIAL_BADGE_EMOJI = { music: '🎵', cinema: '🎬', theater: '🎭' };
 
 const SUB_MAP = {
     SPORTS:  [
-        { id: 'tennis',      label: 'Tennis',           emoji: '🎾' },
-        { id: 'padel',       label: 'Padel',            emoji: '🏓' },
-        { id: 'volleyball',  label: 'Volleyball',       emoji: '🏐' },
-        { id: 'football',    label: 'Football',         emoji: '⚽' },
-        { id: 'basketball',  label: 'Basketball',       emoji: '🏀' },
-        { id: 'running',     label: 'Running',          emoji: '🏃' },
-        { id: 'wellness',    label: 'Yoga / Pilates / Reformer', emoji: '🧘' },
-        { id: 'table_tennis',     label: 'Table Tennis',        emoji: '🏓' },
-        { id: 'climbing',         label: 'Climbing',            emoji: '🧗' },
-        { id: 'archery',          label: 'Archery',             emoji: '🏹' },
-        { id: 'walking',          label: 'Walking',             emoji: '🚶' },
-        { id: 'foot_tennis',      label: 'Foot Tennis',         emoji: '🦶' },
-        { id: 'sup_kano',         label: 'SUP & Canoe',         emoji: '🛶' },
-        { id: 'handball',         label: 'Handball',            emoji: '🤾' },
-        { id: 'badminton',        label: 'Badminton',           emoji: '🏸' },
-        { id: 'shooting_hunting', label: 'Shooting & Hunting',  emoji: '🔫' },
-        { id: 'equestrian',       label: 'Equestrian',          emoji: '🐎' },
-        { id: 'golf',             label: 'Golf',                emoji: '⛳' },
-        { id: 'fitness_gym',      label: 'Fitness & Gym',       emoji: '🏋️' },
-        { id: 'skiing_snowboard', label: 'Skiing & Snowboard',  emoji: '⛷️' },
-        { id: 'ice_skating',      label: 'Ice Skating',         emoji: '⛸️' },
-        { id: 'hiking',           label: 'Hiking',              emoji: '🥾' },
-        { id: 'camping',          label: 'Camping',             emoji: '🏕️' },
-        { id: 'motorcycle',       label: 'Motorcycle Riding',   emoji: '🏍️' },
-        { id: 'extreme_sports',   label: 'Extreme Sports',      emoji: '🪂' },
-        { id: 'paintball',        label: 'Paintball',           emoji: '🎯' },
-        { id: 'airsoft',          label: 'Airsoft',             emoji: '🪖' },
+        { id: 'tennis',      label: 'Tennis',           labelTR: 'Tenis',              emoji: '🎾' },
+        { id: 'padel',       label: 'Padel',            labelTR: 'Padel',              emoji: '🏓', image: require('../../../assets/padel.png') },
+        { id: 'volleyball',  label: 'Volleyball',       labelTR: 'Voleybol',           emoji: '🏐' },
+        { id: 'football',    label: 'Football',         labelTR: 'Futbol',             emoji: '⚽' },
+        { id: 'basketball',  label: 'Basketball',       labelTR: 'Basketbol',          emoji: '🏀' },
+        { id: 'running',     label: 'Running',          labelTR: 'Koşu',               emoji: '🏃' },
+        { id: 'wellness',    label: 'Yoga / Pilates / Reformer', labelTR: 'Yoga / Pilates / Reformer', emoji: '🧘' },
+        { id: 'table_tennis',     label: 'Table Tennis',        labelTR: 'Masa Tenisi',         emoji: '🏓' },
+        { id: 'climbing',         label: 'Climbing',            labelTR: 'Tırmanış',            emoji: '🧗' },
+        { id: 'archery',          label: 'Archery',             labelTR: 'Okçuluk',             emoji: '🏹' },
+        { id: 'walking',          label: 'Walking',             labelTR: 'Yürüyüş',             emoji: '🚶' },
+        { id: 'foot_tennis',      label: 'Foot Tennis',         labelTR: 'Ayak Tenisi',         emoji: '🦶' },
+        { id: 'sup_kano',         label: 'SUP & Canoe',         labelTR: 'SUP & Kano',          emoji: '🛶' },
+        { id: 'handball',         label: 'Handball',            labelTR: 'Hentbol',             emoji: '🤾' },
+        { id: 'badminton',        label: 'Badminton',           labelTR: 'Badminton',           emoji: '🏸' },
+        { id: 'shooting_hunting', label: 'Shooting & Hunting',  labelTR: 'Atıcılık & Avcılık',  emoji: '🔫' },
+        { id: 'equestrian',       label: 'Equestrian',          labelTR: 'Binicilik',           emoji: '🐎' },
+        { id: 'golf',             label: 'Golf',                labelTR: 'Golf',                emoji: '⛳' },
+        { id: 'fitness_gym',      label: 'Fitness & Gym',       labelTR: 'Fitness & Spor Salonu', emoji: '🏋️' },
+        { id: 'skiing_snowboard', label: 'Skiing & Snowboard',  labelTR: 'Kayak & Snowboard',   emoji: '⛷️' },
+        { id: 'ice_skating',      label: 'Ice Skating',         labelTR: 'Buz Pateni',          emoji: '⛸️' },
+        { id: 'hiking',           label: 'Hiking',              labelTR: 'Doğa Yürüyüşü',       emoji: '🥾' },
+        { id: 'camping',          label: 'Camping',             labelTR: 'Kamp',                emoji: '🏕️' },
+        { id: 'motorcycle',       label: 'Motorcycle Riding',   labelTR: 'Motosiklet',          emoji: '🏍️' },
+        { id: 'extreme_sports',   label: 'Extreme Sports',      labelTR: 'Ekstrem Sporlar',     emoji: '🪂' },
+        { id: 'paintball',        label: 'Paintball',           labelTR: 'Paintball',           emoji: '🔫' },
+        { id: 'airsoft',          label: 'Airsoft',             labelTR: 'Airsoft',             emoji: '🪖' },
     ],
     SOCIAL:  [
-        { id: 'language',    label: 'Language Exchange', emoji: '🌍' },
-        { id: 'hiking',      label: 'Hiking',            emoji: '🥾' },
-        { id: 'photography', label: 'Photography',       emoji: '📷' },
+        { id: 'language',    label: 'Language Exchange', labelTR: 'Dil Değişimi',    emoji: '🌍' },
+        { id: 'hiking',      label: 'Hiking',            labelTR: 'Doğa Yürüyüşü',   emoji: '🥾' },
+        { id: 'photography', label: 'Photography',       labelTR: 'Fotoğrafçılık',   emoji: '📷' },
     ],
     ARTS:    [
-        { id: 'painting',    label: 'Painting',         emoji: '🎨' },
-        { id: 'music',       label: 'Music',            emoji: '🎵' },
+        { id: 'painting',     label: 'Painting',      labelTR: 'Resim',       emoji: '🎨' },
+        { id: 'music',        label: 'Music',         labelTR: 'Müzik',       emoji: '🎵' },
+        { id: 'theater',      label: 'Theater',       labelTR: 'Tiyatro',     emoji: '🎭' },
+        { id: 'cinema',       label: 'Cinema',        labelTR: 'Sinema',      emoji: '🎬' },
+        { id: 'literature',   label: 'Literature',    labelTR: 'Edebiyat',    emoji: '📚' },
+        { id: 'sculpture',    label: 'Sculpture',     labelTR: 'Heykel',      emoji: '🗿' },
+        { id: 'architecture', label: 'Architecture',  labelTR: 'Mimari',      emoji: '🏛️' },
+        { id: 'opera',        label: 'Opera',         labelTR: 'Opera',       emoji: '🎼' },
+        { id: 'ceramics',     label: 'Ceramics',      labelTR: 'Seramik',     emoji: '🏺' },
+        { id: 'poetry',       label: 'Poetry',        labelTR: 'Şiir',        emoji: '✍️' },
     ],
     GAMES:   [
-        { id: 'fps',          label: 'FPS',             emoji: '🎯' },
-        { id: 'moba',         label: 'MOBA',            emoji: '⚔️' },
-        { id: 'strategy',     label: 'Strategy',        emoji: '♟️' },
-        { id: 'sports_games', label: 'Sports Games',    emoji: '🎮' },
-        { id: 'boardgames',   label: 'Board Games',     emoji: '🎲' },
+        { id: 'fps',          label: 'FPS',             labelTR: 'FPS',             emoji: '🎯' },
+        { id: 'moba',         label: 'MOBA',            labelTR: 'MOBA',            emoji: '⚔️' },
+        { id: 'strategy',     label: 'Strategy',        labelTR: 'Strateji',        emoji: '♟️' },
+        { id: 'sports_games', label: 'Sports Games',    labelTR: 'Spor Oyunları',   emoji: '🎮' },
+        { id: 'boardgames',   label: 'Board Games',     labelTR: 'Kutu Oyunları',   emoji: '🎲' },
     ],
 };
 
@@ -67,6 +81,8 @@ export default function CategoryScreen({ route, navigation }) {
     const { category } = route.params;
     const accentColor = CAT_COLOR[category] || colors.purple;
     const t = useT();
+    const lang = useSelector(s => s.lang?.lang || 'en');
+    const subLabel = (sub) => (lang === 'tr' ? (sub.labelTR || sub.label) : sub.label);
 
     const [counts, setCounts] = useState({});
     const [loading, setLoading] = useState(true);
@@ -75,7 +91,7 @@ export default function CategoryScreen({ route, navigation }) {
     const subs = [...(SUB_MAP[category] || [])].sort((a, b) => {
         const ca = counts[a.id] || 0, cb = counts[b.id] || 0;
         if (cb !== ca) return cb - ca;
-        return a.label.localeCompare(b.label);
+        return subLabel(a).localeCompare(subLabel(b));
     });
 
     const fetchCounts = useCallback(() => {
@@ -124,12 +140,20 @@ export default function CategoryScreen({ route, navigation }) {
                                 <TouchableOpacity
                                     key={sub.id}
                                     style={[s.card, { borderColor: enabled ? accentColor + '40' : colors.border, opacity: enabled ? 1 : 0.5 }]}
-                                    onPress={() => enabled && navigation.navigate('SubCategory', { category, sub: sub.id })}
+                                    onPress={() => enabled && navigation.navigate(SPECIAL_SCREENS[sub.id] || 'SubCategory', SPECIAL_SCREENS[sub.id] ? undefined : { category, sub: sub.id })}
                                     activeOpacity={enabled ? 0.75 : 1}
                                 >
-                                    <Text style={s.emoji}>{sub.emoji}</Text>
-                                    <Text style={s.cardLabel}>{sub.label}</Text>
-                                    {enabled ? (
+                                    {sub.image ? (
+                                        <Image source={sub.image} style={s.emojiImage} resizeMode="contain" />
+                                    ) : (
+                                        <Text style={s.emoji}>{sub.emoji}</Text>
+                                    )}
+                                    <Text style={s.cardLabel}>{subLabel(sub)}</Text>
+                                    {SPECIAL_SCREENS[sub.id] ? (
+                                        <View style={[s.countBadge, { backgroundColor: accentColor + '20', borderColor: accentColor + '60' }]}>
+                                            <Text style={[s.countText, { color: accentColor }]}>{SPECIAL_BADGE_EMOJI[sub.id]}</Text>
+                                        </View>
+                                    ) : enabled ? (
                                         <View style={[s.countBadge, { backgroundColor: accentColor + '20', borderColor: accentColor + '60' }]}>
                                             <Text style={[s.countText, { color: count > 0 ? accentColor : colors.textMuted }]}>
                                                 {count > 0 ? t.listings(count) : t.noListings}
@@ -163,7 +187,8 @@ const s = StyleSheet.create({
         flexDirection: 'column', alignItems: 'flex-start', borderWidth: 1, gap: 3,
         alignSelf: 'flex-start', flexShrink: 0,
     },
-    emoji:      { fontSize: 22 },
+    emoji:      { fontSize: 22, lineHeight: 26 },
+    emojiImage: { width: 26, height: 26 },
     cardLabel:  { color: '#fff', fontSize: 13, fontWeight: '700', flexShrink: 0 },
     countBadge: { borderRadius: 6, paddingHorizontal: 3, paddingVertical: 0, borderWidth: 1 },
     countText:  { fontSize: 10, fontWeight: '700' },
