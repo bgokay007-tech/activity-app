@@ -25,6 +25,19 @@ function isPastDateTime(date, startTime) {
     return toMins(startTime) < nowMins;
 }
 
+// Tesisin onay moduna ve ödeme yöntemine göre bir rezervasyonun başlangıç durumunu belirler.
+// Hem yeni rezervasyon oluştururken hem de (politika dahilinde) saat değiştirirken kullanılır —
+// FULL_AUTO'da (Tümünü Otomatik Onayla) ikisi de doğrudan CONFIRMED olmalı, işletmeci tekrar
+// elle onaylamak zorunda kalmamalı.
+function computeReservationStatus(court, venue, paymentMethod) {
+    const effectiveMode = court?.approvalMode || venue?.approvalMode || 'FULL_AUTO';
+    const pm = paymentMethod || 'CASH';
+    if (effectiveMode === 'FULL_AUTO') return 'CONFIRMED';
+    if (effectiveMode === 'EFT_TIMED') return pm === 'EFT' ? 'PENDING' : 'CONFIRMED';
+    if (effectiveMode === 'PAYMENT_AUTO') return ['CASH', 'ONLINE', 'CREDIT_CARD'].includes(pm) ? 'CONFIRMED' : 'PENDING';
+    return 'PENDING'; // MANUAL
+}
+
 async function autoConfirmPastCash(venueId) {
     const now = new Date();
     const pending = await prisma.courtReservation.findMany({
@@ -633,20 +646,8 @@ export const makeReservation = async (req, res, next) => {
         if (slotErr) return res.status(slotErr.status).json({ message: slotErr.message });
 
         const courtForApproval = await prisma.venueCourt.findUnique({ where: { id: courtId } });
-        const effectiveMode = courtForApproval?.approvalMode || venue.approvalMode || 'FULL_AUTO';
         const pm = paymentMethod || 'CASH';
-
-        let initialStatus = 'PENDING';
-        if (effectiveMode === 'FULL_AUTO') {
-            initialStatus = 'CONFIRMED';
-        } else if (effectiveMode === 'EFT_TIMED') {
-            // EFT → PENDING (job 1 saat sonra onaylar), diğerleri → CONFIRMED
-            initialStatus = pm === 'EFT' ? 'PENDING' : 'CONFIRMED';
-        } else if (effectiveMode === 'PAYMENT_AUTO') {
-            // CASH veya ONLINE → CONFIRMED, EFT → PENDING (manuel onay gerekli)
-            initialStatus = ['CASH', 'ONLINE', 'CREDIT_CARD'].includes(pm) ? 'CONFIRMED' : 'PENDING';
-        }
-        // MANUAL → her zaman PENDING (initialStatus zaten PENDING)
+        const initialStatus = computeReservationStatus(courtForApproval, venue, pm);
 
         const reservation = await prisma.courtReservation.create({
             data: { venueId: id, courtId, userId: req.userId, date, startTime, endTime,
@@ -1199,16 +1200,32 @@ export const rescheduleReservation = async (req, res, next) => {
         );
         if (hasConflict) return res.status(409).json({ message: 'Seçilen saat aralığı dolu' });
 
+        // Politika dahilinde (rescheduleHoursBefore kontrolünden geçti) yapılan bir değişiklik,
+        // tesisin onay moduna göre doğrudan onaylanabilir — FULL_AUTO'da işletmecinin tekrar
+        // elle onaylamasına gerek yok.
+        const courtForApproval = await prisma.venueCourt.findUnique({ where: { id: res_.courtId } });
+        const newStatus = computeReservationStatus(courtForApproval, res_.venue, res_.paymentMethod);
+
         const updated = await prisma.courtReservation.update({
             where: { id: resId },
-            data: { date: newDate, startTime: newStartTime, endTime: newEndTime, status: 'PENDING' },
+            data: { date: newDate, startTime: newStartTime, endTime: newEndTime, status: newStatus },
         });
 
-        await createNotification(res_.venue.userId, 'RESERVATION', '📅 Rezervasyon Güncellendi',
-            `Rezervasyon tarihi değiştirildi: ${newDate} ${newStartTime}–${newEndTime}`,
+        await createNotification(res_.venue.userId, 'RESERVATION',
+            newStatus === 'CONFIRMED' ? '✅ Rezervasyon Saati Değişti (Otomatik Onaylı)' : '📅 Rezervasyon Güncellendi',
+            newStatus === 'CONFIRMED'
+                ? `Rezervasyon ${newDate} ${newStartTime}–${newEndTime} olarak güncellendi ve otomatik onaylandı.`
+                : `Rezervasyon tarihi değiştirildi: ${newDate} ${newStartTime}–${newEndTime}. Onayınız bekleniyor.`,
             { reservationId: resId }
         ).catch(() => {});
         emitToUser(res_.venue.userId, 'notification', {});
+        if (newStatus === 'CONFIRMED') {
+            createNotification(res_.userId, 'RESERVATION', '✅ Rezervasyonunuz Onaylandı',
+                `${newDate} ${newStartTime}–${newEndTime} için değiştirdiğiniz rezervasyon otomatik onaylandı.`,
+                { reservationId: resId }
+            ).catch(() => {});
+            emitToUser(res_.userId, 'reservationUpdate', { reservationId: resId, status: 'CONFIRMED' });
+        }
 
         // Bu rezervasyondan oluşturulmuş bir ilan varsa (bkz. venueReservationId), ilanın
         // tarih/saatini de güncelle ve — henüz onaylanmamış katılma isteği bekleyenler dahil —
