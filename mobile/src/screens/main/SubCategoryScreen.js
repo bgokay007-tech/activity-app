@@ -4140,47 +4140,48 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             <Text style={vb.title} numberOfLines={1}>{venue?.name || 'Tesis'}</Text>
                             {venue && <Text style={vb.subtitle}>{venue.branch} · {venue.city}</Text>}
                         </View>
-                        <TouchableOpacity onPress={onClose} style={vb.closeBtn}>
+                    </View>
+
+                    {/* İletişim butonları + Konum + Kapat — tek satır, kapat butonu en sağda */}
+                    <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:3, paddingHorizontal:3, paddingTop:3, paddingBottom:3 }}>
+                        {venue && (() => {
+                            const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
+                            const effectiveCl = {
+                                whatsapp:  cl.whatsapp  || venue.phone || null,
+                                phone:     cl.phone     || venue.phone || null,
+                                telegram:  cl.telegram  || null,
+                                instagram: cl.instagram || null,
+                                email:     cl.email     || null,
+                            };
+                            const links = [
+                                { key: 'whatsapp',  icon: '💬', label: 'WhatsApp', url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
+                                { key: 'phone',     icon: '📞', label: 'Beni Ara',  url: v => `tel:${v}` },
+                                { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
+                                { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
+                                { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
+                            ].filter(l => effectiveCl[l.key]);
+                            return (
+                                <>
+                                    {links.map(l => (
+                                        <TouchableOpacity key={l.key}
+                                            onPress={() => Linking.openURL(l.url(effectiveCl[l.key]))}
+                                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#ffffff0f', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#ffffff20' }}>
+                                            <Text style={{ fontSize:13 }}>{l.icon}</Text>
+                                            <Text style={{ color:'#e5e7eb', fontSize:11, fontWeight:'700' }}>{l.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                    {initialCourtId && (
+                                        <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea50', justifyContent:'center' }}>
+                                            <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }} numberOfLines={1}>📍 {venue.name}</Text>
+                                        </View>
+                                    )}
+                                </>
+                            );
+                        })()}
+                        <TouchableOpacity onPress={onClose} style={[vb.closeBtn, { marginLeft:'auto' }]}>
                             <Text style={vb.closeX}>✕</Text>
                         </TouchableOpacity>
                     </View>
-
-                    {/* İletişim butonları + Konum — tek satır */}
-                    {venue && (() => {
-                        const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
-                        const effectiveCl = {
-                            whatsapp:  cl.whatsapp  || venue.phone || null,
-                            phone:     cl.phone     || venue.phone || null,
-                            telegram:  cl.telegram  || null,
-                            instagram: cl.instagram || null,
-                            email:     cl.email     || null,
-                        };
-                        const links = [
-                            { key: 'whatsapp',  icon: '💬', label: 'WhatsApp', url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
-                            { key: 'phone',     icon: '📞', label: 'Beni Ara',  url: v => `tel:${v}` },
-                            { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
-                            { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
-                            { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
-                        ].filter(l => effectiveCl[l.key]);
-                        if (links.length === 0 && !(initialCourtId)) return null;
-                        return (
-                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingHorizontal:3, paddingTop:3, paddingBottom:3 }}>
-                                {links.map(l => (
-                                    <TouchableOpacity key={l.key}
-                                        onPress={() => Linking.openURL(l.url(effectiveCl[l.key]))}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#ffffff0f', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#ffffff20' }}>
-                                        <Text style={{ fontSize:13 }}>{l.icon}</Text>
-                                        <Text style={{ color:'#e5e7eb', fontSize:11, fontWeight:'700' }}>{l.label}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                                {initialCourtId && (
-                                    <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea50', justifyContent:'center' }}>
-                                        <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }} numberOfLines={1}>📍 {venue.name}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        );
-                    })()}
 
                     {loadingV && <ActivityIndicator color="#22c55e" style={{ marginVertical: 28 }} />}
 
