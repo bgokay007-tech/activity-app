@@ -878,6 +878,44 @@ export const sendJoinRequest = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Başvuran kendi PENDING (veya geç-kabul sonrası onay bekleyen) başvurusunu geri çeker —
+// vazgeçip tekrar başvurabilmesi için 'REJECTED' yapılır, sendJoinRequest zaten bu durumdan
+// yeniden başvuruya izin veriyor.
+export const withdrawJoinRequest = async (req, res, next) => {
+    try {
+        const { requestId } = req.params;
+        const joinReq = await prisma.rivalJoinRequest.findUnique({
+            where: { id: requestId },
+            include: { rival: true, user: { select: SENDER_SELECT } },
+        });
+        if (!joinReq) return res.status(404).json({ message: 'Not found' });
+        if (joinReq.userId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        if (!['PENDING', 'AWAITING_JOINER_CONFIRM'].includes(joinReq.status))
+            return res.status(400).json({ message: 'Bu istek artık geri çekilemez' });
+
+        await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
+
+        const updatedRival = await prisma.activityRequest.findUnique({
+            where: { id: joinReq.rivalId },
+            include: {
+                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
+                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+            },
+        });
+        broadcast('rivalUpdate', updatedRival);
+
+        res.json({ message: 'İstek geri çekildi.' });
+
+        createNotification(
+            joinReq.rival.senderId,
+            'RIVAL_JOIN_REQUEST',
+            '↩️ Katılım İsteği Geri Çekildi',
+            `${joinReq.user?.fullName || joinReq.user?.username || 'Oyuncu'}, "${joinReq.rival.subCategory}" ilanınıza gönderdiği katılım isteğini geri çekti.`,
+            { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+        ).catch(() => {});
+    } catch (error) { next(error); }
+};
+
 // Çiftler (DOUBLE) ilanına bireysel başvurmuş bir kullanıcının partner seçimini değiştirir —
 // davet gönderme, geleni kabul etme (karşılıklı partnerId aynı kişiyi gösterince eşleşme
 // tamamlanır) ve daveti geri çekme hepsi bu tek endpoint üzerinden yürür.

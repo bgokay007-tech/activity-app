@@ -379,7 +379,7 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:moderateScale(13) },
 });
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, onEdit, onRefresh }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh }) {
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
@@ -1033,7 +1033,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </View>
                             </View>
                         ) : mySentReq === 'PENDING' ? (
-                            <View style={[s.waitingBox, { borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}><Text style={[s.waitingText, { fontSize: moderateScale(13) }]}>{t.waitingReq}</Text></View>
+                            <View style={{ gap:3 }}>
+                                <View style={[s.waitingBox, { borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}><Text style={[s.waitingText, { fontSize: moderateScale(13) }]}>{t.waitingReq}</Text></View>
+                                <TouchableOpacity style={[s.cancelBtn, { borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]} onPress={handleWithdraw}>
+                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.withdrawReqBtn}</Text>
+                                </TouchableOpacity>
+                            </View>
                         ) : mySentReq === 'ACCEPTED' ? (
                             <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40', borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}>
                                 <Text style={[s.waitingText, { color:'#4ade80', fontSize: moderateScale(13) }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
@@ -1233,6 +1238,24 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         }
     };
 
+    const handleWithdraw = () => {
+        Alert.alert(t.withdrawReqTitle, t.withdrawReqMsg, [
+            { text: t.no },
+            { text: t.withdrawReqConfirmBtn, style: 'destructive', onPress: async () => {
+                try {
+                    const myReqId = item._myJoinRequestId;
+                    if (!myReqId) { onRefresh(); return; }
+                    await api.delete(`/rivals/join/${myReqId}`);
+                    setLocalJoinStatus(null);
+                    onRefresh();
+                } catch (e) {
+                    if (e?.response) Alert.alert(t.error, e.response.data?.message || t.actionFailed);
+                    else { setLocalJoinStatus(null); onRefresh(); }
+                }
+            }},
+        ]);
+    };
+
     const handleJoin = async () => {
         if (item.minRating != null && myRating < item.minRating) {
             Alert.alert('⚠️ Puan Limiti', `Bu ilan için en az ${item.minRating}★ puan gerekiyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
@@ -1423,7 +1446,12 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </View>
                     </View>
                 ) : mySentReq === 'PENDING' ? (
-                    <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>{t.waitingReq}</Text>
+                    <View style={{ gap:2 }}>
+                        <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>{t.waitingReq}</Text>
+                        <TouchableOpacity onPress={handleWithdraw}>
+                            <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700', textAlign:'center' }}>{t.withdrawReqBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
                 ) : mySentReq === 'ACCEPTED' ? (
                     <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', textAlign:'center' }}>✓ Kabul</Text>
                 ) : isFull ? (
@@ -1451,6 +1479,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             handleJoin={() => { setDetailVisible(false); setTimeout(handleJoinPress, 300); }}
             handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
             handleRespondJoin={handleRespondJoin}
+            handleWithdraw={() => { setDetailVisible(false); setTimeout(handleWithdraw, 300); }}
             onRefresh={onRefresh}
             onEdit={() => { setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
         />
