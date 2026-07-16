@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
-    View, Text, TouchableOpacity, Modal,
+    View, Text, TouchableOpacity, Modal, Image, Linking,
     StyleSheet, StatusBar, Platform, ActivityIndicator,
     TextInput, ScrollView, Alert,
 } from 'react-native';
@@ -93,6 +93,19 @@ function labelDate(str) {
     const [y, m, d] = str.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
     return `${DAYS_TR[dt.getDay()]} ${d} ${MONTHS_TR[m - 1]}`;
+}
+
+// Karma akışı yakından uzağa sıralamak için — gerçek bir tarihi olan içerikler
+// (etkinlik/konser/tiyatro) kendi tarihine göre; sinema (vizyondaki, tarihsiz)
+// ve kurs (süregelen, tarihsiz) her zaman "şimdi kullanılabilir" kabul edilip
+// listenin en yakınına (bugüne) yerleştirilir.
+function feedSortTime(dateStr, timeStr) {
+    if (!dateStr) return Date.now();
+    // matchDate zaten tam ISO tarih-saat (Prisma DateTime) olarak gelir; konser/tiyatro
+    // ise "YYYY-MM-DD" + ayrı bir saat alanı kullanır — ikisini de destekle.
+    const combined = dateStr.includes('T') ? dateStr : `${dateStr}T${timeStr || '00:00:00'}`;
+    const t = new Date(combined).getTime();
+    return Number.isNaN(t) ? Date.now() : t;
 }
 
 // ── Mini takvim (modal içi) ──
@@ -336,7 +349,7 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
 }
 
 // ── Konum girişi + öneri ──
-function LocationInput({ placeholder, value, onChange, type, province }) {
+function LocationInput({ placeholder, value, onChange, type, province, compact }) {
     const [suggestions, setSuggestions] = useState([]);
     const [searched, setSearched] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -373,7 +386,7 @@ function LocationInput({ placeholder, value, onChange, type, province }) {
     return (
         <View style={{ flex: 1 }}>
             <TextInput
-                style={s.filterInput}
+                style={[s.filterInput, compact && s.filterInputCompact]}
                 placeholder={placeholder}
                 placeholderTextColor={colors.textMuted}
                 value={value}
@@ -463,14 +476,70 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
     );
 }
 
+// ── Konser/Sinema/Tiyatro (satıştaki) — ortak bilet kartı ──
+function TicketedCard({ item, emoji }) {
+    const priceLabel = item.priceMin != null
+        ? `${item.priceMin}${item.priceMax && item.priceMax !== item.priceMin ? '–' + item.priceMax : ''} ${item.currency || ''}`.trim()
+        : null;
+    const dateLabel = item.date || item.releaseDate || null;
+    return (
+        <View style={s.ticketedCard}>
+            {(item.imageUrl || item.posterUrl) ? (
+                <Image source={{ uri: item.imageUrl || item.posterUrl }} style={s.ticketedImg} />
+            ) : (
+                <View style={[s.ticketedImg, s.ticketedImgFallback]}><Text style={{ fontSize: 22 }}>{emoji}</Text></View>
+            )}
+            <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={s.ticketedTitle} numberOfLines={1}>{item.name || item.title}</Text>
+                {item.artist ? <Text style={s.ticketedMeta} numberOfLines={1}>{item.artist}</Text> : null}
+                <Text style={s.ticketedMeta} numberOfLines={1}>
+                    {[item.venueName, item.city].filter(Boolean).join(' · ')}
+                </Text>
+                {dateLabel && <Text style={s.ticketedMeta}>{dateLabel}{item.time ? ` · ${item.time.slice(0, 5)}` : ''}</Text>}
+                {item.rating != null && <Text style={s.ticketedMeta}>⭐ {item.rating.toFixed(1)}</Text>}
+                {priceLabel && <Text style={s.ticketedPrice}>{priceLabel}</Text>}
+                {item.ticketUrl && (
+                    <TouchableOpacity style={s.ticketedBtn} onPress={() => Linking.openURL(item.ticketUrl)}>
+                        <Text style={s.ticketedBtnText}>🎟️ Bilet Al</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        </View>
+    );
+}
+
+// ── Kurs kartı (kategori bağımsız — spor antrenörü de sanat hocası da olabilir) ──
+function CourseFeedCard({ item }) {
+    const priceLabel = [
+        item.individual && item.priceIndividual ? `Bireysel ${item.priceIndividual}₺` : null,
+        item.group && item.priceGroup ? `Grup ${item.priceGroup}₺` : null,
+    ].filter(Boolean).join(' · ');
+    return (
+        <View style={s.ticketedCard}>
+            <View style={[s.ticketedImg, s.ticketedImgFallback]}><Text style={{ fontSize: 22 }}>🎓</Text></View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={s.ticketedTitle} numberOfLines={1}>{item.user?.fullName || item.user?.username}</Text>
+                <Text style={s.ticketedMeta} numberOfLines={1}>{item.credentialLevel}</Text>
+                <Text style={s.ticketedMeta} numberOfLines={1}>📍 {item.location}{item.city ? `, ${item.city}` : ''}</Text>
+                {priceLabel ? <Text style={s.ticketedPrice}>{priceLabel}</Text> : null}
+            </View>
+        </View>
+    );
+}
+
 // ── Ana ekran ──
 export default function ActivityFeedScreen({ navigation }) {
     const lang     = useSelector(s => s.lang?.lang || 'en');
     const logoText = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
 
-    const [items,     setItems]     = useState([]);
+    const [items,     setItems]     = useState([]); // Etkinlik (ActivityRequest) sonuçları
+    const [concertItems, setConcertItems] = useState([]);
+    const [cinemaItems,  setCinemaItems]  = useState([]);
+    const [theaterItems, setTheaterItems] = useState([]);
+    const [courseItems,  setCourseItems]  = useState([]);
     const [loading,   setLoading]   = useState(false);
     const [joiningId, setJoiningId] = useState(null);
+    const [feedTab,   setFeedTab]   = useState('current'); // 'current' | 'past'
 
     // Dinamik sub listesi (static + DB'den ekstralar)
     const [extraSubs, setExtraSubs] = useState([]);
@@ -565,34 +634,76 @@ export default function ActivityFeedScreen({ navigation }) {
 
     const fetchFeed = useCallback(async (c, dist, df, dt, tf, tt, cats, subs) => {
         setLoading(true);
-        try {
-            const catKeys = cats.length > 0 ? cats : [''];
-            const subKeys = subs.length > 0 ? subs : [''];
-            const pairs   = catKeys.flatMap(cat => subKeys.map(sub => ({ cat, sub })));
+        // Dal seçimi tek başına içerik türünü belirler: kategori/dal filtrelenmemişse
+        // (Tümü) her tür gösterilir; bir dal seçiliyse sadece o dala uyan satıştaki
+        // türler (konser/sinema/tiyatro) dahil edilir. Etkinlik ve Kurs her zaman
+        // aktif kategori/dal parametreleriyle daraltılarak gösterilir.
+        const catsOk      = cats.length === 0 || cats.includes('ARTS');
+        const noSubFilter = subs.length === 0;
+        const wantConcert = catsOk && (noSubFilter || subs.includes('music'));
+        const wantCinema  = catsOk && (noSubFilter || subs.includes('cinema'));
+        const wantTheater = catsOk && (noSubFilter || subs.includes('theater'));
 
-            const results = await Promise.all(
-                pairs.map(({ cat, sub }) => {
-                    const params = {};
-                    if (cat)  params.category    = cat;
-                    if (sub)  params.subCategory  = sub;
-                    if (c)    params.city          = c;
-                    if (dist) params.district      = dist;
-                    if (df)   params.dateFrom      = df;
-                    if (dt)   params.dateTo        = dt;
-                    if (tf)   params.timeFrom      = tf;
-                    if (tt)   params.timeTo        = tt;
-                    return api.get('/rivals', { params }).then(r => r.data).catch(() => []);
-                })
-            );
-            const seen = new Set();
-            const merged = results.flat().filter(item => {
-                if (seen.has(item.id)) return false;
-                seen.add(item.id); return true;
-            });
-            merged.sort((a, b) => new Date(b.matchDate || 0) - new Date(a.matchDate || 0));
-            setItems(merged);
-        } catch { setItems([]); }
-        finally { setLoading(false); }
+        // Etkinlik (ActivityRequest) — kategori×dal kombinasyonlarına fan-out (mevcut desen)
+        const eventPromise = (async () => {
+            try {
+                const catKeys = cats.length > 0 ? cats : [''];
+                const subKeys = subs.length > 0 ? subs : [''];
+                const pairs   = catKeys.flatMap(cat => subKeys.map(sub => ({ cat, sub })));
+                const results = await Promise.all(
+                    pairs.map(({ cat, sub }) => {
+                        const params = {};
+                        if (cat)  params.category    = cat;
+                        if (sub)  params.subCategory  = sub;
+                        if (c)    params.city          = c;
+                        if (dist) params.district      = dist;
+                        if (df)   params.dateFrom      = df;
+                        if (dt)   params.dateTo        = dt;
+                        if (tf)   params.timeFrom      = tf;
+                        if (tt)   params.timeTo        = tt;
+                        return api.get('/rivals', { params }).then(r => r.data).catch(() => []);
+                    })
+                );
+                const seen = new Set();
+                const merged = results.flat().filter(item => {
+                    if (seen.has(item.id)) return false;
+                    seen.add(item.id); return true;
+                });
+                merged.sort((a, b) => new Date(b.matchDate || 0) - new Date(a.matchDate || 0));
+                return merged;
+            } catch { return []; }
+        })();
+
+        const concertPromise = wantConcert
+            ? api.get('/concerts/search', { params: { city: c || undefined, dateFrom: df || undefined, dateTo: dt || undefined } })
+                .then(r => r.data?.concerts || []).catch(() => [])
+            : Promise.resolve([]);
+
+        const cinemaPromise = wantCinema
+            ? api.get('/movies/now-playing', { params: { city: c || undefined } })
+                .then(r => r.data?.movies || []).catch(() => [])
+            : Promise.resolve([]);
+
+        const theaterPromise = wantTheater
+            ? api.get('/theater/search', { params: { city: c || undefined, dateFrom: df || undefined, dateTo: dt || undefined } })
+                .then(r => r.data?.plays || []).catch(() => [])
+            : Promise.resolve([]);
+
+        const coursePromise = api.get('/coaches', { params: { category: cats[0] || undefined, subCategory: subs[0] || undefined } })
+            .then(r => r.data || []).catch(() => []);
+
+        try {
+            const [eventRes, concertRes, cinemaRes, theaterRes, courseRes] = await Promise.all([
+                eventPromise, concertPromise, cinemaPromise, theaterPromise, coursePromise,
+            ]);
+            setItems(eventRes);
+            setConcertItems(concertRes);
+            setCinemaItems(cinemaRes);
+            setTheaterItems(theaterRes);
+            setCourseItems(courseRes);
+        } catch {
+            setItems([]); setConcertItems([]); setCinemaItems([]); setTheaterItems([]); setCourseItems([]);
+        } finally { setLoading(false); }
     }, []);
 
     useFocusEffect(useCallback(() => {
@@ -622,6 +733,28 @@ export default function ActivityFeedScreen({ navigation }) {
         ? [timeFrom || '?', timeTo || '?'].join(' – ')
         : null;
 
+    // Tüm kaynaklar (Etkinlik/Konser/Sinema/Tiyatro/Kurs) tek bir akışta,
+    // yakından uzağa (tarihi olmayanlar en yakına) karışık sıralanır. Gerçek
+    // tarihi olan türler (etkinlik/konser/tiyatro) başlangıcından 15 dk sonra
+    // "geçmiş" sayılıp ayrı sekmeye düşer — sinema/kurs tarihsiz/süregelen
+    // olduğu için hiçbir zaman geçmişe düşmez.
+    const PAST_GRACE_MS = 15 * 60 * 1000;
+    const { feedItems, pastFeedItems } = useMemo(() => {
+        const merged = [
+            ...items.map(item => ({ key: `event-${item.id}`, type: 'event', data: item, sortTime: feedSortTime(item.matchDate), hasDate: true })),
+            ...concertItems.map(item => ({ key: `concert-${item.id}`, type: 'concert', data: item, sortTime: feedSortTime(item.date, item.time), hasDate: true })),
+            ...cinemaItems.map(item => ({ key: `cinema-${item.id}`, type: 'cinema', data: item, sortTime: feedSortTime(null), hasDate: false })),
+            ...theaterItems.map(item => ({ key: `theater-${item.id}`, type: 'theater', data: item, sortTime: feedSortTime(item.date, item.time), hasDate: true })),
+            ...courseItems.map(item => ({ key: `course-${item.id}`, type: 'course', data: item, sortTime: feedSortTime(null), hasDate: false })),
+        ];
+        const now = Date.now();
+        const current = merged.filter(fi => !fi.hasDate || fi.sortTime + PAST_GRACE_MS >= now);
+        const past    = merged.filter(fi =>  fi.hasDate && fi.sortTime + PAST_GRACE_MS <  now);
+        current.sort((a, b) => a.sortTime - b.sortTime);
+        past.sort((a, b) => b.sortTime - a.sortTime);
+        return { feedItems: current, pastFeedItems: past };
+    }, [items, concertItems, cinemaItems, theaterItems, courseItems]);
+
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
@@ -645,22 +778,19 @@ export default function ActivityFeedScreen({ navigation }) {
                 {/* ── Filtre paneli ── */}
                 <View style={s.filterPanel}>
 
-                    {/* Konum — İl/İlçe kendi satırında (kısa tek satırda dört kutu sığdırmaya
-                        çalışınca il/ilçe kutucukları yazıyı gösteremeyecek kadar daralıyordu) */}
-                    <Text style={s.sectionLabel}>📍 Konum</Text>
+                    {/* Konum + Tarih/Saat — tek satırda dört kutu */}
+                    <Text style={s.sectionLabel}>📍 Konum · 📅 Tarih · 🕐 Saat</Text>
                     <View style={s.filterRow}>
-                        <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" />
-                        <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} />
-                    </View>
-                    <View style={[s.filterRow, { marginTop: 6 }]}>
+                        <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" compact />
+                        <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} compact />
                         <TouchableOpacity style={[s.pickerField, { flex: 1 }, dateLabel && s.pickerFieldActive]} onPress={() => setShowDateModal(true)} activeOpacity={0.8}>
                             <Text style={[s.pickerFieldText, dateLabel && { color: colors.purpleLight }]} numberOfLines={1}>
-                                {dateLabel || '📅 Tarih'}
+                                {dateLabel || '📅'}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[s.pickerField, { flex: 1 }, timeLabel && s.pickerFieldActive]} onPress={() => setShowTimeModal(true)} activeOpacity={0.8}>
                             <Text style={[s.pickerFieldText, timeLabel && { color: colors.purpleLight }]} numberOfLines={1}>
-                                {timeLabel || '🕐 Saat'}
+                                {timeLabel || '🕐'}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -695,23 +825,45 @@ export default function ActivityFeedScreen({ navigation }) {
                     </TouchableOpacity>
                 </View>
 
-                {/* ── Sonuçlar ── */}
-                {loading ? (
-                    <View style={s.center}><ActivityIndicator size="large" color={colors.purple} /></View>
-                ) : items.length === 0 ? (
-                    <View style={s.center}>
-                        <Text style={s.emptyEmoji}>🔍</Text>
-                        <Text style={s.emptyText}>Aktivite bulunamadı</Text>
-                        <Text style={s.emptyHint}>Filtreni değiştir veya daha sonra tekrar bak</Text>
-                    </View>
-                ) : (
-                    <View style={{ padding: 3, gap: 3 }}>
-                        {items.map(item => (
-                            <ActivityCard key={item.id} item={item} navigation={navigation}
-                                onJoin={handleJoin} joining={joiningId === item.id} />
-                        ))}
-                    </View>
-                )}
+                {/* ── Güncel / Geçmiş sekmeleri ── */}
+                <View style={s.feedTabRow}>
+                    <TouchableOpacity
+                        style={[s.feedTabBtn, feedTab === 'current' && s.feedTabBtnActive]}
+                        onPress={() => setFeedTab('current')} activeOpacity={0.8}>
+                        <Text style={[s.feedTabText, feedTab === 'current' && s.feedTabTextActive]}>Aktivite</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[s.feedTabBtn, feedTab === 'past' && s.feedTabBtnActive]}
+                        onPress={() => setFeedTab('past')} activeOpacity={0.8}>
+                        <Text style={[s.feedTabText, feedTab === 'past' && s.feedTabTextActive]}>Geçmiş Aktiviteler{pastFeedItems.length > 0 ? ` (${pastFeedItems.length})` : ''}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* ── Sonuçlar — tek karışık akış, yakından uzağa sıralı ── */}
+                {(() => {
+                    const list = feedTab === 'past' ? pastFeedItems : feedItems;
+                    if (loading) return <View style={s.center}><ActivityIndicator size="large" color={colors.purple} /></View>;
+                    if (list.length === 0) return (
+                        <View style={s.center}>
+                            <Text style={s.emptyEmoji}>🔍</Text>
+                            <Text style={s.emptyText}>{feedTab === 'past' ? 'Geçmiş aktivite yok' : 'Aktivite bulunamadı'}</Text>
+                            <Text style={s.emptyHint}>{feedTab === 'past' ? 'Süresi geçen aktiviteler burada listelenir' : 'Filtreni değiştir veya daha sonra tekrar bak'}</Text>
+                        </View>
+                    );
+                    return (
+                        <View style={{ padding: 3, gap: 3, paddingBottom: 20 }}>
+                            {list.map(fi => {
+                                if (fi.type === 'event') return (
+                                    <ActivityCard key={fi.key} item={fi.data} navigation={navigation}
+                                        onJoin={handleJoin} joining={joiningId === fi.data.id} />
+                                );
+                                if (fi.type === 'course') return <CourseFeedCard key={fi.key} item={fi.data} />;
+                                const emoji = fi.type === 'concert' ? '🎵' : fi.type === 'cinema' ? '🎬' : '🎫';
+                                return <TicketedCard key={fi.key} item={fi.data} emoji={emoji} />;
+                            })}
+                        </View>
+                    );
+                })()}
             </ScrollView>
 
             {/* Tarih modal */}
@@ -809,6 +961,21 @@ const s = StyleSheet.create({
     supportBtn:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.purple, backgroundColor: colors.purple + '18' },
     supportBtnText: { color: colors.purpleLight || colors.purple, fontSize: 12, fontWeight: '700' },
 
+    feedTabRow:      { flexDirection: 'row', gap: 6, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4 },
+    feedTabBtn:      { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    feedTabBtnActive:{ backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    feedTabText:     { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+    feedTabTextActive:{ color: colors.purpleLight || colors.purple },
+
+    ticketedCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10 },
+    ticketedImg: { width: 64, height: 64, borderRadius: 8 },
+    ticketedImgFallback: { backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
+    ticketedTitle: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    ticketedMeta: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+    ticketedPrice: { color: colors.purple, fontSize: 11, fontWeight: '700', marginTop: 2 },
+    ticketedBtn: { backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, alignSelf: 'flex-start', marginTop: 6 },
+    ticketedBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+
     filterPanel: {
         backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border,
         paddingHorizontal: 3, paddingTop: 3, paddingBottom: 3, gap: 3,
@@ -816,18 +983,19 @@ const s = StyleSheet.create({
     sectionLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
     filterRow:    { flexDirection: 'row', gap: 3 },
     filterInput:  {
-        flex: 1, backgroundColor: colors.surface2, borderRadius: 10,
-        paddingHorizontal: 10, paddingVertical: 9, color: '#fff', fontSize: 13,
+        flex: 1, backgroundColor: colors.surface2, borderRadius: 8,
+        paddingHorizontal: 8, paddingVertical: 5, color: '#fff', fontSize: 12,
         borderWidth: 1, borderColor: colors.border,
     },
+    filterInputCompact: { paddingHorizontal: 6, paddingVertical: 6, fontSize: 11 },
 
     pickerField: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 3, paddingVertical: 3,
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 4, paddingVertical: 6,
         borderWidth: 1, borderColor: colors.border,
     },
     pickerFieldActive: { borderColor: colors.purple, backgroundColor: colors.purple + '12' },
-    pickerFieldText:   { color: colors.textMuted, fontSize: 11 },
+    pickerFieldText:   { color: colors.textMuted, fontSize: 10, textAlign: 'center' },
     pickerArrow:       { color: colors.textMuted, fontSize: 14 },
 
     chipRow:   { gap: 3, paddingVertical: 3 },
