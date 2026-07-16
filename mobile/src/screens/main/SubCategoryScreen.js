@@ -20,6 +20,10 @@ import { moderateScale } from '../../theme/scale';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import CityAutocomplete from '../../components/CityAutocomplete';
+import CalendarPickerModal from '../../components/CalendarPickerModal';
+import TimePickerModal from '../../components/TimePickerModal';
+import { shareRival, shareTournament } from '../../utils/share';
+import { computeVarDurationPrice } from '../../utils/priceProration';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -90,7 +94,9 @@ function getConfig(sub) {
     return SUB_CONFIG[sub] || { ...SUB_CONFIG.default, name: sub.charAt(0).toUpperCase()+sub.slice(1) };
 }
 
-function getTabs(sub) {
+function getTabs(sub, category) {
+    if (category === 'ARTS')
+        return ['rivals', 'coaches', 'media', 'archive'];
     if (sub === 'football' || sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', ...(sub==='football' ? ['referee'] : []), 'media'];
     if (sub === 'tennis' || sub === 'padel')
@@ -567,7 +573,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     // DOUBLE: iki slot arasında oyuncu taşı (seç + taşı)
     const handleSlotTap = async (slot) => {
-        if (!isOwner) return;
+        if (!isOwner || item.teamFlexibility === 'STRICT') return;
         if (!swapSlot) { setSwapSlot(slot); return; }
         if (swapSlot === slot) { setSwapSlot(null); return; }
         const s1 = swapSlot; const s2 = slot;
@@ -807,7 +813,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
                                                     </TouchableOpacity>
                                                 )}
-                                                {!locked && isOwner && !swapSlot && (
+                                                {!locked && isOwner && !swapSlot && item.teamFlexibility !== 'STRICT' && (
                                                     <Text style={{ color:'#f59e0b44', fontSize:8, marginTop:2 }}>↕ taşımak için basılı tut</Text>
                                                 )}
                                             </View>
@@ -1017,6 +1023,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 onPress={() => Linking.openURL(item.ticketUrl)}
                             >
                                 <Text style={{ color:'#fff', fontWeight:'800', fontSize: moderateScale(13) }}>{t.buyTicketBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {(isOwner || isParticipant || mySentReq === 'ACCEPTED') && (
+                            <TouchableOpacity
+                                style={[s.cancelBtn, { borderRadius: moderateScale(10), paddingVertical: moderateScale(8), marginBottom: 3 }]}
+                                onPress={() => shareRival(item, t)}
+                            >
+                                <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.shareBtn || '📤 Paylaş'}</Text>
                             </TouchableOpacity>
                         )}
                         {isOwner ? (
@@ -1507,85 +1521,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     );
 }
 
-// ─── Custom Calendar Picker ───────────────────────────────────────────────────
-
-function CustomCalendarPicker({ visible, value, onSelect, onClose }) {
-    const t = useT();
-    const today = new Date();
-    const init  = value || today;
-    const [yr, setYr] = useState(init.getFullYear());
-    const [mo, setMo] = useState(init.getMonth());
-
-    const firstDow   = new Date(yr, mo, 1).getDay();
-    const startOff   = firstDow === 0 ? 6 : firstDow - 1;
-    const daysInMo   = new Date(yr, mo + 1, 0).getDate();
-    const cells      = [];
-    for (let i = 0; i < startOff; i++) cells.push(null);
-    for (let d = 1; d <= daysInMo; d++) cells.push(d);
-    while (cells.length % 7 !== 0) cells.push(null);
-
-    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const isPast = (d) => d && new Date(yr, mo, d) < todayMidnight;
-    const isSel  = (d) => d && value && value.getFullYear()===yr && value.getMonth()===mo && value.getDate()===d;
-
-    const prevMo = () => mo===0 ? (setMo(11), setYr(y=>y-1)) : setMo(m=>m-1);
-    const nextMo = () => mo===11 ? (setMo(0),  setYr(y=>y+1)) : setMo(m=>m+1);
-
-    return (
-        <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-            <TouchableOpacity style={cal.overlay} activeOpacity={1} onPress={onClose}>
-                <View style={cal.box} onStartShouldSetResponder={() => true}>
-                    <View style={cal.header}>
-                        <TouchableOpacity onPress={prevMo} style={cal.nav}><Text style={cal.navTxt}>‹</Text></TouchableOpacity>
-                        <Text style={cal.title}>{t.calMonths[mo]} {yr}</Text>
-                        <TouchableOpacity onPress={nextMo} style={cal.nav}><Text style={cal.navTxt}>›</Text></TouchableOpacity>
-                    </View>
-                    <View style={cal.row}>
-                        {t.calDays.map(d => <Text key={d} style={cal.dayLbl}>{d}</Text>)}
-                    </View>
-                    {Array.from({ length: cells.length/7 }).map((_, w) => (
-                        <View key={w} style={cal.row}>
-                            {cells.slice(w*7, w*7+7).map((d, i) => (
-                                <TouchableOpacity
-                                    key={i}
-                                    style={[cal.cell, isSel(d) && cal.cellSel, (!d||isPast(d)) && cal.cellDis]}
-                                    onPress={() => { if (d && !isPast(d)) onSelect(new Date(yr, mo, d)); }}
-                                    activeOpacity={d && !isPast(d) ? 0.7 : 1}
-                                >
-                                    <Text style={[cal.cellTxt, isSel(d) && cal.cellTxtSel, (!d||isPast(d)) && cal.cellTxtDis]}>
-                                        {d||''}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    ))}
-                    <TouchableOpacity style={cal.closeBtn} onPress={onClose}>
-                        <Text style={cal.closeTxt}>{t.closeCalendar}</Text>
-                    </TouchableOpacity>
-                </View>
-            </TouchableOpacity>
-        </Modal>
-    );
-}
-
-const cal = StyleSheet.create({
-    overlay:    { flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:17 },
-    box:        { backgroundColor: colors.surface, borderRadius:20, padding:13, width:'100%' },
-    header:     { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
-    nav:        { padding:7 },
-    navTxt:     { color:'#fff', fontSize:24, fontWeight:'700', lineHeight:26 },
-    title:      { color:'#fff', fontSize:16, fontWeight:'900' },
-    row:        { flexDirection:'row', marginBottom:2 },
-    dayLbl:     { flex:1, textAlign:'center', color: colors.textMuted, fontSize:11, fontWeight:'700', paddingVertical:5 },
-    cell:       { flex:1, aspectRatio:1, justifyContent:'center', alignItems:'center', borderRadius:8 },
-    cellSel:    { backgroundColor: colors.purple },
-    cellDis:    { opacity:0.2 },
-    cellTxt:    { color:'#fff', fontSize:13, fontWeight:'600' },
-    cellTxtSel: { fontWeight:'900' },
-    cellTxtDis: { color: colors.textMuted },
-    closeBtn:   { marginTop:12, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor: colors.border },
-    closeTxt:   { color: colors.textSecondary, fontWeight:'700' },
-});
+// Tarih seçimi artık paylaşılan components/CalendarPickerModal.js üzerinden yapılıyor
+// (uygulama genelinde aynı takvim görünümü için) — bkz. yukarıdaki import.
 
 // ─── Edit Rival Modal ─────────────────────────────────────────────────────────
 
@@ -2115,13 +2052,13 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     })()}
                 </ScrollView>
 
-                <CustomCalendarPicker
+                <CalendarPickerModal
                     visible={calVisible}
                     value={form.matchDate}
                     onSelect={date => { setForm(f => ({ ...f, matchDate: date })); setCalVisible(false); }}
                     onClose={() => setCalVisible(false)}
                 />
-                <TimeGridModal
+                <TimePickerModal
                     visible={timeVisible}
                     title="Saat Seç"
                     value={form.matchTime}
@@ -2400,6 +2337,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     // DOUBLE slot swap — herhangi bir katılımcı yapabilir
     const handleSwapTap = async (slot) => {
+        if (match.teamFlexibility === 'STRICT') return;
         if (!swapSlot) { setSwapSlot(slot); return; }
         if (swapSlot === slot) { setSwapSlot(null); return; }
         const s1 = swapSlot, s2 = slot;
@@ -3083,16 +3021,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         onPress={submitProposal} disabled={propSubmitting}>
                                         <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{propSubmitting ? '...' : '📤 Öneriyi Gönder'}</Text>
                                     </TouchableOpacity>
-                                    <CustomCalendarPicker
+                                    <CalendarPickerModal
                                         visible={showPropDatePicker}
                                         value={propDate}
                                         onSelect={(d) => { setPropDate(d); setShowPropDatePicker(false); }}
                                         onClose={() => setShowPropDatePicker(false)}
                                     />
-                                    <OptionPickerModal
+                                    <TimePickerModal
                                         visible={showPropTimePicker}
                                         title="Saat Seç"
-                                        options={TIME_OPTS.filter(o => o.value)}
                                         value={propTime}
                                         onSelect={(v) => { setPropTime(v); setShowPropTimePicker(false); }}
                                         onClose={() => setShowPropTimePicker(false)}
@@ -3360,13 +3297,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             {abanDate ? `${String(abanDate.getDate()).padStart(2,'0')}/${String(abanDate.getMonth()+1).padStart(2,'0')}/${abanDate.getFullYear()}` : '—'}
                                         </Text>
                                     </TouchableOpacity>
-                                    <CustomCalendarPicker visible={showAbanDatePicker} value={abanDate} onSelect={(d) => { setAbanDate(d); setShowAbanDatePicker(false); }} onClose={() => setShowAbanDatePicker(false)} />
+                                    <CalendarPickerModal visible={showAbanDatePicker} value={abanDate} onSelect={(d) => { setAbanDate(d); setShowAbanDatePicker(false); }} onClose={() => setShowAbanDatePicker(false)} />
 
                                     <Text style={s.fieldLabel}>{t.newTime}</Text>
                                     <TouchableOpacity style={[s.fieldInput, { justifyContent:'center' }]} onPress={() => setShowAbanTimePicker(true)}>
                                         <Text style={{ color: abanTime ? '#fff' : colors.textMuted }}>{abanTime || '—'}</Text>
                                     </TouchableOpacity>
-                                    <OptionPickerModal visible={showAbanTimePicker} title={t.selectTime} options={TIME_OPTS.filter(o => o.value)} value={abanTime} onSelect={setAbanTime} onClose={() => setShowAbanTimePicker(false)} />
+                                    <TimePickerModal visible={showAbanTimePicker} title={t.selectTime} value={abanTime} onSelect={setAbanTime} onClose={() => setShowAbanTimePicker(false)} />
 
                                     <Text style={s.fieldLabel}>{t.courtLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
@@ -3576,47 +3513,9 @@ const opt = StyleSheet.create({
     itemTextActive:{ color:'#fff', fontWeight:'800' },
 });
 
-function TimeGridModal({ visible, title, value, onSelect, onClose, step = 15 }) {
-    const times = [];
-    for (let h = 0; h < 24; h++) {
-        for (let m = 0; m < 60; m += step) {
-            times.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
-        }
-    }
-    const rows = [];
-    for (let i = 0; i < times.length; i += 4) rows.push(times.slice(i, i + 4));
-    return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-            <View style={tg.overlay}>
-                <View style={tg.box}>
-                    <View style={tg.header}>
-                        <Text style={tg.title}>{title}</Text>
-                        <TouchableOpacity onPress={onClose}><Text style={tg.close}>✕</Text></TouchableOpacity>
-                    </View>
-                    {/* Small fixed-size grid (96 items) — plain ScrollView avoids FlatList's
-                        windowed rendering, which only drew the first ~10 rows up front and
-                        needed extra scroll nudges to render the rest. */}
-                    <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
-                        {rows.map((row, i) => (
-                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                {row.map(item => (
-                                    <TouchableOpacity
-                                        key={item}
-                                        style={[tg.cell, value === item && tg.cellActive]}
-                                        onPress={() => { onSelect(item); onClose(); }}
-                                    >
-                                        <Text style={[tg.cellText, value === item && tg.cellTextActive]}>{item}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        ))}
-                    </ScrollView>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
+// Saat seçimi artık paylaşılan components/TimePickerModal.js üzerinden yapılıyor
+// (uygulama genelinde aynı görünüm için) — bkz. yukarıdaki import. `tg` stilleri
+// aşağıdaki RatingPickerModal tarafından hâlâ kullanılıyor, o yüzden kalıyor.
 const tg = StyleSheet.create({
     overlay:        { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
     box:            { height:'75%', backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:13, paddingTop:17, paddingBottom:37 },
@@ -4147,8 +4046,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
                                                 {[60,90,120,150,180,240,300,360].filter(d => startM + d <= winEndM).map(d => {
                                                     const isSd = varDurMap[court.id] === d;
-                                                    const wBaseHour = w.pricePerHourByMethod?.CASH ?? w.pricePerHour;
-                                                    const dPrice = wBaseHour != null ? Math.round(wBaseHour*(d/60)) : null;
+                                                    const durQuote = computeVarDurationPrice(w, customStart, d);
+                                                    const dPrice = durQuote.priceByMethod?.CASH ?? durQuote.price;
                                                     return (
                                                         <TouchableOpacity key={d}
                                                             onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setSelSlot(null); }}
@@ -4163,13 +4062,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                             </View>
                                             {validEnd && (
                                                 <TouchableOpacity
-                                                    onPress={() => { const wBaseHour2 = w.pricePerHourByMethod?.CASH ?? w.pricePerHour; const pbm = w.pricePerHourByMethod ? Object.fromEntries(Object.entries(w.pricePerHourByMethod).map(([k,v]) => [k, Math.round(v*(dur/60))])) : undefined; selectSlot(court.id, { start: customStart, end: endT, price: wBaseHour2 != null ? Math.round(wBaseHour2*(dur/60)) : venue?.pricePerSlot, priceByMethod: pbm, durationMins: dur }); }}
-                                                    style={{ backgroundColor: isReserved ? '#9333ea' : '#9333ea30', borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#9333ea' }}
+                                                    onPress={() => { const q = computeVarDurationPrice(w, customStart, dur); const wBaseHour2 = q.priceByMethod?.CASH ?? q.price; selectSlot(court.id, { start: customStart, end: endT, price: wBaseHour2 ?? venue?.pricePerSlot, priceByMethod: q.priceByMethod, durationMins: dur }); }}
+                                                    style={{ backgroundColor: isReserved ? '#9333ea' : '#9333ea30', borderRadius:8, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#9333ea' }}
                                                     activeOpacity={0.75}>
                                                     <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>
                                                         {isReserved ? '✅ Seçildi' : `${customStart}–${endT} Rezerve Et`}
                                                     </Text>
-                                                    {!isReserved && (() => { const wBaseHour3 = w.pricePerHourByMethod?.CASH ?? w.pricePerHour; const bp = wBaseHour3 != null ? Math.round(wBaseHour3*(dur/60)) : (venue?.pricePerSlot||null); return bp>0 ? <Text style={{ color:'#bbf7d0', fontSize:10, fontWeight:'700', marginTop:1 }}>{bp}₺</Text> : null; })()}
+                                                    {!isReserved && (() => { const q = computeVarDurationPrice(w, customStart, dur); const bp = (q.priceByMethod?.CASH ?? q.price) || (venue?.pricePerSlot || null); return bp>0 ? <Text style={{ color:'#bbf7d0', fontSize:10, fontWeight:'700', marginTop:1 }}>{bp}₺</Text> : null; })()}
                                                 </TouchableOpacity>
                                             )}
                                         </>)}
@@ -4535,7 +4434,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     const INIT = {
         matchType: isPadel ? 'DOUBLE' : 'SINGLE', teamSize: isFootball ? 5 : 1,
-        matchMode: 'PRACTICE', flexibleSchedule: false,
+        matchMode: 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
         matchDate: null, matchTime: '', duration: '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
         courtSearchText: '', courtResults: [], selectedCourt: null,
@@ -4769,6 +4668,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 matchType: isTeamSport ? 'FIND_OPPONENT' : f.matchType === 'DOUBLE' ? 'DOUBLE' : 'SINGLE',
                 teamSize: f.teamSize,
                 matchMode: f.matchMode,
+                teamFlexibility: f.matchType === 'DOUBLE' ? f.teamFlexibility : undefined,
                 flexibleSchedule: f.flexibleSchedule,
                 matchDate: f.flexibleSchedule ? undefined : matchDateStr,
                 matchTime: f.flexibleSchedule ? undefined : f.matchTime || undefined,
@@ -4892,6 +4792,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </View>
                                         </View>
                                     </View>
+                                    {f.matchType === 'DOUBLE' && (
+                                        <View style={{ marginBottom:8 }}>
+                                            <Text style={s.fieldLabel}>{t.teamFlexLabel}</Text>
+                                            <View style={[s.chipRow, { marginBottom:0 }]}>
+                                                {[{id:'FLEXIBLE',label:t.flexModeFlexible},{id:'STRICT',label:t.flexModeStrict}].map(opt => (
+                                                    <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
+                                                        style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
+                                                        <Text style={[s.chipBtnText, f.teamFlexibility===opt.id && s.chipBtnTextActive]}>{opt.label}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
                                     {!isTeamSport && f.matchType === 'DOUBLE' && (
                                         f.partner ? (
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:7, paddingVertical:5, marginBottom:8 }}>
@@ -5285,13 +5198,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </View>
 
                                     {/* Picker modalleri */}
-                                    <CustomCalendarPicker
+                                    <CalendarPickerModal
                                         visible={f.showDatePicker}
                                         value={f.matchDate}
                                         onSelect={(date) => setF(p => ({ ...p, matchDate: date, showDatePicker: false }))}
                                         onClose={() => set('showDatePicker', false)}
                                     />
-                                    <TimeGridModal
+                                    <TimePickerModal
                                         visible={f.showTimePicker}
                                         title={t.selectTime}
                                         value={f.matchTime}
@@ -5573,7 +5486,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [partnerSearching, setPartnerSearching] = useState(false);
 
     const handleJoinPress = () => {
-        if (item.type !== '2') { onJoin(item); return; }
+        if (item.type !== '2' && item.type !== '4') { onJoin(item); return; }
         Alert.alert(
             t.tournPartnerTitle || 'Çiftler Rekabetçi',
             t.tournPartnerMsg || 'Bireysel mi başvuracaksın yoksa bir partner mi seçeceksin?',
@@ -6559,6 +6472,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </View>
                 {!collapsed && (
                 <View style={{ alignItems:'flex-end', gap:3 }}>
+                    <TouchableOpacity
+                        style={{ backgroundColor: infoColor + '15', borderRadius:8, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor + '40' }}
+                        onPress={() => shareTournament(item, t)}
+                    >
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{t.shareBtn || '📤 Paylaş'}</Text>
+                    </TouchableOpacity>
                     <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:8, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
                         <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : item.status === 'POLL' ? '#c084fc' : infoColor, fontSize:10, fontWeight:'800' }}>
                             {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
@@ -6614,7 +6533,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </Text>
                             </TouchableOpacity>
                         )}
-                        {item.status === 'IN_PROGRESS' && item.type !== '2' && item.type !== '3' && (
+                        {item.status === 'IN_PROGRESS' && item.type !== '2' && item.type !== '3' && item.type !== '4' && (
                             <TouchableOpacity
                                 style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}
                                 onPress={handleRematch}>
@@ -6806,6 +6725,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             // Her tur için hafta aralığı: bitiş = o turun deadline'ı, başlangıç = önceki
                             // turun deadline'ı (1. tur için turnuva başlangıç tarihi).
                             const fmtD = (d) => d.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
+                            const fmtT = (d) => d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
                             let prevDeadline = item.eventDate ? new Date(item.eventDate) : null;
                             const roundRanges = {};
                             for (const { phase, round } of roundKeys) {
@@ -6813,7 +6733,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 const key = `${phase}|${round}`;
                                 if (rm) {
                                     const end = new Date(rm.deadline);
-                                    roundRanges[key] = prevDeadline ? `${fmtD(prevDeadline)} - ${fmtD(end)}` : fmtD(end);
+                                    roundRanges[key] = prevDeadline ? `${fmtD(prevDeadline)} - ${fmtD(end)} ${fmtT(end)}` : `${fmtD(end)} ${fmtT(end)}`;
                                     prevDeadline = end;
                                 } else {
                                     roundRanges[key] = null;
@@ -6857,7 +6777,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                             const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                             return (
-                                                <View key={match.id} style={{ width: isEntering ? '100%' : ((item.type === '2' || item.type === '4') ? '48.5%' : '100%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
+                                                <View key={match.id} style={{ width: isEntering ? '100%' : ((item.type === '2' || item.type === '4') ? '48.5%' : '31.5%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
                                                         <View style={{ flex:1 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
@@ -6973,18 +6893,6 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         </View>
                                                         <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:3, marginTop:3 }}>
                                                             {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:9 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
-                                                            {match.deadline && !isDone && (() => {
-                                                                const dl = new Date(match.deadline);
-                                                                const overdue = dl < new Date();
-                                                                const dateStr = dl.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
-                                                                const timeStr = dl.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
-                                                                const dayLabel = (item.type === '1' || item.type === '3' || item.type === '4') && match.round ? `${match.round * 7}. Gün · ` : '';
-                                                                return (
-                                                                    <Text style={{ color: overdue ? '#f87171' : '#fbbf24', fontSize:9, fontWeight:'700' }}>
-                                                                        {'⏳'} {dayLabel}{dateStr} {timeStr}
-                                                                    </Text>
-                                                                );
-                                                            })()}
                                                             {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor: infoColor+'50' }}>
@@ -7297,7 +7205,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     </KeyboardAvoidingView>
                 </View>
                 {/* Date / time pickers rendered outside the inner modal so they stack on top */}
-                <CustomCalendarPicker
+                <CalendarPickerModal
                     visible={!!editDp}
                     value={editDp === 'evStart' ? editEventDate : editDp === 'evEnd' ? editEventEndDate : editRegEndDate}
                     onSelect={(date) => {
@@ -7308,7 +7216,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     }}
                     onClose={() => setEditDp(null)}
                 />
-                <TimeGridModal
+                <TimePickerModal
                     visible={!!editTf}
                     title="Saat Seçin"
                     value={editTf === 'evStart' ? editEventTime : editTf === 'evEnd' ? editEventEndTime : editRegEndTime}
@@ -8397,13 +8305,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     />
                                 </View>
                             </View>
-                            <CustomCalendarPicker
+                            <CalendarPickerModal
                                 visible={dpField === 'end'}
                                 value={f.regEndDate}
                                 onSelect={(date) => { set('regEndDate', date); setDpField(null); }}
                                 onClose={() => setDpField(null)}
                             />
-                            <TimeGridModal
+                            <TimePickerModal
                                 visible={timeField === 'end'}
                                 title={t.tournRegEndLabel}
                                 value={f.regEndTime}
@@ -8438,13 +8346,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 ))}
                             </View>
-                            <CustomCalendarPicker
+                            <CalendarPickerModal
                                 visible={dpField === 'evStart' || dpField === 'evEnd'}
                                 value={dpField === 'evStart' ? f.eventStartDate : f.eventEndDate}
                                 onSelect={(date) => { set(dpField === 'evStart' ? 'eventStartDate' : 'eventEndDate', date); setDpField(null); }}
                                 onClose={() => setDpField(null)}
                             />
-                            <TimeGridModal
+                            <TimePickerModal
                                 visible={timeField === 'evStart' || timeField === 'evEnd'}
                                 title={timeField === 'evStart' ? t.tournEventStartLabel : t.tournEventEndLabel}
                                 value={timeField === 'evStart' ? f.eventStartTime : f.eventEndTime}
@@ -8634,13 +8542,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             <Text style={[s.triValue, !f.pollEndTime && s.triPlaceholder, { fontSize:10 }]}>{f.pollEndTime || '—'}</Text>
                                         </TouchableOpacity>
                                     </View>
-                                    <CustomCalendarPicker
+                                    <CalendarPickerModal
                                         visible={dpField === 'pollEnd'}
                                         value={f.pollEndDate}
                                         onSelect={(date) => { set('pollEndDate', date); setDpField(null); }}
                                         onClose={() => setDpField(null)}
                                     />
-                                    <TimeGridModal
+                                    <TimePickerModal
                                         visible={timeField === 'pollEnd'}
                                         title={t.tournPollEndLabel}
                                         value={f.pollEndTime}
@@ -8718,7 +8626,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Antrenman Kuralları</Text>
                                     {[
-                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken ELO puanı birbirine en yakın olanlarla eşleştirilerek takım yapılır. Tek kalan en düşük ELO puanlı oyuncu turnuvaya katılım sağlayamaz.',
+                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken rastgele eşleştirilerek takım yapılır. Eşi bulunamayan oyuncu turnuvaya katılım sağlayamaz.',
                                         'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
                                         'Her takımın 1 joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
                                         'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
@@ -8867,7 +8775,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 onSelect={(v) => { set(ratingField === 'min' ? 'minRating' : 'maxRating', v); setRatingField(null); }}
                 onClose={() => setRatingField(null)}
             />
-            <TimeGridModal
+            <TimePickerModal
                 visible={ratingField === 'timeStart' || ratingField === 'timeEnd'}
                 title={ratingField === 'timeStart' ? '⏰ En Erken Maç Saati' : '⏰ En Geç Maç Saati'}
                 value={ratingField === 'timeStart' ? f.matchTimeStart : f.matchTimeEnd}
@@ -9047,6 +8955,7 @@ function SpotlightTierRow({ label, entry }) {
 }
 
 function TennisSpotlightModal({ visible, onClose, cfg }) {
+    const insets = useSafeAreaInsets();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flipped, setFlipped] = useState(false);
@@ -9063,7 +8972,7 @@ function TennisSpotlightModal({ visible, onClose, cfg }) {
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-            <View style={[spot.overlay, { paddingTop: Platform.OS==='ios' ? 56 : 30 }]}>
+            <View style={[spot.overlay, { paddingTop: Platform.OS==='ios' ? 56 : 30, paddingBottom: 17 + insets.bottom }]}>
                 <View style={[spot.card, { borderColor: cfg.color }]}>
                     <ScrollView contentContainerStyle={spot.cardScroll} showsVerticalScrollIndicator={false}>
                         {loading ? (
@@ -9263,7 +9172,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     const t = useT();
     const cfg = getConfig(sub);
     const sportDisplayName = lang === 'tr' ? (cfg.nameTR || cfg.name) : cfg.name;
-    const tabs = getTabs(sub);
+    const tabs = getTabs(sub, category);
+    const tabLabel = (tab) => {
+        if (category === 'ARTS') {
+            if (tab === 'rivals')  return t.eventsTab  || '📅 Etkinlikler';
+            if (tab === 'coaches') return t.coursesTab || '🎓 Kurslar';
+        }
+        return t[tab + 'Tab'];
+    };
 
     const [activeTab, setActiveTab] = useState(initialTab && tabs.includes(initialTab) ? initialTab : 'rivals');
 
@@ -9458,6 +9374,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const handleCommentSwap = useCallback(async (slot) => {
         if (!commentMatch || commentMatch.senderId !== myId) return;
+        if (commentMatch.teamFlexibility === 'STRICT') return;
         if (!commentSwapSlot) { setCommentSwapSlot(slot); return; }
         if (commentSwapSlot === slot) { setCommentSwapSlot(null); return; }
         const s1 = commentSwapSlot, s2 = slot;
@@ -10585,7 +10502,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 {tabs.map(tab => (
                     <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}
                         style={[s.tab, activeTab===tab && { backgroundColor: cfg.color, borderColor: cfg.color }]}>
-                        <Text style={[s.tabText, activeTab===tab && s.tabTextActive]}>{t[tab+'Tab']}</Text>
+                        <Text style={[s.tabText, activeTab===tab && s.tabTextActive]}>{tabLabel(tab)}</Text>
                     </TouchableOpacity>
                 ))}
             </ScrollView>
@@ -10606,7 +10523,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <Text style={s.courtResBtnText}>🏟️ Kort Rez.</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
-                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createAdBtn}</Text>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{category === 'ARTS' ? (t.createEventBtn || '📅 Etkinlik Oluştur') : t.createAdBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
 
@@ -11022,13 +10939,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <TouchableOpacity
                                     style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
                                     onPress={() => setShowCreateCoach(true)}>
-                                    <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>{t.createCoachBtn}</Text>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>{category === 'ARTS' ? (t.createCourseBtn || '🎓 Kurs Oluştur') : t.createCoachBtn}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
                                     onPress={() => {
                                         const myListing = coachListings.find(c => c.userId === myId);
-                                        if (!myListing) return Alert.alert('', 'Önce "İlan Oluştur" ile bir antrenör ilanı açmanız gerekiyor.');
+                                        if (!myListing) return Alert.alert('', category === 'ARTS' ? 'Önce "Kurs Oluştur" ile bir kurs ilanı açmanız gerekiyor.' : 'Önce "İlan Oluştur" ile bir antrenör ilanı açmanız gerekiyor.');
                                         setCvUploadListingId(myListing.id);
                                         setShowCvUploadModal(true);
                                     }}>
@@ -11128,7 +11045,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
-                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎓 Antrenör İlanı Oluştur</Text>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{category === 'ARTS' ? '🎓 Kurs Oluştur' : '🎓 Antrenör İlanı Oluştur'}</Text>
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>

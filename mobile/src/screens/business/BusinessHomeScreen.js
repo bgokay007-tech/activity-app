@@ -10,6 +10,7 @@ import { logout } from '../../store/slices/authSlice';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
+import TimePickerModal from '../../components/TimePickerModal';
 
 const BIZ_COLOR = '#f59e0b';
 const BIZ_LIGHT = '#fbbf24';
@@ -882,13 +883,6 @@ const SURFACE_ICON = {
 
 const SCHED_COURT_W = 72;
 
-// 00:00 → 24:00 arası 30'ar dakikalık seçenekler
-const TIME_OPTIONS = Array.from({ length: 49 }, (_, i) => {
-    const h = Math.floor((i * 30) / 60);
-    const m = (i * 30) % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-});
-
 function normalizeTime(raw) {
     const t = raw.trim().replace(',', '.');
     if (/^\d{1,2}$/.test(t))      return `${t.padStart(2, '0')}:00`;
@@ -911,77 +905,8 @@ function isValidTimeStr(t) {
         && parseInt(n.slice(3)) < 60;
 }
 
-function TimePickerModal({ visible, value, onSelect, onClose }) {
-    const [manual, setManual] = useState(value || '');
-    useEffect(() => { setManual(value || ''); }, [value, visible]);
-
-    const handleManualSubmit = () => {
-        const n = normalizeTime(manual);
-        if (!isValidTimeStr(n)) { Alert.alert('Hata', 'Geçerli saat girin (örn: 8, 8:30, 08:00)'); return; }
-        onSelect(n);
-    };
-
-    return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={{ flex: 1, backgroundColor: '#000a', justifyContent: 'flex-end' }}>
-                <View style={{ backgroundColor: '#12121e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '75%' }}>
-                    {/* Header */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16,
-                        borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}>
-                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, flex: 1 }}>Saat Seç</Text>
-                        <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
-                            <Text style={{ color: '#aaa', fontSize: 20 }}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                    {/* Manuel giriş */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8,
-                        paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
-                        <TextInput
-                            style={{ flex: 1, backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 12,
-                                paddingVertical: 8, color: '#fff', fontSize: 15, borderWidth: 1, borderColor: '#ffffff20' }}
-                            placeholder="Manuel gir: 8, 8:30, 08:00…"
-                            placeholderTextColor="#555"
-                            value={manual}
-                            onChangeText={setManual}
-                            keyboardType="numbers-and-punctuation"
-                            maxLength={5}
-                            returnKeyType="done"
-                            onSubmitEditing={handleManualSubmit}
-                        />
-                        <TouchableOpacity onPress={handleManualSubmit}
-                            style={{ backgroundColor: BIZ_COLOR + '30', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }}>
-                            <Text style={{ color: BIZ_LIGHT, fontWeight: '700' }}>Tamam</Text>
-                        </TouchableOpacity>
-                    </View>
-                    {/* 30dk'lık liste */}
-                    <ScrollView keyboardShouldPersistTaps="always">
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 }}>
-                            {TIME_OPTIONS.map(t => {
-                                const isSelected = t === value;
-                                return (
-                                    <TouchableOpacity key={t}
-                                        onPress={() => onSelect(t)}
-                                        style={{
-                                            paddingHorizontal: 14, paddingVertical: 8,
-                                            borderRadius: 8, borderWidth: 1.5,
-                                            borderColor: isSelected ? BIZ_COLOR : '#ffffff18',
-                                            backgroundColor: isSelected ? BIZ_COLOR + '28' : '#ffffff08',
-                                            minWidth: 70, alignItems: 'center',
-                                        }}>
-                                        <Text style={{ color: isSelected ? BIZ_LIGHT : '#ccc', fontWeight: isSelected ? '800' : '400', fontSize: 14 }}>
-                                            {t}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                        <View style={{ height: 32 }} />
-                    </ScrollView>
-                </View>
-            </View>
-        </Modal>
-    );
-}
+// Saat seçimi artık paylaşılan components/TimePickerModal.js üzerinden yapılıyor
+// (uygulama genelinde aynı görünüm için) — bkz. yukarıdaki import.
 
 // 60 dakika ekleyerek yeni bir "HH:MM" saat döndürür (24:00 sonrasını sarmalamaz, takvim zaten
 // gün içinde çalışıyor).
@@ -1088,9 +1013,9 @@ function ManualReservationModal({ visible, venueId, court, date, initialStart, i
                     </View>
                 </KeyboardAvoidingView>
             </View>
-            <TimePickerModal visible={showStartPicker} value={startTime}
+            <TimePickerModal visible={showStartPicker} value={startTime} step={30}
                 onSelect={(t) => { setStartTime(t); setShowStartPicker(false); }} onClose={() => setShowStartPicker(false)} />
-            <TimePickerModal visible={showEndPicker} value={endTime}
+            <TimePickerModal visible={showEndPicker} value={endTime} step={30}
                 onSelect={(t) => { setEndTime(t); setShowEndPicker(false); }} onClose={() => setShowEndPicker(false)} />
         </Modal>
     );
@@ -2978,6 +2903,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                     <TimePickerModal
                         visible={showTimePicker !== null}
                         value={showTimePicker === 'from' ? newFrom : newTo}
+                        step={30}
                         onSelect={t => {
                             if (showTimePicker === 'from') setNewFrom(t);
                             else setNewTo(t);
@@ -3016,6 +2942,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             <TimePickerModal
                                 visible={showVenueLightsPicker}
                                 value={venueLights || ''}
+                                step={30}
                                 onSelect={t => { handleUpdateVenueLights(t); setShowVenueLightsPicker(false); }}
                                 onClose={() => setShowVenueLightsPicker(false)}
                             />
@@ -3832,12 +3759,14 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                     <TimePickerModal
                         visible={showPriceFromPicker}
                         value={newRuleFrom || ''}
+                        step={30}
                         onSelect={t => { setNewRuleFrom(t); setShowPriceFromPicker(false); }}
                         onClose={() => setShowPriceFromPicker(false)}
                     />
                     <TimePickerModal
                         visible={showPriceToPicker}
                         value={newRuleTo || ''}
+                        step={30}
                         onSelect={t => { setNewRuleTo(t); setShowPriceToPicker(false); }}
                         onClose={() => setShowPriceToPicker(false)}
                     />
@@ -4331,33 +4260,33 @@ export default function BusinessHomeScreen({ navigation, route }) {
             <StatusBar barStyle="light-content" />
 
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <TouchableOpacity style={s.subBtn} onPress={() => setSubModal(true)} activeOpacity={0.8}>
-                    <Text style={s.subBtnText}>📋 Abonelikler</Text>
-                    {sub && <View style={s.activeDot} />}
-                </TouchableOpacity>
-                <View style={s.headerCenter}>
-                    <Text style={s.headerBadge}>🏢 İŞLETME HESABI</Text>
-                </View>
-                <View style={s.rightBtns}>
-                    <TouchableOpacity style={s.iconBtn} onPress={() => { setUnreadNotifs(0); navigation.navigate('App', { screen: 'NotificationsTab' }); }} activeOpacity={0.7}>
-                        <Text style={{ fontSize: 16 }}>🔔</Text>
-                        {unreadNotifs > 0 && (
-                            <View style={s.notifBadge}>
-                                <Text style={s.notifBadgeText}>{unreadNotifs > 99 ? '99+' : unreadNotifs}</Text>
-                            </View>
-                        )}
+                <Text style={s.headerBadge}>🏢 İŞLETME HESABI</Text>
+                <View style={s.headerRow}>
+                    <TouchableOpacity style={s.subBtn} onPress={() => setSubModal(true)} activeOpacity={0.8}>
+                        <Text style={s.subBtnText}>📋 Abonelikler</Text>
+                        {sub && <View style={s.activeDot} />}
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('App', { screen: 'MessagesTab' })} activeOpacity={0.7}>
-                        <Text style={{ fontSize: 16 }}>💬</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('App')}
-                        style={s.backAppBtn}>
-                        <Text style={s.backAppBtnText}>‹ Uygulama</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
-                        <Text style={s.logoutText}>Çıkış</Text>
-                    </TouchableOpacity>
+                    <View style={s.rightBtns}>
+                        <TouchableOpacity style={s.iconBtn} onPress={() => { setUnreadNotifs(0); navigation.navigate('App', { screen: 'NotificationsTab' }); }} activeOpacity={0.7}>
+                            <Text style={{ fontSize: 16 }}>🔔</Text>
+                            {unreadNotifs > 0 && (
+                                <View style={s.notifBadge}>
+                                    <Text style={s.notifBadgeText}>{unreadNotifs > 99 ? '99+' : unreadNotifs}</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('App', { screen: 'MessagesTab' })} activeOpacity={0.7}>
+                            <Text style={{ fontSize: 16 }}>💬</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('App')}
+                            style={s.backAppBtn}>
+                            <Text style={s.backAppBtnText}>‹ Uygulama</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
+                            <Text style={s.logoutText}>Çıkış</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
 
@@ -4444,14 +4373,14 @@ const s = StyleSheet.create({
     loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     scroll:      { paddingHorizontal: 16, paddingBottom: 16 },
 
-    header:       { backgroundColor: colors.surface, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, borderColor: BIZ_COLOR + '30', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 },
-    headerCenter: { flex: 1, alignItems: 'center' },
-    headerBadge:  { color: BIZ_COLOR, fontSize: 9, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
+    header:       { backgroundColor: colors.surface, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, borderColor: BIZ_COLOR + '30', gap: 8 },
+    headerRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
+    headerBadge:  { color: BIZ_COLOR, fontSize: 11, fontWeight: '800', letterSpacing: 1, textAlign: 'center' },
     headerBiz:    { color: '#fff', fontSize: 14, fontWeight: '900', textAlign: 'center' },
     subBtn:       { flexDirection: 'row', alignItems: 'center', backgroundColor: BIZ_DIM, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BIZ_COLOR + '40', gap: 4 },
     subBtnText:   { color: BIZ_LIGHT, fontSize: 11, fontWeight: '800' },
     activeDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' },
-    rightBtns:      { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    rightBtns:      { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
     iconBtn:        { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, justifyContent: 'center', alignItems: 'center' },
     notifBadge:     { position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, borderRadius: 8, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 2 },
     notifBadgeText: { color: '#fff', fontSize: 8, fontWeight: '900', lineHeight: 11 },

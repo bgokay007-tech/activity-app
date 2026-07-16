@@ -1,19 +1,33 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, FlatList, Image, ScrollView,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, Linking,
 } from 'react-native';
 import { useSelector } from 'react-redux';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
 import { playTrack } from '../../services/musicPlayer';
+import CalendarPickerModal from '../../components/CalendarPickerModal';
+import TimePickerModal from '../../components/TimePickerModal';
 
 function fmtDate(d) {
     if (!d) return null;
     return d.toISOString().slice(0, 10);
+}
+
+// Başlangıcından 5 dk sonra "geçmiş" sayılır — tarihsiz (esnek) içerik hiç geçmişe düşmez.
+const PAST_GRACE_MS = 5 * 60 * 1000;
+function toTime(dateStr, timeStr) {
+    if (!dateStr) return null;
+    const combined = dateStr.includes('T') ? dateStr : `${dateStr}T${timeStr || '00:00:00'}`;
+    const t = new Date(combined).getTime();
+    return Number.isNaN(t) ? null : t;
+}
+function isPastEntry(dateStr, timeStr) {
+    const t = toTime(dateStr, timeStr);
+    return t !== null && t + PAST_GRACE_MS < Date.now();
 }
 
 function ConcertCard({ item, t }) {
@@ -155,6 +169,14 @@ export default function MusicHomeScreen({ navigation }) {
     const [concerts, setConcerts] = useState([]);
     const [concertSearching, setConcertSearching] = useState(false);
     const [concertSearched, setConcertSearched] = useState(false);
+    const [concertsView, setConcertsView] = useState('current'); // 'current' | 'past'
+
+    const { currentConcerts, pastConcerts } = useMemo(() => {
+        const cur = [], past = [];
+        for (const c of concerts) (isPastEntry(c.date, c.time) ? past : cur).push(c);
+        past.sort((a, b) => toTime(b.date, b.time) - toTime(a.date, a.time));
+        return { currentConcerts: cur, pastConcerts: past };
+    }, [concerts]);
 
     // ── Müzik Etkinlikleri: Etkinlikler ──────────────────────────────────────
     const [musicEvents, setMusicEvents] = useState([]);
@@ -163,8 +185,20 @@ export default function MusicHomeScreen({ navigation }) {
     const [showCreateEvent, setShowCreateEvent] = useState(false);
     const [creatingEvent, setCreatingEvent] = useState(false);
     const [showEventDatePicker, setShowEventDatePicker] = useState(false);
+    const [showEventTimePicker, setShowEventTimePicker] = useState(false);
     const EVENT_INIT = { message: '', venueName: '', city: '', date: null, time: '', fee: '', ticketUrl: '' };
     const [eventForm, setEventForm] = useState(EVENT_INIT);
+    const [eventsView, setEventsView] = useState('current'); // 'current' | 'past'
+
+    const { currentMusicEvents, pastMusicEvents } = useMemo(() => {
+        const cur = [], past = [];
+        for (const e of musicEvents) {
+            const dateOnly = e.matchDate ? e.matchDate.slice(0, 10) : null;
+            (isPastEntry(dateOnly, e.matchTime) ? past : cur).push(e);
+        }
+        past.sort((a, b) => toTime(b.matchDate?.slice(0, 10), b.matchTime) - toTime(a.matchDate?.slice(0, 10), a.matchTime));
+        return { currentMusicEvents: cur, pastMusicEvents: past };
+    }, [musicEvents]);
 
     const loadMusicEvents = useCallback(async () => {
         setEventsLoading(true);
@@ -465,37 +499,38 @@ export default function MusicHomeScreen({ navigation }) {
                                 <Text style={{ color: '#fff', fontWeight: '700' }}>{t.concertSearchBtn || 'Ara'}</Text>
                             </TouchableOpacity>
                         </View>
-                        {showFromPicker && (
-                            <DateTimePicker
-                                value={concertDateFrom || new Date()}
-                                mode="date"
-                                onChange={(evt, date) => {
-                                    setShowFromPicker(Platform.OS === 'ios');
-                                    if (date) setConcertDateFrom(date);
-                                }}
-                            />
-                        )}
-                        {showToPicker && (
-                            <DateTimePicker
-                                value={concertDateTo || new Date()}
-                                mode="date"
-                                onChange={(evt, date) => {
-                                    setShowToPicker(Platform.OS === 'ios');
-                                    if (date) setConcertDateTo(date);
-                                }}
-                            />
-                        )}
+                        <CalendarPickerModal
+                            visible={showFromPicker}
+                            value={concertDateFrom}
+                            onSelect={(d) => { setConcertDateFrom(d); setShowFromPicker(false); }}
+                            onClose={() => setShowFromPicker(false)}
+                        />
+                        <CalendarPickerModal
+                            visible={showToPicker}
+                            value={concertDateTo}
+                            onSelect={(d) => { setConcertDateTo(d); setShowToPicker(false); }}
+                            onClose={() => setShowToPicker(false)}
+                        />
+                    </View>
+
+                    <View style={s.miniTabRow}>
+                        <TouchableOpacity style={[s.miniTabBtn, concertsView === 'current' && s.miniTabBtnActive]} onPress={() => setConcertsView('current')}>
+                            <Text style={[s.miniTabBtnText, concertsView === 'current' && s.miniTabBtnTextActive]}>{t.musicViewCurrent || 'Güncel'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[s.miniTabBtn, concertsView === 'past' && s.miniTabBtnActive]} onPress={() => setConcertsView('past')}>
+                            <Text style={[s.miniTabBtnText, concertsView === 'past' && s.miniTabBtnTextActive]}>{t.musicViewPast || 'Geçmiş Aktiviteler'}{pastConcerts.length > 0 ? ` (${pastConcerts.length})` : ''}</Text>
+                        </TouchableOpacity>
                     </View>
 
                     {concertSearching ? (
                         <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />
                     ) : (
                         <FlatList
-                            data={concerts}
+                            data={concertsView === 'current' ? currentConcerts : pastConcerts}
                             keyExtractor={item => item.id}
                             contentContainerStyle={s.list}
                             ListEmptyComponent={
-                                concertSearched ? <Text style={s.emptyText}>{t.concertNoResults || 'Bu filtrelere uyan konser bulunamadı.'}</Text> : null
+                                concertSearched ? <Text style={s.emptyText}>{concertsView === 'past' ? (t.musicNoPast || 'Geçmiş konser yok.') : (t.concertNoResults || 'Bu filtrelere uyan konser bulunamadı.')}</Text> : null
                             }
                             renderItem={({ item }) => <ConcertCard item={item} t={t} />}
                         />
@@ -523,14 +558,22 @@ export default function MusicHomeScreen({ navigation }) {
                                     <Text style={s.smallCreateBtnText}>{t.musicCreateListingBtn || '+ Etkinlik Oluştur'}</Text>
                                 </TouchableOpacity>
                             </View>
+                            <View style={s.miniTabRow}>
+                                <TouchableOpacity style={[s.miniTabBtn, eventsView === 'current' && s.miniTabBtnActive]} onPress={() => setEventsView('current')}>
+                                    <Text style={[s.miniTabBtnText, eventsView === 'current' && s.miniTabBtnTextActive]}>{t.musicViewCurrent || 'Güncel'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[s.miniTabBtn, eventsView === 'past' && s.miniTabBtnActive]} onPress={() => setEventsView('past')}>
+                                    <Text style={[s.miniTabBtnText, eventsView === 'past' && s.miniTabBtnTextActive]}>{t.musicViewPast || 'Geçmiş Aktiviteler'}{pastMusicEvents.length > 0 ? ` (${pastMusicEvents.length})` : ''}</Text>
+                                </TouchableOpacity>
+                            </View>
                             {eventsLoading ? (
                                 <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />
                             ) : (
                                 <FlatList
-                                    data={musicEvents}
+                                    data={eventsView === 'current' ? currentMusicEvents : pastMusicEvents}
                                     keyExtractor={item => item.id}
                                     contentContainerStyle={s.list}
-                                    ListEmptyComponent={eventsLoaded ? <Text style={s.emptyText}>{t.musicNoEvents || 'Henüz etkinlik yok. İlk etkinliği siz oluşturun!'}</Text> : null}
+                                    ListEmptyComponent={eventsLoaded ? <Text style={s.emptyText}>{eventsView === 'past' ? (t.musicNoPast || 'Geçmiş etkinlik yok.') : (t.musicNoEvents || 'Henüz etkinlik yok. İlk etkinliği siz oluşturun!')}</Text> : null}
                                     renderItem={({ item }) => <MusicEventCard item={item} myId={myId} onJoin={joinMusicEvent} onOpen={openMusicEvent} t={t} />}
                                 />
                             )}
@@ -634,25 +677,25 @@ export default function MusicHomeScreen({ navigation }) {
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={s.fieldLabel}>{t.musicTimeLabel || 'Saat'}</Text>
-                                            <TextInput
-                                                value={eventForm.time}
-                                                onChangeText={v => setEventForm(f => ({ ...f, time: v }))}
-                                                placeholder="20:00"
-                                                placeholderTextColor={colors.textMuted}
-                                                style={s.modalInput}
-                                            />
+                                            <TouchableOpacity style={s.modalInput} onPress={() => setShowEventTimePicker(true)}>
+                                                <Text style={{ color: eventForm.time ? '#fff' : colors.textMuted }}>
+                                                    {eventForm.time || '20:00'}
+                                                </Text>
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
-                                    {showEventDatePicker && (
-                                        <DateTimePicker
-                                            value={eventForm.date || new Date()}
-                                            mode="date"
-                                            onChange={(evt, date) => {
-                                                setShowEventDatePicker(Platform.OS === 'ios');
-                                                if (date) setEventForm(f => ({ ...f, date }));
-                                            }}
-                                        />
-                                    )}
+                                    <CalendarPickerModal
+                                        visible={showEventDatePicker}
+                                        value={eventForm.date}
+                                        onSelect={(d) => { setEventForm(f => ({ ...f, date: d })); setShowEventDatePicker(false); }}
+                                        onClose={() => setShowEventDatePicker(false)}
+                                    />
+                                    <TimePickerModal
+                                        visible={showEventTimePicker}
+                                        value={eventForm.time}
+                                        onSelect={(v) => setEventForm(f => ({ ...f, time: v }))}
+                                        onClose={() => setShowEventTimePicker(false)}
+                                    />
 
                                     <Text style={s.fieldLabel}>{t.musicFeeLabel || 'Kişi Başı Ücret (opsiyonel)'}</Text>
                                     <TextInput
@@ -952,6 +995,12 @@ const s = StyleSheet.create({
     smallCreateRow: { paddingHorizontal: 12, paddingTop: 10, alignItems: 'flex-end' },
     smallCreateBtn: { backgroundColor: colors.purple, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 7 },
     smallCreateBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+
+    miniTabRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingTop: 8 },
+    miniTabBtn: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 10, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    miniTabBtnActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    miniTabBtnText: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
+    miniTabBtnTextActive: { color: colors.purpleLight },
 
     eventCard: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
     eventOwner: { color: '#fff', fontSize: 12, fontWeight: '800', flex: 1 },
