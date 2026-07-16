@@ -1,56 +1,52 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-    View, Text, TouchableOpacity, FlatList, Image,
-    StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Linking,
+    View, Text, TextInput, TouchableOpacity, FlatList, Image,
+    StyleSheet, StatusBar, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
-import CityAutocomplete from '../../components/CityAutocomplete';
 
-function MovieCard({ movie, t }) {
+function ClassicFilmCard({ film, onPress }) {
     return (
-        <View style={s.card}>
-            {movie.posterUrl ? (
-                <Image source={{ uri: movie.posterUrl }} style={s.poster} />
-            ) : (
-                <View style={[s.poster, s.posterFallback]}><Text style={{ fontSize: 30 }}>🎬</Text></View>
-            )}
-            <Text style={s.cardTitle} numberOfLines={2}>{movie.title}</Text>
-            <View style={s.cardMetaRow}>
-                {movie.rating != null && <Text style={s.cardMeta}>⭐ {movie.rating.toFixed(1)}</Text>}
-                {movie.releaseDate && <Text style={s.cardMeta}>{movie.releaseDate}</Text>}
+        <TouchableOpacity style={s.card} onPress={() => onPress(film)} activeOpacity={0.8}>
+            <Image source={{ uri: film.thumbnailUrl }} style={s.poster} />
+            <Text style={s.cardTitle} numberOfLines={2}>{film.title}</Text>
+            {film.year && <Text style={s.cardMeta}>{film.year}</Text>}
+            <View style={s.playBtn}>
+                <Text style={s.playBtnText}>▶️ İzle</Text>
             </View>
-            <TouchableOpacity style={s.ticketBtn} onPress={() => movie.ticketUrl && Linking.openURL(movie.ticketUrl)}>
-                <Text style={s.ticketBtnText}>{t.cinemaTicketBtn || '🎟️ Bilet Al'}</Text>
-            </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
     );
 }
 
 export default function CinemaHomeScreen({ navigation }) {
     const t = useT();
-    const [city, setCity] = useState('');
-    const [movies, setMovies] = useState([]);
-    const [cinemaListUrl, setCinemaListUrl] = useState(null);
+
+    // Klasik filmler (archive.org — telif süresi dolmuş, tamamen ücretsiz/yasal; tek kaynak)
+    const [query, setQuery] = useState('');
+    const [films, setFilms] = useState([]);
     const [loading, setLoading] = useState(false);
     const [loaded, setLoaded] = useState(false);
 
-    const load = useCallback(async (cityName) => {
+    const loadFilms = useCallback(async (q) => {
         setLoading(true);
         try {
-            const { data } = await api.get('/movies/now-playing', { params: cityName ? { city: cityName } : undefined });
-            setMovies(data.movies || []);
-            setCinemaListUrl(data.cinemaListUrl || null);
+            const { data } = await api.get('/movies/classics', { params: q ? { q } : undefined });
+            setFilms(data.films || []);
         } catch (e) {
-            Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.cinemaLoadError || 'Filmler yüklenemedi.');
+            Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.cinemaClassicsLoadError || 'Klasik filmler yüklenemedi.');
         } finally {
             setLoading(false);
             setLoaded(true);
         }
     }, [t]);
 
-    useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { loadFilms(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const openFilm = (film) => {
+        navigation.navigate('ClassicFilmPlayer', { filmId: film.id, filmTitle: film.title });
+    };
 
     return (
         <View style={s.root}>
@@ -63,36 +59,34 @@ export default function CinemaHomeScreen({ navigation }) {
             </View>
 
             <Text style={s.disclaimer}>
-                {t.cinemaDisclaimer || 'Vizyondaki filmler burada görüntülenir. Seans ve bilet satın alma işlemi biletinial.com üzerinden yapılır.'}
+                {t.cinemaClassicsDisclaimer || 'Telif süresi dolmuş (kamu malı) klasik filmler — archive.org üzerinden ücretsiz ve tamamen yasal olarak izlenir. Güncel/popüler yapımlar bu listede yer almaz.'}
             </Text>
-
             <View style={s.cityRow}>
-                <CityAutocomplete
-                    value={city}
-                    onChangeText={setCity}
-                    onSelect={(c) => { const name = c.province; setCity(name); load(name); }}
-                    placeholder={t.cinemaCityPh || 'Şehir seçin (varsayılan: İstanbul)'}
-                    style={{ flex: 1 }}
+                <TextInput
+                    value={query}
+                    onChangeText={setQuery}
+                    onSubmitEditing={() => loadFilms(query.trim() || undefined)}
+                    placeholder={t.cinemaClassicsSearchPh || 'Film ara...'}
+                    placeholderTextColor={colors.textMuted}
+                    style={s.searchInput}
+                    returnKeyType="search"
                 />
-            </View>
-
-            {cinemaListUrl && (
-                <TouchableOpacity style={s.cinemaListBtn} onPress={() => Linking.openURL(cinemaListUrl)}>
-                    <Text style={s.cinemaListBtnText}>{t.cinemaSeeAllBtn || '🏙️ Şehrimdeki Sinemaları Gör'}</Text>
+                <TouchableOpacity onPress={() => loadFilms(query.trim() || undefined)} style={s.searchBtn}>
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>{t.musicSearchBtn || 'Ara'}</Text>
                 </TouchableOpacity>
-            )}
+            </View>
 
             {loading ? (
                 <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />
             ) : (
                 <FlatList
-                    data={movies}
+                    data={films}
                     keyExtractor={item => item.id}
                     numColumns={2}
                     contentContainerStyle={s.grid}
                     columnWrapperStyle={{ gap: 12 }}
-                    ListEmptyComponent={loaded ? <Text style={s.emptyText}>{t.cinemaNoMovies || 'Vizyonda film bulunamadı.'}</Text> : null}
-                    renderItem={({ item }) => <MovieCard movie={item} t={t} />}
+                    ListEmptyComponent={loaded ? <Text style={s.emptyText}>{t.cinemaNoMovies || 'Film bulunamadı.'}</Text> : null}
+                    renderItem={({ item }) => <ClassicFilmCard film={item} onPress={openFilm} />}
                 />
             )}
         </View>
@@ -107,20 +101,17 @@ const s = StyleSheet.create({
     title: { color: '#fff', fontSize: 17, fontWeight: '900' },
 
     disclaimer: { color: colors.textMuted, fontSize: 11, paddingHorizontal: 16, paddingTop: 10, lineHeight: 16 },
-    cityRow: { flexDirection: 'row', paddingHorizontal: 12, paddingTop: 10 },
-
-    cinemaListBtn: { marginHorizontal: 12, marginTop: 10, backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    cinemaListBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    cityRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10 },
+    searchInput: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14 },
+    searchBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
 
     grid: { padding: 12, gap: 12 },
     emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 30 },
 
     card: { flex: 1, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 8, marginBottom: 12 },
     poster: { width: '100%', aspectRatio: 2 / 3, borderRadius: 8, backgroundColor: colors.surface2 },
-    posterFallback: { alignItems: 'center', justifyContent: 'center' },
     cardTitle: { color: '#fff', fontSize: 12, fontWeight: '700', marginTop: 6, minHeight: 32 },
-    cardMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
     cardMeta: { color: colors.textMuted, fontSize: 10 },
-    ticketBtn: { marginTop: 8, backgroundColor: colors.purple + '20', borderWidth: 1, borderColor: colors.purple + '60', borderRadius: 8, paddingVertical: 6, alignItems: 'center' },
-    ticketBtnText: { color: colors.purpleLight, fontSize: 11, fontWeight: '700' },
+    playBtn: { marginTop: 8, backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 6, alignItems: 'center' },
+    playBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });
