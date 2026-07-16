@@ -34,6 +34,11 @@ export function connectSocket(userId) {
 export function disconnectSocket() {
     socket?.disconnect();
     socket = null;
+    // Bağlı olduğu soket artık yok — bir sonraki connectSocket() çağrısında bileşenler
+    // kendi onSocket() efektleriyle listener'larını yeniden ekleyecek. Burada temizlenmezse,
+    // unmount sırasında cleanup çalışmayan (fast refresh/reload gibi) eski dinleyiciler
+    // yeni soket'e de eklenip aynı olay için birden fazla (ve bayat kapanışlı) handler tetiklenir.
+    pendingListeners = [];
 }
 
 export function onSocket(event, cb) {

@@ -232,9 +232,11 @@ function AppTabs() {
         try {
             const { data } = await api.get('/notifications');
             const count = data.unreadCount || 0;
-            shownNotifIdsRef.current = new Set(
-                (data.notifications || []).filter(n => !n.read).map(n => n.id)
-            );
+            // Her fetch edilen bildirim (okunmuş dahil) "zaten görüldü" sayılır — sadece
+            // okunmamışlarla değiştirilirse, okunan bir bildirim bir sonraki sync'te bu
+            // setten düşüyor ve soket olayı tekrar/gecikmeli gelirse yeniymiş gibi tekrar
+            // yerel bildirim (toast) tetikleniyordu.
+            (data.notifications || []).forEach(n => shownNotifIdsRef.current.add(n.id));
             setUnreadNotifs(count);
         } catch { /* silent */ }
     }, []);
