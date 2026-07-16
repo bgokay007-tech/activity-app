@@ -116,6 +116,7 @@ import MusicHomeScreen from '../screens/main/MusicHomeScreen';
 import MusicPlaylistDetailScreen from '../screens/main/MusicPlaylistDetailScreen';
 import NowPlayingScreen from '../screens/main/NowPlayingScreen';
 import CinemaHomeScreen from '../screens/main/CinemaHomeScreen';
+import ClassicFilmPlayerScreen from '../screens/main/ClassicFilmPlayerScreen';
 import TheaterHomeScreen from '../screens/main/TheaterHomeScreen';
 import MiniPlayer from '../components/MiniPlayer';
 import colors from '../theme/colors';
@@ -145,6 +146,7 @@ function HomeStackNav() {
             <HomeStack.Screen name="MusicPlaylistDetail" component={MusicPlaylistDetailScreen} />
             <HomeStack.Screen name="NowPlaying" component={NowPlayingScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <HomeStack.Screen name="CinemaHome" component={CinemaHomeScreen} />
+            <HomeStack.Screen name="ClassicFilmPlayer" component={ClassicFilmPlayerScreen} options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
             <HomeStack.Screen name="TheaterHome" component={TheaterHomeScreen} />
         </HomeStack.Navigator>
     );

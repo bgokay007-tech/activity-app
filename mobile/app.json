@@ -3,6 +3,7 @@
     "name": "Activity",
     "slug": "activity-app",
     "version": "1.0.0",
+    "scheme": "activityapp",
     "orientation": "portrait",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -44,7 +45,8 @@
           "sounds": []
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-video"
     ],
     "extra": {
       "eas": {
