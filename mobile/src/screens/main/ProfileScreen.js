@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ManageActivitiesModal from '../../components/ManageActivitiesModal';
 import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -396,6 +397,7 @@ function TennisDailyAnimation({ color, lang }) {
 }
 
 function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, onReservations, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId, onViewTournament }) {
+    const insets = useSafeAreaInsets();
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [matchListType, setMatchListType] = useState(null);
@@ -458,7 +460,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const isEditingAlias = aliasEditId === item.id;
 
     const BottomBtns = () => (
-        <View style={fc.btnRow}>
+        <View style={[fc.btnRow, { bottom: 28 + insets.bottom }]}>
             <TouchableOpacity style={fc.backBtn} onPress={onClose}>
                 <Text style={fc.backBtnText}>← {lang === 'tr' ? 'Geri' : 'Back'}</Text>
             </TouchableOpacity>

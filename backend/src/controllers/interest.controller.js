@@ -92,11 +92,11 @@ export const getCategories = async (req, res) => {
     });
 };
 
-// Kullanıcının ilgi alanlarını getir
+// Kullanıcının ilgi alanlarını getir (gizlenmiş branşlar listelenmez)
 export const getUserInterests = async (req, res, next) => {
     try {
         const interests = await prisma.userInterest.findMany({
-            where: { userId: req.userId },
+            where: { userId: req.userId, hidden: false },
             include: { skills: true },
         });
         res.json(interests);
@@ -121,7 +121,7 @@ export const getInterestsOf = async (req, res, next) => {
             }
         }
         const interests = await prisma.userInterest.findMany({
-            where: { userId },
+            where: { userId, hidden: false },
             include: { skills: true },
         });
         res.json(interests);
@@ -146,6 +146,9 @@ export const addInterest = async (req, res, next) => {
             return res.status(400).json({ message: 'Invalid subCategory' });
         }
 
+        // update: { hidden: false } — daha once gizlenmis bir brans tekrar eklenirse
+        // (silinmis degil, sadece gizlenmisti) puan/mac gecmisi korunarak geri getirilir,
+        // yeni bir kayit olusmaz.
         const interest = await prisma.userInterest.upsert({
             where: {
                 userId_category_subCategory: {
@@ -154,7 +157,7 @@ export const addInterest = async (req, res, next) => {
                     subCategory,
                 },
             },
-            update: {},
+            update: { hidden: false },
             create: {
                 userId: req.userId,
                 category,
@@ -184,7 +187,8 @@ export const addInterest = async (req, res, next) => {
     }
 };
 
-// İlgi alanı kaldır
+// İlgi alanı kaldır — 3+ maç oynanmış branş tamamen silinemez (puan/geçmiş sıfırlayıp
+// yeniden anket doldurma istismarını engellemek için), sadece gizlenebilir (bkz. hideInterest).
 export const removeInterest = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -195,9 +199,32 @@ export const removeInterest = async (req, res, next) => {
             return res.status(404).json({ message: 'Interest not found' });
         }
 
+        if ((interest.wins || 0) + (interest.losses || 0) >= 3) {
+            return res.status(403).json({ message: 'Bu branşta 3 veya daha fazla maç oynadığınız için tamamen silinemez. Gizleyebilirsiniz.' });
+        }
+
         await prisma.userInterest.delete({ where: { id } });
 
         res.json({ message: 'Interest removed' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// İlgi alanını gizle — silmez, sadece kullanıcının aktif branş listesinden kaldırır.
+// Tekrar eklenirse (addInterest) puan/maç geçmişi korunarak geri gelir.
+export const hideInterest = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const interest = await prisma.userInterest.findUnique({ where: { id } });
+        if (!interest || interest.userId !== req.userId) {
+            return res.status(404).json({ message: 'Interest not found' });
+        }
+
+        await prisma.userInterest.update({ where: { id }, data: { hidden: true } });
+
+        res.json({ message: 'Interest hidden' });
     } catch (error) {
         next(error);
     }

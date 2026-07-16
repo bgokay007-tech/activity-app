@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import {
     Modal, View, Text, TouchableOpacity, StyleSheet,
-    ScrollView, ActivityIndicator,
+    ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
@@ -46,13 +46,16 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             const updated = [...localInterests, data];
             setLocalInterests(updated);
             onInterestsChange?.(updated);
-            // trigger assessment immediately
-            setAssessTarget({ interestId: data.id, subCategory });
+            // Daha once gizlenmis (ama 3+ mac gecmisi oldugu icin silinmemis) bir brans
+            // tekrar eklendiyse anketi tekrar acmiyoruz - puan/gecmis zaten korunuyor.
+            if (!data.assessmentCompleted) {
+                setAssessTarget({ interestId: data.id, subCategory });
+            }
         } catch (e) { console.error(e); }
         finally { setLoadingId(null); }
     };
 
-    const handleRemove = async (interestId, category, subCategory) => {
+    const doRemove = async (interestId, category, subCategory) => {
         const key = `${category}__${subCategory}`;
         setLoadingId(key);
         try {
@@ -62,6 +65,37 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             onInterestsChange?.(updated);
         } catch (e) { console.error(e); }
         finally { setLoadingId(null); }
+    };
+
+    const doHide = async (interestId, category, subCategory) => {
+        const key = `${category}__${subCategory}`;
+        setLoadingId(key);
+        try {
+            await api.patch(`/interests/${interestId}/hide`);
+            const updated = localInterests.filter(i => i.id !== interestId);
+            setLocalInterests(updated);
+            onInterestsChange?.(updated);
+        } catch (e) { console.error(e); }
+        finally { setLoadingId(null); }
+    };
+
+    // 3+ mac oynanmis branslar tamamen silinemez (puan/gecmis sifirlayip yeniden anket
+    // doldurma istismarini engellemek icin) - onun yerine gizlenir, tekrar eklenince
+    // puan/gecmis aynen geri gelir.
+    const handleRemove = (interest, category, subCategory) => {
+        const matchCount = (interest.wins || 0) + (interest.losses || 0);
+        if (matchCount >= 3) {
+            Alert.alert(
+                t.hideInsteadTitle || 'Branş Silinemez',
+                t.hideInsteadMsg || `Bu branşta ${matchCount} maç oynadınız, puan/geçmişiniz kaybolmasın diye tamamen silinemez. Bunun yerine gizleyebilirsiniz — tekrar eklediğinizde puanınız aynen geri gelir.`,
+                [
+                    { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                    { text: t.hideBtn || 'Gizle', style: 'destructive', onPress: () => doHide(interest.id, category, subCategory) },
+                ]
+            );
+            return;
+        }
+        doRemove(interest.id, category, subCategory);
     };
 
     const handleAssessComplete = (result) => {
@@ -150,7 +184,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                     )}
                                                     <TouchableOpacity
                                                         style={s.removeBtn}
-                                                        onPress={() => handleRemove(existing.id, activeTab, sub.id)}
+                                                        onPress={() => handleRemove(existing, activeTab, sub.id)}
                                                     >
                                                         <Text style={s.removeBtnText}>−</Text>
                                                     </TouchableOpacity>

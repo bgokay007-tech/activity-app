@@ -5,6 +5,7 @@ import {
     getInterestsOf,
     addInterest,
     removeInterest,
+    hideInterest,
     getUsersByCategory,
     getAssessmentQuestions,
     saveAssessment,
@@ -22,6 +23,7 @@ router.get('/my', authenticate, getUserInterests);
 router.get('/user/:userId', authenticate, getInterestsOf);
 router.post('/add', authenticate, addInterest);
 router.delete('/:id', authenticate, removeInterest);
+router.patch('/:id/hide', authenticate, hideInterest);
 router.get('/users', authenticate, getUsersByCategory);
 router.get('/assessment/:subCategory', authenticate, getAssessmentQuestions);
 router.patch('/:id/assess', authenticate, saveAssessment);
