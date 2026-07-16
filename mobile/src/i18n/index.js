@@ -99,6 +99,7 @@ const en = {
 
     // SubCategory — tabs
     rivalsTab: '⚔️ Find Rival',
+    eventsTab: '📅 Events', coursesTab: '🎓 Courses',
     player_wantedTab: '👤 Player Wanted',
     tournamentsTab: '🏆 Tournaments',
     coachesTab: '🎓 Coaches',
@@ -171,7 +172,11 @@ const en = {
     musicRemoveTrackTitle: 'Remove Song', musicDeletePlaylistTitle: 'Delete Playlist', musicPlaylistEmpty: 'This playlist is empty.',
     musicNothingPlaying: 'Nothing is playing right now.',
     musicMainTabListen: 'Listen to Music', musicMainTabConcerts: 'Concerts',
-    cinemaTitle: '🎬 Cinema', cinemaNoMovies: 'No movies found.',
+    cinemaTitle: '🎬 Cinema', cinemaTicketBtn: '🎟️ Buy Ticket', cinemaSeeAllBtn: '🏙️ See Cinemas in My City',
+    cinemaCityPh: 'Select city (default: Istanbul)', cinemaNoMovies: 'No movies found.',
+    cinemaLoadError: 'Could not load movies.',
+    cinemaDisclaimer: 'Movies currently in theaters are shown here. Showtimes and ticket purchases are handled via biletinial.com.',
+    cinemaTabNowPlaying: 'In Theaters', cinemaTabClassics: 'Watch Movies (Classics)',
     cinemaClassicsDisclaimer: 'Public-domain classic films, streamed free and fully legally via archive.org. Recent/popular releases are not included.',
     cinemaClassicsSearchPh: 'Search movies...', cinemaClassicsLoadError: 'Could not load classic films.',
     cinemaStreamError: 'This movie could not be played.',
@@ -179,6 +184,7 @@ const en = {
     theaterDateFromPh: 'Start date', theaterDateToPh: 'End date', theaterSearchBtn: 'Search',
     theaterNoResults: 'No plays found for these filters.', theaterTicketBtn: 'Get Tickets',
     theaterLoadError: "Couldn't load plays.",
+    theaterCreateListingBtn: '📅 Create Event', theaterViewListingsBtn: '📅 View Events',
     concertCityPh: 'City', concertArtistPh: 'Who is playing?',
     concertDateFromPh: 'Start date', concertDateToPh: 'End date', concertSearchBtn: 'Search',
     concertNoResults: 'No concerts found for these filters.',
@@ -546,6 +552,7 @@ const en = {
 
     // SubCategory — additional UI
     createAdBtn: '+ Post Listing',
+    createEventBtn: '📅 Create Event', createCourseBtn: '🎓 Create Course',
     createPlayerWantedBtn: '+ Player Wanted Listing',
     createPlayerWantedTitle: '👤 Player Wanted',
     upcomingMatchesTitle: '⏰ Upcoming Matches',
@@ -922,6 +929,7 @@ const tr = {
 
     // SubCategory — tabs
     rivalsTab: '⚔️ Rakip Bul',
+    eventsTab: '📅 Etkinlikler', coursesTab: '🎓 Kurslar',
     player_wantedTab: '👤 Oyuncu Ara',
     tournamentsTab: '🏆 Turnuvalar',
     coachesTab: '🎓 Antrenörler',
@@ -994,7 +1002,11 @@ const tr = {
     musicRemoveTrackTitle: 'Şarkıyı Kaldır', musicDeletePlaylistTitle: 'Çalma Listesini Sil', musicPlaylistEmpty: 'Bu liste boş.',
     musicNothingPlaying: 'Şu an çalan bir şarkı yok.',
     musicMainTabListen: 'Müzik Dinle', musicMainTabConcerts: 'Konserler',
-    cinemaTitle: '🎬 Sinema', cinemaNoMovies: 'Film bulunamadı.',
+    cinemaTitle: '🎬 Sinema', cinemaTicketBtn: '🎟️ Bilet Al', cinemaSeeAllBtn: '🏙️ Şehrimdeki Sinemaları Gör',
+    cinemaCityPh: 'Şehir seçin (varsayılan: İstanbul)', cinemaNoMovies: 'Film bulunamadı.',
+    cinemaLoadError: 'Filmler yüklenemedi.',
+    cinemaDisclaimer: 'Vizyondaki filmler burada görüntülenir. Seans ve bilet satın alma işlemi biletinial.com üzerinden yapılır.',
+    cinemaTabNowPlaying: 'Vizyondakiler', cinemaTabClassics: 'Film İzle (Klasikler)',
     cinemaClassicsDisclaimer: 'Telif süresi dolmuş (kamu malı) klasik filmler — archive.org üzerinden ücretsiz ve tamamen yasal olarak izlenir. Güncel/popüler yapımlar bu listede yer almaz.',
     cinemaClassicsSearchPh: 'Film ara...', cinemaClassicsLoadError: 'Klasik filmler yüklenemedi.',
     cinemaStreamError: 'Film oynatılamıyor.',
@@ -1002,6 +1014,7 @@ const tr = {
     theaterDateFromPh: 'Başlangıç tarihi', theaterDateToPh: 'Bitiş tarihi', theaterSearchBtn: 'Ara',
     theaterNoResults: 'Bu filtrelere uyan oyun bulunamadı.', theaterTicketBtn: 'Bilet Al',
     theaterLoadError: 'Oyunlar yüklenemedi.',
+    theaterCreateListingBtn: '📅 Etkinlik Oluştur', theaterViewListingsBtn: '📅 Etkinlikleri Gör',
     concertCityPh: 'İl', concertArtistPh: 'Kimin konseri?',
     concertDateFromPh: 'Başlangıç tarihi', concertDateToPh: 'Bitiş tarihi', concertSearchBtn: 'Ara',
     concertNoResults: 'Bu filtrelere uyan konser bulunamadı.',
@@ -1369,6 +1382,7 @@ const tr = {
 
     // SubCategory — additional UI
     createAdBtn: '+ İlan Oluştur',
+    createEventBtn: '📅 Etkinlik Oluştur', createCourseBtn: '🎓 Kurs Oluştur',
     createPlayerWantedBtn: '+ Oyuncu Aranıyor İlanı',
     createPlayerWantedTitle: '👤 Oyuncu Aranıyor',
     upcomingMatchesTitle: '⏰ Yaklaşan Maçlar',
