@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, FlatList, Image,
+    View, Text, TextInput, TouchableOpacity, FlatList, Image, Modal,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Linking,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
 import CityAutocomplete from '../../components/CityAutocomplete';
+import CalendarPickerModal from '../../components/CalendarPickerModal';
 
 function fmtDate(d) {
     if (!d) return null;
@@ -58,8 +58,10 @@ export default function CinemaHomeScreen({ navigation }) {
     const [city, setCity] = useState('');
     const [dateFrom, setDateFrom] = useState(null);
     const [dateTo, setDateTo] = useState(null);
-    const [showFromPicker, setShowFromPicker] = useState(false);
-    const [showToPicker, setShowToPicker] = useState(false);
+    const [showDateModal, setShowDateModal] = useState(false);
+    const [pickingFrom, setPickingFrom] = useState(false);
+    const [pickingTo, setPickingTo] = useState(false);
+    const [showGenreModal, setShowGenreModal] = useState(false);
     const [movies, setMovies] = useState([]);
     const [cinemaListUrl, setCinemaListUrl] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -155,60 +157,89 @@ export default function CinemaHomeScreen({ navigation }) {
                         {t.cinemaDisclaimer || 'Vizyondaki filmler burada görüntülenir. Seans ve bilet satın alma işlemi biletinial.com üzerinden yapılır.'}
                     </Text>
 
-                    <View style={s.cityRow}>
+                    <View style={s.filterRow}>
                         <CityAutocomplete
                             value={city}
                             onChangeText={setCity}
                             onSelect={(c) => { const name = c.province; setCity(name); load(name, selectedGenres, dateFrom, dateTo); }}
-                            placeholder={t.cinemaCityPh || 'Şehir seçin (bilet linki için)'}
-                            style={{ flex: 1 }}
+                            placeholder={t.cinemaCityPh || 'Şehir'}
+                            style={{ flex: 1.3 }}
                         />
+                        <TouchableOpacity style={s.compactBtn} onPress={() => setShowDateModal(true)}>
+                            <Text style={s.compactBtnText} numberOfLines={1}>
+                                {dateFrom || dateTo
+                                    ? `📅 ${dateFrom ? fmtDate(dateFrom) : '…'} – ${dateTo ? fmtDate(dateTo) : '…'}`
+                                    : (t.cinemaDateBtnPh || '📅 Tarih')}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.compactBtn} onPress={() => setShowGenreModal(true)}>
+                            <Text style={s.compactBtnText} numberOfLines={1}>
+                                {selectedGenres.length > 0
+                                    ? `🎭 ${selectedGenres.length}`
+                                    : (t.cinemaGenreBtnPh || '🎭 Tür')}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                     <Text style={s.citySubText}>{t.cinemaCitySubtext || 'Şehir, film listesini değil sadece "Bilet Al" linkinin gideceği sinema sayfasını belirler.'}</Text>
 
-                    <View style={s.filterRow}>
-                        <TouchableOpacity style={s.dateBtn} onPress={() => setShowFromPicker(true)}>
-                            <Text style={s.dateBtnText}>{dateFrom ? fmtDate(dateFrom) : (t.cinemaDateFromPh || 'Başlangıç tarihi')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.dateBtn} onPress={() => setShowToPicker(true)}>
-                            <Text style={s.dateBtnText}>{dateTo ? fmtDate(dateTo) : (t.cinemaDateToPh || 'Bitiş tarihi')}</Text>
-                        </TouchableOpacity>
-                    </View>
-                    {showFromPicker && (
-                        <DateTimePicker
-                            value={dateFrom || new Date()}
-                            mode="date"
-                            onChange={(evt, date) => {
-                                setShowFromPicker(Platform.OS === 'ios');
-                                if (date) { setDateFrom(date); load(city || undefined, selectedGenres, date, dateTo); }
-                            }}
-                        />
-                    )}
-                    {showToPicker && (
-                        <DateTimePicker
-                            value={dateTo || new Date()}
-                            mode="date"
-                            onChange={(evt, date) => {
-                                setShowToPicker(Platform.OS === 'ios');
-                                if (date) { setDateTo(date); load(city || undefined, selectedGenres, dateFrom, date); }
-                            }}
-                        />
-                    )}
-
-                    {genres.length > 0 && (
-                        <View style={s.genreRow}>
-                            <TouchableOpacity onPress={() => toggleGenre(null)}
-                                style={[s.genreChip, selectedGenres.length === 0 && s.genreChipActive]}>
-                                <Text style={[s.genreChipText, selectedGenres.length === 0 && s.genreChipTextActive]}>{t.cinemaGenreAll || 'Tümü'}</Text>
-                            </TouchableOpacity>
-                            {genres.map(g => (
-                                <TouchableOpacity key={g.id} onPress={() => toggleGenre(g.id)}
-                                    style={[s.genreChip, selectedGenres.includes(g.id) && s.genreChipActive]}>
-                                    <Text style={[s.genreChipText, selectedGenres.includes(g.id) && s.genreChipTextActive]}>{g.name}</Text>
+                    <Modal visible={showDateModal} transparent animationType="fade" onRequestClose={() => setShowDateModal(false)}>
+                        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowDateModal(false)}>
+                            <View style={s.modalBox} onStartShouldSetResponder={() => true}>
+                                <Text style={s.modalTitle}>{t.cinemaDateRangeTitle || 'Tarih Aralığı'}</Text>
+                                <TouchableOpacity style={s.modalRow} onPress={() => setPickingFrom(true)}>
+                                    <Text style={s.modalRowLabel}>{t.cinemaDateFromPh || 'Başlangıç tarihi'}</Text>
+                                    <Text style={s.modalRowValue}>{dateFrom ? fmtDate(dateFrom) : '—'}</Text>
                                 </TouchableOpacity>
-                            ))}
-                        </View>
-                    )}
+                                <TouchableOpacity style={s.modalRow} onPress={() => setPickingTo(true)}>
+                                    <Text style={s.modalRowLabel}>{t.cinemaDateToPh || 'Bitiş tarihi'}</Text>
+                                    <Text style={s.modalRowValue}>{dateTo ? fmtDate(dateTo) : '—'}</Text>
+                                </TouchableOpacity>
+                                {(dateFrom || dateTo) && (
+                                    <TouchableOpacity onPress={() => { setDateFrom(null); setDateTo(null); load(city || undefined, selectedGenres, null, null); }}>
+                                        <Text style={s.modalClearText}>{t.cinemaDateClear || 'Tarihi Temizle'}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity style={s.modalCloseBtn} onPress={() => setShowDateModal(false)}>
+                                    <Text style={s.modalCloseText}>{t.closeCalendar || 'Kapat'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
+                    <CalendarPickerModal
+                        visible={pickingFrom}
+                        value={dateFrom}
+                        onSelect={(d) => { setDateFrom(d); setPickingFrom(false); load(city || undefined, selectedGenres, d, dateTo); }}
+                        onClose={() => setPickingFrom(false)}
+                    />
+                    <CalendarPickerModal
+                        visible={pickingTo}
+                        value={dateTo}
+                        onSelect={(d) => { setDateTo(d); setPickingTo(false); load(city || undefined, selectedGenres, dateFrom, d); }}
+                        onClose={() => setPickingTo(false)}
+                    />
+
+                    <Modal visible={showGenreModal} transparent animationType="fade" onRequestClose={() => setShowGenreModal(false)}>
+                        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowGenreModal(false)}>
+                            <View style={s.modalBox} onStartShouldSetResponder={() => true}>
+                                <Text style={s.modalTitle}>{t.cinemaGenreModalTitle || 'Tür Seç'}</Text>
+                                <View style={s.genreRow}>
+                                    <TouchableOpacity onPress={() => toggleGenre(null)}
+                                        style={[s.genreChip, selectedGenres.length === 0 && s.genreChipActive]}>
+                                        <Text style={[s.genreChipText, selectedGenres.length === 0 && s.genreChipTextActive]}>{t.cinemaGenreAll || 'Tümü'}</Text>
+                                    </TouchableOpacity>
+                                    {genres.map(g => (
+                                        <TouchableOpacity key={g.id} onPress={() => toggleGenre(g.id)}
+                                            style={[s.genreChip, selectedGenres.includes(g.id) && s.genreChipActive]}>
+                                            <Text style={[s.genreChipText, selectedGenres.includes(g.id) && s.genreChipTextActive]}>{g.name}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <TouchableOpacity style={s.modalCloseBtn} onPress={() => setShowGenreModal(false)}>
+                                    <Text style={s.modalCloseText}>{t.closeCalendar || 'Kapat'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
 
                     {cinemaListUrl && (
                         <TouchableOpacity style={s.cinemaListBtn} onPress={() => Linking.openURL(cinemaListUrl)}>
@@ -288,12 +319,22 @@ const s = StyleSheet.create({
     searchInput: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14 },
     searchBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
 
-    filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 8 },
-    dateBtn: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' },
-    dateBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+    filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10 },
+    compactBtn: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' },
+    compactBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
 
-    genreRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, marginTop: 10 },
-    genreChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    modalOverlay: { flex: 1, backgroundColor: '#000000cc', justifyContent: 'center', alignItems: 'center', padding: 17 },
+    modalBox: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, width: '100%' },
+    modalTitle: { color: '#fff', fontSize: 16, fontWeight: '900', marginBottom: 12 },
+    modalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 8 },
+    modalRowLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+    modalRowValue: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    modalClearText: { color: '#f87171', fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 2, marginBottom: 4 },
+    modalCloseBtn: { marginTop: 8, backgroundColor: colors.surface2, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    modalCloseText: { color: colors.textSecondary, fontWeight: '700' },
+
+    genreRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    genreChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
     genreChipActive: { backgroundColor: colors.purple, borderColor: colors.purple },
     genreChipText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
     genreChipTextActive: { color: '#fff' },
