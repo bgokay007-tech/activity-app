@@ -645,11 +645,14 @@ export default function ActivityFeedScreen({ navigation }) {
                 {/* ── Filtre paneli ── */}
                 <View style={s.filterPanel}>
 
-                    {/* Konum + Tarih + Saat — tek satır */}
+                    {/* Konum — İl/İlçe kendi satırında (kısa tek satırda dört kutu sığdırmaya
+                        çalışınca il/ilçe kutucukları yazıyı gösteremeyecek kadar daralıyordu) */}
                     <Text style={s.sectionLabel}>📍 Konum</Text>
                     <View style={s.filterRow}>
                         <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" />
                         <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} />
+                    </View>
+                    <View style={[s.filterRow, { marginTop: 6 }]}>
                         <TouchableOpacity style={[s.pickerField, { flex: 1 }, dateLabel && s.pickerFieldActive]} onPress={() => setShowDateModal(true)} activeOpacity={0.8}>
                             <Text style={[s.pickerFieldText, dateLabel && { color: colors.purpleLight }]} numberOfLines={1}>
                                 {dateLabel || '📅 Tarih'}
@@ -814,7 +817,7 @@ const s = StyleSheet.create({
     filterRow:    { flexDirection: 'row', gap: 3 },
     filterInput:  {
         flex: 1, backgroundColor: colors.surface2, borderRadius: 10,
-        paddingHorizontal: 3, paddingVertical: 3, color: '#fff', fontSize: 11,
+        paddingHorizontal: 10, paddingVertical: 9, color: '#fff', fontSize: 13,
         borderWidth: 1, borderColor: colors.border,
     },
 
