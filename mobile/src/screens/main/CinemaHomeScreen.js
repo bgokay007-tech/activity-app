@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, FlatList, Image,
+    View, Text, TextInput, TouchableOpacity, FlatList, Image, ScrollView,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Linking,
 } from 'react-native';
 import colors from '../../theme/colors';
@@ -46,16 +46,24 @@ export default function CinemaHomeScreen({ navigation }) {
     const [mainTab, setMainTab] = useState('nowPlaying'); // 'nowPlaying' | 'classics'
 
     // Vizyondaki filmler (TMDB — bilet linki biletinial.com'a gider)
+    // Not: TMDB'nin şehre/salona göre gösterim verisi yok, "now_playing" tüm Türkiye
+    // için tek bir ulusal liste döner. Şehir seçimi filmleri filtrelemez — sadece
+    // "Bilet Al" linkinin hangi şehrin biletinial.com sayfasına gideceğini belirler.
     const [city, setCity] = useState('');
     const [movies, setMovies] = useState([]);
     const [cinemaListUrl, setCinemaListUrl] = useState(null);
     const [loading, setLoading] = useState(false);
     const [loaded, setLoaded] = useState(false);
+    const [genres, setGenres] = useState([]);
+    const [selectedGenre, setSelectedGenre] = useState(null);
 
-    const load = useCallback(async (cityName) => {
+    const load = useCallback(async (cityName, genreId) => {
         setLoading(true);
         try {
-            const { data } = await api.get('/movies/now-playing', { params: cityName ? { city: cityName } : undefined });
+            const params = {};
+            if (cityName) params.city = cityName;
+            if (genreId) params.genre = genreId;
+            const { data } = await api.get('/movies/now-playing', { params: Object.keys(params).length ? params : undefined });
             setMovies(data.movies || []);
             setCinemaListUrl(data.cinemaListUrl || null);
         } catch (e) {
@@ -67,6 +75,17 @@ export default function CinemaHomeScreen({ navigation }) {
     }, [t]);
 
     useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        api.get('/movies/genres')
+            .then(r => setGenres(r.data.genres || []))
+            .catch(() => {});
+    }, []);
+
+    const pickGenre = (genreId) => {
+        setSelectedGenre(genreId);
+        load(city || undefined, genreId || undefined);
+    };
 
     // Klasik filmler (archive.org — telif süresi dolmuş, tamamen ücretsiz/yasal)
     const [classicQuery, setClassicQuery] = useState('');
@@ -125,11 +144,27 @@ export default function CinemaHomeScreen({ navigation }) {
                         <CityAutocomplete
                             value={city}
                             onChangeText={setCity}
-                            onSelect={(c) => { const name = c.province; setCity(name); load(name); }}
-                            placeholder={t.cinemaCityPh || 'Şehir seçin (varsayılan: İstanbul)'}
+                            onSelect={(c) => { const name = c.province; setCity(name); load(name, selectedGenre || undefined); }}
+                            placeholder={t.cinemaCityPh || 'Şehir seçin (bilet linki için)'}
                             style={{ flex: 1 }}
                         />
                     </View>
+                    <Text style={s.citySubText}>{t.cinemaCitySubtext || 'Şehir, film listesini değil sadece "Bilet Al" linkinin gideceği sinema sayfasını belirler.'}</Text>
+
+                    {genres.length > 0 && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.genreScroll} contentContainerStyle={s.genreRow}>
+                            <TouchableOpacity onPress={() => pickGenre(null)}
+                                style={[s.genreChip, !selectedGenre && s.genreChipActive]}>
+                                <Text style={[s.genreChipText, !selectedGenre && s.genreChipTextActive]}>{t.cinemaGenreAll || 'Tümü'}</Text>
+                            </TouchableOpacity>
+                            {genres.map(g => (
+                                <TouchableOpacity key={g.id} onPress={() => pickGenre(g.id)}
+                                    style={[s.genreChip, selectedGenre === g.id && s.genreChipActive]}>
+                                    <Text style={[s.genreChipText, selectedGenre === g.id && s.genreChipTextActive]}>{g.name}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    )}
 
                     {cinemaListUrl && (
                         <TouchableOpacity style={s.cinemaListBtn} onPress={() => Linking.openURL(cinemaListUrl)}>
@@ -205,8 +240,16 @@ const s = StyleSheet.create({
 
     disclaimer: { color: colors.textMuted, fontSize: 11, paddingHorizontal: 16, paddingTop: 10, lineHeight: 16 },
     cityRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10 },
+    citySubText: { color: colors.textMuted, fontSize: 10, paddingHorizontal: 12, paddingTop: 4, lineHeight: 14 },
     searchInput: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14 },
     searchBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+
+    genreScroll: { marginTop: 10 },
+    genreRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12 },
+    genreChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    genreChipActive: { backgroundColor: colors.purple, borderColor: colors.purple },
+    genreChipText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+    genreChipTextActive: { color: '#fff' },
 
     cinemaListBtn: { marginHorizontal: 12, marginTop: 10, backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     cinemaListBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },

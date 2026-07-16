@@ -24,16 +24,32 @@ function normalizeMovie(m, ticketUrl) {
         posterUrl: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
         releaseDate: m.release_date || null,
         rating: m.vote_average ?? null,
+        genreIds: m.genre_ids || [],
         ticketUrl,
     };
 }
+
+// TMDB'nin sabit tür (genre) listesi — id'ler tüm dillerde aynıdır, sadece isim
+// çeviriliyor. Ayrı bir TMDB çağrısına gerek kalmasın diye burada sabit tutuluyor.
+const MOVIE_GENRES = [
+    { id: 28, name: 'Aksiyon' }, { id: 12, name: 'Macera' }, { id: 16, name: 'Animasyon' },
+    { id: 35, name: 'Komedi' }, { id: 80, name: 'Suç' }, { id: 99, name: 'Belgesel' },
+    { id: 18, name: 'Dram' }, { id: 10751, name: 'Aile' }, { id: 14, name: 'Fantastik' },
+    { id: 36, name: 'Tarih' }, { id: 27, name: 'Korku' }, { id: 10402, name: 'Müzik' },
+    { id: 9648, name: 'Gizem' }, { id: 10749, name: 'Romantik' }, { id: 878, name: 'Bilim Kurgu' },
+    { id: 53, name: 'Gerilim' }, { id: 10752, name: 'Savaş' }, { id: 37, name: 'Western' },
+];
+
+export const getMovieGenres = async (req, res, next) => {
+    res.json({ genres: MOVIE_GENRES });
+};
 
 export const getNowPlayingMovies = async (req, res, next) => {
     try {
         const apiKey = process.env.TMDB_API_KEY;
         if (!apiKey) return res.status(503).json({ message: 'Sinema listesi şu anda yapılandırılmamış' });
 
-        const { city, page } = req.query;
+        const { city, page, genre } = req.query;
         const params = new URLSearchParams({
             api_key: apiKey,
             region: 'TR',
@@ -46,7 +62,11 @@ export const getNowPlayingMovies = async (req, res, next) => {
         const data = await response.json();
 
         const ticketUrl = `https://biletinial.com/tr-tr/sinema/${citySlug(city)}`;
-        const movies = (data.results || []).map(m => normalizeMovie(m, ticketUrl));
+        const genreId = genre ? parseInt(genre, 10) : null;
+        const results = genreId
+            ? (data.results || []).filter(m => Array.isArray(m.genre_ids) && m.genre_ids.includes(genreId))
+            : (data.results || []);
+        const movies = results.map(m => normalizeMovie(m, ticketUrl));
         res.json({ movies, totalPages: data.total_pages || 1, cinemaListUrl: ticketUrl });
     } catch (e) { next(e); }
 };
