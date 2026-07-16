@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, FlatList, Image, ScrollView,
+    View, Text, TextInput, TouchableOpacity, FlatList, Image,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Linking,
 } from 'react-native';
 import colors from '../../theme/colors';
@@ -152,7 +152,7 @@ export default function CinemaHomeScreen({ navigation }) {
                     <Text style={s.citySubText}>{t.cinemaCitySubtext || 'Şehir, film listesini değil sadece "Bilet Al" linkinin gideceği sinema sayfasını belirler.'}</Text>
 
                     {genres.length > 0 && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.genreScroll} contentContainerStyle={s.genreRow}>
+                        <View style={s.genreRow}>
                             <TouchableOpacity onPress={() => pickGenre(null)}
                                 style={[s.genreChip, !selectedGenre && s.genreChipActive]}>
                                 <Text style={[s.genreChipText, !selectedGenre && s.genreChipTextActive]}>{t.cinemaGenreAll || 'Tümü'}</Text>
@@ -163,7 +163,7 @@ export default function CinemaHomeScreen({ navigation }) {
                                     <Text style={[s.genreChipText, selectedGenre === g.id && s.genreChipTextActive]}>{g.name}</Text>
                                 </TouchableOpacity>
                             ))}
-                        </ScrollView>
+                        </View>
                     )}
 
                     {cinemaListUrl && (
@@ -244,8 +244,7 @@ const s = StyleSheet.create({
     searchInput: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14 },
     searchBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
 
-    genreScroll: { marginTop: 10 },
-    genreRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12 },
+    genreRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, marginTop: 10 },
     genreChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     genreChipActive: { backgroundColor: colors.purple, borderColor: colors.purple },
     genreChipText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
