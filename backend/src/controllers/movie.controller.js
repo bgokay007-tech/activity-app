@@ -44,29 +44,43 @@ export const getMovieGenres = async (req, res, next) => {
     res.json({ genres: MOVIE_GENRES });
 };
 
+// /movie/now_playing tarih araligi veya coklu tur secimi kabul etmiyor (sabit, tek
+// sayfalik ulusal liste). Bunun yerine /discover/movie kullanilir: with_release_type=2|3
+// (sinirli + genis vizyon) + primary_release_date araligiyla "vizyondakiler" penceresi
+// taklit edilir (tarih verilmezse bugunden ~45 gun once/7 gun sonrasi varsayilir),
+// with_genres ise '|' ile birlestirilince "herhangi biri" (OR) mantigiyla calisir —
+// boylece birden fazla tur ayni anda secilebilir.
 export const getNowPlayingMovies = async (req, res, next) => {
     try {
         const apiKey = process.env.TMDB_API_KEY;
         if (!apiKey) return res.status(503).json({ message: 'Sinema listesi şu anda yapılandırılmamış' });
 
-        const { city, page, genre } = req.query;
+        const { city, page, genre, dateFrom, dateTo } = req.query;
+        const genreIds = genre ? String(genre).split(',').map(g => g.trim()).filter(Boolean) : [];
+
+        const fmt = (d) => d.toISOString().slice(0, 10);
+        const today = new Date();
+        const defaultFrom = new Date(today); defaultFrom.setDate(defaultFrom.getDate() - 45);
+        const defaultTo = new Date(today); defaultTo.setDate(defaultTo.getDate() + 7);
+
         const params = new URLSearchParams({
             api_key: apiKey,
             region: 'TR',
             language: 'tr-TR',
             page: page || '1',
+            sort_by: 'popularity.desc',
+            with_release_type: '2|3',
+            'primary_release_date.gte': dateFrom || fmt(defaultFrom),
+            'primary_release_date.lte': dateTo || fmt(defaultTo),
         });
+        if (genreIds.length > 0) params.set('with_genres', genreIds.join('|'));
 
-        const response = await fetch(`${TMDB_BASE}/movie/now_playing?${params.toString()}`);
+        const response = await fetch(`${TMDB_BASE}/discover/movie?${params.toString()}`);
         if (!response.ok) return res.status(502).json({ message: 'Film servisi yanıt vermedi' });
         const data = await response.json();
 
         const ticketUrl = `https://biletinial.com/tr-tr/sinema/${citySlug(city)}`;
-        const genreId = genre ? parseInt(genre, 10) : null;
-        const results = genreId
-            ? (data.results || []).filter(m => Array.isArray(m.genre_ids) && m.genre_ids.includes(genreId))
-            : (data.results || []);
-        const movies = results.map(m => normalizeMovie(m, ticketUrl));
+        const movies = (data.results || []).map(m => normalizeMovie(m, ticketUrl));
         res.json({ movies, totalPages: data.total_pages || 1, cinemaListUrl: ticketUrl });
     } catch (e) { next(e); }
 };

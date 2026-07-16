@@ -3,10 +3,16 @@ import {
     View, Text, TextInput, TouchableOpacity, FlatList, Image,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Linking,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
 import CityAutocomplete from '../../components/CityAutocomplete';
+
+function fmtDate(d) {
+    if (!d) return null;
+    return d.toISOString().slice(0, 10);
+}
 
 function MovieCard({ movie, t }) {
     return (
@@ -50,19 +56,25 @@ export default function CinemaHomeScreen({ navigation }) {
     // için tek bir ulusal liste döner. Şehir seçimi filmleri filtrelemez — sadece
     // "Bilet Al" linkinin hangi şehrin biletinial.com sayfasına gideceğini belirler.
     const [city, setCity] = useState('');
+    const [dateFrom, setDateFrom] = useState(null);
+    const [dateTo, setDateTo] = useState(null);
+    const [showFromPicker, setShowFromPicker] = useState(false);
+    const [showToPicker, setShowToPicker] = useState(false);
     const [movies, setMovies] = useState([]);
     const [cinemaListUrl, setCinemaListUrl] = useState(null);
     const [loading, setLoading] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [genres, setGenres] = useState([]);
-    const [selectedGenre, setSelectedGenre] = useState(null);
+    const [selectedGenres, setSelectedGenres] = useState([]);
 
-    const load = useCallback(async (cityName, genreId) => {
+    const load = useCallback(async (cityName, genreIds, df, dt) => {
         setLoading(true);
         try {
             const params = {};
             if (cityName) params.city = cityName;
-            if (genreId) params.genre = genreId;
+            if (genreIds && genreIds.length > 0) params.genre = genreIds.join(',');
+            if (df) params.dateFrom = fmtDate(df);
+            if (dt) params.dateTo = fmtDate(dt);
             const { data } = await api.get('/movies/now-playing', { params: Object.keys(params).length ? params : undefined });
             setMovies(data.movies || []);
             setCinemaListUrl(data.cinemaListUrl || null);
@@ -82,9 +94,12 @@ export default function CinemaHomeScreen({ navigation }) {
             .catch(() => {});
     }, []);
 
-    const pickGenre = (genreId) => {
-        setSelectedGenre(genreId);
-        load(city || undefined, genreId || undefined);
+    const toggleGenre = (genreId) => {
+        setSelectedGenres(prev => {
+            const next = genreId === null ? [] : (prev.includes(genreId) ? prev.filter(g => g !== genreId) : [...prev, genreId]);
+            load(city || undefined, next, dateFrom, dateTo);
+            return next;
+        });
     };
 
     // Klasik filmler (archive.org — telif süresi dolmuş, tamamen ücretsiz/yasal)
@@ -144,23 +159,52 @@ export default function CinemaHomeScreen({ navigation }) {
                         <CityAutocomplete
                             value={city}
                             onChangeText={setCity}
-                            onSelect={(c) => { const name = c.province; setCity(name); load(name, selectedGenre || undefined); }}
+                            onSelect={(c) => { const name = c.province; setCity(name); load(name, selectedGenres, dateFrom, dateTo); }}
                             placeholder={t.cinemaCityPh || 'Şehir seçin (bilet linki için)'}
                             style={{ flex: 1 }}
                         />
                     </View>
                     <Text style={s.citySubText}>{t.cinemaCitySubtext || 'Şehir, film listesini değil sadece "Bilet Al" linkinin gideceği sinema sayfasını belirler.'}</Text>
 
+                    <View style={s.filterRow}>
+                        <TouchableOpacity style={s.dateBtn} onPress={() => setShowFromPicker(true)}>
+                            <Text style={s.dateBtnText}>{dateFrom ? fmtDate(dateFrom) : (t.cinemaDateFromPh || 'Başlangıç tarihi')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.dateBtn} onPress={() => setShowToPicker(true)}>
+                            <Text style={s.dateBtnText}>{dateTo ? fmtDate(dateTo) : (t.cinemaDateToPh || 'Bitiş tarihi')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {showFromPicker && (
+                        <DateTimePicker
+                            value={dateFrom || new Date()}
+                            mode="date"
+                            onChange={(evt, date) => {
+                                setShowFromPicker(Platform.OS === 'ios');
+                                if (date) { setDateFrom(date); load(city || undefined, selectedGenres, date, dateTo); }
+                            }}
+                        />
+                    )}
+                    {showToPicker && (
+                        <DateTimePicker
+                            value={dateTo || new Date()}
+                            mode="date"
+                            onChange={(evt, date) => {
+                                setShowToPicker(Platform.OS === 'ios');
+                                if (date) { setDateTo(date); load(city || undefined, selectedGenres, dateFrom, date); }
+                            }}
+                        />
+                    )}
+
                     {genres.length > 0 && (
                         <View style={s.genreRow}>
-                            <TouchableOpacity onPress={() => pickGenre(null)}
-                                style={[s.genreChip, !selectedGenre && s.genreChipActive]}>
-                                <Text style={[s.genreChipText, !selectedGenre && s.genreChipTextActive]}>{t.cinemaGenreAll || 'Tümü'}</Text>
+                            <TouchableOpacity onPress={() => toggleGenre(null)}
+                                style={[s.genreChip, selectedGenres.length === 0 && s.genreChipActive]}>
+                                <Text style={[s.genreChipText, selectedGenres.length === 0 && s.genreChipTextActive]}>{t.cinemaGenreAll || 'Tümü'}</Text>
                             </TouchableOpacity>
                             {genres.map(g => (
-                                <TouchableOpacity key={g.id} onPress={() => pickGenre(g.id)}
-                                    style={[s.genreChip, selectedGenre === g.id && s.genreChipActive]}>
-                                    <Text style={[s.genreChipText, selectedGenre === g.id && s.genreChipTextActive]}>{g.name}</Text>
+                                <TouchableOpacity key={g.id} onPress={() => toggleGenre(g.id)}
+                                    style={[s.genreChip, selectedGenres.includes(g.id) && s.genreChipActive]}>
+                                    <Text style={[s.genreChipText, selectedGenres.includes(g.id) && s.genreChipTextActive]}>{g.name}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -243,6 +287,10 @@ const s = StyleSheet.create({
     citySubText: { color: colors.textMuted, fontSize: 10, paddingHorizontal: 12, paddingTop: 4, lineHeight: 14 },
     searchInput: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14 },
     searchBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+
+    filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 8 },
+    dateBtn: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' },
+    dateBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
 
     genreRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, marginTop: 10 },
     genreChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
