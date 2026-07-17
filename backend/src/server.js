@@ -4,6 +4,7 @@ import app from './app.js';
 import { PORT, CLIENT_URL } from './config/env.js';
 import { setIO } from './config/socket.js';
 import { registerBatakHandlers } from './sockets/batak.js';
+import { registerOkeyHandlers } from './sockets/okey.js';
 import { startCleanupJob } from './jobs/cleanupRivals.js';
 import { startAutoCompleteJob } from './jobs/autoCompleteMatches.js';
 import { startTournamentCleanupJob } from './jobs/cleanupTournaments.js';
@@ -79,6 +80,7 @@ io.on('connection', (socket) => {
         socket.join(`user:${userId}`);
     }
     registerBatakHandlers(io, socket);
+    registerOkeyHandlers(io, socket);
 });
 
 Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {

@@ -7,12 +7,12 @@ import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak', 'friend_finding']);
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak', 'okey', 'friend_finding']);
 
 // Bu dallar "ilan" (rakip bul) mantığına değil kendi özel ekranlarına gider —
 // SubCategory yerine bu ekran adına yönlendirilir, ilan sayacı da gösterilmez.
-const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome', batak: 'BatakHome', friend_finding: 'FriendFindingHome' };
-const SPECIAL_BADGE_EMOJI = { music: '🎵', cinema: '🎬', theater: '🎭', batak: '🃏', friend_finding: '🎉' };
+const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome', batak: 'BatakHome', okey: 'OkeyHome', friend_finding: 'FriendFindingHome' };
+const SPECIAL_BADGE_EMOJI = { music: '🎵', cinema: '🎬', theater: '🎭', batak: '🃏', okey: '🀄', friend_finding: '🎉' };
 
 const SUB_MAP = {
     SPORTS:  [
@@ -68,6 +68,7 @@ const SUB_MAP = {
         { id: 'sports_games', label: 'Sports Games',    labelTR: 'Spor Oyunları',   emoji: '🎮' },
         { id: 'boardgames',   label: 'Board Games',     labelTR: 'Kutu Oyunları',   emoji: '🎲' },
         { id: 'batak',        label: 'Batak',           labelTR: 'Batak',           emoji: '🃏' },
+        { id: 'okey',         label: 'Okey',            labelTR: 'Okey',            emoji: '🀄' },
     ],
 };
 

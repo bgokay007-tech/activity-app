@@ -1,0 +1,559 @@
+import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from '../config/env.js';
+
+// Basit, sunucu taraflı (hile yapılamaz) 4 kişilik Okey motoru — batak.js ile birebir aynı
+// mimari desen (bellek-içi masa, JWT doğrulama, bot zamanlayıcısı, eşleşme kuyruğu). Oyun
+// durumu veritabanında değil bellekte tutulur (sunucu yeniden başlarsa masalar sıfırlanır,
+// ilk sürüm için kabul edilebilir bir sınırlama — batak.js'teki aynı tasarım kararı).
+//
+// Sadeleştirmeler (geleneksel resmi kurallardan, oynanabilirlik için — batak.js'in de
+// ihale/bridge kurallarını sadeleştirdiği gibi):
+//  - Kasa dahil HERKES 14 taşla oynar (gerçek Okey'de kasa 15 taşla başlar, çekmeden atar).
+//  - Deste 0 taşa inince el berabere ("el yandı") biter, skor değişmez.
+//  - Kazanma: taş çektikten sonra (15 taş varken) bir taş atılarak (okey:declareWin) kalan
+//    14'ün geçerli perde/grup (veya Çift Okey — 7 çift) olduğu iddia edilir; sunucu doğrular.
+
+const COLORS = ['R', 'Y', 'B', 'K']; // Kırmızı, Sarı, Mavi, Siyah
+const TOTAL_ROUNDS = 8;
+const BOT_DELAY_MS = 2500;      // gerçek oyuncu koptuğunda devreye giren yedek bot gecikmesi
+const BOT_TURN_DELAY_MS = 1200; // "botlarla oyna" masasındaki botların doğal tempoda oynaması için
+const BOT_NAMES = { easy: 'Kolay', medium: 'Orta', hard: 'Zor' };
+
+const tables = new Map();       // tableId -> table state
+const queue = [];               // [{ userId, username, socket }]
+const userTableMap = new Map(); // userId -> tableId (bir kullanıcı aynı anda tek masada olabilir)
+
+// ── Taş yardımcıları ─────────────────────────────────────────────────────────
+function isJokerId(t) { return t === 'J1' || t === 'J2'; }
+function tileColor(t) { return t[0]; }
+function tileNumber(t) { return parseInt(t.slice(1), 10); }
+function isOkeyTile(t, table) {
+    if (isJokerId(t)) return true;
+    return tileColor(t) === table.okeyColor && tileNumber(t) === table.okeyNumber;
+}
+
+function buildTileSet() {
+    const tiles = [];
+    for (const color of COLORS) {
+        for (let n = 1; n <= 13; n++) { tiles.push(`${color}${n}`); tiles.push(`${color}${n}`); }
+    }
+    tiles.push('J1', 'J2');
+    return tiles; // 106
+}
+
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function sortHandInPlace(hand, table) {
+    hand.sort((a, b) => {
+        const aOkey = isOkeyTile(a, table), bOkey = isOkeyTile(b, table);
+        if (aOkey !== bOkey) return aOkey ? 1 : -1; // okey/joker taşları en sona
+        if (aOkey && bOkey) return 0;
+        return tileColor(a).localeCompare(tileColor(b)) || tileNumber(a) - tileNumber(b);
+    });
+}
+
+// ── El geçerliliği — perde/grup partisyon kontrolü (backtracking) ───────────
+// Küçük bir Node scriptiyle (bilinen geçerli/geçersiz/Çift Okey örnekleriyle) ayrıca
+// doğrulandı — bkz. plan dosyası.
+function canPartitionPureCount(n) {
+    if (n === 0) return true;
+    if (n < 3) return false;
+    if (n === 5) return false;
+    return true;
+}
+
+function combinations(arr, k) {
+    if (k === 0) return [[]];
+    if (arr.length < k) return [];
+    const [first, ...rest] = arr;
+    const withFirst = combinations(rest, k - 1).map(c => [first, ...c]);
+    const withoutFirst = combinations(rest, k);
+    return [...withFirst, ...withoutFirst];
+}
+
+function canForm(remainingReal, jokerBudget) {
+    if (remainingReal.length === 0) return canPartitionPureCount(jokerBudget);
+
+    const sorted = [...remainingReal].sort((a, b) => a.color.localeCompare(b.color) || a.number - b.number);
+    const t0 = sorted[0];
+
+    // Grup (set) — aynı sayı, farklı renkler, 3'lü veya 4'lü
+    for (const size of [4, 3]) {
+        const otherColors = COLORS.filter(c => c !== t0.color);
+        for (const combo of combinations(otherColors, size - 1)) {
+            let jokersNeeded = 0;
+            const used = [t0];
+            for (const c of combo) {
+                const found = sorted.find(x => x.color === c && x.number === t0.number && !used.includes(x));
+                if (found) used.push(found); else jokersNeeded += 1;
+            }
+            if (jokersNeeded > jokerBudget) continue;
+            const nextReal = remainingReal.filter(x => !used.includes(x));
+            if (canForm(nextReal, jokerBudget - jokersNeeded)) return true;
+        }
+    }
+
+    // Perde (run) — aynı renk, ardışık sayılar, t0 en düşük, 3'lü veya 4'lü
+    for (const size of [4, 3]) {
+        let jokersNeeded = 0;
+        const used = [t0];
+        let ok = true;
+        for (let offset = 1; offset < size; offset++) {
+            const num = t0.number + offset;
+            if (num > 13) { ok = false; break; }
+            const found = sorted.find(x => x.color === t0.color && x.number === num && !used.includes(x));
+            if (found) used.push(found); else jokersNeeded += 1;
+        }
+        if (!ok || jokersNeeded > jokerBudget) continue;
+        const nextReal = remainingReal.filter(x => !used.includes(x));
+        if (canForm(nextReal, jokerBudget - jokersNeeded)) return true;
+    }
+
+    return false;
+}
+
+function canFormMelds(tiles, table) {
+    if (tiles.length === 0) return true;
+    if (tiles.length < 3) return false;
+    let jokerBudget = 0;
+    const real = [];
+    for (const t of tiles) {
+        if (isOkeyTile(t, table)) jokerBudget += 1;
+        else real.push({ color: tileColor(t), number: tileNumber(t) });
+    }
+    return canForm(real, jokerBudget);
+}
+
+function isCiftOkey(tiles, table) {
+    if (tiles.length !== 14) return false;
+    const counts = new Map();
+    for (const t of tiles) {
+        const k = isOkeyTile(t, table) ? '__OKEY__' : `${tileColor(t)}${tileNumber(t)}`;
+        counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    for (const c of counts.values()) if (c % 2 !== 0) return false;
+    return true;
+}
+
+// ── Genel durum / yayın ──────────────────────────────────────────────────────
+function publicState(table) {
+    return {
+        tableId: table.id,
+        phase: table.phase,
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, connected: s.connected, isBot: !!s.isBot, handCount: table.hands[s.seat]?.length ?? 0 })),
+        dealerIndex: table.dealerIndex,
+        turn: table.phase === 'playing' ? table.turn : null,
+        awaitingDiscard: table.awaitingDiscard,
+        indicator: table.indicator,
+        okeyColor: table.okeyColor,
+        okeyNumber: table.okeyNumber,
+        deckCount: table.deck.length,
+        discardTop: table.discardPile.length > 0 ? table.discardPile[table.discardPile.length - 1] : null,
+        scores: table.scores,
+        roundNumber: table.roundNumber,
+        totalRounds: TOTAL_ROUNDS,
+    };
+}
+
+function broadcastState(io, table) { io.to(`okey:${table.id}`).emit('okey:state', publicState(table)); }
+function sendHand(io, table, seat) {
+    const s = table.seats[seat];
+    if (s?.socketId) io.to(s.socketId).emit('okey:hand', { hand: table.hands[seat] });
+}
+function sendAllHands(io, table) { for (let seat = 0; seat < 4; seat++) sendHand(io, table, seat); }
+
+function dealRound(table) {
+    const deck = shuffle(buildTileSet());
+
+    // Gösterge bir joker taşı olamaz — jokerleri atlayıp gerçek bir taş seçilir
+    let indicatorIdx = deck.length - 1;
+    while (isJokerId(deck[indicatorIdx])) indicatorIdx--;
+    const indicator = deck[indicatorIdx];
+    deck.splice(indicatorIdx, 1);
+
+    table.indicator = indicator;
+    table.okeyColor = tileColor(indicator);
+    table.okeyNumber = (tileNumber(indicator) % 13) + 1;
+
+    const hands = [[], [], [], []];
+    for (let seat = 0; seat < 4; seat++) for (let i = 0; i < 14; i++) hands[seat].push(deck.pop());
+    for (const h of hands) sortHandInPlace(h, table);
+
+    table.hands = hands;
+    table.deck = deck;
+    table.discardPile = [];
+    table.phase = 'playing';
+    table.turn = (table.dealerIndex + 1) % 4;
+    table.awaitingDiscard = false;
+}
+
+// ── Bot yapay zekası ──────────────────────────────────────────────────────────
+// easy: çoğunlukla rastgele atış, atım yığınını nadiren alır. medium/hard: hangi taşın
+// elin "kapsama skorunu" en çok artırdığına bakarak çeker/atar, okey taşını korur, açık
+// bir kazanma varsa (herhangi bir zorlukta) her zaman kazanır — bariz kazancı kaçırmak
+// bug gibi görünür, bu yüzden zorluk farkı sadece çekme/atma tercihinde.
+function handUsefulnessScore(hand, table) {
+    let score = 0;
+    for (let i = 0; i < hand.length; i++) {
+        for (let j = i + 1; j < hand.length; j++) {
+            const a = hand[i], b = hand[j];
+            if (isOkeyTile(a, table) || isOkeyTile(b, table)) { score += 0.5; continue; }
+            const ca = tileColor(a), na = tileNumber(a);
+            const cb = tileColor(b), nb = tileNumber(b);
+            if (na === nb && ca !== cb) score += 1;
+            else if (ca === cb && Math.abs(na - nb) === 1) score += 1;
+            else if (ca === cb && Math.abs(na - nb) === 2) score += 0.3;
+        }
+    }
+    return score;
+}
+
+function findWinningTile(hand, table) {
+    for (let i = 0; i < hand.length; i++) {
+        const remaining = hand.filter((_, j) => j !== i);
+        if (isCiftOkey(remaining, table) || canFormMelds(remaining, table)) return hand[i];
+    }
+    return null;
+}
+
+function chooseBotDraw(table, seat, difficulty) {
+    if (table.discardPile.length === 0) return 'deck';
+    const top = table.discardPile[table.discardPile.length - 1];
+    if (difficulty === 'easy') return Math.random() < 0.2 ? 'discard' : 'deck';
+    if (isOkeyTile(top, table)) return 'discard';
+    const hand = table.hands[seat];
+    const scoreBefore = handUsefulnessScore(hand, table);
+    const scoreAfter = handUsefulnessScore([...hand, top], table);
+    return scoreAfter > scoreBefore ? 'discard' : 'deck';
+}
+
+function chooseBotDiscard(table, seat, difficulty) {
+    const hand = table.hands[seat]; // 15 taş
+    const nonJokerIdx = hand.map((_, i) => i).filter(i => !isOkeyTile(hand[i], table));
+    const idxs = nonJokerIdx.length > 0 ? nonJokerIdx : hand.map((_, i) => i);
+    if (difficulty === 'easy' && Math.random() < 0.25) {
+        return hand[idxs[Math.floor(Math.random() * idxs.length)]];
+    }
+    let bestIdx = idxs[0], bestScore = -Infinity;
+    for (const i of idxs) {
+        const remaining = hand.filter((_, j) => j !== i);
+        const score = handUsefulnessScore(remaining, table);
+        if (score > bestScore) { bestScore = score; bestIdx = i; }
+    }
+    return hand[bestIdx];
+}
+
+function clearBotTimer(table) {
+    if (table.botTimer) { clearTimeout(table.botTimer); table.botTimer = null; }
+}
+
+function scheduleBotIfNeeded(io, table) {
+    clearBotTimer(table);
+    if (!tables.has(table.id)) return;
+    if (table.phase !== 'playing') return;
+    const actingSeat = table.turn;
+    if (actingSeat === null || actingSeat === undefined) return;
+    const seatInfo = table.seats[actingSeat];
+    if (!seatInfo) return;
+    if (!seatInfo.isBot && seatInfo.connected) return;
+    const delay = seatInfo.isBot ? BOT_TURN_DELAY_MS : BOT_DELAY_MS;
+    table.botTimer = setTimeout(() => runBotAction(io, table, actingSeat), delay);
+}
+
+function runBotAction(io, table, seat) {
+    const difficulty = table.seats[seat]?.difficulty || table.difficulty || 'medium';
+    try {
+        if (!table.awaitingDiscard) {
+            applyDraw(io, table, seat, chooseBotDraw(table, seat, difficulty));
+            return;
+        }
+        const winTile = findWinningTile(table.hands[seat], table);
+        if (winTile) { applyDeclareWin(io, table, seat, winTile); return; }
+        applyDiscard(io, table, seat, chooseBotDiscard(table, seat, difficulty));
+    } catch (e) {
+        console.error('okey bot hamlesi başarısız:', e.message);
+        clearBotTimer(table);
+        table.botTimer = setTimeout(() => runBotAction(io, table, seat), BOT_TURN_DELAY_MS);
+    }
+}
+
+// ── Oyun eylemleri ────────────────────────────────────────────────────────────
+function applyDraw(io, table, seat, source) {
+    if (table.phase !== 'playing') throw new Error('Sıra oyunda değil');
+    if (table.turn !== seat) throw new Error('Sıra sende değil');
+    if (table.awaitingDiscard) throw new Error('Önce taş atmalısın');
+
+    let tile;
+    if (source === 'discard') {
+        if (table.discardPile.length === 0) throw new Error('Atım yığını boş');
+        tile = table.discardPile.pop();
+    } else {
+        if (table.deck.length === 0) throw new Error('Deste boş');
+        tile = table.deck.pop();
+    }
+    table.hands[seat].push(tile);
+    table.awaitingDiscard = true;
+
+    broadcastState(io, table);
+    sendHand(io, table, seat);
+    scheduleBotIfNeeded(io, table);
+}
+
+function applyDiscard(io, table, seat, tile) {
+    if (table.phase !== 'playing') throw new Error('Sıra oyunda değil');
+    if (table.turn !== seat) throw new Error('Sıra sende değil');
+    if (!table.awaitingDiscard) throw new Error('Önce taş çekmelisin');
+    const hand = table.hands[seat];
+    const idx = hand.indexOf(tile);
+    if (idx === -1) throw new Error('Bu taş elinde yok');
+
+    hand.splice(idx, 1);
+    table.discardPile.push(tile);
+    table.awaitingDiscard = false;
+
+    if (table.deck.length === 0) {
+        table.phase = 'roundEnd';
+        io.to(`okey:${table.id}`).emit('okey:roundEnd', {
+            draw: true, scores: table.scores, roundNumber: table.roundNumber, totalRounds: TOTAL_ROUNDS,
+        });
+        setTimeout(() => nextRoundOrEnd(io, table), 4000);
+        return;
+    }
+
+    table.turn = (table.turn + 1) % 4;
+    broadcastState(io, table);
+    sendHand(io, table, seat);
+    scheduleBotIfNeeded(io, table);
+}
+
+function scoreRound(table, winnerSeat, isCift) {
+    const delta = [0, 0, 0, 0];
+    let total = 0;
+    for (let s = 0; s < 4; s++) {
+        if (s === winnerSeat) continue;
+        delta[s] = -table.hands[s].length;
+        total += table.hands[s].length;
+    }
+    delta[winnerSeat] = isCift ? total * 2 : total;
+    for (let s = 0; s < 4; s++) table.scores[s] += delta[s];
+    return delta;
+}
+
+function applyDeclareWin(io, table, seat, tile) {
+    if (table.phase !== 'playing') throw new Error('Sıra oyunda değil');
+    if (table.turn !== seat) throw new Error('Sıra sende değil');
+    if (!table.awaitingDiscard) throw new Error('Önce taş çekmelisin');
+    const hand = table.hands[seat];
+    const idx = hand.indexOf(tile);
+    if (idx === -1) throw new Error('Bu taş elinde yok');
+
+    const remaining = hand.filter((_, i) => i !== idx);
+    const isCift = isCiftOkey(remaining, table);
+    if (!isCift && !canFormMelds(remaining, table)) throw new Error('Elin geçerli bir açılış değil');
+
+    hand.splice(idx, 1);
+    table.discardPile.push(tile);
+
+    const delta = scoreRound(table, seat, isCift);
+    table.phase = 'roundEnd';
+    io.to(`okey:${table.id}`).emit('okey:roundEnd', {
+        winner: seat, ciftOkey: isCift, revealedHand: remaining, delta, scores: table.scores,
+        roundNumber: table.roundNumber, totalRounds: TOTAL_ROUNDS,
+    });
+    setTimeout(() => nextRoundOrEnd(io, table), 4000);
+}
+
+function nextRoundOrEnd(io, table) {
+    if (!tables.has(table.id)) return;
+    if (table.roundNumber >= TOTAL_ROUNDS) {
+        table.phase = 'finished';
+        io.to(`okey:${table.id}`).emit('okey:gameEnd', { scores: table.scores });
+        setTimeout(() => destroyTable(table.id), 30000);
+        return;
+    }
+    table.roundNumber += 1;
+    table.dealerIndex = (table.dealerIndex + 1) % 4;
+    dealRound(table);
+    broadcastState(io, table);
+    sendAllHands(io, table);
+    scheduleBotIfNeeded(io, table);
+}
+
+function destroyTable(tableId) {
+    const table = tables.get(tableId);
+    if (!table) return;
+    clearBotTimer(table);
+    table.seats.forEach(s => userTableMap.delete(s.userId));
+    tables.delete(tableId);
+}
+
+function createTable(io, players) {
+    const id = `ok_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const table = {
+        id,
+        seats: players.map((p, seat) => ({ seat, userId: p.userId, username: p.username, socketId: p.socket.id, connected: true, isBot: false })),
+        dealerIndex: 0,
+        scores: [0, 0, 0, 0],
+        roundNumber: 1,
+        hands: [[], [], [], []],
+        deck: [],
+        discardPile: [],
+        phase: 'dealing',
+        botTimer: null,
+    };
+    tables.set(id, table);
+    players.forEach(p => {
+        userTableMap.set(p.userId, id);
+        p.socket.join(`okey:${id}`);
+    });
+    dealRound(table);
+    io.to(`okey:${id}`).emit('okey:matched', {
+        tableId: id,
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, isBot: false })),
+    });
+    broadcastState(io, table);
+    sendAllHands(io, table);
+    scheduleBotIfNeeded(io, table);
+    return table;
+}
+
+function createBotTable(io, requester, difficulty) {
+    const id = `ok_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const botLabel = `🤖 Bot (${BOT_NAMES[difficulty]})`;
+    const table = {
+        id,
+        difficulty,
+        seats: [
+            { seat: 0, userId: requester.userId, username: requester.username, socketId: requester.socket.id, connected: true, isBot: false },
+            { seat: 1, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
+            { seat: 2, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
+            { seat: 3, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
+        ],
+        dealerIndex: 0,
+        scores: [0, 0, 0, 0],
+        roundNumber: 1,
+        hands: [[], [], [], []],
+        deck: [],
+        discardPile: [],
+        phase: 'dealing',
+        botTimer: null,
+    };
+    tables.set(id, table);
+    userTableMap.set(requester.userId, id);
+    requester.socket.join(`okey:${id}`);
+    dealRound(table);
+    io.to(`okey:${id}`).emit('okey:matched', {
+        tableId: id,
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, isBot: s.isBot })),
+    });
+    broadcastState(io, table);
+    sendHand(io, table, 0);
+    scheduleBotIfNeeded(io, table);
+    return table;
+}
+
+function tryMatch(io) {
+    while (queue.length >= 4) {
+        const players = queue.splice(0, 4);
+        createTable(io, players);
+    }
+}
+
+export function registerOkeyHandlers(io, socket) {
+    let verifiedUserId = null;
+    let username = 'Oyuncu';
+    try {
+        const token = socket.handshake.auth?.token;
+        if (token) {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            verifiedUserId = decoded.userId;
+        }
+    } catch { /* token yoksa/geçersizse okey özellikleri kullanılamaz */ }
+
+    socket.on('okey:setUsername', (name) => { username = String(name || '').slice(0, 40) || 'Oyuncu'; });
+
+    socket.on('okey:findMatch', () => {
+        if (!verifiedUserId) return socket.emit('okey:error', { message: 'Oturum doğrulanamadı' });
+        if (userTableMap.has(verifiedUserId)) return socket.emit('okey:error', { message: 'Zaten bir masadasın' });
+        if (queue.some(q => q.userId === verifiedUserId)) return;
+        queue.push({ userId: verifiedUserId, username, socket });
+        socket.emit('okey:queued', { position: queue.length });
+        tryMatch(io);
+    });
+
+    socket.on('okey:playVsBots', ({ difficulty } = {}) => {
+        if (!verifiedUserId) return socket.emit('okey:error', { message: 'Oturum doğrulanamadı' });
+        if (userTableMap.has(verifiedUserId)) return socket.emit('okey:error', { message: 'Zaten bir masadasın' });
+        const diff = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
+        createBotTable(io, { userId: verifiedUserId, username, socket }, diff);
+    });
+
+    socket.on('okey:cancelFindMatch', () => {
+        const idx = queue.findIndex(q => q.userId === verifiedUserId);
+        if (idx !== -1) queue.splice(idx, 1);
+    });
+
+    socket.on('okey:getState', ({ tableId } = {}) => {
+        const table = tables.get(tableId);
+        if (!table || !verifiedUserId) return;
+        const seat = table.seats.find(s => s.userId === verifiedUserId);
+        if (!seat) return;
+        seat.connected = true;
+        seat.socketId = socket.id;
+        socket.join(`okey:${tableId}`);
+        clearBotTimer(table);
+        scheduleBotIfNeeded(io, table);
+        socket.emit('okey:state', publicState(table));
+        socket.emit('okey:hand', { hand: table.hands[seat.seat] });
+    });
+
+    socket.on('okey:drawTile', ({ tableId, source } = {}) => {
+        const table = tables.get(tableId);
+        const seat = table?.seats.find(s => s.userId === verifiedUserId);
+        if (!table || !seat) return;
+        try { applyDraw(io, table, seat.seat, source); } catch (e) { socket.emit('okey:error', { message: e.message }); }
+    });
+
+    socket.on('okey:discardTile', ({ tableId, tile } = {}) => {
+        const table = tables.get(tableId);
+        const seat = table?.seats.find(s => s.userId === verifiedUserId);
+        if (!table || !seat) return;
+        try { applyDiscard(io, table, seat.seat, tile); } catch (e) { socket.emit('okey:error', { message: e.message }); }
+    });
+
+    socket.on('okey:declareWin', ({ tableId, tile } = {}) => {
+        const table = tables.get(tableId);
+        const seat = table?.seats.find(s => s.userId === verifiedUserId);
+        if (!table || !seat) return;
+        try { applyDeclareWin(io, table, seat.seat, tile); } catch (e) { socket.emit('okey:error', { message: e.message }); }
+    });
+
+    socket.on('okey:leaveTable', ({ tableId } = {}) => {
+        const table = tables.get(tableId);
+        const seat = table?.seats.find(s => s.userId === verifiedUserId);
+        if (!table || !seat) return;
+        seat.connected = false;
+        broadcastState(io, table);
+        scheduleBotIfNeeded(io, table);
+    });
+
+    socket.on('disconnect', () => {
+        const qIdx = queue.findIndex(q => q.userId === verifiedUserId);
+        if (qIdx !== -1) queue.splice(qIdx, 1);
+        const tableId = verifiedUserId && userTableMap.get(verifiedUserId);
+        if (!tableId) return;
+        const table = tables.get(tableId);
+        const seat = table?.seats.find(s => s.userId === verifiedUserId);
+        if (seat && seat.socketId === socket.id) {
+            seat.connected = false;
+            broadcastState(io, table);
+            scheduleBotIfNeeded(io, table);
+        }
+    });
+}
