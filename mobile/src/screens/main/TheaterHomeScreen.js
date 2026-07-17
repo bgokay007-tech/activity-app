@@ -11,6 +11,7 @@ import useT from '../../hooks/useT';
 import CityAutocomplete from '../../components/CityAutocomplete';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
+import DateRangePickerModal from '../../components/DateRangePickerModal';
 
 function fmtDate(d) {
     if (!d) return null;
@@ -41,7 +42,7 @@ function PlayCard({ item, t }) {
             ) : (
                 <View style={[s.cardImg, s.cardImgFallback]}><Text style={{ fontSize: 22 }}>🎭</Text></View>
             )}
-            <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={s.cardBody}>
                 <Text style={s.cardTitle} numberOfLines={1}>{item.name}</Text>
                 <Text style={s.cardMeta} numberOfLines={1}>
                     {[item.venueName, item.city].filter(Boolean).join(' · ')}
@@ -129,11 +130,9 @@ export default function TheaterHomeScreen({ navigation }) {
 
     // ── Satıştaki (resmi/biletli) tiyatro oyunları ──────────────────────────
     const [city, setCity] = useState('');
-    const [name, setName] = useState('');
     const [dateFrom, setDateFrom] = useState(null);
     const [dateTo, setDateTo] = useState(null);
-    const [showFromPicker, setShowFromPicker] = useState(false);
-    const [showToPicker, setShowToPicker] = useState(false);
+    const [showDateRangeModal, setShowDateRangeModal] = useState(false);
     const [plays, setPlays] = useState([]);
     const [loading, setLoading] = useState(false);
     const [loaded, setLoaded] = useState(false);
@@ -151,7 +150,6 @@ export default function TheaterHomeScreen({ navigation }) {
         try {
             const params = {};
             if (city.trim()) params.city = city.trim();
-            if (name.trim()) params.name = name.trim();
             if (dateFrom) params.dateFrom = fmtDate(dateFrom);
             if (dateTo) params.dateTo = fmtDate(dateTo);
             const { data } = await api.get('/theater/search', { params });
@@ -162,7 +160,7 @@ export default function TheaterHomeScreen({ navigation }) {
             setLoading(false);
             setLoaded(true);
         }
-    }, [city, name, dateFrom, dateTo, t]);
+    }, [city, dateFrom, dateTo, t]);
 
     useEffect(() => { if (mainTab === 'official' && !loaded) doSearch(); }, [mainTab, loaded, doSearch]);
 
@@ -377,38 +375,23 @@ export default function TheaterHomeScreen({ navigation }) {
                                 placeholder={t.theaterCityPh || 'İl'}
                                 style={{ flex: 1 }}
                             />
-                            <TextInput
-                                value={name}
-                                onChangeText={setName}
-                                onSubmitEditing={doSearch}
-                                placeholder={t.theaterNamePh || 'Hangi oyun?'}
-                                placeholderTextColor={colors.textMuted}
-                                style={[s.searchInput, { flex: 1 }]}
-                                returnKeyType="search"
-                            />
-                        </View>
-                        <View style={s.filterRow}>
-                            <TouchableOpacity style={s.dateBtn} onPress={() => setShowFromPicker(true)}>
-                                <Text style={s.dateBtnText}>{dateFrom ? fmtDate(dateFrom) : (t.theaterDateFromPh || 'Başlangıç tarihi')}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={s.dateBtn} onPress={() => setShowToPicker(true)}>
-                                <Text style={s.dateBtnText}>{dateTo ? fmtDate(dateTo) : (t.theaterDateToPh || 'Bitiş tarihi')}</Text>
+                            <TouchableOpacity style={[s.dateBtn, { flex: 1 }]} onPress={() => setShowDateRangeModal(true)}>
+                                <Text style={s.dateBtnText} numberOfLines={1}>
+                                    {dateFrom || dateTo
+                                        ? [dateFrom && fmtDate(dateFrom), dateTo && fmtDate(dateTo)].filter(Boolean).join(' – ')
+                                        : (t.theaterDatePh || '📅 Tarih')}
+                                </Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={doSearch} style={s.searchBtn}>
                                 <Text style={{ color: '#fff', fontWeight: '700' }}>{t.theaterSearchBtn || 'Ara'}</Text>
                             </TouchableOpacity>
                         </View>
-                        <CalendarPickerModal
-                            visible={showFromPicker}
-                            value={dateFrom}
-                            onSelect={(d) => { setDateFrom(d); setShowFromPicker(false); }}
-                            onClose={() => setShowFromPicker(false)}
-                        />
-                        <CalendarPickerModal
-                            visible={showToPicker}
-                            value={dateTo}
-                            onSelect={(d) => { setDateTo(d); setShowToPicker(false); }}
-                            onClose={() => setShowToPicker(false)}
+                        <DateRangePickerModal
+                            visible={showDateRangeModal}
+                            dateFrom={dateFrom}
+                            dateTo={dateTo}
+                            onApply={(f, t2) => { setDateFrom(f); setDateTo(t2); setShowDateRangeModal(false); }}
+                            onClose={() => setShowDateRangeModal(false)}
                         />
                     </View>
 
@@ -427,7 +410,9 @@ export default function TheaterHomeScreen({ navigation }) {
                         <FlatList
                             data={playsView === 'current' ? currentPlays : pastPlays}
                             keyExtractor={item => item.id}
-                            contentContainerStyle={s.list}
+                            numColumns={2}
+                            columnWrapperStyle={s.gridRow}
+                            contentContainerStyle={s.grid}
                             ListEmptyComponent={loaded ? <Text style={s.emptyText}>{playsView === 'past' ? (t.theaterNoPast || 'Geçmiş oyun yok.') : (t.theaterNoResults || 'Bu filtrelere uyan oyun bulunamadı.')}</Text> : null}
                             renderItem={({ item }) => <PlayCard item={item} t={t} />}
                         />
@@ -754,7 +739,6 @@ const s = StyleSheet.create({
 
     filtersBlock: { paddingBottom: 4 },
     filterRow: { flexDirection: 'row', gap: 8, padding: 12, paddingBottom: 0 },
-    searchInput: { backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14 },
     searchBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
     dateBtn: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' },
     dateBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
@@ -762,14 +746,17 @@ const s = StyleSheet.create({
     list: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 30 },
     emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 30 },
 
-    card: { flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.border },
-    cardImg: { width: 64, height: 64, borderRadius: 8 },
-    cardImgFallback: { backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
-    cardTitle: { color: '#fff', fontSize: 14, fontWeight: '800' },
-    cardMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-    cardPrice: { color: colors.purple, fontSize: 12, fontWeight: '700', marginTop: 2 },
-    ticketBtn: { backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, alignSelf: 'flex-start', marginTop: 6 },
-    ticketBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    grid: { paddingHorizontal: 3, paddingTop: 3, paddingBottom: 30, gap: 3 },
+    gridRow: { gap: 3 },
+    card: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+    cardImg: { width: '100%', aspectRatio: 3 / 4, backgroundColor: colors.surface2 },
+    cardImgFallback: { alignItems: 'center', justifyContent: 'center' },
+    cardBody: { padding: 3, gap: 3 },
+    cardTitle: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    cardMeta: { color: colors.textMuted, fontSize: 11 },
+    cardPrice: { color: colors.purple, fontSize: 11, fontWeight: '700' },
+    ticketBtn: { backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center' },
+    ticketBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 
     eventCard: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
     eventOwner: { color: '#fff', fontSize: 12, fontWeight: '800', flex: 1 },
