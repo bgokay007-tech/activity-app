@@ -13,6 +13,9 @@ import CourtsPage from './pages/CourtsPage';
 import VenuesPage from './pages/VenuesPage';
 import AdminPage from './pages/AdminPage';
 import ArchivePage from './pages/ArchivePage';
+import MusicPage from './pages/MusicPage';
+import CinemaPage from './pages/CinemaPage';
+import MyReservationsPage from './pages/MyReservationsPage';
 
 function App() {
   const token = useSelector(state => state.auth.token);
@@ -38,6 +41,9 @@ function App() {
       <Route path="/venues" element={token ? <VenuesPage /> : <Navigate to="/login" />} />
       <Route path="/admin" element={token ? <AdminPage /> : <Navigate to="/login" />} />
       <Route path="/archive" element={token ? <ArchivePage /> : <Navigate to="/login" />} />
+      <Route path="/music" element={token ? <MusicPage /> : <Navigate to="/login" />} />
+      <Route path="/cinema" element={token ? <CinemaPage /> : <Navigate to="/login" />} />
+      <Route path="/reservations" element={token ? <MyReservationsPage /> : <Navigate to="/login" />} />
       <Route path="*" element={<Navigate to={token ? "/home" : "/login"} />} />
     </Routes>
   );

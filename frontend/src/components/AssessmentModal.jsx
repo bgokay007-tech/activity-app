@@ -33,6 +33,7 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
     const [position, setPosition]         = useState(null);   // only for football
     const [questions, setQuestions]       = useState([]);
     const [maxScore, setMaxScore]         = useState(0);
+    const [honeypot, setHoneypot]         = useState(null);
     const [current, setCurrent]           = useState(0);
     const [answers, setAnswers]           = useState([]);
     const [selectedOption, setSelectedOption] = useState(null);
@@ -54,6 +55,7 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
             .then(({ data }) => {
                 setQuestions(data.questions);
                 setMaxScore(data.maxScore);
+                setHoneypot(data.honeypot || null);
             })
             .catch(console.error)
             .finally(() => setIsLoading(false));
@@ -65,9 +67,24 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
     const handleNext = () => {
         if (selectedOption === null) return;
         const opt = q.options[selectedOption];
-        const newAnswers = [...answers, { questionId: q.id, points: opt.points, text: opt.text }];
+        const newAnswers = [...answers, { questionId: q.id, points: opt.points, text: opt.text, optionIndex: selectedOption }];
         setAnswers(newAnswers);
         setSelectedOption(null);
+
+        // Voleybol honeypot: tetikleyici soruda en üst şık seçildiyse takip sorusu hemen eklenir
+        if (
+            honeypot &&
+            q.id === honeypot.triggerQuestionId &&
+            opt.points === honeypot.triggerOptionPoints &&
+            !questions.some(qq => qq.id === honeypot.id)
+        ) {
+            const nextQuestions = [...questions];
+            nextQuestions.splice(current + 1, 0, honeypot);
+            setQuestions(nextQuestions);
+            setCurrent(current + 1);
+            return;
+        }
+
         if (current + 1 < questions.length) {
             setCurrent(current + 1);
         } else {

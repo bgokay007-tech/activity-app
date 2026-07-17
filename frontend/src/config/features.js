@@ -19,7 +19,7 @@ export const ENABLED_SUBS = {
     friend_finding: false,
     language:       false,
     // Arts
-    music:      false,
+    music:      true,
     // Games
     fps:        false,
 };

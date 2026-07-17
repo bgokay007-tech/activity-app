@@ -8,7 +8,9 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import ContentViewer from '../components/ContentViewer';
 import CreatePostModal from '../components/CreatePostModal';
+import PeerReviewModal from '../components/PeerReviewModal';
 import { ENABLED_SUBS, MAINTENANCE_MESSAGE } from '../config/features';
+import { shareRival, shareTournament } from '../utils/share';
 
 // Rival formunda kendi DB'den kort arama + yeni kort ekleme
 async function fetchCourtsFromDB(city, sport) {
@@ -52,6 +54,8 @@ const WELLNESS_BRANCHES = new Set(['wellness']);
 
 // Team sports — Player Wanted + Find Opponent tabs
 const TEAM_SPORTS = new Set(['volleyball', 'football']);
+const TICKET_SPORTS = new Set(['tennis', 'padel', 'volleyball']);
+const COACH_EXPANDED_SPORTS = new Set(['tennis', 'padel', 'volleyball']);
 
 // 15-minute interval time select (06:00 – 23:45)
 const TIME_OPTIONS = (() => {
@@ -2584,11 +2588,23 @@ function SubCategoryPage() {
     const [mediaPosts, setMediaPosts] = useState([]);
     const [coachListings, setCoachListings] = useState([]);
     const [coachForm, setCoachForm] = useState(false);
+    const [coachSubTab, setCoachSubTab] = useState('listings'); // 'listings' | 'courses' | 'referees' | 'cvs'
+    const [refereeListings, setRefereeListings] = useState([]);
+    const [loadingReferees, setLoadingReferees] = useState(false);
+    const [refereesLoaded, setRefereesLoaded] = useState(false);
+    const [showCreateReferee, setShowCreateReferee] = useState(false);
+    const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
     const [branchStories, setBranchStories] = useState([]);
     const [newTextPost, setNewTextPost] = useState('');
     const [isPosting, setIsPosting] = useState(false);
     const [showRivalForm, setShowRivalForm] = useState(false);
     const [news, setNews] = useState([]);
+    const [sportsTickets, setSportsTickets] = useState([]);
+    const [loadingTickets, setLoadingTickets] = useState(false);
+    const [ticketsLoaded, setTicketsLoaded] = useState(false);
+    const [ticketCity, setTicketCity] = useState('');
+    const [ticketDateFrom, setTicketDateFrom] = useState('');
+    const [ticketDateTo, setTicketDateTo] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [refereeForm, setRefereeForm] = useState(null);
@@ -2736,6 +2752,40 @@ function SubCategoryPage() {
             .then(({ data }) => setNews(data))
             .catch(() => setNews([]));
     }, [sub, categoryUpper, lang]);
+
+    const loadSportsTickets = async () => {
+        setLoadingTickets(true);
+        try {
+            const params = { sport: sub };
+            if (ticketCity.trim()) params.city = ticketCity.trim();
+            if (ticketDateFrom) params.dateFrom = ticketDateFrom;
+            if (ticketDateTo) params.dateTo = ticketDateTo;
+            const { data } = await api.get('/sports-tickets/search', { params });
+            setSportsTickets(data.events || []);
+        } catch { setSportsTickets([]); }
+        finally { setLoadingTickets(false); setTicketsLoaded(true); }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'tickets' && !ticketsLoaded) loadSportsTickets();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, ticketsLoaded]);
+
+    const loadRefereeListings = async () => {
+        setLoadingReferees(true);
+        try {
+            const { data } = await api.get('/referees', { params: { category: categoryUpper, subCategory: sub } });
+            setRefereeListings(data || []);
+        } catch { setRefereeListings([]); }
+        finally { setLoadingReferees(false); setRefereesLoaded(true); }
+    };
+
+    useEffect(() => {
+        if (COACH_EXPANDED_SPORTS.has(sub) && activeTab === 'coaches' && coachSubTab === 'referees' && !refereesLoaded) {
+            loadRefereeListings();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, coachSubTab, refereesLoaded, sub]);
 
     // Socket.io — real-time rival updates
     useEffect(() => {
@@ -3015,6 +3065,8 @@ function SubCategoryPage() {
     const TYPE_LABEL = {
         '1': `🏆 ${t('tournament.type1')}`,
         '2': `👬 ${t('tournament.type2')}`,
+        '3': `🎯 ${t('tournament.type3')}`,
+        '4': `🎯👬 ${t('tournament.type4')}`,
     };
 
     const handleRequestAction = async (tournamentId, userId, status) => {
@@ -3399,8 +3451,8 @@ function SubCategoryPage() {
                         {(isWellness
                             ? ['events', 'media']
                             : TEAM_SPORTS.has(sub)
-                                ? ['player_wanted', 'rivals', 'tournaments', 'media', 'archive']
-                                : LEFT_TABS
+                                ? ['player_wanted', 'rivals', 'tournaments', ...(COACH_EXPANDED_SPORTS.has(sub) ? ['coaches'] : []), 'media', 'archive', ...(TICKET_SPORTS.has(sub) ? ['tickets'] : [])]
+                                : TICKET_SPORTS.has(sub) ? [...LEFT_TABS, 'tickets'] : LEFT_TABS
                         ).map(tab => (
                             <button
                                 key={tab}
@@ -3414,7 +3466,8 @@ function SubCategoryPage() {
                                  tab === 'rivals'        ? `⚔️ ${TEAM_SPORTS.has(sub) ? t('tabs.opponent') : t('tabs.rivals')}` :
                                  tab === 'events'        ? `📅 ${t('tabs.events')}` :
                                  tab === 'tournaments'   ? `🏆 ${t('tabs.tournaments')}` :
-                                 tab === 'coaches'       ? `🎓 ${t('tabs.coaches')}` :
+                                 tab === 'coaches'       ? `🎓 ${COACH_EXPANDED_SPORTS.has(sub) ? t('tabs.support') : t('tabs.coaches')}` :
+                                 tab === 'tickets'       ? `🎟️ ${t('tabs.tickets')}` :
                                  tab === 'archive'       ? `🗃️ ${t('tabs.archive')}` : `📷 ${t('tabs.media')}`}
                             </button>
                         ))}
@@ -3598,6 +3651,13 @@ function SubCategoryPage() {
                                                     )}
                                                 </div>
                                             )}
+
+                                            <button
+                                                onClick={() => shareRival(rival)}
+                                                className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-bold px-3 py-1.5 rounded-xl text-xs transition mb-3"
+                                            >
+                                                📤 {t('shareBtn')}
+                                            </button>
 
                                             {/* Creator's team (football with senderTeam) */}
                                             {(() => {
@@ -4179,8 +4239,8 @@ function SubCategoryPage() {
                     {/* TOURNAMENTS TAB */}
                     {activeTab === 'tournaments' && (() => {
 
-                        const TOURN_RULES = { '1': t('tournament.rules1'), '2': t('tournament.rules2') };
-                        const TOURN_TYPE_NAME = { '1': t('tournament.type1'), '2': t('tournament.type2') };
+                        const TOURN_RULES = { '1': t('tournament.rules1'), '2': t('tournament.rules2'), '3': t('tournament.rules3'), '4': t('tournament.rules4') };
+                        const TOURN_TYPE_NAME = { '1': t('tournament.type1'), '2': t('tournament.type2'), '3': t('tournament.type3'), '4': t('tournament.type4') };
 
                         if (rulesOpen) return (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
@@ -4402,6 +4462,10 @@ function SubCategoryPage() {
                                                             </div>
                                                             {/* Action buttons */}
                                                             <div className="flex items-center gap-2 flex-shrink-0">
+                                                                <button onClick={() => shareTournament(t)}
+                                                                    className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-bold text-xs px-3 py-1.5 rounded-xl transition">
+                                                                    📤 Share
+                                                                </button>
                                                                 {t.status === 'POLL' ? (
                                                                     <div className="flex flex-col items-end gap-1">
                                                                         {(Array.isArray(t.pollTypes) ? t.pollTypes : ['1', '2']).map(tp => {
@@ -4519,7 +4583,7 @@ function SubCategoryPage() {
                                                                 {/* Main slots */}
                                                                 <div>
                                                                     <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide mb-2">Participants ({main.length}/{t.maxPlayers})</p>
-                                                                    {t.type === '2' ? (() => {
+                                                                    {(t.type === '2' || t.type === '4') ? (() => {
                                                                         const { pairs, solos, byUserId } = groupDoublesPairs(main);
                                                                         return (
                                                                             <div className="grid grid-cols-2 gap-1.5">
@@ -4587,8 +4651,8 @@ function SubCategoryPage() {
                                                                         </div>
                                                                     </div>
                                                                 )}
-                                                                {/* Real tournament types ('1'/'2'): Start + Matches buttons */}
-                                                                {(t.type === '1' || t.type === '2') && (
+                                                                {/* Real tournament types ('1'/'2'/'3'/'4'): Start + Matches buttons */}
+                                                                {(t.type === '1' || t.type === '2' || t.type === '3' || t.type === '4') && (
                                                                     <div className="flex gap-2">
                                                                         {isOwn && t.status === 'OPEN' && (
                                                                             <button onClick={() => handleStartTournament(t)} disabled={matchActionLoading || main.length < (t.minPlayers || 2)}
@@ -5642,19 +5706,33 @@ function SubCategoryPage() {
 
                         const credOf = (id) => CRED_LEVELS.find(c => c.id === id) || CRED_LEVELS[4];
 
-                        function CoachForm({ onClose, onCreated }) {
+                        function CoachForm({ onClose, onCreated, defaultGroup }) {
                             const [f, setF] = useState({
                                 credentialLevel: 'CERTIFIED', certName: '', experience: '',
-                                individual: true, group: false,
+                                individual: !defaultGroup, group: !!defaultGroup,
                                 priceIndividual: '', priceGroup: '', maxGroupSize: 4,
                                 location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00',
-                                description: '',
+                                description: '', cvUrl: '',
                             });
                             const [submitting, setSubmitting] = useState(false);
+                            const [uploadingCv, setUploadingCv] = useState(false);
                             const set = (k, v) => setF(p => ({ ...p, [k]: v }));
                             const toggleDay = (d) => setF(p => ({
                                 ...p, days: p.days.includes(d) ? p.days.filter(x => x !== d) : [...p.days, d],
                             }));
+
+                            const handleCvUpload = async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setUploadingCv(true);
+                                try {
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+                                    const { data } = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                    set('cvUrl', data.url);
+                                } catch (err) { console.error(err); }
+                                finally { setUploadingCv(false); }
+                            };
 
                             const submit = async () => {
                                 if (!f.location || (!f.individual && !f.group))
@@ -5802,6 +5880,15 @@ function SubCategoryPage() {
                                             className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 resize-none" />
                                     </div>
 
+                                    {/* CV */}
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.cv_upload')} <span className="text-gray-600">({t('coaches.about_optional')})</span></p>
+                                        <input type="file" accept="image/*" onChange={handleCvUpload}
+                                            className="w-full text-gray-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-gray-700 file:text-white file:text-xs file:font-bold" />
+                                        {uploadingCv && <p className="text-gray-500 text-xs mt-1">{t('common.loading')}</p>}
+                                        {f.cvUrl && !uploadingCv && <p className="text-green-400 text-xs mt-1">✓ {t('coaches.cv_uploaded')}</p>}
+                                    </div>
+
                                     <button onClick={submit} disabled={submitting}
                                         className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-3 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
                                         {submitting ? 'Posting...' : '🎓 Post Listing'}
@@ -5810,34 +5897,337 @@ function SubCategoryPage() {
                             );
                         }
 
+                        function RefereeForm({ onClose, onCreated }) {
+                            const [f, setF] = useState({
+                                credentialLevel: 'INDEPENDENT', certName: '', experience: '',
+                                achievements: '', pricePerMatch: '',
+                                location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00',
+                                description: '', cvUrl: '',
+                            });
+                            const [submitting, setSubmitting] = useState(false);
+                            const [uploadingCv, setUploadingCv] = useState(false);
+                            const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+                            const toggleDay = (d) => setF(p => ({
+                                ...p, days: p.days.includes(d) ? p.days.filter(x => x !== d) : [...p.days, d],
+                            }));
+
+                            const handleCvUpload = async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setUploadingCv(true);
+                                try {
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+                                    const { data } = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                    set('cvUrl', data.url);
+                                } catch (err) { console.error(err); }
+                                finally { setUploadingCv(false); }
+                            };
+
+                            const submit = async () => {
+                                if (!f.location) return alert('Please fill location.');
+                                setSubmitting(true);
+                                try {
+                                    const { data } = await api.post('/referees', {
+                                        ...f,
+                                        category: categoryUpper,
+                                        subCategory: sub,
+                                        experience: Number(f.experience) || 0,
+                                        pricePerMatch: Number(f.pricePerMatch) || 0,
+                                    });
+                                    onCreated(data);
+                                    onClose();
+                                } catch (err) { console.error(err); }
+                                finally { setSubmitting(false); }
+                            };
+
+                            return (
+                                <div className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-white font-bold">🟨 {t('referees.post_listing')}</p>
+                                        <button onClick={onClose} className="text-gray-500 hover:text-white text-lg">✕</button>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-2">{t('coaches.credential')}</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {CRED_LEVELS.map(c => (
+                                                <button key={c.id} onClick={() => set('credentialLevel', c.id)}
+                                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition
+                                                        ${f.credentialLevel === c.id ? 'border-purple-500 bg-purple-600/20 text-white' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'}`}>
+                                                    <span>{c.emoji}</span> {c.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.cert_name')}</p>
+                                            <input value={f.certName} onChange={e => set('certName', e.target.value)}
+                                                placeholder="e.g. TFF C License"
+                                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.experience')}</p>
+                                            <input type="number" min="0" max="50" value={f.experience} onChange={e => set('experience', e.target.value)}
+                                                placeholder="0"
+                                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-1">{t('referees.price_per_match')}</p>
+                                        <input type="number" min="0" value={f.pricePerMatch} onChange={e => set('pricePerMatch', e.target.value)}
+                                            placeholder="₺"
+                                            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.location_venue')} *</p>
+                                            <input value={f.location} onChange={e => set('location', e.target.value)}
+                                                placeholder="Club name, court, address..."
+                                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.city')}</p>
+                                            <input value={f.city} onChange={e => set('city', e.target.value)}
+                                                placeholder="Istanbul, Ankara..."
+                                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-2">{t('coaches.available_days')}</p>
+                                        <div className="flex gap-1.5 flex-wrap">
+                                            {DAYS.map(d => (
+                                                <button key={d} onClick={() => toggleDay(d)}
+                                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition
+                                                        ${f.days.includes(d) ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                                                    {DAY_LABEL[d]}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-2">{t('coaches.available_hours')}</p>
+                                        <div className="flex items-center gap-2">
+                                            <input type="time" value={f.timeFrom} onChange={e => set('timeFrom', e.target.value)}
+                                                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                            <span className="text-gray-500">—</span>
+                                            <input type="time" value={f.timeTo} onChange={e => set('timeTo', e.target.value)}
+                                                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-1">{t('referees.achievements')} <span className="text-gray-600">({t('coaches.about_optional')})</span></p>
+                                        <input value={f.achievements} onChange={e => set('achievements', e.target.value)}
+                                            placeholder="e.g. 50+ league matches officiated"
+                                            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                    </div>
+
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.about')} <span className="text-gray-600">({t('coaches.about_optional')})</span></p>
+                                        <textarea value={f.description} onChange={e => set('description', e.target.value)}
+                                            rows={3} placeholder="Introduce yourself, your officiating style, specialties..."
+                                            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 resize-none" />
+                                    </div>
+
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.cv_upload')} <span className="text-gray-600">({t('coaches.about_optional')})</span></p>
+                                        <input type="file" accept="image/*" onChange={handleCvUpload}
+                                            className="w-full text-gray-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-gray-700 file:text-white file:text-xs file:font-bold" />
+                                        {uploadingCv && <p className="text-gray-500 text-xs mt-1">{t('common.loading')}</p>}
+                                        {f.cvUrl && !uploadingCv && <p className="text-green-400 text-xs mt-1">✓ {t('coaches.cv_uploaded')}</p>}
+                                    </div>
+
+                                    <button onClick={submit} disabled={submitting}
+                                        className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-3 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
+                                        {submitting ? 'Posting...' : `🟨 ${t('referees.post_listing')}`}
+                                    </button>
+                                </div>
+                            );
+                        }
+
+                        const isCoachExpanded = COACH_EXPANDED_SPORTS.has(sub);
+                        const individualCoaches = coachListings.filter(c => c.individual);
+                        const groupCourses = coachListings.filter(c => c.group);
+                        const coachesWithCv = coachListings.filter(c => c.cvUrl);
+                        const refereeMatches = playerWantedPosts.filter(p =>
+                            Array.isArray(p.positions) && (p.positions.includes('REFEREE') || p.positions.includes('REFEREE_OFFER'))
+                        );
+                        const subTabs = isCoachExpanded
+                            ? [
+                                { key: 'listings', label: t('coaches.sub_listings'), count: individualCoaches.length },
+                                { key: 'courses',  label: t('coaches.sub_courses'),  count: groupCourses.length },
+                                { key: 'referees', label: t('coaches.sub_referees'), count: refereeListings.length + refereeMatches.length },
+                                { key: 'cvs',      label: t('coaches.sub_cvs'),      count: coachesWithCv.length },
+                            ]
+                            : [
+                                { key: 'listings', label: t('coaches.title'),   count: coachListings.length },
+                                { key: 'cvs',      label: t('coaches.sub_cvs'), count: coachesWithCv.length },
+                            ];
+                        const shownCoaches = coachSubTab === 'cvs' ? coachesWithCv
+                            : coachSubTab === 'courses' ? groupCourses
+                            : (isCoachExpanded && coachSubTab === 'listings') ? individualCoaches
+                            : coachListings;
+
                         return (
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-white font-bold">🎓 {t('coaches.title')}</h3>
-                                    <button onClick={() => setCoachForm(v => !v)}
-                                        className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
-                                        {coachForm ? `✕ ${t('coaches.cancel')}` : `+ ${t('coaches.post_listing')}`}
-                                    </button>
+                                    <h3 className="text-white font-bold">🎓 {isCoachExpanded ? t('coaches.support_title') : t('coaches.title')}</h3>
+                                    {coachSubTab === 'referees' ? (
+                                        <button onClick={() => setShowCreateReferee(v => !v)}
+                                            className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
+                                            {showCreateReferee ? `✕ ${t('coaches.cancel')}` : `+ ${t('referees.post_listing')}`}
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => setCoachForm(v => !v)}
+                                            className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
+                                            {coachForm ? `✕ ${t('coaches.cancel')}` : `+ ${coachSubTab === 'courses' ? t('coaches.post_course') : t('coaches.post_listing')}`}
+                                        </button>
+                                    )}
                                 </div>
 
-                                {coachForm && (
+                                {/* Sub-tab bar (tennis/padel/volleyball get the 4-way split) */}
+                                <div className="flex gap-1.5 flex-wrap bg-gray-900 p-1 rounded-xl border border-gray-800">
+                                    {subTabs.map(st => (
+                                        <button key={st.key} onClick={() => setCoachSubTab(st.key)}
+                                            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${coachSubTab === st.key ? `bg-gradient-to-r ${config.color} text-white` : 'text-gray-400 hover:text-white'}`}>
+                                            {st.label} ({st.count})
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {coachForm && coachSubTab !== 'referees' && (
                                     <CoachForm
                                         onClose={() => setCoachForm(false)}
                                         onCreated={(listing) => setCoachListings(prev => [listing, ...prev])}
+                                        defaultGroup={coachSubTab === 'courses'}
                                     />
                                 )}
 
-                                {coachListings.length === 0 && !coachForm ? (
+                                {showCreateReferee && coachSubTab === 'referees' && (
+                                    <RefereeForm
+                                        onClose={() => setShowCreateReferee(false)}
+                                        onCreated={(listing) => setRefereeListings(prev => [listing, ...prev])}
+                                    />
+                                )}
+
+                                {coachSubTab === 'referees' ? (
+                                    <div className="space-y-5">
+                                        <div>
+                                            <p className="text-white text-sm font-bold mb-2">{t('referees.listings_title')}</p>
+                                            {loadingReferees ? (
+                                                <p className="text-gray-500 text-sm text-center py-6">{t('common.loading')}</p>
+                                            ) : refereeListings.length === 0 ? (
+                                                <p className="text-gray-600 text-sm text-center py-6">{t('referees.no_listings')}</p>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    {refereeListings.map(r => {
+                                                        const cred = credOf(r.credentialLevel);
+                                                        return (
+                                                            <div key={r.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                                                                <div className="flex items-start justify-between mb-2">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-9 h-9 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+                                                                            {r.user?.username?.[0]?.toUpperCase() || '?'}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-white font-bold text-sm">{r.user?.fullName || r.user?.username}</p>
+                                                                            <p className="text-gray-500 text-xs">@{r.user?.username}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className={`text-xs font-bold ${cred.color}`}>{cred.emoji} {cred.label}</span>
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs text-gray-400">
+                                                                    <span>📍 {r.location}{r.city ? `, ${r.city}` : ''}</span>
+                                                                    <span>🕐 {r.timeFrom} — {r.timeTo}</span>
+                                                                    {r.pricePerMatch > 0 && <span className="text-purple-400 font-bold">₺{r.pricePerMatch}/match</span>}
+                                                                </div>
+                                                                {r.description && <p className="text-gray-400 text-xs leading-relaxed border-t border-gray-800 pt-2">{r.description}</p>}
+                                                                {r.userId === myIdFromRedux && (
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            await api.delete(`/referees/${r.id}`).catch(console.error);
+                                                                            setRefereeListings(prev => prev.filter(x => x.id !== r.id));
+                                                                        }}
+                                                                        className="mt-3 text-red-500/60 hover:text-red-400 text-xs transition">
+                                                                        🗑 {t('coaches.remove')}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <p className="text-white text-sm font-bold mb-2">{t('referees.matches_title')}</p>
+                                            {refereeMatches.length === 0 ? (
+                                                <p className="text-gray-600 text-sm text-center py-6">{t('referees.no_matches')}</p>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    {refereeMatches.map(post => {
+                                                        const isOffer = Array.isArray(post.positions) && post.positions.includes('REFEREE_OFFER');
+                                                        return (
+                                                            <div key={post.id} className={`bg-gray-900 border rounded-2xl p-4 ${isOffer ? 'border-green-500/30' : 'border-yellow-500/30'}`}>
+                                                                <div className="flex items-start justify-between gap-2 mb-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className={`w-8 h-8 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+                                                                            {post.sender?.username?.[0]?.toUpperCase()}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-white text-sm font-bold">{post.sender?.fullName || post.sender?.username}</p>
+                                                                            <p className="text-gray-500 text-xs">@{post.sender?.username}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${isOffer ? 'text-green-400 bg-green-500/10 border border-green-500/30' : 'text-yellow-400 bg-yellow-500/10 border border-yellow-500/30'}`}>
+                                                                        {isOffer ? `🟩 ${t('referees.offering')}` : `🟨 ${t('referees.seeking')}`}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="space-y-1 text-xs text-gray-400 mb-2">
+                                                                    {post.matchDate && <p>📅 {new Date(post.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{post.matchTime ? ` · ${post.matchTime}` : ''}</p>}
+                                                                    {post.location && <p>📍 {post.location}</p>}
+                                                                    {post.refereePayment && <p className="text-green-400 font-bold">💰 {post.refereePayment}</p>}
+                                                                    {post.message && <p className="text-gray-300 italic">"{post.message}"</p>}
+                                                                </div>
+                                                                {post.senderId !== myId && (
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                await api.post(`/rivals/${post.id}/respond`, {});
+                                                                                alert('✅ ' + t('common.confirm'));
+                                                                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+                                                                        }}
+                                                                        className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-xl text-sm hover:opacity-90 transition`}>
+                                                                        🟨 {t('referees.apply')}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : shownCoaches.length === 0 && !coachForm ? (
                                     <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
                                         <p className="text-4xl mb-3">🎓</p>
-                                        <p className="text-gray-400 text-sm">{t('coaches.no_coaches')}</p>
-                                        <button onClick={() => setCoachForm(true)} className="mt-3 text-purple-400 hover:text-purple-300 text-sm transition">
-                                            {t('coaches.be_first')}
-                                        </button>
+                                        <p className="text-gray-400 text-sm">{coachSubTab === 'cvs' ? t('coaches.no_cv_yet') : t('coaches.no_coaches')}</p>
+                                        {coachSubTab !== 'cvs' && (
+                                            <button onClick={() => setCoachForm(true)} className="mt-3 text-purple-400 hover:text-purple-300 text-sm transition">
+                                                {t('coaches.be_first')}
+                                            </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
-                                        {coachListings.map(c => {
+                                        {shownCoaches.map(c => {
                                             const cred = credOf(c.credentialLevel);
                                             const days = Array.isArray(c.days) ? c.days : [];
                                             return (
@@ -5897,6 +6287,14 @@ function SubCategoryPage() {
                                                     {/* Description */}
                                                     {c.description && (
                                                         <p className="text-gray-400 text-xs leading-relaxed border-t border-gray-800 pt-3">{c.description}</p>
+                                                    )}
+
+                                                    {/* CV */}
+                                                    {c.cvUrl && (
+                                                        <a href={c.cvUrl} target="_blank" rel="noopener noreferrer"
+                                                            className="mt-2 inline-block text-purple-400 hover:text-purple-300 text-xs font-bold transition">
+                                                            📄 {t('coaches.view_cv')}
+                                                        </a>
                                                     )}
 
                                                     {/* Delete (own listing) */}
@@ -6324,6 +6722,77 @@ function SubCategoryPage() {
                         );
                     })()}
 
+                    {/* TICKETS TAB — Ticketmaster ulusal + uluslararasi mac bileti */}
+                    {activeTab === 'tickets' && (
+                        <div className="space-y-3">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input
+                                    type="text"
+                                    value={ticketCity}
+                                    onChange={e => setTicketCity(e.target.value)}
+                                    placeholder={t('tickets.city_placeholder')}
+                                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                                />
+                                <input
+                                    type="date"
+                                    value={ticketDateFrom}
+                                    onChange={e => setTicketDateFrom(e.target.value)}
+                                    className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                                />
+                                <input
+                                    type="date"
+                                    value={ticketDateTo}
+                                    onChange={e => setTicketDateTo(e.target.value)}
+                                    className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                                />
+                                <button
+                                    onClick={() => { setTicketsLoaded(false); loadSportsTickets(); }}
+                                    className={`bg-gradient-to-r ${config.color} text-white text-sm font-bold rounded-lg px-4 py-2 whitespace-nowrap`}
+                                >
+                                    {t('tickets.search')}
+                                </button>
+                            </div>
+
+                            {loadingTickets ? (
+                                <p className="text-gray-500 text-sm text-center py-8">{t('common.loading')}</p>
+                            ) : sportsTickets.length === 0 ? (
+                                ticketsLoaded && <p className="text-gray-600 text-sm text-center py-8">🎟️ {t('tickets.empty')}</p>
+                            ) : (
+                                <div className="space-y-2.5">
+                                    {sportsTickets.map(ev => (
+                                        <div key={ev.id} className="flex gap-3 bg-gray-900 border border-gray-800 rounded-xl p-3">
+                                            {ev.imageUrl ? (
+                                                <img src={ev.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                                            ) : (
+                                                <div className="w-16 h-16 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0 text-2xl">🎟️</div>
+                                            )}
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-white text-sm font-bold line-clamp-2">{ev.name}</p>
+                                                <p className="text-gray-500 text-xs mt-0.5 truncate">
+                                                    {[ev.venueName, ev.city, ev.country].filter(Boolean).join(' · ')}
+                                                </p>
+                                                <p className="text-gray-500 text-xs mt-0.5">
+                                                    {ev.date}{ev.time ? ` · ${ev.time.slice(0, 5)}` : ''}
+                                                </p>
+                                                {ev.priceMin != null && (
+                                                    <p className="text-purple-300 text-xs font-bold mt-0.5">
+                                                        {ev.priceMin}{ev.priceMax && ev.priceMax !== ev.priceMin ? `–${ev.priceMax}` : ''} {ev.currency || ''}
+                                                    </p>
+                                                )}
+                                                {ev.ticketUrl && (
+                                                    <a href={ev.ticketUrl} target="_blank" rel="noopener noreferrer"
+                                                        className={`inline-block mt-1.5 bg-gradient-to-r ${config.color} text-white text-xs font-bold rounded-lg px-3 py-1.5`}>
+                                                        🎟️ {t('tickets.buy')}
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* ARCHIVE TAB */}
                     {activeTab === 'archive' && (() => {
                         const now = new Date();
@@ -6468,6 +6937,9 @@ function SubCategoryPage() {
                                         const isDraw = score.winner === 'draw';
                                         const ratingSnapshot = score.ratingSnapshot || {};
                                         const ratingEntries = Object.entries(ratingSnapshot);
+                                        const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+                                        const rosterIds = [match.senderId, ...participants.map(p => p.id), ...senderTeamArr.map(m => m.id)];
+                                        const eligibleForPeerReview = match.subCategory === 'volleyball' && match.matchMode === 'COMPETITIVE' && rosterIds.includes(myId);
                                         return (
                                             <div key={match.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
                                                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
@@ -6506,6 +6978,14 @@ function SubCategoryPage() {
                                                         ))}
                                                     </div>
                                                 )}
+                                                {eligibleForPeerReview && (
+                                                    <div className="px-4 py-2 border-t border-gray-800">
+                                                        <button onClick={() => setPeerReviewRivalId(match.id)}
+                                                            className="text-purple-400 hover:text-purple-300 text-xs font-bold transition">
+                                                            ⭐ {t('peerReview.rate_teammates')}
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     }
@@ -6524,7 +7004,7 @@ function SubCategoryPage() {
                                     {filteredTournaments.length === 0
                                         ? <p className="text-gray-500 text-sm text-center py-8">{t('archive.no_tournament_archive')}</p>
                                         : <div className="divide-y divide-gray-800">{filteredTournaments.map(t => {
-                                            if (t.type === '1' || t.type === '2') return (
+                                            if (t.type === '1' || t.type === '2' || t.type === '3' || t.type === '4') return (
                                                 <button key={t.id} onClick={() => openMatchesModal(t)}
                                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800/50 transition text-left">
                                                     <div className="flex-1 min-w-0">
@@ -6902,7 +7382,7 @@ function SubCategoryPage() {
                 const standings = computeTournamentStandings(matches);
                 const isCreator = mt.creatorId === myId;
 
-                const sideId = () => mt.type === '2' ? tournMatchesData.myTeamId : myId;
+                const sideId = () => (mt.type === '2' || mt.type === '4') ? tournMatchesData.myTeamId : myId;
                 const myMatchSide = (m) => {
                     const sid = sideId();
                     if (!sid) return null;
@@ -6935,7 +7415,7 @@ function SubCategoryPage() {
                         return (isDone && mr) ? `${fmtR(mr.before)} → ${fmtR(mr.after)}` : fmtR(ratingOf(uid));
                     };
 
-                    if (mt.type === '2') {
+                    if (mt.type === '2' || mt.type === '4') {
                         const team = teamById(sid);
                         if (!team) return <p className="text-white text-sm font-bold">{name || 'TBD'}</p>;
                         const avgDisplay = (isDone && teamBefore != null && teamAfter != null)
@@ -6970,7 +7450,7 @@ function SubCategoryPage() {
                         <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                    {mt.type === '2' ? (
+                                    {(mt.type === '2' || mt.type === '4') ? (
                                         <div className="space-y-1.5">
                                             <SideBlock m={m} side="p1" />
                                             <p className="text-gray-500 text-[10px] font-black">vs</p>
@@ -7004,7 +7484,7 @@ function SubCategoryPage() {
                                         className={`flex-1 bg-gradient-to-r ${config.color} text-white text-xs font-bold py-1.5 rounded-lg`}>
                                         📝 Enter Score
                                     </button>
-                                    {mySide && !m[`${mySide}JokerRequested`] && (
+                                    {mySide && !mt.dayTrip && !m[`${mySide}JokerRequested`] && (
                                         <button onClick={() => submitJoker(mt.id, m.id)} disabled={matchActionLoading}
                                             className="bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-bold px-3 py-1.5 rounded-lg">
                                             🃏{m[`${otherSide}JokerRequested`] ? ' Mutual' : ' Joker'}
@@ -7212,6 +7692,13 @@ function SubCategoryPage() {
                     onCreated={(post) => {
                         if (post.imageUrl || post.videoUrl) setMediaPosts(prev => [post, ...prev]);
                     }}
+                />
+            )}
+
+            {peerReviewRivalId && (
+                <PeerReviewModal
+                    rivalId={peerReviewRivalId}
+                    onClose={() => setPeerReviewRivalId(null)}
                 />
             )}
         </div>

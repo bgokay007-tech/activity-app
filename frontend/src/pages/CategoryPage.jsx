@@ -6,6 +6,9 @@ import { ENABLED_SUBS } from '../config/features';
 import { useTranslation } from 'react-i18next';
 import padelImg from '../assets/padel.png';
 
+// Bazı alt kategoriler SubCategoryPage yerine kendi bağımsız sayfasına gider
+const SPECIAL_ROUTES = { music: '/music', cinema: '/cinema' };
+
 const CATEGORY_CONFIG = {
     sports: {
         id: 'SPORTS', name: 'Sports', emoji: '🏃',
@@ -83,7 +86,7 @@ function CategoryPage() {
                             return (
                                 <div
                                     key={sub.id}
-                                    onClick={() => enabled && navigate(`/category/${category}/${sub.id}`)}
+                                    onClick={() => enabled && navigate(SPECIAL_ROUTES[sub.id] || `/category/${category}/${sub.id}`)}
                                     className={`relative ${config.bg} border-2 rounded-2xl p-5 transition-all duration-200 ${config.border} ${enabled ? `cursor-pointer hover:${config.activeBorder} hover:scale-105` : 'cursor-not-allowed opacity-50 grayscale'}`}
                                 >
                                     {!enabled && (
