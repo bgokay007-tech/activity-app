@@ -27,9 +27,11 @@ export const searchMusic = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
-// Apple'ın herkese açık, anahtar gerektirmeyen "Top Songs" chart feed'i — arama
-// yapılmadan önce kullanıcıya boş ekran yerine Türkiye'de popüler şarkıları
-// önermek için. 1 saat bellekte cache'lenir (chart sık değişmiyor).
+// Apple'ın herkese açık, anahtar gerektirmeyen "Top Songs"/"Top Playlists" chart
+// feed'leri — arama yapılmadan önce kullanıcıya boş ekran yerine popüler şarkı ve
+// liste önerileri göstermek için. Türkiye (tr) ve global (us) şartları ardışık
+// sıralanarak (TR, US, TR, US, ...) yerli/yabancı karışık bir öneri akışı oluşturulur.
+// 1 saat bellekte cache'lenir (chart sık değişmiyor).
 let trendingCache = null;
 let trendingCacheExpiry = 0;
 
@@ -43,16 +45,54 @@ function normalizeAppleChartTrack(t) {
     };
 }
 
+function normalizeAppleChartPlaylist(p) {
+    return {
+        playlistId: p.id,
+        name: p.name,
+        imageUrl: p.artworkUrl100 ? p.artworkUrl100.replace('100x100', '400x400') : null,
+        url: p.url,
+    };
+}
+
+function interleave(a, b) {
+    const out = [];
+    const max = Math.max(a.length, b.length);
+    for (let i = 0; i < max; i++) {
+        if (a[i]) out.push(a[i]);
+        if (b[i]) out.push(b[i]);
+    }
+    return out;
+}
+
+async function fetchAppleChart(country, kind, limit) {
+    const response = await fetch(`https://rss.applemarketingtools.com/api/v2/${country}/music/most-played/${limit}/${kind}.json`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.feed?.results || [];
+}
+
 export const getTrendingMusic = async (req, res, next) => {
     try {
-        if (trendingCache && Date.now() < trendingCacheExpiry) return res.json({ tracks: trendingCache });
-        const response = await fetch('https://rss.applemarketingtools.com/api/v2/tr/music/most-played/50/songs.json');
-        if (!response.ok) return res.status(502).json({ message: 'Müzik servisi yanıt vermedi' });
-        const data = await response.json();
-        const tracks = (data.feed?.results || []).map(normalizeAppleChartTrack);
-        trendingCache = tracks;
+        if (trendingCache && Date.now() < trendingCacheExpiry) return res.json(trendingCache);
+
+        const [trSongs, usSongs, trPlaylists, usPlaylists] = await Promise.all([
+            fetchAppleChart('tr', 'songs', 30),
+            fetchAppleChart('us', 'songs', 30),
+            fetchAppleChart('tr', 'playlists', 8),
+            fetchAppleChart('us', 'playlists', 8),
+        ]);
+
+        if (trSongs.length === 0 && usSongs.length === 0) {
+            return res.status(502).json({ message: 'Müzik servisi yanıt vermedi' });
+        }
+
+        const tracks = interleave(trSongs.map(normalizeAppleChartTrack), usSongs.map(normalizeAppleChartTrack));
+        const playlists = interleave(trPlaylists.map(normalizeAppleChartPlaylist), usPlaylists.map(normalizeAppleChartPlaylist));
+
+        const result = { tracks, playlists };
+        trendingCache = result;
         trendingCacheExpiry = Date.now() + 60 * 60 * 1000;
-        res.json({ tracks });
+        res.json(result);
     } catch (e) { next(e); }
 };
 

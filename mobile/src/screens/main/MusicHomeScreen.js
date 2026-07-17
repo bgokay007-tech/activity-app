@@ -145,6 +145,23 @@ function TrackRow({ track, onPlay, onLike, liked, onAddToPlaylist }) {
     );
 }
 
+function TrendingPlaylistCard({ playlist }) {
+    return (
+        <TouchableOpacity
+            style={s.playlistCard}
+            onPress={() => playlist.url && Linking.openURL(playlist.url)}
+            activeOpacity={0.8}
+        >
+            {playlist.imageUrl ? (
+                <Image source={{ uri: playlist.imageUrl }} style={s.playlistCardImg} />
+            ) : (
+                <View style={[s.playlistCardImg, s.rowArtFallback]}><Text style={{ fontSize: 20 }}>📋</Text></View>
+            )}
+            <Text style={s.playlistCardTitle} numberOfLines={2}>{playlist.name}</Text>
+        </TouchableOpacity>
+    );
+}
+
 export default function MusicHomeScreen({ navigation }) {
     const t = useT();
     const myId = useSelector(s => s.auth.user?.id);
@@ -156,6 +173,7 @@ export default function MusicHomeScreen({ navigation }) {
     const [hasSearched, setHasSearched] = useState(false);
     const [results, setResults] = useState([]);
     const [trending, setTrending] = useState([]);
+    const [trendingPlaylists, setTrendingPlaylists] = useState([]);
     const [trendingLoading, setTrendingLoading] = useState(false);
     const [playlists, setPlaylists] = useState([]);
     const [liked, setLiked] = useState([]);
@@ -372,7 +390,10 @@ export default function MusicHomeScreen({ navigation }) {
 
     const loadTrending = useCallback(() => {
         setTrendingLoading(true);
-        api.get('/music/trending').then(r => setTrending(r.data.tracks || [])).catch(() => {}).finally(() => setTrendingLoading(false));
+        api.get('/music/trending')
+            .then(r => { setTrending(r.data.tracks || []); setTrendingPlaylists(r.data.playlists || []); })
+            .catch(() => {})
+            .finally(() => setTrendingLoading(false));
     }, []);
 
     useEffect(() => { loadPlaylists(); loadLiked(); loadTrending(); }, [loadPlaylists, loadLiked, loadTrending]);
@@ -889,9 +910,21 @@ export default function MusicHomeScreen({ navigation }) {
                     keyExtractor={item => item.trackId}
                     contentContainerStyle={s.list}
                     ListHeaderComponent={
-                        showingTrending && trending.length > 0
-                            ? <Text style={s.sectionLabel}>{t.musicTrendingLabel || '🔥 Türkiye\'de Popüler'}</Text>
-                            : null
+                        showingTrending ? (
+                            <>
+                                {trendingPlaylists.length > 0 && (
+                                    <>
+                                        <Text style={s.sectionLabel}>{t.musicPlaylistsLabel || '📋 Öne Çıkan Listeler'}</Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.playlistScroll} contentContainerStyle={{ gap: 10 }}>
+                                            {trendingPlaylists.map(p => <TrendingPlaylistCard key={p.playlistId} playlist={p} />)}
+                                        </ScrollView>
+                                    </>
+                                )}
+                                {trending.length > 0 && (
+                                    <Text style={s.sectionLabel}>{t.musicTrendingLabel || '🔥 Popüler (Türkçe + Yabancı)'}</Text>
+                                )}
+                            </>
+                        ) : null
                     }
                     ListEmptyComponent={
                         <Text style={s.emptyText}>
@@ -988,6 +1021,10 @@ const s = StyleSheet.create({
     list: { paddingHorizontal: 12, paddingBottom: 30 },
     emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 30 },
     sectionLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 2 },
+    playlistScroll: { marginBottom: 14 },
+    playlistCard: { width: 110 },
+    playlistCardImg: { width: 110, height: 110, borderRadius: 10, backgroundColor: colors.surface2 },
+    playlistCardTitle: { color: '#fff', fontSize: 11, fontWeight: '700', marginTop: 6 },
 
     row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.border },
     rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
