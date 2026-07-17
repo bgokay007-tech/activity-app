@@ -5,6 +5,8 @@ import { PORT, CLIENT_URL } from './config/env.js';
 import { setIO } from './config/socket.js';
 import { registerBatakHandlers } from './sockets/batak.js';
 import { registerOkeyHandlers } from './sockets/okey.js';
+import { registerTavlaHandlers } from './sockets/tavla.js';
+import { registerChessHandlers } from './sockets/chess.js';
 import { startCleanupJob } from './jobs/cleanupRivals.js';
 import { startAutoCompleteJob } from './jobs/autoCompleteMatches.js';
 import { startTournamentCleanupJob } from './jobs/cleanupTournaments.js';
@@ -81,6 +83,8 @@ io.on('connection', (socket) => {
     }
     registerBatakHandlers(io, socket);
     registerOkeyHandlers(io, socket);
+    registerTavlaHandlers(io, socket);
+    registerChessHandlers(io, socket);
 });
 
 Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
