@@ -19,7 +19,7 @@ export const searchMusic = async (req, res, next) => {
         if (!q) return res.status(400).json({ message: 'q parametresi gerekli' });
 
         const url = `https://itunes.apple.com/search?media=music&entity=song&country=TR&limit=30&term=${encodeURIComponent(q)}`;
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
         if (!response.ok) return res.status(502).json({ message: 'Müzik servisi yanıt vermedi' });
         const data = await response.json();
         const tracks = (data.results || []).map(normalizeItunesTrack);
@@ -64,11 +64,22 @@ function interleave(a, b) {
     return out;
 }
 
+// Apple'ın RSS feed'i bazen ağır gecikiyor/hiç yanıt vermiyor — zaman aşımı olmadan
+// bu, Promise.all'u ve dolayısıyla tüm /music/trending isteğini Railway'in gateway
+// timeout'una (30sn) çarpıp 502 dönmesine kadar bloke ediyordu. Artık her istek en
+// fazla 8sn bekliyor, süre dolarsa o parça için boş liste dönüp diğerleri etkilenmiyor.
 async function fetchAppleChart(country, kind, limit) {
-    const response = await fetch(`https://rss.applemarketingtools.com/api/v2/${country}/music/most-played/${limit}/${kind}.json`);
-    if (!response.ok) return [];
-    const data = await response.json();
-    return data.feed?.results || [];
+    try {
+        const response = await fetch(
+            `https://rss.applemarketingtools.com/api/v2/${country}/music/most-played/${limit}/${kind}.json`,
+            { signal: AbortSignal.timeout(8000) },
+        );
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.feed?.results || [];
+    } catch {
+        return [];
+    }
 }
 
 export const getTrendingMusic = async (req, res, next) => {
@@ -110,7 +121,7 @@ export async function resolveYoutubeVideoId(title, artist) {
     if (!apiKey) return null;
     const q = `${title} ${artist} audio`;
     const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=1&q=${encodeURIComponent(q)}&key=${apiKey}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!response.ok) return null;
     const data = await response.json();
     const videoId = data.items?.[0]?.id?.videoId || null;

@@ -75,7 +75,7 @@ export const getNowPlayingMovies = async (req, res, next) => {
         });
         if (genreIds.length > 0) params.set('with_genres', genreIds.join('|'));
 
-        const response = await fetch(`${TMDB_BASE}/discover/movie?${params.toString()}`);
+        const response = await fetch(`${TMDB_BASE}/discover/movie?${params.toString()}`, { signal: AbortSignal.timeout(8000) });
         if (!response.ok) return res.status(502).json({ message: 'Film servisi yanıt vermedi' });
         const data = await response.json();
 
@@ -123,7 +123,7 @@ export const getClassicFilms = async (req, res, next) => {
         params.append('fl[]', 'description');
         params.append('sort[]', 'downloads desc');
 
-        const response = await fetch(`${ARCHIVE_BASE}/advancedsearch.php?${params.toString()}`);
+        const response = await fetch(`${ARCHIVE_BASE}/advancedsearch.php?${params.toString()}`, { signal: AbortSignal.timeout(8000) });
         if (!response.ok) return res.status(502).json({ message: 'Film arşivi servisi yanıt vermedi' });
         const data = await response.json();
         const films = (data.response?.docs || []).map(normalizeClassicFilm);
@@ -137,7 +137,7 @@ export const getClassicFilms = async (req, res, next) => {
 export const getClassicFilmStream = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const response = await fetch(`${ARCHIVE_BASE}/metadata/${encodeURIComponent(id)}`);
+        const response = await fetch(`${ARCHIVE_BASE}/metadata/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(8000) });
         if (!response.ok) return res.status(502).json({ message: 'Film bilgisi alınamadı' });
         const data = await response.json();
         const files = Array.isArray(data.files) ? data.files : [];

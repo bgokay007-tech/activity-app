@@ -44,7 +44,7 @@ export const searchConcerts = async (req, res, next) => {
         if (dateFrom) params.set('startDateTime', `${dateFrom}T00:00:00Z`);
         if (dateTo) params.set('endDateTime', `${dateTo}T23:59:59Z`);
 
-        const response = await fetch(`${TM_BASE}/events.json?${params.toString()}`);
+        const response = await fetch(`${TM_BASE}/events.json?${params.toString()}`, { signal: AbortSignal.timeout(8000) });
         if (!response.ok) return res.status(502).json({ message: 'Konser servisi yanıt vermedi' });
         const data = await response.json();
         const concerts = (data._embedded?.events || []).map(normalizeConcert);
