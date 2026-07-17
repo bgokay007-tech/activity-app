@@ -7,12 +7,12 @@ import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak']);
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak', 'friend_finding']);
 
 // Bu dallar "ilan" (rakip bul) mantığına değil kendi özel ekranlarına gider —
 // SubCategory yerine bu ekran adına yönlendirilir, ilan sayacı da gösterilmez.
-const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome', batak: 'BatakHome' };
-const SPECIAL_BADGE_EMOJI = { music: '🎵', cinema: '🎬', theater: '🎭', batak: '🃏' };
+const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome', batak: 'BatakHome', friend_finding: 'FriendFindingHome' };
+const SPECIAL_BADGE_EMOJI = { music: '🎵', cinema: '🎬', theater: '🎭', batak: '🃏', friend_finding: '🎉' };
 
 const SUB_MAP = {
     SPORTS:  [
@@ -45,7 +45,8 @@ const SUB_MAP = {
         { id: 'airsoft',          label: 'Airsoft',             labelTR: 'Airsoft',             emoji: '🪖' },
     ],
     SOCIAL:  [
-        { id: 'language',    label: 'Language Exchange', labelTR: 'Dil Değişimi',    emoji: '🌍' },
+        { id: 'friend_finding', label: 'Friend Finding',    labelTR: 'Arkadaş Bulma',   emoji: '🎉' },
+        { id: 'language',       label: 'Language Exchange', labelTR: 'Dil Değişimi',    emoji: '🌍' },
     ],
     ARTS:    [
         { id: 'painting',     label: 'Painting',      labelTR: 'Resim',       emoji: '🎨' },

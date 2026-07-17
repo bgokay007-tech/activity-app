@@ -49,6 +49,10 @@ export const SUBCATEGORIES = {
         { id: 'poetry', name: 'Poetry', emoji: '📜' },
         { id: 'illustration', name: 'Illustration', emoji: '🖼️' },
     ],
+    SOCIAL: [
+        { id: 'friend_finding', name: 'Friend Finding', emoji: '🎉' },
+        { id: 'language', name: 'Language Exchange', emoji: '🌍' },
+    ],
     GAMES: [
         { id: 'fps', name: 'FPS', emoji: '🎯' },
         { id: 'rpg', name: 'RPG', emoji: '⚔️' },
@@ -80,6 +84,13 @@ export const getCategories = async (req, res) => {
                 emoji: '🎨',
                 description: 'Connect with artists, share your work, collaborate',
                 subCategories: SUBCATEGORIES.ARTS,
+            },
+            {
+                id: 'SOCIAL',
+                name: 'Social',
+                emoji: '🎉',
+                description: 'Meet people, join events, explore new activities',
+                subCategories: SUBCATEGORIES.SOCIAL,
             },
             {
                 id: 'GAMES',
@@ -136,7 +147,7 @@ export const addInterest = async (req, res, next) => {
         const { category, subCategory } = req.body;
 
         // Kategori geçerli mi?
-        if (!['SPORTS', 'ARTS', 'GAMES'].includes(category)) {
+        if (!['SPORTS', 'ARTS', 'GAMES', 'SOCIAL'].includes(category)) {
             return res.status(400).json({ message: 'Invalid category' });
         }
 
@@ -181,6 +192,11 @@ export const addInterest = async (req, res, next) => {
             },
         });
 
+        // Daha önce anketi tamamlamış ve gizlemiş kullanıcı tekrar eklerse, aramaya geri dahil olur
+        if (category === 'SOCIAL' && subCategory === 'friend_finding') {
+            await prisma.friendFindingProfile.updateMany({ where: { userId: req.userId }, data: { active: true } });
+        }
+
         res.status(201).json(interest);
     } catch (error) {
         next(error);
@@ -205,6 +221,10 @@ export const removeInterest = async (req, res, next) => {
 
         await prisma.userInterest.delete({ where: { id } });
 
+        if (interest.category === 'SOCIAL' && interest.subCategory === 'friend_finding') {
+            await prisma.friendFindingProfile.updateMany({ where: { userId: req.userId }, data: { active: false } });
+        }
+
         res.json({ message: 'Interest removed' });
     } catch (error) {
         next(error);
@@ -223,6 +243,10 @@ export const hideInterest = async (req, res, next) => {
         }
 
         await prisma.userInterest.update({ where: { id }, data: { hidden: true } });
+
+        if (interest.category === 'SOCIAL' && interest.subCategory === 'friend_finding') {
+            await prisma.friendFindingProfile.updateMany({ where: { userId: req.userId }, data: { active: false } });
+        }
 
         res.json({ message: 'Interest hidden' });
     } catch (error) {

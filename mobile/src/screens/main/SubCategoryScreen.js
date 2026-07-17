@@ -98,12 +98,10 @@ function getConfig(sub) {
 function getTabs(sub, category) {
     if (category === 'ARTS')
         return ['rivals', 'coaches', 'media', 'archive'];
-    if (sub === 'football')
-        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', 'referee', 'media'];
-    if (sub === 'volleyball')
-        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'tickets', 'archive', 'media'];
+    if (sub === 'football' || sub === 'volleyball')
+        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', ...(sub==='football' ? ['referee'] : []), 'media'];
     if (sub === 'tennis' || sub === 'padel')
-        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'news', 'archive'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
 }
 
@@ -12339,81 +12337,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TextPostCard key={post.id} post={post} cfg={cfg} />
                                 ))
                             }
-                        </>
-                    )}
-
-                    {/* ── SPORTS TICKETS (Ticketmaster — ulusal + uluslararasi) ── */}
-                    {activeTab === 'tickets' && (
-                        <>
-                            <View style={{ marginBottom: 8 }}>
-                                <CityAutocomplete
-                                    value={ticketCity}
-                                    onChangeText={setTicketCity}
-                                    onSelect={(c) => { setTicketCity(c.province); setTicketsLoaded(false); }}
-                                    placeholder={lang === 'tr' ? 'Şehir (opsiyonel)' : 'City (optional)'}
-                                />
-                            </View>
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                                <TouchableOpacity onPress={() => setShowTicketFromPicker(true)} style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                                        {ticketDateFrom ? fmtTicketDate(ticketDateFrom) : (lang === 'tr' ? 'Başlangıç tarihi' : 'Start date')}
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setShowTicketToPicker(true)} style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                                        {ticketDateTo ? fmtTicketDate(ticketDateTo) : (lang === 'tr' ? 'Bitiş tarihi' : 'End date')}
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => { setTicketsLoaded(false); loadSportsTickets(); }} style={{ backgroundColor: cfg.color, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' }}>
-                                    <Text style={{ color: '#fff', fontWeight: '700' }}>{lang === 'tr' ? 'Ara' : 'Search'}</Text>
-                                </TouchableOpacity>
-                            </View>
-                            <CalendarPickerModal
-                                visible={showTicketFromPicker}
-                                value={ticketDateFrom}
-                                onSelect={(d) => { setTicketDateFrom(d); setShowTicketFromPicker(false); setTicketsLoaded(false); }}
-                                onClose={() => setShowTicketFromPicker(false)}
-                            />
-                            <CalendarPickerModal
-                                visible={showTicketToPicker}
-                                value={ticketDateTo}
-                                onSelect={(d) => { setTicketDateTo(d); setShowTicketToPicker(false); setTicketsLoaded(false); }}
-                                onClose={() => setShowTicketToPicker(false)}
-                            />
-                            {loadingTickets ? (
-                                <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
-                            ) : sportsTickets.length === 0 ? (
-                                ticketsLoaded && <EmptyState emoji="🎟️" text={t.emptyTickets || (lang === 'tr' ? 'Bu filtrelere uyan bilet bulunamadı.' : 'No tickets found for these filters.')} />
-                            ) : (
-                                sportsTickets.map(ev => (
-                                    <View key={ev.id} style={{ flexDirection: 'row', backgroundColor: colors.surface2, borderRadius: 12, marginBottom: 10, padding: 9, borderWidth: 1, borderColor: colors.border }}>
-                                        {ev.imageUrl ? (
-                                            <Image source={{ uri: ev.imageUrl }} style={{ width: 64, height: 64, borderRadius: 8 }} />
-                                        ) : (
-                                            <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 22 }}>🎟️</Text></View>
-                                        )}
-                                        <View style={{ flex: 1, marginLeft: 12 }}>
-                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }} numberOfLines={2}>{ev.name}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
-                                                {[ev.venueName, ev.city, ev.country].filter(Boolean).join(' · ')}
-                                            </Text>
-                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                                                {ev.date}{ev.time ? ` · ${ev.time.slice(0, 5)}` : ''}
-                                            </Text>
-                                            {ev.priceMin != null && (
-                                                <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '700', marginTop: 2 }}>
-                                                    {ev.priceMin}{ev.priceMax && ev.priceMax !== ev.priceMin ? `–${ev.priceMax}` : ''} {ev.currency || ''}
-                                                </Text>
-                                            )}
-                                            {ev.ticketUrl && (
-                                                <TouchableOpacity onPress={() => Linking.openURL(ev.ticketUrl)} style={{ backgroundColor: cfg.color, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, alignSelf: 'flex-start', marginTop: 6 }}>
-                                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{t.ticketBuyBtn || (lang === 'tr' ? '🎟️ Bilet Al' : '🎟️ Buy Ticket')}</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    </View>
-                                ))
-                            )}
                         </>
                     )}
                 </ScrollView>

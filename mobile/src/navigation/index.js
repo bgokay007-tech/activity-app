@@ -120,6 +120,8 @@ import ClassicFilmPlayerScreen from '../screens/main/ClassicFilmPlayerScreen';
 import TheaterHomeScreen from '../screens/main/TheaterHomeScreen';
 import BatakHomeScreen from '../screens/main/BatakHomeScreen';
 import BatakTableScreen from '../screens/main/BatakTableScreen';
+import FriendFindingHomeScreen from '../screens/main/FriendFindingHomeScreen';
+import FriendFindingMatchesScreen from '../screens/main/FriendFindingMatchesScreen';
 import MiniPlayer from '../components/MiniPlayer';
 import YoutubeAudioPlayer from '../components/YoutubeAudioPlayer';
 import colors from '../theme/colors';
@@ -153,6 +155,8 @@ function HomeStackNav() {
             <HomeStack.Screen name="TheaterHome" component={TheaterHomeScreen} />
             <HomeStack.Screen name="BatakHome" component={BatakHomeScreen} />
             <HomeStack.Screen name="BatakTable" component={BatakTableScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+            <HomeStack.Screen name="FriendFindingHome" component={FriendFindingHomeScreen} />
+            <HomeStack.Screen name="FriendFindingMatches" component={FriendFindingMatchesScreen} />
         </HomeStack.Navigator>
     );
 }

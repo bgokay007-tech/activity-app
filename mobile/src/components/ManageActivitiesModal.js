@@ -7,15 +7,17 @@ import { useSelector } from 'react-redux';
 import api from '../services/api';
 import colors from '../theme/colors';
 import AssessmentModal from './AssessmentModal';
+import FriendFindingSurveyModal from './FriendFindingSurveyModal';
 import useT from '../hooks/useT';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball']);
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'friend_finding']);
 
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const CATEGORY_TABS = [
         { id: 'SPORTS', label: t.sportsTab, color: '#16a34a' },
+        { id: 'SOCIAL', label: t.socialTab, color: '#d97706' },
         { id: 'ARTS',   label: t.artsTab,   color: '#db2777' },
         { id: 'GAMES',  label: t.gamesTab,  color: '#2563eb' },
     ];
@@ -26,6 +28,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
 
     // Assessment state
     const [assessTarget, setAssessTarget]   = useState(null); // { interestId, subCategory }
+    const [ffSurveyOpen, setFfSurveyOpen]   = useState(false);
 
     useEffect(() => {
         if (!visible) return;
@@ -46,9 +49,11 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             const updated = [...localInterests, data];
             setLocalInterests(updated);
             onInterestsChange?.(updated);
-            // Daha once gizlenmis (ama 3+ mac gecmisi oldugu icin silinmemis) bir brans
-            // tekrar eklendiyse anketi tekrar acmiyoruz - puan/gecmis zaten korunuyor.
-            if (!data.assessmentCompleted) {
+            if (subCategory === 'friend_finding') {
+                setFfSurveyOpen(true);
+            } else if (!data.assessmentCompleted) {
+                // Daha once gizlenmis (ama 3+ mac gecmisi oldugu icin silinmemis) bir brans
+                // tekrar eklendiyse anketi tekrar acmiyoruz - puan/gecmis zaten korunuyor.
                 setAssessTarget({ interestId: data.id, subCategory });
             }
         } catch (e) { console.error(e); }
@@ -221,6 +226,13 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                 lang={lang}
                 onClose={() => setAssessTarget(null)}
                 onComplete={handleAssessComplete}
+            />
+
+            {/* Arkadaş Bulma anketi — opens on top */}
+            <FriendFindingSurveyModal
+                visible={ffSurveyOpen}
+                onClose={() => setFfSurveyOpen(false)}
+                onComplete={() => setFfSurveyOpen(false)}
             />
         </>
     );

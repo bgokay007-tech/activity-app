@@ -130,6 +130,20 @@ model User {
   venueReviews          VenueReview[]
   courtRatings          CourtRating[]
   reviewAppeals         ReviewAppeal[]
+
+  // Arkadaş Bulma (konum bazlı eşleştirme)
+  lat                  Float?
+  lng                  Float?
+  locationUpdatedAt    DateTime?
+  locationPrivacy      String    @default("FRIENDS")
+  locationExclude      Json      @default("[]")
+  friendFindingProfile FriendFindingProfile?
+  ffSwipesGiven        FriendFindingSwipe[] @relation("FFSwiper")
+  ffSwipesReceived     FriendFindingSwipe[] @relation("FFTarget")
+  ffMatchesAsUser1     FriendFindingMatch[] @relation("FFMatchUser1")
+  ffMatchesAsUser2     FriendFindingMatch[] @relation("FFMatchUser2")
+
+  @@index([lat, lng])
 }
 
 model ProfileChangeRequest {
@@ -1211,4 +1225,51 @@ model ReviewAppeal {
   appealer User          @relation(fields: [appealerId], references: [id], onDelete: Cascade)
 
   @@unique([reviewId, appealerId])
+}
+// ARKADAŞ BULMA — AI destekli, konum bazlı eşleştirme
+model FriendFindingProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  seeking          String   @default("FRIENDS")   // FRIENDS | PARTNER | BOTH
+  answers          Json                              // ham anket cevapları, gizli
+  aiProfile        Json?                             // Claude'un ürettiği yapılandırılmış profil, gizli
+  aiProfileVersion Int      @default(1)
+  active           Boolean  @default(true)
+  ageMin           Int?
+  ageMax           Int?
+  genderPref       Json     @default("[]")
+  maxDistanceKm    Int      @default(50)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FriendFindingSwipe {
+  id        String   @id @default(uuid())
+  swiperId  String
+  targetId  String
+  decision  String   // LIKE | PASS
+  createdAt DateTime @default(now())
+
+  swiper User @relation("FFSwiper", fields: [swiperId], references: [id], onDelete: Cascade)
+  target User @relation("FFTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([swiperId, targetId])
+  @@index([targetId, decision])
+}
+
+model FriendFindingMatch {
+  id            String    @id @default(uuid())
+  user1Id       String
+  user2Id       String
+  status        String    @default("ACTIVE") // ACTIVE | UNMATCHED
+  matchedAt     DateTime  @default(now())
+  unmatchedAt   DateTime?
+  unmatchedById String?
+
+  user1 User @relation("FFMatchUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2 User @relation("FFMatchUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+
+  @@unique([user1Id, user2Id])
 }

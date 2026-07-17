@@ -590,7 +590,7 @@ const en = {
 
     // Manage Activities modal
     manageTitle: '🎯 Manage Activities',
-    sportsTab: '🏃 Sports', artsTab: '🎨 Arts', gamesTab: '🎮 Games',
+    sportsTab: '🏃 Sports', socialTab: '🎉 Social', artsTab: '🎨 Arts', gamesTab: '🎮 Games',
     noBranches: 'No branches found in this category',
     assessBtn: 'Assess',
     doneBtn: 'Done',
@@ -613,6 +613,29 @@ const en = {
     levelAdvanced: '🟠 Advanced',
     levelPro: '🔴 Pro',
     levelTr: { BEGINNER: 'Beginner', INTERMEDIATE: 'Intermediate', ADVANCED: 'Advanced', PRO: 'Pro' },
+
+    // Friend Finding
+    ffSurveyTitle: '🎉 Friend Finding Survey',
+    ffTextPlaceholder: 'Write your answer here...',
+    ffFinishBtn: 'Finish →',
+    ffSurveyDoneTitle: 'Your profile is ready!',
+    ffSurveyDoneDesc: 'We\'ll use this to find people who match your vibe and location. Your answers stay private.',
+    ffHomeTitle: '🎉 Friend Finding',
+    ffMatchesTab: 'Matches',
+    ffActiveLabel: 'Actively searching',
+    ffNoProfileText: 'Add "Friend Finding" as an activity from your profile to get started.',
+    ffLocationRequired: 'Location permission is required to find people near you.',
+    ffLocationFailed: 'Could not get your location.',
+    ffRetryBtn: '↻ Retry',
+    ffNoMoreCandidates: 'No more people to show right now. Check back later!',
+    ffDistanceAway: (km) => `${km} km away`,
+    ffCompatibility: (pct) => `${pct}% compatible`,
+    ffPassBtn: 'Pass',
+    ffLikeBtn: 'Like',
+    ffMatchTitle: '🎉 It\'s a match!',
+    ffMatchDesc: 'You have a new match. You can now message each other.',
+    ffMatchDescWith: (name) => `You matched with ${name}! You can now message each other.`,
+    ffNoMatchesYet: 'No matches yet. Keep swiping!',
 
     // Peer review modal (volleyball)
     peerReviewTitle: '🏐 Rate Players',
@@ -1520,7 +1543,7 @@ const tr = {
 
     // Manage Activities modal
     manageTitle: '🎯 Aktiviteleri Yönet',
-    sportsTab: '🏃 Spor', artsTab: '🎨 Sanat', gamesTab: '🎮 Oyun',
+    sportsTab: '🏃 Spor', socialTab: '🎉 Sosyal', artsTab: '🎨 Sanat', gamesTab: '🎮 Oyun',
     noBranches: 'Bu kategoride dal bulunamadı',
     assessBtn: 'Değerlendir',
     doneBtn: 'Tamam',
@@ -1543,6 +1566,29 @@ const tr = {
     levelAdvanced: '🟠 İleri',
     levelPro: '🔴 Pro',
     levelTr: { BEGINNER: 'Başlangıç', INTERMEDIATE: 'Orta', ADVANCED: 'İleri', PRO: 'Pro' },
+
+    // Arkadaş Bulma
+    ffSurveyTitle: '🎉 Arkadaş Bulma Anketi',
+    ffTextPlaceholder: 'Cevabını buraya yaz...',
+    ffFinishBtn: 'Bitir →',
+    ffSurveyDoneTitle: 'Profilin hazır!',
+    ffSurveyDoneDesc: 'Bunu, sana uygun ve yakınındaki kişileri bulmak için kullanacağız. Cevapların gizli kalır.',
+    ffHomeTitle: '🎉 Arkadaş Bulma',
+    ffMatchesTab: 'Eşleşmeler',
+    ffActiveLabel: 'Aktif olarak arıyorum',
+    ffNoProfileText: 'Başlamak için profilinden "Arkadaş Bulma" aktivitesini ekle.',
+    ffLocationRequired: 'Yakınındaki kişileri bulmak için konum izni gerekiyor.',
+    ffLocationFailed: 'Konum alınamadı.',
+    ffRetryBtn: '↻ Tekrar Dene',
+    ffNoMoreCandidates: 'Şu an gösterilecek başka kimse yok. Daha sonra tekrar bak!',
+    ffDistanceAway: (km) => `${km} km uzaklıkta`,
+    ffCompatibility: (pct) => `%${pct} uyumlu`,
+    ffPassBtn: 'Geç',
+    ffLikeBtn: 'Beğen',
+    ffMatchTitle: '🎉 Eşleştiniz!',
+    ffMatchDesc: 'Yeni bir eşleşmen var. Artık birbirinize mesaj atabilirsiniz.',
+    ffMatchDescWith: (name) => `${name} ile eşleştin! Artık birbirinize mesaj atabilirsiniz.`,
+    ffNoMatchesYet: 'Henüz eşleşme yok. Beğenmeye devam et!',
 
     // Peer review modal (voleybol)
     peerReviewTitle: '🏐 Oyuncuları Değerlendir',
