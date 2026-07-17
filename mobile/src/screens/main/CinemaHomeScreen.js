@@ -8,6 +8,7 @@ import api from '../../services/api';
 import useT from '../../hooks/useT';
 import CityAutocomplete from '../../components/CityAutocomplete';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
+import TimePickerModal from '../../components/TimePickerModal';
 
 function fmtDate(d) {
     if (!d) return null;
@@ -61,6 +62,11 @@ export default function CinemaHomeScreen({ navigation }) {
     const [showDateModal, setShowDateModal] = useState(false);
     const [pickingFrom, setPickingFrom] = useState(false);
     const [pickingTo, setPickingTo] = useState(false);
+    const [timeFrom, setTimeFrom] = useState(null);
+    const [timeTo, setTimeTo] = useState(null);
+    const [showTimeModal, setShowTimeModal] = useState(false);
+    const [pickingTimeFrom, setPickingTimeFrom] = useState(false);
+    const [pickingTimeTo, setPickingTimeTo] = useState(false);
     const [showGenreModal, setShowGenreModal] = useState(false);
     const [movies, setMovies] = useState([]);
     const [cinemaListUrl, setCinemaListUrl] = useState(null);
@@ -163,13 +169,20 @@ export default function CinemaHomeScreen({ navigation }) {
                             onChangeText={setCity}
                             onSelect={(c) => { const name = c.province; setCity(name); load(name, selectedGenres, dateFrom, dateTo); }}
                             placeholder={t.cinemaCityPh || 'Şehir'}
-                            style={{ flex: 1.3 }}
+                            style={{ flex: 1 }}
                         />
                         <TouchableOpacity style={s.compactBtn} onPress={() => setShowDateModal(true)}>
                             <Text style={s.compactBtnText} numberOfLines={1}>
                                 {dateFrom || dateTo
                                     ? `📅 ${dateFrom ? fmtDate(dateFrom) : '…'} – ${dateTo ? fmtDate(dateTo) : '…'}`
                                     : (t.cinemaDateBtnPh || '📅 Tarih')}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.compactBtn} onPress={() => setShowTimeModal(true)}>
+                            <Text style={s.compactBtnText} numberOfLines={1}>
+                                {timeFrom || timeTo
+                                    ? `🕐 ${timeFrom || '…'}–${timeTo || '…'}`
+                                    : (t.cinemaTimeBtnPh || '🕐 Saat')}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={s.compactBtn} onPress={() => setShowGenreModal(true)}>
@@ -216,6 +229,44 @@ export default function CinemaHomeScreen({ navigation }) {
                         value={dateTo}
                         onSelect={(d) => { setDateTo(d); setPickingTo(false); load(city || undefined, selectedGenres, dateFrom, d); }}
                         onClose={() => setPickingTo(false)}
+                    />
+
+                    <Modal visible={showTimeModal} transparent animationType="fade" onRequestClose={() => setShowTimeModal(false)}>
+                        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowTimeModal(false)}>
+                            <View style={s.modalBox} onStartShouldSetResponder={() => true}>
+                                <Text style={s.modalTitle}>{t.cinemaTimeRangeTitle || 'Saat Aralığı'}</Text>
+                                <TouchableOpacity style={s.modalRow} onPress={() => setPickingTimeFrom(true)}>
+                                    <Text style={s.modalRowLabel}>{t.cinemaTimeFromPh || 'Başlangıç saati'}</Text>
+                                    <Text style={s.modalRowValue}>{timeFrom || '—'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={s.modalRow} onPress={() => setPickingTimeTo(true)}>
+                                    <Text style={s.modalRowLabel}>{t.cinemaTimeToPh || 'Bitiş saati'}</Text>
+                                    <Text style={s.modalRowValue}>{timeTo || '—'}</Text>
+                                </TouchableOpacity>
+                                {(timeFrom || timeTo) && (
+                                    <TouchableOpacity onPress={() => { setTimeFrom(null); setTimeTo(null); }}>
+                                        <Text style={s.modalClearText}>{t.cinemaTimeClear || 'Saati Temizle'}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity style={s.modalCloseBtn} onPress={() => setShowTimeModal(false)}>
+                                    <Text style={s.modalCloseText}>{t.closeCalendar || 'Kapat'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
+                    <TimePickerModal
+                        visible={pickingTimeFrom}
+                        title={t.cinemaTimeFromPh || 'Başlangıç saati'}
+                        value={timeFrom}
+                        onSelect={setTimeFrom}
+                        onClose={() => setPickingTimeFrom(false)}
+                    />
+                    <TimePickerModal
+                        visible={pickingTimeTo}
+                        title={t.cinemaTimeToPh || 'Bitiş saati'}
+                        value={timeTo}
+                        onSelect={setTimeTo}
+                        onClose={() => setPickingTimeTo(false)}
                     />
 
                     <Modal visible={showGenreModal} transparent animationType="fade" onRequestClose={() => setShowGenreModal(false)}>
@@ -320,8 +371,8 @@ const s = StyleSheet.create({
     searchBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
 
     filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10 },
-    compactBtn: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' },
-    compactBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+    compactBtn: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 7, paddingVertical: 9, justifyContent: 'center' },
+    compactBtnText: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
 
     modalOverlay: { flex: 1, backgroundColor: '#000000cc', justifyContent: 'center', alignItems: 'center', padding: 17 },
     modalBox: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, width: '100%' },
