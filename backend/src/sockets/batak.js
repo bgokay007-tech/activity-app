@@ -9,7 +9,9 @@ import { JWT_SECRET } from '../config/env.js';
 
 const SUITS = ['S', 'H', 'D', 'C'];
 const TOTAL_ROUNDS = 8;
-const BOT_DELAY_MS = 2500;
+const BOT_DELAY_MS = 2500;      // gerçek oyuncu koptuğunda devreye giren yedek bot gecikmesi
+const BOT_TURN_DELAY_MS = 1200; // "botlarla oyna" masasındaki botların doğal tempoda oynaması için
+const BOT_NAMES = { easy: 'Kolay', medium: 'Orta', hard: 'Zor' };
 
 const tables = new Map();       // tableId -> table state
 const queue = [];               // [{ userId, username, socket }]
@@ -31,7 +33,7 @@ function publicState(table) {
     return {
         tableId: table.id,
         phase: table.phase,
-        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, connected: s.connected, handCount: table.hands[s.seat]?.length ?? 0 })),
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, connected: s.connected, isBot: !!s.isBot, handCount: table.hands[s.seat]?.length ?? 0 })),
         dealerIndex: table.dealerIndex,
         turn: table.phase === 'bidding' ? table.biddingTurn : table.phase === 'playing' ? table.turn : null,
         bids: table.passed.map((p, s) => (p ? 'PASS' : (s === table.highestBidder ? table.highestBid : null))),
@@ -83,6 +85,82 @@ function legalCards(table, seat) {
     return followSuit.length > 0 ? followSuit : hand;
 }
 
+// ── Bot yapay zekası — zorluk seviyesine göre üç kademe ────────────────────
+// easy: büyük ölçüde rastgele (temkinsiz ihale, rastgele koz, rastgele kart).
+// medium/hard: elin gücünü tahmin edip ona göre ihale verir, en güçlü rengi koz
+// seçer, elini kazanacaksa en ucuza kazanır/kazanamıyorsa en düşük kartı atar.
+function estimateHandStrength(hand) {
+    let est = 0;
+    const bySuit = { S: [], H: [], D: [], C: [] };
+    hand.forEach(c => bySuit[cardSuit(c)].push(cardRank(c)));
+    for (const suit of SUITS) {
+        const ranks = bySuit[suit];
+        ranks.forEach(r => {
+            if (r === 14) est += 1;
+            else if (r === 13) est += 0.7;
+            else if (r === 12) est += 0.4;
+            else if (r === 11) est += 0.2;
+        });
+        if (ranks.length > 0 && ranks.length <= 2) est += 0.5; // kısa renk — kozla kesme şansı
+    }
+    return est;
+}
+
+function bestTrumpSuit(hand) {
+    const power = { S: 0, H: 0, D: 0, C: 0 };
+    hand.forEach(c => { power[cardSuit(c)] += cardRank(c) >= 11 ? 2 : 1; });
+    return SUITS.reduce((best, s) => (power[s] > power[best] ? s : best), SUITS[0]);
+}
+
+function chooseBotBid(table, seat, difficulty) {
+    const hand = table.hands[seat];
+    if (difficulty === 'easy') {
+        if (table.highestBid >= 10 || Math.random() < 0.55) return 'PASS';
+        return table.highestBid + 1;
+    }
+    const strength = estimateHandStrength(hand);
+    let target = Math.round(strength);
+    if (difficulty === 'hard' && strength - Math.floor(strength) >= 0.4) target += 1;
+    target = Math.max(0, Math.min(13, target));
+    return target > table.highestBid ? target : 'PASS';
+}
+
+function chooseBotTrump(table, seat, difficulty) {
+    if (difficulty === 'easy') return SUITS[Math.floor(Math.random() * 4)];
+    return bestTrumpSuit(table.hands[seat]);
+}
+
+function chooseBotCard(table, seat, difficulty) {
+    const legal = legalCards(table, seat);
+    if (difficulty === 'easy') return legal[Math.floor(Math.random() * legal.length)];
+
+    const trump = table.trumpSuit;
+    if (table.trick.length === 0) {
+        // Lider: elindeki en güçlü rengin (mümkünse koz olmayan) en yüksek kartıyla açar
+        const nonTrump = legal.filter(c => cardSuit(c) !== trump);
+        const pool = nonTrump.length > 0 ? nonTrump : legal;
+        return pool.reduce((best, c) => (cardRank(c) > cardRank(best) ? c : best), pool[0]);
+    }
+
+    const winningSeat = resolveTrick(table.trick, table.leadSuit, trump);
+    const winningCard = table.trick.find(x => x.seat === winningSeat).card;
+    const winningIsTrump = cardSuit(winningCard) === trump;
+    const canBeat = legal.filter(c => {
+        const suit = cardSuit(c);
+        if (suit === table.leadSuit && !winningIsTrump) return cardRank(c) > cardRank(winningCard);
+        if (suit === trump) return winningIsTrump ? cardRank(c) > cardRank(winningCard) : true;
+        return false;
+    });
+    if (canBeat.length > 0) {
+        // Kazanabiliyorsa en ucuza (en düşük yeterli kartla) kazanır
+        return canBeat.reduce((best, c) => (cardRank(c) < cardRank(best) ? c : best), canBeat[0]);
+    }
+    // Kazanamıyorsa kozu saklayıp en düşük kartı atar
+    const nonTrumpLegal = legal.filter(c => cardSuit(c) !== trump);
+    const pool = nonTrumpLegal.length > 0 ? nonTrumpLegal : legal;
+    return pool.reduce((worst, c) => (cardRank(c) < cardRank(worst) ? c : worst), pool[0]);
+}
+
 function clearBotTimer(table) {
     if (table.botTimer) { clearTimeout(table.botTimer); table.botTimer = null; }
 }
@@ -96,22 +174,32 @@ function scheduleBotIfNeeded(io, table) {
         : null;
     if (actingSeat === null || actingSeat === undefined) return;
     const seatInfo = table.seats[actingSeat];
-    if (!seatInfo || seatInfo.connected) return;
-    table.botTimer = setTimeout(() => runBotAction(io, table, actingSeat), BOT_DELAY_MS);
+    if (!seatInfo) return;
+    // Gerçek ve bağlı bir oyuncunun sırasıysa bot devreye girmez; bot koltuğu veya
+    // kopmuş bir oyuncunun sırasıysa (yedek bot olarak) bir süre sonra otomatik oynar.
+    if (!seatInfo.isBot && seatInfo.connected) return;
+    const delay = seatInfo.isBot ? BOT_TURN_DELAY_MS : BOT_DELAY_MS;
+    table.botTimer = setTimeout(() => runBotAction(io, table, actingSeat), delay);
 }
 
 function runBotAction(io, table, seat) {
+    const difficulty = table.seats[seat]?.difficulty || table.difficulty || 'medium';
     try {
         if (table.phase === 'bidding') {
-            applyBid(io, table, seat, 'PASS');
+            applyBid(io, table, seat, chooseBotBid(table, seat, difficulty));
         } else if (table.phase === 'choosingTrump') {
-            applyTrump(io, table, seat, SUITS[Math.floor(Math.random() * 4)]);
+            applyTrump(io, table, seat, chooseBotTrump(table, seat, difficulty));
         } else if (table.phase === 'playing') {
-            const legal = legalCards(table, seat);
-            const card = legal[Math.floor(Math.random() * legal.length)];
-            applyCard(io, table, seat, card);
+            applyCard(io, table, seat, chooseBotCard(table, seat, difficulty));
         }
-    } catch { /* bot hamlesi başarısız olursa bir sonraki zamanlayıcı yeniden dener */ }
+    } catch (e) {
+        // Beklenmeyen bir hata bot hamlesini engellerse masa sonsuza kadar takılı
+        // kalmasın diye kısa bir gecikmeyle yeniden denenir (applyX zaten state'i
+        // değiştirmeden hata fırlatır, bu yüzden tekrar denemek güvenlidir).
+        console.error('batak bot hamlesi başarısız:', e.message);
+        clearBotTimer(table);
+        table.botTimer = setTimeout(() => runBotAction(io, table, seat), BOT_TURN_DELAY_MS);
+    }
 }
 
 function applyBid(io, table, seat, bid) {
@@ -243,7 +331,7 @@ function createTable(io, players) {
     const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const table = {
         id,
-        seats: players.map((p, seat) => ({ seat, userId: p.userId, username: p.username, socketId: p.socket.id, connected: true })),
+        seats: players.map((p, seat) => ({ seat, userId: p.userId, username: p.username, socketId: p.socket.id, connected: true, isBot: false })),
         dealerIndex: 0,
         scores: [0, 0, 0, 0],
         roundNumber: 1,
@@ -259,10 +347,43 @@ function createTable(io, players) {
     dealRound(table);
     io.to(`batak:${id}`).emit('batak:matched', {
         tableId: id,
-        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat })),
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, isBot: false })),
     });
     broadcastState(io, table);
     sendAllHands(io, table);
+    scheduleBotIfNeeded(io, table);
+    return table;
+}
+
+function createBotTable(io, requester, difficulty) {
+    const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const botLabel = `🤖 Bot (${BOT_NAMES[difficulty]})`;
+    const table = {
+        id,
+        difficulty,
+        seats: [
+            { seat: 0, userId: requester.userId, username: requester.username, socketId: requester.socket.id, connected: true, isBot: false },
+            { seat: 1, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
+            { seat: 2, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
+            { seat: 3, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
+        ],
+        dealerIndex: 0,
+        scores: [0, 0, 0, 0],
+        roundNumber: 1,
+        hands: [[], [], [], []],
+        phase: 'dealing',
+        botTimer: null,
+    };
+    tables.set(id, table);
+    userTableMap.set(requester.userId, id);
+    requester.socket.join(`batak:${id}`);
+    dealRound(table);
+    io.to(`batak:${id}`).emit('batak:matched', {
+        tableId: id,
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, isBot: s.isBot })),
+    });
+    broadcastState(io, table);
+    sendHand(io, table, 0);
     scheduleBotIfNeeded(io, table);
     return table;
 }
@@ -294,6 +415,13 @@ export function registerBatakHandlers(io, socket) {
         queue.push({ userId: verifiedUserId, username, socket });
         socket.emit('batak:queued', { position: queue.length });
         tryMatch(io);
+    });
+
+    socket.on('batak:playVsBots', ({ difficulty } = {}) => {
+        if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
+        if (userTableMap.has(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
+        const diff = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
+        createBotTable(io, { userId: verifiedUserId, username, socket }, diff);
     });
 
     socket.on('batak:cancelFindMatch', () => {

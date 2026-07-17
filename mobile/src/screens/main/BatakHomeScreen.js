@@ -62,6 +62,7 @@ export default function BatakHomeScreen({ navigation }) {
     // ── Batak Oyna: eşleştirme ──────────────────────────────────────────────
     const [searching, setSearching] = useState(false);
     const [queuePos, setQueuePos] = useState(null);
+    const [difficulty, setDifficulty] = useState('medium');
     const navigatedRef = useRef(false);
 
     useEffect(() => {
@@ -100,6 +101,12 @@ export default function BatakHomeScreen({ navigation }) {
         getSocket()?.emit('batak:cancelFindMatch');
         setSearching(false);
         setQueuePos(null);
+    };
+
+    const startVsBots = () => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('batak:playVsBots', { difficulty });
     };
 
     // ── Batak İlanı ──────────────────────────────────────────────────────────
@@ -205,9 +212,31 @@ export default function BatakHomeScreen({ navigation }) {
                             </TouchableOpacity>
                         </View>
                     ) : (
-                        <TouchableOpacity style={s.findBtn} onPress={startSearch} activeOpacity={0.85}>
-                            <Text style={s.findBtnText}>{t.batakFindMatch || '🔍 Rakip Ara'}</Text>
-                        </TouchableOpacity>
+                        <>
+                            <TouchableOpacity style={s.findBtn} onPress={startSearch} activeOpacity={0.85}>
+                                <Text style={s.findBtnText}>{t.batakFindMatch || '🔍 Rakip Ara'}</Text>
+                            </TouchableOpacity>
+
+                            <Text style={s.orText}>{t.batakOr || 'veya'}</Text>
+
+                            <Text style={s.difficultyLabel}>{t.batakDifficultyLabel || 'Bot Zorluğu'}</Text>
+                            <View style={s.difficultyRow}>
+                                {[
+                                    { id: 'easy',   label: t.batakDifficultyEasy   || 'Kolay' },
+                                    { id: 'medium', label: t.batakDifficultyMedium || 'Orta' },
+                                    { id: 'hard',   label: t.batakDifficultyHard   || 'Zor' },
+                                ].map(d => (
+                                    <TouchableOpacity key={d.id}
+                                        style={[s.difficultyChip, difficulty === d.id && s.difficultyChipActive]}
+                                        onPress={() => setDifficulty(d.id)} activeOpacity={0.8}>
+                                        <Text style={[s.difficultyChipText, difficulty === d.id && s.difficultyChipTextActive]}>{d.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            <TouchableOpacity style={s.botBtn} onPress={startVsBots} activeOpacity={0.85}>
+                                <Text style={s.botBtnText}>{t.batakPlayVsBots || '🤖 Botlarla Oyna'}</Text>
+                            </TouchableOpacity>
+                        </>
                     )}
                 </View>
             ) : (
@@ -328,6 +357,16 @@ const s = StyleSheet.create({
     searchingText: { color: colors.textSecondary, fontSize: 14, marginTop: 14, fontWeight: '700' },
     cancelBtn: { marginTop: 16, paddingVertical: 8, paddingHorizontal: 20 },
     cancelBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
+
+    orText: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginTop: 22, marginBottom: 14 },
+    difficultyLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 },
+    difficultyRow: { flexDirection: 'row', gap: 8 },
+    difficultyChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    difficultyChipActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    difficultyChipText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
+    difficultyChipTextActive: { color: colors.purpleLight || colors.purple },
+    botBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.purple, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 34, marginTop: 18 },
+    botBtnText: { color: colors.purpleLight || colors.purple, fontSize: 15, fontWeight: '900' },
 
     smallCreateRow: { paddingHorizontal: 12, paddingTop: 10, alignItems: 'flex-end' },
     smallCreateBtn: { backgroundColor: colors.purple, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 7 },
