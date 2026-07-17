@@ -1,35 +1,15 @@
 import prisma from '../config/prisma.js';
 
-// Spotify Web API (Client Credentials akışı) — katalog arama/meta veri için,
-// kullanıcı girişi gerektirmeden ücretsiz. Access token bellekte cache'lenir.
-let spotifyToken = null;
-let spotifyTokenExpiry = 0;
-
-async function getSpotifyToken() {
-    if (spotifyToken && Date.now() < spotifyTokenExpiry) return spotifyToken;
-    const clientId = process.env.SPOTIFY_CLIENT_ID;
-    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-    if (!clientId || !clientSecret) return null;
-    const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    const response = await fetch('https://accounts.spotify.com/api/token', {
-        method: 'POST',
-        headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'grant_type=client_credentials',
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    spotifyToken = data.access_token;
-    spotifyTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
-    return spotifyToken;
-}
-
-function normalizeSpotifyTrack(t) {
+// iTunes Search API — katalog arama/meta veri için, anahtar/abonelik gerektirmeyen
+// ücretsiz genel API. (Spotify Web API artık /v1/search için uygulama sahibinin
+// Premium abonelik sahibi olmasını şart koşuyor, bu yüzden iTunes'a geçildi.)
+function normalizeItunesTrack(t) {
     return {
-        trackId: t.id,
-        title: t.name,
-        artist: (t.artists || []).map(a => a.name).join(', '),
-        imageUrl: t.album?.images?.[0]?.url || null,
-        duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : null,
+        trackId: String(t.trackId),
+        title: t.trackName,
+        artist: t.artistName,
+        imageUrl: t.artworkUrl100 ? t.artworkUrl100.replace('100x100', '600x600') : null,
+        duration: t.trackTimeMillis ? Math.round(t.trackTimeMillis / 1000) : null,
     };
 }
 
@@ -37,14 +17,12 @@ export const searchMusic = async (req, res, next) => {
     try {
         const q = (req.query.q || '').trim();
         if (!q) return res.status(400).json({ message: 'q parametresi gerekli' });
-        const token = await getSpotifyToken();
-        if (!token) return res.status(503).json({ message: 'Müzik arama şu anda yapılandırılmamış' });
 
-        const url = `https://api.spotify.com/v1/search?type=track&market=TR&limit=30&q=${encodeURIComponent(q)}`;
-        const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const url = `https://itunes.apple.com/search?media=music&entity=song&country=TR&limit=30&term=${encodeURIComponent(q)}`;
+        const response = await fetch(url);
         if (!response.ok) return res.status(502).json({ message: 'Müzik servisi yanıt vermedi' });
         const data = await response.json();
-        const tracks = (data.tracks?.items || []).map(normalizeSpotifyTrack);
+        const tracks = (data.results || []).map(normalizeItunesTrack);
         res.json({ tracks });
     } catch (e) { next(e); }
 };
