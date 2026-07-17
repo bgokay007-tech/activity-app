@@ -6,7 +6,7 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import MiniPlayer from '../components/MiniPlayer';
 import YoutubeAudioPlayer from '../components/YoutubeAudioPlayer';
-import { playTrack } from '../services/musicPlayer';
+import { playTrack, useActiveTrack, useIsPlaying, togglePlayPause } from '../services/musicPlayer';
 
 const GRADIENT = 'from-pink-600 to-rose-500';
 
@@ -110,6 +110,15 @@ function MusicCourseCard({ item, t }) {
 }
 
 function TrackRow({ track, onPlay, onLike, liked, onAddToPlaylist }) {
+    const activeTrack = useActiveTrack();
+    const isPlaying = useIsPlaying();
+    const isCurrent = activeTrack?.id === track.trackId;
+
+    const handlePlayClick = () => {
+        if (isCurrent) togglePlayPause(isPlaying);
+        else onPlay(track);
+    };
+
     return (
         <div className="flex items-center gap-2 py-2 border-b border-gray-800">
             <button onClick={() => onPlay(track)} className="flex items-center gap-2.5 flex-1 min-w-0 text-left">
@@ -118,9 +127,13 @@ function TrackRow({ track, onPlay, onLike, liked, onAddToPlaylist }) {
                     : <div className="w-10 h-10 rounded-md bg-gray-800 flex items-center justify-center text-sm flex-shrink-0">🎵</div>
                 }
                 <div className="min-w-0">
-                    <p className="text-white text-sm font-bold truncate">{track.title}</p>
+                    <p className={`text-sm font-bold truncate ${isCurrent ? 'text-purple-400' : 'text-white'}`}>{track.title}</p>
                     <p className="text-gray-500 text-xs truncate">{track.artist}</p>
                 </div>
+            </button>
+            <button onClick={handlePlayClick}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 transition ${isCurrent ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                {isCurrent && isPlaying ? '⏸' : '▶'}
             </button>
             <button onClick={() => onLike(track)} className="px-2 py-1.5 text-base">{liked ? '❤️' : '🤍'}</button>
             <button onClick={() => onAddToPlaylist(track)} className="px-2 py-1.5 text-gray-500 hover:text-white text-base">➕</button>
@@ -630,7 +643,7 @@ function MusicPage() {
                                     <>
                                         <p className="text-gray-300 text-sm font-bold mb-2">{t('music.featured_playlists')}</p>
                                         <div className="flex gap-3 overflow-x-auto pb-3 mb-2">
-                                            {trendingPlaylists.map(p => <TrendingPlaylistCard key={p.playlistId} playlist={p} />)}
+                                            {trendingPlaylists.map((p, i) => <TrendingPlaylistCard key={`${p.playlistId}-${i}`} playlist={p} />)}
                                         </div>
                                     </>
                                 )}
@@ -644,8 +657,8 @@ function MusicPage() {
                                             : t('music.no_liked')}
                                     </p>
                                 ) : (
-                                    currentList.map(item => (
-                                        <TrackRow key={item.trackId} track={item} liked={likedIds.has(item.trackId)}
+                                    currentList.map((item, i) => (
+                                        <TrackRow key={`${item.trackId}-${i}`} track={item} liked={likedIds.has(item.trackId)}
                                             onPlay={(tr) => handlePlay(tr, currentList)} onLike={handleLike}
                                             onAddToPlaylist={(tr) => setPickerTrack(tr)} />
                                     ))
