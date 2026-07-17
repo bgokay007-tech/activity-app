@@ -119,6 +119,7 @@ import CinemaHomeScreen from '../screens/main/CinemaHomeScreen';
 import ClassicFilmPlayerScreen from '../screens/main/ClassicFilmPlayerScreen';
 import TheaterHomeScreen from '../screens/main/TheaterHomeScreen';
 import MiniPlayer from '../components/MiniPlayer';
+import YoutubeAudioPlayer from '../components/YoutubeAudioPlayer';
 import colors from '../theme/colors';
 
 const Stack = createNativeStackNavigator();
@@ -339,6 +340,7 @@ function AppTabs() {
             />
         </Tab.Navigator>
         <MiniPlayer />
+        <YoutubeAudioPlayer />
         </View>
     );
 }

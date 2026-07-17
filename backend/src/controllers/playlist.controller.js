@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { resolveYoutubeVideoId } from './music.controller.js';
 
 export const getMyPlaylists = async (req, res, next) => {
     try {
@@ -55,9 +56,15 @@ export const deletePlaylist = async (req, res, next) => {
 export const addTrackToPlaylist = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { trackId, title, artist, imageUrl, streamUrl, duration } = req.body;
-        if (!trackId || !title || !artist || !streamUrl) {
-            return res.status(400).json({ message: 'trackId, title, artist, streamUrl zorunludur' });
+        const { trackId, title, artist, imageUrl, duration } = req.body;
+        let { streamUrl } = req.body;
+        if (!trackId || !title || !artist) {
+            return res.status(400).json({ message: 'trackId, title, artist zorunludur' });
+        }
+        if (!streamUrl) {
+            const videoId = await resolveYoutubeVideoId(title, artist);
+            if (!videoId) return res.status(404).json({ message: 'Bu şarkı için oynatılabilir video bulunamadı' });
+            streamUrl = `https://www.youtube.com/watch?v=${videoId}`;
         }
         const playlist = await prisma.playlist.findUnique({ where: { id } });
         if (!playlist) return res.status(404).json({ message: 'Çalma listesi bulunamadı' });

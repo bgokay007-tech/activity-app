@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert } from 'react-native';
-import TrackPlayer, { useActiveTrack, useIsPlaying, useProgress } from 'react-native-track-player';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
-import { togglePlayPause, skipNext, skipPrevious } from '../../services/musicPlayer';
+import { useActiveTrack, useIsPlaying, useProgress, togglePlayPause, skipNext, skipPrevious, seekTo } from '../../services/musicPlayer';
 
 function fmt(sec) {
     if (!sec || !isFinite(sec)) return '0:00';
@@ -16,7 +15,7 @@ export default function NowPlayingScreen({ navigation }) {
     const t = useT();
     const track = useActiveTrack();
     const { playing } = useIsPlaying();
-    const progress = useProgress(500);
+    const progress = useProgress();
     const [barWidth, setBarWidth] = useState(0);
     const [liked, setLiked] = useState(false);
 
@@ -43,7 +42,7 @@ export default function NowPlayingScreen({ navigation }) {
     const handleSeek = (e) => {
         if (!barWidth || !progress.duration) return;
         const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / barWidth));
-        TrackPlayer.seekTo(ratio * progress.duration).catch(() => {});
+        seekTo(ratio * progress.duration);
     };
 
     const handleLike = async () => {

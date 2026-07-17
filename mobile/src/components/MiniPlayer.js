@@ -1,8 +1,7 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useActiveTrack, useIsPlaying } from 'react-native-track-player';
 import colors from '../theme/colors';
-import { togglePlayPause, skipNext } from '../services/musicPlayer';
+import { useActiveTrack, useIsPlaying, togglePlayPause, skipNext } from '../services/musicPlayer';
 import { navigationRef } from '../navigation';
 
 // Bir şarkı çalarken tüm ekranlarda (tab bar'ın hemen üstünde) sabit görünen çubuk —
