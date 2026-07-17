@@ -70,6 +70,15 @@ export default function BatakTableScreen({ route, navigation }) {
 
     useEffect(() => () => leaveTable(), [leaveTable]);
 
+    // Hook'lar (useMemo dahil) her render'da aynı sırada çağrılmalı — bu yüzden
+    // "state henüz gelmedi" erken dönüşünden ÖNCE tanımlanır (state?. ile güvenli).
+    const leadSuit = state?.leadSuit;
+    const legalCards = useMemo(() => {
+        if (!leadSuit) return hand;
+        const follow = hand.filter(c => cardSuit(c) === leadSuit);
+        return follow.length > 0 ? follow : hand;
+    }, [hand, leadSuit]);
+
     if (!state) {
         return (
             <View style={[s.root, { alignItems: 'center', justifyContent: 'center' }]}>
@@ -84,13 +93,6 @@ export default function BatakTableScreen({ route, navigation }) {
     const [bottomSeat, leftSeat, topSeat, rightSeat] = order;
     const seatByIdx = (seat) => state.seats.find(x => x.seat === seat) || {};
     const isMyTurn = state.turn === mySeat;
-
-    const leadSuit = state.leadSuit;
-    const legalCards = useMemo(() => {
-        if (!leadSuit) return hand;
-        const follow = hand.filter(c => cardSuit(c) === leadSuit);
-        return follow.length > 0 ? follow : hand;
-    }, [hand, leadSuit]);
 
     const trickCardFor = (seat) => (state.trick || []).find(x => x.seat === seat)?.card || null;
 
