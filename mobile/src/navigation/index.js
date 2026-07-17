@@ -118,6 +118,8 @@ import NowPlayingScreen from '../screens/main/NowPlayingScreen';
 import CinemaHomeScreen from '../screens/main/CinemaHomeScreen';
 import ClassicFilmPlayerScreen from '../screens/main/ClassicFilmPlayerScreen';
 import TheaterHomeScreen from '../screens/main/TheaterHomeScreen';
+import BatakHomeScreen from '../screens/main/BatakHomeScreen';
+import BatakTableScreen from '../screens/main/BatakTableScreen';
 import MiniPlayer from '../components/MiniPlayer';
 import YoutubeAudioPlayer from '../components/YoutubeAudioPlayer';
 import colors from '../theme/colors';
@@ -149,6 +151,8 @@ function HomeStackNav() {
             <HomeStack.Screen name="CinemaHome" component={CinemaHomeScreen} />
             <HomeStack.Screen name="ClassicFilmPlayer" component={ClassicFilmPlayerScreen} options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
             <HomeStack.Screen name="TheaterHome" component={TheaterHomeScreen} />
+            <HomeStack.Screen name="BatakHome" component={BatakHomeScreen} />
+            <HomeStack.Screen name="BatakTable" component={BatakTableScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         </HomeStack.Navigator>
     );
 }

@@ -1,0 +1,325 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
+import colors from '../../theme/colors';
+import useT from '../../hooks/useT';
+import { getSocket, onSocket } from '../../services/socket';
+
+const SUIT_SYMBOL = { S: '♠', H: '♥', D: '♦', C: '♣' };
+const SUIT_COLOR = { S: '#111827', C: '#111827', H: '#dc2626', D: '#dc2626' };
+const RANK_LABEL = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+
+function rankLabel(card) {
+    const rank = parseInt(card.slice(0, -1), 10);
+    return RANK_LABEL[rank] || String(rank);
+}
+function cardSuit(card) { return card.slice(-1); }
+
+function PlayingCard({ card, small, disabled, onPress }) {
+    const suit = cardSuit(card);
+    const Wrap = onPress ? TouchableOpacity : View;
+    return (
+        <Wrap
+            style={[s.card, small && s.cardSmall, disabled && s.cardDisabled]}
+            onPress={onPress ? () => onPress(card) : undefined}
+            activeOpacity={0.7}
+            disabled={disabled}
+        >
+            <Text style={[s.cardRank, small && s.cardRankSmall, { color: SUIT_COLOR[suit] }]}>{rankLabel(card)}</Text>
+            <Text style={[s.cardSuit, small && s.cardSuitSmall, { color: SUIT_COLOR[suit] }]}>{SUIT_SYMBOL[suit]}</Text>
+        </Wrap>
+    );
+}
+
+function CardBack({ small }) {
+    return <View style={[s.cardBack, small && s.cardSmall]}><Text style={s.cardBackText}>🃏</Text></View>;
+}
+
+export default function BatakTableScreen({ route, navigation }) {
+    const t = useT();
+    const { tableId } = route.params;
+    const myId = useSelector(x => x.auth.user?.id);
+
+    const [state, setState] = useState(null);
+    const [hand, setHand] = useState([]);
+    const [roundEnd, setRoundEnd] = useState(null);
+    const [gameEnd, setGameEnd] = useState(null);
+
+    useFocusEffect(useCallback(() => {
+        const socket = getSocket();
+        socket?.emit('batak:getState', { tableId });
+    }, [tableId]));
+
+    useEffect(() => {
+        const offState = onSocket('batak:state', (data) => {
+            if (data.tableId !== tableId) return;
+            setState(data);
+            if (data.phase !== 'roundEnd') setRoundEnd(null);
+        });
+        const offHand = onSocket('batak:hand', (data) => setHand(data.hand || []));
+        const offRoundEnd = onSocket('batak:roundEnd', (data) => setRoundEnd(data));
+        const offGameEnd = onSocket('batak:gameEnd', (data) => setGameEnd(data));
+        const offErr = onSocket('batak:error', (data) => Alert.alert('', data?.message || (t.batakError || 'Bir hata oluştu.')));
+        return () => { offState(); offHand(); offRoundEnd(); offGameEnd(); offErr(); };
+    }, [tableId, t]);
+
+    const leaveTable = useCallback(() => {
+        getSocket()?.emit('batak:leaveTable', { tableId });
+    }, [tableId]);
+
+    useEffect(() => () => leaveTable(), [leaveTable]);
+
+    if (!state) {
+        return (
+            <View style={[s.root, { alignItems: 'center', justifyContent: 'center' }]}>
+                <Text style={{ color: colors.textMuted }}>{t.batakLoadingTable || 'Masaya bağlanılıyor...'}</Text>
+            </View>
+        );
+    }
+
+    const mySeatInfo = state.seats.find(seat => seat.userId === myId);
+    const mySeat = mySeatInfo ? mySeatInfo.seat : 0;
+    const order = [mySeat, (mySeat + 1) % 4, (mySeat + 2) % 4, (mySeat + 3) % 4];
+    const [bottomSeat, leftSeat, topSeat, rightSeat] = order;
+    const seatByIdx = (seat) => state.seats.find(x => x.seat === seat) || {};
+    const isMyTurn = state.turn === mySeat;
+
+    const leadSuit = state.leadSuit;
+    const legalCards = useMemo(() => {
+        if (!leadSuit) return hand;
+        const follow = hand.filter(c => cardSuit(c) === leadSuit);
+        return follow.length > 0 ? follow : hand;
+    }, [hand, leadSuit]);
+
+    const trickCardFor = (seat) => (state.trick || []).find(x => x.seat === seat)?.card || null;
+
+    const placeBid = (bid) => getSocket()?.emit('batak:placeBid', { tableId, bid });
+    const chooseTrump = (suit) => getSocket()?.emit('batak:chooseTrump', { tableId, suit });
+    const playCard = (card) => {
+        if (state.phase !== 'playing' || !isMyTurn) return;
+        if (!legalCards.includes(card)) return Alert.alert('', t.batakMustFollowSuit || 'Renge uymak zorundasın.');
+        getSocket()?.emit('batak:playCard', { tableId, card });
+    };
+
+    const goBack = () => { leaveTable(); navigation.goBack(); };
+
+    const bidOptions = Array.from({ length: 13 - state.highestBid }, (_, i) => state.highestBid + 1 + i);
+
+    return (
+        <View style={s.root}>
+            <StatusBar barStyle="light-content" />
+            <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 20 }]}>
+                <TouchableOpacity onPress={goBack} style={s.backBtn}>
+                    <Text style={s.backBtnText}>‹</Text>
+                </TouchableOpacity>
+                <Text style={s.roundText}>{t.batakRound || 'El'} {state.roundNumber}/{state.totalRounds}</Text>
+                {state.trumpSuit ? (
+                    <View style={s.trumpBadge}>
+                        <Text style={[s.trumpBadgeText, { color: SUIT_COLOR[state.trumpSuit] }]}>{t.batakTrump || 'Koz'}: {SUIT_SYMBOL[state.trumpSuit]}</Text>
+                    </View>
+                ) : <View style={{ width: 60 }} />}
+            </View>
+
+            {/* Skor satırı */}
+            <View style={s.scoreRow}>
+                {state.seats.map(seat => (
+                    <View key={seat.seat} style={s.scoreCell}>
+                        <Text style={s.scoreName} numberOfLines={1}>
+                            {seat.userId === myId ? (t.batakYou || 'Sen') : seat.username}
+                            {seat.seat === state.dealerIndex ? ' 🎯' : ''}
+                            {!seat.connected ? ' 🤖' : ''}
+                        </Text>
+                        <Text style={[s.scoreValue, state.scores[seat.seat] < 0 && { color: '#f87171' }]}>{state.scores[seat.seat]}</Text>
+                    </View>
+                ))}
+            </View>
+
+            {/* Masa */}
+            <View style={s.table}>
+                <View style={s.topSeat}>
+                    <Text style={s.seatLabel} numberOfLines={1}>{seatByIdx(topSeat).username}</Text>
+                    <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
+                    {trickCardFor(topSeat) && <PlayingCard card={trickCardFor(topSeat)} small />}
+                </View>
+                <View style={s.middleRow}>
+                    <View style={s.sideSeat}>
+                        <Text style={s.seatLabel} numberOfLines={1}>{seatByIdx(leftSeat).username}</Text>
+                        <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(leftSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
+                    </View>
+                    <View style={s.trickCenter}>
+                        {trickCardFor(leftSeat) && <PlayingCard card={trickCardFor(leftSeat)} small />}
+                        {trickCardFor(bottomSeat) && <PlayingCard card={trickCardFor(bottomSeat)} small />}
+                        {trickCardFor(rightSeat) && <PlayingCard card={trickCardFor(rightSeat)} small />}
+                        {(!state.trick || state.trick.length === 0) && <Text style={s.tableEmoji}>🎴</Text>}
+                    </View>
+                    <View style={s.sideSeat}>
+                        <Text style={s.seatLabel} numberOfLines={1}>{seatByIdx(rightSeat).username}</Text>
+                        <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(rightSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
+                    </View>
+                </View>
+            </View>
+
+            {/* Durum satırı */}
+            <View style={s.statusRow}>
+                {state.phase === 'bidding' && (
+                    <Text style={s.statusText}>
+                        {isMyTurn ? (t.batakYourBid || 'Sıra sende — ihale ver veya pas geç')
+                            : `${seatByIdx(state.turn).username} ${t.batakBidding || 'ihale veriyor...'}`}
+                        {state.highestBid > 0 ? `  ·  ${t.batakHighestBid || 'En yüksek'}: ${state.highestBid} (${seatByIdx(state.highestBidder).username})` : ''}
+                    </Text>
+                )}
+                {state.phase === 'choosingTrump' && (
+                    <Text style={s.statusText}>
+                        {state.highestBidder === mySeat ? (t.batakChooseTrump || 'Koz seç')
+                            : `${seatByIdx(state.highestBidder).username} ${t.batakChoosingTrump || 'koz seçiyor...'}`}
+                    </Text>
+                )}
+                {state.phase === 'playing' && (
+                    <Text style={s.statusText}>
+                        {isMyTurn ? (t.batakYourTurn || 'Sıra sende') : `${seatByIdx(state.turn).username} ${t.batakPlaying || 'oynuyor...'}`}
+                    </Text>
+                )}
+            </View>
+
+            {/* İhale kontrolleri */}
+            {state.phase === 'bidding' && isMyTurn && (
+                <View style={s.bidRow}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 10 }}>
+                        {bidOptions.map(n => (
+                            <TouchableOpacity key={n} style={s.bidChip} onPress={() => placeBid(n)}>
+                                <Text style={s.bidChipText}>{n}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                    <TouchableOpacity style={s.passBtn} onPress={() => placeBid('PASS')}>
+                        <Text style={s.passBtnText}>{t.batakPass || 'Pas'}</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Koz seçimi */}
+            {state.phase === 'choosingTrump' && state.highestBidder === mySeat && (
+                <View style={s.trumpRow}>
+                    {['S', 'H', 'D', 'C'].map(suit => (
+                        <TouchableOpacity key={suit} style={s.trumpChip} onPress={() => chooseTrump(suit)}>
+                            <Text style={[s.trumpChipText, { color: SUIT_COLOR[suit] }]}>{SUIT_SYMBOL[suit]}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
+            {/* Elim */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.myHandRow}>
+                {hand.map(card => (
+                    <PlayingCard
+                        key={card}
+                        card={card}
+                        disabled={!(state.phase === 'playing' && isMyTurn && legalCards.includes(card))}
+                        onPress={state.phase === 'playing' && isMyTurn ? playCard : undefined}
+                    />
+                ))}
+            </ScrollView>
+
+            {/* El sonu */}
+            <Modal visible={!!roundEnd} transparent animationType="fade">
+                <View style={s.modalOverlay}>
+                    <View style={s.modalBox}>
+                        <Text style={s.modalTitle}>{t.batakRoundEndTitle || 'El Bitti'}</Text>
+                        {roundEnd && (
+                            <>
+                                <Text style={s.modalLine}>
+                                    {seatByIdx(roundEnd.bidder).username} — {t.batakBid || 'İhale'}: {roundEnd.bid}, {t.batakTricksWon || 'Aldığı el'}: {roundEnd.tricksWon[roundEnd.bidder]}
+                                </Text>
+                                {state.seats.map(seat => (
+                                    <Text key={seat.seat} style={s.modalLine}>
+                                        {seat.userId === myId ? (t.batakYou || 'Sen') : seat.username}: {roundEnd.delta[seat.seat] >= 0 ? '+' : ''}{roundEnd.delta[seat.seat]} → {roundEnd.scores[seat.seat]}
+                                    </Text>
+                                ))}
+                            </>
+                        )}
+                        <Text style={s.modalHint}>{t.batakNextRoundSoon || 'Yeni el birazdan başlıyor...'}</Text>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Oyun sonu */}
+            <Modal visible={!!gameEnd} transparent animationType="fade">
+                <View style={s.modalOverlay}>
+                    <View style={s.modalBox}>
+                        <Text style={s.modalTitle}>{t.batakGameEndTitle || '🏆 Oyun Bitti'}</Text>
+                        {gameEnd && state.seats
+                            .map(seat => ({ seat, score: gameEnd.scores[seat.seat] }))
+                            .sort((a, b) => b.score - a.score)
+                            .map(({ seat, score }, i) => (
+                                <Text key={seat.seat} style={s.modalLine}>
+                                    {i === 0 ? '🥇 ' : `${i + 1}. `}{seat.userId === myId ? (t.batakYou || 'Sen') : seat.username}: {score}
+                                </Text>
+                            ))}
+                        <TouchableOpacity style={s.modalBtn} onPress={goBack}>
+                            <Text style={s.modalBtnText}>{t.batakBackHome || 'Geri Dön'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        </View>
+    );
+}
+
+const s = StyleSheet.create({
+    root: { flex: 1, backgroundColor: '#0b3d1f' },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 10 },
+    backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+    backBtnText: { color: '#fff', fontSize: 26, fontWeight: '300' },
+    roundText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+    trumpBadge: { backgroundColor: '#ffffffdd', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+    trumpBadgeText: { fontSize: 13, fontWeight: '900' },
+
+    scoreRow: { flexDirection: 'row', paddingHorizontal: 8, gap: 6, marginBottom: 4 },
+    scoreCell: { flex: 1, backgroundColor: '#ffffff18', borderRadius: 8, paddingVertical: 4, alignItems: 'center' },
+    scoreName: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    scoreValue: { color: '#4ade80', fontSize: 13, fontWeight: '900' },
+
+    table: { flex: 1, paddingHorizontal: 8 },
+    topSeat: { alignItems: 'center', marginTop: 6, gap: 3 },
+    middleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    sideSeat: { alignItems: 'center', gap: 3, width: 70 },
+    seatLabel: { color: '#fff', fontSize: 11, fontWeight: '700', maxWidth: 90 },
+    oppHand: { flexDirection: 'row' },
+    oppHandVert: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+    trickCenter: { flex: 1, flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center', minHeight: 90 },
+    tableEmoji: { fontSize: 30, opacity: 0.3 },
+
+    statusRow: { paddingHorizontal: 16, paddingVertical: 6, alignItems: 'center' },
+    statusText: { color: '#fde68a', fontSize: 12, fontWeight: '700', textAlign: 'center' },
+
+    bidRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8, gap: 8 },
+    bidChip: { backgroundColor: '#ffffffdd', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+    bidChipText: { color: '#111827', fontWeight: '900', fontSize: 14 },
+    passBtn: { backgroundColor: '#dc2626', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8, marginRight: 10 },
+    passBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+
+    trumpRow: { flexDirection: 'row', justifyContent: 'center', gap: 14, paddingBottom: 10 },
+    trumpChip: { backgroundColor: '#ffffffdd', borderRadius: 12, width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+    trumpChipText: { fontSize: 28, fontWeight: '900' },
+
+    myHandRow: { paddingHorizontal: 10, paddingVertical: 10, gap: 4, alignItems: 'center' },
+
+    card: { width: 46, height: 64, backgroundColor: '#fff', borderRadius: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#00000022', marginHorizontal: 2 },
+    cardSmall: { width: 30, height: 42, marginHorizontal: 1 },
+    cardDisabled: { opacity: 0.4 },
+    cardRank: { fontSize: 15, fontWeight: '900' },
+    cardRankSmall: { fontSize: 10 },
+    cardSuit: { fontSize: 18, fontWeight: '900' },
+    cardSuitSmall: { fontSize: 12 },
+    cardBack: { width: 46, height: 64, backgroundColor: '#1e3a8a', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginHorizontal: 2, borderWidth: 1, borderColor: '#ffffff33' },
+    cardBackText: { fontSize: 16 },
+
+    modalOverlay: { flex: 1, backgroundColor: '#000000aa', alignItems: 'center', justifyContent: 'center' },
+    modalBox: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: '85%' },
+    modalTitle: { color: '#fff', fontSize: 17, fontWeight: '900', marginBottom: 12, textAlign: 'center' },
+    modalLine: { color: colors.textSecondary, fontSize: 13, marginBottom: 4 },
+    modalHint: { color: colors.textMuted, fontSize: 11, marginTop: 10, textAlign: 'center' },
+    modalBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 14 },
+    modalBtnText: { color: '#fff', fontWeight: '800' },
+});

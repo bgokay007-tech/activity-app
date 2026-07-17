@@ -3,6 +3,7 @@ import { Server } from 'socket.io';
 import app from './app.js';
 import { PORT, CLIENT_URL } from './config/env.js';
 import { setIO } from './config/socket.js';
+import { registerBatakHandlers } from './sockets/batak.js';
 import { startCleanupJob } from './jobs/cleanupRivals.js';
 import { startAutoCompleteJob } from './jobs/autoCompleteMatches.js';
 import { startTournamentCleanupJob } from './jobs/cleanupTournaments.js';
@@ -77,6 +78,7 @@ io.on('connection', (socket) => {
     if (userId) {
         socket.join(`user:${userId}`);
     }
+    registerBatakHandlers(io, socket);
 });
 
 Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {

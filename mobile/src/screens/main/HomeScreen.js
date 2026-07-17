@@ -9,9 +9,9 @@ import useT from '../../hooks/useT';
 
 const CATEGORIES = [
     { id: 'SPORTS', emoji: '🏃', borderColor: '#16a34a', btnColor: '#16a34a', bgColor: '#16a34a12', enabled: true },
-    { id: 'SOCIAL', emoji: '🎉', borderColor: '#d97706', btnColor: '#d97706', bgColor: '#d9770612', enabled: false },
-    { id: 'ARTS',   emoji: '🎨', borderColor: '#db2777', btnColor: '#db2777', bgColor: '#db277712', enabled: false },
-    { id: 'GAMES',  emoji: '🎮', borderColor: '#2563eb', btnColor: '#2563eb', bgColor: '#2563eb12', enabled: false },
+    { id: 'SOCIAL', emoji: '🎉', borderColor: '#d97706', btnColor: '#d97706', bgColor: '#d9770612', enabled: true },
+    { id: 'ARTS',   emoji: '🎨', borderColor: '#db2777', btnColor: '#db2777', bgColor: '#db277712', enabled: true },
+    { id: 'GAMES',  emoji: '🎮', borderColor: '#2563eb', btnColor: '#2563eb', bgColor: '#2563eb12', enabled: true },
 ];
 
 export default function HomeScreen({ navigation }) {
@@ -29,6 +29,10 @@ export default function HomeScreen({ navigation }) {
         SOCIAL: t.catDescSocial,
         ARTS:   t.catDescArts,
         GAMES:  t.catDescGames,
+    };
+
+    const CAT_EXPLORE = {
+        SPORTS: t.exploreSports, SOCIAL: t.exploreSocial, ARTS: t.exploreArts, GAMES: t.exploreGames,
     };
 
     useEffect(() => {
@@ -86,7 +90,7 @@ export default function HomeScreen({ navigation }) {
                                 activeOpacity={cat.enabled ? 0.8 : 1}
                                 disabled={!cat.enabled}
                             >
-                                <Text style={s.cardBtnText}>{cat.enabled ? t.exploreSports : t.comingSoon}</Text>
+                                <Text style={s.cardBtnText}>{cat.enabled ? CAT_EXPLORE[cat.id] : t.comingSoon}</Text>
                             </TouchableOpacity>
                         </View>
                     ))}

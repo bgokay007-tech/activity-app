@@ -7,12 +7,12 @@ import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater']);
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak']);
 
 // Bu dallar "ilan" (rakip bul) mantığına değil kendi özel ekranlarına gider —
 // SubCategory yerine bu ekran adına yönlendirilir, ilan sayacı da gösterilmez.
-const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome' };
-const SPECIAL_BADGE_EMOJI = { music: '🎵', cinema: '🎬', theater: '🎭' };
+const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome', batak: 'BatakHome' };
+const SPECIAL_BADGE_EMOJI = { music: '🎵', cinema: '🎬', theater: '🎭', batak: '🃏' };
 
 const SUB_MAP = {
     SPORTS:  [
@@ -46,8 +46,6 @@ const SUB_MAP = {
     ],
     SOCIAL:  [
         { id: 'language',    label: 'Language Exchange', labelTR: 'Dil Değişimi',    emoji: '🌍' },
-        { id: 'hiking',      label: 'Hiking',            labelTR: 'Doğa Yürüyüşü',   emoji: '🥾' },
-        { id: 'photography', label: 'Photography',       labelTR: 'Fotoğrafçılık',   emoji: '📷' },
     ],
     ARTS:    [
         { id: 'painting',     label: 'Painting',      labelTR: 'Resim',       emoji: '🎨' },
@@ -60,6 +58,7 @@ const SUB_MAP = {
         { id: 'opera',        label: 'Opera',         labelTR: 'Opera',       emoji: '🎼' },
         { id: 'ceramics',     label: 'Ceramics',      labelTR: 'Seramik',     emoji: '🏺' },
         { id: 'poetry',       label: 'Poetry',        labelTR: 'Şiir',        emoji: '✍️' },
+        { id: 'photography',  label: 'Photography',   labelTR: 'Fotoğrafçılık', emoji: '📷' },
     ],
     GAMES:   [
         { id: 'fps',          label: 'FPS',             labelTR: 'FPS',             emoji: '🎯' },
@@ -67,6 +66,7 @@ const SUB_MAP = {
         { id: 'strategy',     label: 'Strategy',        labelTR: 'Strateji',        emoji: '♟️' },
         { id: 'sports_games', label: 'Sports Games',    labelTR: 'Spor Oyunları',   emoji: '🎮' },
         { id: 'boardgames',   label: 'Board Games',     labelTR: 'Kutu Oyunları',   emoji: '🎲' },
+        { id: 'batak',        label: 'Batak',           labelTR: 'Batak',           emoji: '🃏' },
     ],
 };
 
@@ -77,12 +77,20 @@ const CAT_COLOR = {
     GAMES:   '#2563eb',
 };
 
+const CAT_LABEL_KEY = {
+    SPORTS: 'catLabelSports',
+    SOCIAL: 'catLabelSocial',
+    ARTS:   'catLabelArts',
+    GAMES:  'catLabelGames',
+};
+
 export default function CategoryScreen({ route, navigation }) {
     const { category } = route.params;
     const accentColor = CAT_COLOR[category] || colors.purple;
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const subLabel = (sub) => (lang === 'tr' ? (sub.labelTR || sub.label) : sub.label);
+    const categoryLabel = t[CAT_LABEL_KEY[category]] || category;
 
     const [counts, setCounts] = useState({});
     const [loading, setLoading] = useState(true);
@@ -125,7 +133,7 @@ export default function CategoryScreen({ route, navigation }) {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}>
                     <Text style={s.backText}>{t.back}</Text>
                 </TouchableOpacity>
-                <Text style={s.title}>{category}</Text>
+                <Text style={s.title}>{categoryLabel}</Text>
             </View>
 
             {loading ? (

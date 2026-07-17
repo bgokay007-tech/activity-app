@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from './api';
 
 const SOCKET_URL = BASE_URL.replace('/api', '');
@@ -19,7 +20,11 @@ export function connectSocket(userId) {
     if (socket) return;
     socket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
-        auth: { userId },
+        // Fonksiyon olarak verilirse her (yeniden) bağlantıda tazeden çağrılır — token
+        // Batak gibi kimliğin sahtelenemez olması gereken özelliklerde sunucu tarafında
+        // doğrulanır (bkz. backend/src/sockets/batak.js), userId ise mevcut bildirim
+        // sistemiyle geriye dönük uyumluluk için ayrıca gönderilmeye devam eder.
+        auth: (cb) => AsyncStorage.getItem('activity_token').then(token => cb({ userId, token })),
         reconnection: true,
         reconnectionDelay: 2000,
     });
