@@ -214,7 +214,7 @@ const s = StyleSheet.create({
     header:          { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingTop: 17, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.border },
     title:           { color: '#fff', fontSize: 17, fontWeight: '900' },
     subtitle:        { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-    close:           { color: colors.textMuted, fontSize: 22, paddingLeft: 7 },
+    close:           { color: colors.textMuted, fontSize: 22, paddingLeft: 3 },
     progressBg:      { height: 3, backgroundColor: colors.surface2 },
     progressFill:    { height: 3, backgroundColor: '#d97706' },
     body:            { padding: 17, paddingBottom: 37, gap: 3 },
@@ -237,7 +237,7 @@ const s = StyleSheet.create({
     resultBox:       { alignItems: 'center', gap: 3, paddingTop: 5 },
     resultEmoji:     { fontSize: 48 },
     resultTitle:     { color: '#fff', fontSize: 18, fontWeight: '900' },
-    resultDesc:      { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 4, paddingHorizontal: 17 },
+    resultDesc:      { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 4, paddingHorizontal: 3 },
     doneBtn:         { backgroundColor: '#d97706', borderRadius: 14, paddingVertical: 11, paddingHorizontal: 37, alignItems: 'center', marginTop: 17 },
     doneBtnText:     { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

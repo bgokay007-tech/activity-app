@@ -413,7 +413,7 @@ const s = StyleSheet.create({
     postInfo:       { flex: 1, marginLeft: 10 },
     postUsername:   { color: '#fff', fontSize: 13, fontWeight: '800' },
     postMeta:       { color: colors.textMuted, fontSize: 11, marginTop: 1 },
-    moreBtn:        { color: colors.textMuted, fontSize: 20, paddingLeft: 7 },
+    moreBtn:        { color: colors.textMuted, fontSize: 20, paddingLeft: 3 },
 
     mediaWrap:      { width: SCREEN_W, aspectRatio: 1, backgroundColor: colors.surface, overflow: 'hidden' },
     media:          { width: '100%', height: '100%' },
@@ -433,11 +433,11 @@ const s = StyleSheet.create({
     actionIcon:     { fontSize: 24 },
     iconLiked:      { color: '#f87171' },
 
-    likesCount:     { color: '#fff', fontSize: 13, fontWeight: '800', paddingHorizontal: 11, marginBottom: 4 },
+    likesCount:     { color: '#fff', fontSize: 13, fontWeight: '800', paddingHorizontal: 3, marginBottom: 4 },
     captionWrap:    { paddingHorizontal: 11, marginBottom: 4 },
     captionUser:    { color: '#fff', fontSize: 13, fontWeight: '800' },
     captionText:    { color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
-    commentsHint:   { color: colors.textMuted, fontSize: 13, paddingHorizontal: 11, marginBottom: 6 },
+    commentsHint:   { color: colors.textMuted, fontSize: 13, paddingHorizontal: 3, marginBottom: 6 },
 
     musicBar:           { flexDirection: 'row', alignItems: 'center', gap: 3, marginHorizontal: 12, marginBottom: 12, marginTop: 4, backgroundColor: colors.surface2, borderRadius: 12, padding: 7 },
     musicBarActive:     { borderWidth: 1, borderColor: colors.purple + '80' },

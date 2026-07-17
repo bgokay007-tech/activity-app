@@ -381,7 +381,7 @@ export default function CreatePostScreen({ navigation }) {
                         />
                         {musicQuery.length > 0 && (
                             <TouchableOpacity onPress={() => { setMusicQuery(''); setMusicResults([]); }}>
-                                <Text style={{ color: colors.textMuted, fontSize: 16, paddingLeft: 5 }}>✕</Text>
+                                <Text style={{ color: colors.textMuted, fontSize: 16, paddingLeft: 3 }}>✕</Text>
                             </TouchableOpacity>
                         )}
                     </View>

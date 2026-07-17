@@ -2911,7 +2911,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                                 {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                             </TouchableOpacity>
                                                             {pSets && (
-                                                                <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:1 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:3 }}>
                                                                     {pSets.join('  ')}
                                                                     {'  '}<Text style={{ color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted, fontWeight:'800' }}>({pWins})</Text>
                                                                 </Text>
@@ -3352,7 +3352,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 <Image source={{ uri: mediaViewerPost.imageUrl || mediaViewerPost.videoUrl }} style={{ width:'100%', aspectRatio:1, backgroundColor: colors.surface2 }} resizeMode="contain" />
                             )}
                             {mediaViewerPost.content ? (
-                                <Text style={{ color:'#fff', fontSize:13, paddingHorizontal:17, paddingTop:12 }}>{mediaViewerPost.content}</Text>
+                                <Text style={{ color:'#fff', fontSize:13, paddingHorizontal:3, paddingTop:3 }}>{mediaViewerPost.content}</Text>
                             ) : null}
                             <View style={{ flexDirection:'row', gap:20, paddingHorizontal:17, paddingTop:14 }}>
                                 <TouchableOpacity onPress={openLikers} style={{ flexDirection:'row', alignItems:'center', gap:5 }}>
@@ -4150,7 +4150,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 {supportLoading ? (
                                     <ActivityIndicator color={colors.purple} style={{ marginVertical:16 }} />
                                 ) : supportMessages.length === 0 ? (
-                                    <Text style={{ color:colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:16 }}>Henüz mesaj göndermediniz.</Text>
+                                    <Text style={{ color:colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:3 }}>Henüz mesaj göndermediniz.</Text>
                                 ) : (
                                     supportMessages.map(msg => (
                                         <View key={msg.id} style={{ backgroundColor:'#1e293b', borderRadius:12, padding:10, marginBottom:8, borderWidth:1, borderColor:colors.border }}>

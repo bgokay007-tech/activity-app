@@ -2235,7 +2235,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                             <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#ffffff08', gap: 6 }}>
                                                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', flex: 1 }}>{c.name}</Text>
                                                 {surface ? <Text style={{ color: '#ddd', fontSize: 10 }}>{SURF_ICON[surface] || ''} {SURF_LABEL[surface] || surface}</Text> : null}
-                                                <Text style={{ color: '#a78bfa', fontSize: 10, backgroundColor: '#a78bfa15', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>{SLOT_SHORT[slotT] || slotT}</Text>
+                                                <Text style={{ color: '#a78bfa', fontSize: 10, backgroundColor: '#a78bfa15', borderRadius: 4, paddingHorizontal: 3, paddingVertical: 3 }}>{SLOT_SHORT[slotT] || slotT}</Text>
                                                 <Text style={{ color: effIndoor ? '#818cf8' : '#22d3ee', fontSize: 10 }}>{effIndoor ? '🏠 Kapalı' : '🌤️ Açık'}</Text>
                                                 {price > 0 ? <Text style={{ color: '#fbbf24', fontSize: 10 }}>💰{price}₺</Text> : null}
                                             </View>
@@ -2550,7 +2550,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: isReschedule ? '#3b82f640' : '#f59e0b40', borderWidth: 1 }]}>
                                     <View style={{ flex: 1, marginBottom: 8 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                            <Text style={{ fontSize: 10, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5,
+                                            <Text style={{ fontSize: 10, fontWeight: '800', paddingHorizontal: 3, paddingVertical: 3, borderRadius: 5,
                                                 backgroundColor: isReschedule ? '#3b82f620' : '#ef444420',
                                                 color: isReschedule ? '#60a5fa' : '#f87171' }}>
                                                 {isReschedule ? '🔄 SAAT DEĞİŞİKLİĞİ' : '📋 İPTAL'}
@@ -2563,7 +2563,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         ) : null}
                                     </View>
                                     {isReschedule ? (
-                                        <Text style={{ color: '#60a5fa', fontSize: 11, textAlign: 'center', paddingVertical: 6 }}>
+                                        <Text style={{ color: '#60a5fa', fontSize: 11, textAlign: 'center', paddingVertical: 3 }}>
                                             Kullanıcıyla iletişime geçerek yeni saat belirleyin
                                         </Text>
                                     ) : (
@@ -4411,7 +4411,7 @@ const ms = StyleSheet.create({
     handle:   { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
     subHeader:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     subTitle: { color: '#fff', fontSize: 16, fontWeight: '900' },
-    closeBtn: { color: colors.textMuted, fontSize: 18, paddingHorizontal: 4 },
+    closeBtn: { color: colors.textMuted, fontSize: 18, paddingHorizontal: 3 },
 });
 
 const m = StyleSheet.create({
@@ -4519,7 +4519,7 @@ const vc = StyleSheet.create({
     noteBox:   { backgroundColor: '#ef444410', borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#ef444430' },
     noteText:  { color: '#f87171', fontSize: 12, lineHeight: 17 },
     infoRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-    infoItem:  { color: colors.textSecondary, fontSize: 12, backgroundColor: colors.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+    infoItem:  { color: colors.textSecondary, fontSize: 12, backgroundColor: colors.bg, borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3 },
     deleteBtn:    { borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440', backgroundColor: '#ef444410', marginTop: 8 },
     deleteBtnText:{ color: '#f87171', fontWeight: '700', fontSize: 13 },
     tab:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
@@ -4527,7 +4527,7 @@ const vc = StyleSheet.create({
     tabTxt:       { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
     tabTxtActive: { color: BIZ_LIGHT },
     panel:        { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
-    emptyTxt:     { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
+    emptyTxt:     { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 3 },
     blockBtn:     { backgroundColor: BIZ_COLOR, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, justifyContent: 'center' },
     blockBtnTxt:  { color: '#000', fontWeight: '800', fontSize: 13 },
     blockRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },

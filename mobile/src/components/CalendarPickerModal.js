@@ -73,7 +73,7 @@ const s = StyleSheet.create({
     navTxt: { color: '#fff', fontSize: 24, fontWeight: '700', lineHeight: 26 },
     title: { color: '#fff', fontSize: 16, fontWeight: '900' },
     row: { flexDirection: 'row', marginBottom: 2 },
-    dayLbl: { flex: 1, textAlign: 'center', color: colors.textMuted, fontSize: 11, fontWeight: '700', paddingVertical: 5 },
+    dayLbl: { flex: 1, textAlign: 'center', color: colors.textMuted, fontSize: 11, fontWeight: '700', paddingVertical: 3 },
     cell: { flex: 1, aspectRatio: 1, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
     cellSel: { backgroundColor: colors.purple },
     cellDis: { opacity: 0.2 },

@@ -161,7 +161,7 @@ export default function MessagesScreen({ navigation }) {
                                 {supportLoading ? (
                                     <ActivityIndicator color={colors.purple} style={{ marginVertical: 16 }} />
                                 ) : supportMessages.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 16 }}>Henüz mesaj göndermediniz.</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 3 }}>Henüz mesaj göndermediniz.</Text>
                                 ) : (
                                     supportMessages.map(msg => (
                                         <View key={msg.id} style={{ backgroundColor: '#1e293b', borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     modalBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, height: '88%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13 },
     modalTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
-    modalClose: { color: colors.textMuted, fontSize: 20, fontWeight: '700', paddingHorizontal: 4 },
+    modalClose: { color: colors.textMuted, fontSize: 20, fontWeight: '700', paddingHorizontal: 3 },
     supportInput: { marginTop: 8, minHeight: 60, textAlignVertical: 'top', backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 12, paddingVertical: 10 },
     saveBtn: { marginTop: 8, backgroundColor: colors.purple, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
     saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
+import { computeVarDurationPrice } from '../../utils/priceProration';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -88,7 +89,7 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                     <Text style={cm.title}>🛒 {t.vsCartTitle} {cart.length > 0 ? `(${cart.length})` : ''}</Text>
                     <ScrollView style={{ maxHeight: 260, marginBottom: cart.length ? 10 : 0 }} showsVerticalScrollIndicator={false}>
                         {cart.length === 0 ? (
-                            <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>
+                            <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 3 }}>
                                 {t.vsCartEmpty}
                             </Text>
                         ) : cart.map(item => (
@@ -419,7 +420,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                 const endT = toT(customStartM + dur);
                                                 const validStart = /^\d{2}:\d{2}$/.test(customStart) && customStartM >= toM(w.start) && customStartM < winEndM;
                                                 const validEnd = validStart && (customStartM + dur) <= winEndM;
-                                                const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (dur / 60)) : venue?.pricePerSlot ?? null;
+                                                const price = computeVarDurationPrice(w, customStart, dur).price ?? venue?.pricePerSlot ?? null;
                                                 const isPicked = picked?.court.id === court.id && picked?.slot.start === customStart && isWinSel;
                                                 return (
                                                     <View key={wi} style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 3, marginBottom: 3, borderWidth: 1, borderColor: isWinSel ? colors.purple : colors.border }}>
@@ -452,8 +453,8 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginBottom: 3 }}>
                                                                     {[60, 90, 120, 150, 180].filter(d => customStartM + d <= winEndM).map(d => {
                                                                         const et = toT(customStartM + d);
-                                                                        const basePerHour = w.pricePerHourByMethod?.CASH ?? w.pricePerHour;
-                                                                        const pr = basePerHour != null ? Math.round(basePerHour * (d / 60)) : null;
+                                                                        const durQuote = computeVarDurationPrice(w, customStart, d);
+                                                                        const pr = durQuote.priceByMethod?.CASH ?? durQuote.price;
                                                                         const isSel = varDurMap[court.id] === d;
                                                                         return (
                                                                             <TouchableOpacity key={d}
@@ -469,7 +470,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                                                 {/* Rezerve Et butonu */}
                                                                 {validEnd && (
                                                                     <TouchableOpacity
-                                                                        onPress={() => { const bph = w.pricePerHour != null ? Math.round((w.pricePerHourByMethod?.CASH ?? w.pricePerHour) * (dur/60)) : null; const pbm = w.pricePerHourByMethod ? Object.fromEntries(Object.entries(w.pricePerHourByMethod).map(([k,v]) => [k, Math.round(v * (dur/60))])) : undefined; setPicked({ court, slot: { start: customStart, end: toT(customStartM + dur), free: true, price: bph, priceByMethod: pbm, durationMins: dur } }); }}
+                                                                        onPress={() => { const q = computeVarDurationPrice(w, customStart, dur); const bph = q.priceByMethod?.CASH ?? q.price; setPicked({ court, slot: { start: customStart, end: toT(customStartM + dur), free: true, price: bph, priceByMethod: q.priceByMethod, durationMins: dur } }); }}
                                                                         style={{ backgroundColor: isPicked ? colors.purple : colors.purple+'30', borderRadius: 8, paddingVertical: 3, alignItems: 'center', borderWidth: 1, borderColor: colors.purple }}>
                                                                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
                                                                             {isPicked ? t.vsSelected : t.vsSelectRange(customStart, toT(customStartM + dur))}

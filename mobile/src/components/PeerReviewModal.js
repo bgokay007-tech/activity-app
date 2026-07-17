@@ -145,7 +145,7 @@ const s = StyleSheet.create({
     header:              { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingTop: 17, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.border },
     title:               { color: '#fff', fontSize: 17, fontWeight: '900' },
     subtitle:            { color: colors.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 },
-    close:               { color: colors.textMuted, fontSize: 22, paddingLeft: 7 },
+    close:               { color: colors.textMuted, fontSize: 22, paddingLeft: 3 },
     body:                { padding: 17, paddingBottom: 37, gap: 11 },
     emptyText:           { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 },
 

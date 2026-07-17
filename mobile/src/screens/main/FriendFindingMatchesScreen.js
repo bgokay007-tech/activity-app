@@ -75,7 +75,7 @@ const s = StyleSheet.create({
 
     emptyBox:    { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 3 },
     emptyEmoji:  { fontSize: 48, marginBottom: 8 },
-    emptyText:   { color: colors.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 27 },
+    emptyText:   { color: colors.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 3 },
 
     list:        { paddingHorizontal: 17, paddingBottom: 37, gap: 3 },
     row:         { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 16, padding: 11, gap: 11, borderWidth: 1, borderColor: colors.border, marginBottom: 3 },

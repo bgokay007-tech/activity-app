@@ -794,7 +794,7 @@ const s = StyleSheet.create({
     backBtn: { marginBottom: 14 },
     backText: { color: colors.purpleLight, fontWeight: '700', fontSize: 14 },
 
-    legalText: { color: colors.textSecondary, fontSize: 13, lineHeight: 22, paddingTop: 13 },
+    legalText: { color: colors.textSecondary, fontSize: 13, lineHeight: 22, paddingTop: 3 },
 
     // Country picker
     pickerOverlay: { flex: 1, backgroundColor: '#00000088', justifyContent: 'flex-end' },

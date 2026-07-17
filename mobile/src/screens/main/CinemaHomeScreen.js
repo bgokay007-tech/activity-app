@@ -364,9 +364,9 @@ const s = StyleSheet.create({
     mainTabBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
     mainTabBtnTextActive: { color: '#fff' },
 
-    disclaimer: { color: colors.textMuted, fontSize: 11, paddingHorizontal: 16, paddingTop: 10, lineHeight: 16 },
+    disclaimer: { color: colors.textMuted, fontSize: 11, paddingHorizontal: 3, paddingTop: 3, lineHeight: 16 },
     cityRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10 },
-    citySubText: { color: colors.textMuted, fontSize: 10, paddingHorizontal: 12, paddingTop: 4, lineHeight: 14 },
+    citySubText: { color: colors.textMuted, fontSize: 10, paddingHorizontal: 3, paddingTop: 3, lineHeight: 14 },
     searchInput: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14 },
     searchBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
 

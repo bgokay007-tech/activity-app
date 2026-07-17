@@ -1088,8 +1088,8 @@ const m = StyleSheet.create({
 
 const sup = StyleSheet.create({
     header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-    closeBtn:    { color: colors.textMuted, fontSize: 18, padding: 4 },
-    emptyText:   { color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 16 },
+    closeBtn:    { color: colors.textMuted, fontSize: 18, padding: 3 },
+    emptyText:   { color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 3 },
     msgBox:      { backgroundColor: colors.surface2, borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
     msgText:     { color: '#fff', fontSize: 13 },
     pendingText: { color: colors.yellow, fontSize: 11, marginTop: 6 },

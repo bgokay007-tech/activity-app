@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     rivalBanner: { backgroundColor: '#7c3aed18', borderBottomWidth: 1, borderBottomColor: '#7c3aed40', paddingHorizontal: 13, paddingVertical: 7, gap: 3 },
     rivalBannerLabel: { color: '#a78bfa', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     rivalBannerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
-    rivalBannerChip: { color: '#c4b5fd', fontSize: 12, fontWeight: '600', backgroundColor: '#7c3aed25', paddingHorizontal: 7, paddingVertical: 1, borderRadius: 20, overflow: 'hidden' },
+    rivalBannerChip: { color: '#c4b5fd', fontSize: 12, fontWeight: '600', backgroundColor: '#7c3aed25', paddingHorizontal: 3, paddingVertical: 3, borderRadius: 20, overflow: 'hidden' },
     list: { paddingHorizontal: 13, paddingVertical: 13, gap: 3 },
     msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
     msgRowMe: { justifyContent: 'flex-end' },
