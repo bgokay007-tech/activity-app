@@ -9360,6 +9360,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
     const [news, setNews] = useState([]);
     const [loadingNews, setLoadingNews] = useState(false);
+    const [sportsTickets, setSportsTickets] = useState([]);
+    const [loadingTickets, setLoadingTickets] = useState(false);
+    const [ticketsLoaded, setTicketsLoaded] = useState(false);
+    const [ticketCity, setTicketCity] = useState('');
+    const [ticketDateFrom, setTicketDateFrom] = useState(null);
+    const [ticketDateTo, setTicketDateTo] = useState(null);
+    const [showTicketFromPicker, setShowTicketFromPicker] = useState(false);
+    const [showTicketToPicker, setShowTicketToPicker] = useState(false);
     const [showVenuesSheet, setShowVenuesSheet] = useState(false);
     const [venuesList, setVenuesList] = useState([]);
     const [venuesTotal, setVenuesTotal] = useState(0);
@@ -9990,6 +9998,25 @@ export default function SubCategoryScreen({ route, navigation }) {
         finally { setLoadingNews(false); }
     }, [sub, lang]);
 
+    const fmtTicketDate = (d) => d ? d.toISOString().slice(0, 10) : null;
+
+    const loadSportsTickets = useCallback(async () => {
+        setLoadingTickets(true);
+        try {
+            const params = { sport: sub };
+            if (ticketCity.trim()) params.city = ticketCity.trim();
+            if (ticketDateFrom) params.dateFrom = fmtTicketDate(ticketDateFrom);
+            if (ticketDateTo) params.dateTo = fmtTicketDate(ticketDateTo);
+            const { data } = await api.get('/sports-tickets/search', { params });
+            setSportsTickets(data.events || []);
+        } catch { setSportsTickets([]); }
+        finally { setLoadingTickets(false); setTicketsLoaded(true); }
+    }, [sub, ticketCity, ticketDateFrom, ticketDateTo]);
+
+    useEffect(() => {
+        if (activeTab === 'tickets' && !ticketsLoaded) loadSportsTickets();
+    }, [activeTab, ticketsLoaded, loadSportsTickets]);
+
     useEffect(() => {
         if (activeTab === 'news') loadNews();
     }, [activeTab, lang]);
@@ -10523,7 +10550,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             ? `Seçtiğin illerde yeni ${sub} turnuva ilanlarının bildirimini alırsın.`
             : `You'll get notified about new ${sub} tournament listings in your selected cities.`,
         coaches:     lang === 'tr'
-            ? `Seçtiğin illerde yeni ${sub} antrenör ilanlarının bildirimini alırsın.`
+            ? `Seçtiğin illerde yeni ${sub} destek ilanlarının bildirimini alırsın.`
             : `You'll get notified about new ${sub} coach listings in your selected cities.`,
         equipment:   lang === 'tr'
             ? `Seçtiğin illerde yeni ${sub} ekipman ilanlarının bildirimini alırsın.`
@@ -11178,7 +11205,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
                                         onPress={() => {
                                             const myListing = coachListings.find(c => c.userId === myId);
-                                            if (!myListing) return Alert.alert('', category === 'ARTS' ? 'Önce "Kurs Oluştur" ile bir kurs ilanı açmanız gerekiyor.' : 'Önce "İlan Oluştur" ile bir antrenör ilanı açmanız gerekiyor.');
+                                            if (!myListing) return Alert.alert('', category === 'ARTS' ? 'Önce "Kurs Oluştur" ile bir kurs ilanı açmanız gerekiyor.' : 'Önce "İlan Oluştur" ile bir destek ilanı açmanız gerekiyor.');
                                             setCvUploadListingId(myListing.id);
                                             setShowCvUploadModal(true);
                                         }}>
@@ -11345,7 +11372,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
-                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{category === 'ARTS' ? '🎓 Kurs Oluştur' : '🎓 Antrenör İlanı Oluştur'}</Text>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{category === 'ARTS' ? '🎓 Kurs Oluştur' : '🎓 Destek İlanı Oluştur'}</Text>
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
