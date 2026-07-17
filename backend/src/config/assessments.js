@@ -536,6 +536,70 @@ const QUESTIONS = {
         },
     ],
 
+    // ─── VOLLEYBALL — 5-category weighted assessment (0-5 puan skalası, kategori
+    // puanları dogrudan agirlikla carpilip toplanir; getQuestions()/calculateLevel()
+    // yerine calculateVolleyballScore() kullanilir, bkz. asagida). Her sorunun
+    // `weight`'i kategori agirligidir (toplam 1.00).
+    volleyball: [
+        {
+            id: 'q1', section: 1, weight: 0.15,
+            question: 'Which best describes your volleyball experience and growth?',
+            tr: 'Deneyimini ve gelişimini en iyi hangisi tanımlıyor?',
+            options: [
+                { text: "I'm new, still learning the rules by watching matches", tr: 'Tamamen yeni başlıyorum, kuralları maç izledikçe öğreniyorum', points: 0 },
+                { text: "I've played casually on the beach/picnics for years, no intention to improve", tr: 'Yıllardır sadece sahilde veya piknikte keyfine oynarım, kendimi geliştirmek gibi bir amacım olmadı', points: 1 },
+                { text: "I play hobby matches 1-2 days a week, been playing for years but no formal coaching, I play my own way", tr: 'Haftada 1-2 gün hobi amaçlı maçlara gidiyorum. Yıllardır oynuyorum ama düzenli bir antrenör eğitimi almadım, kendi tarzımla oynuyorum', points: 2.5 },
+                { text: 'I trained regularly and competed in tournaments with school, university or company teams', tr: 'Okul, üniversite veya şirket takımlarında düzenli antrenman yaptım ve turnuvalara katıldım', points: 4 },
+                { text: 'I had youth academy training, played/play licensed at regional/national club level', tr: 'Altyapı eğitimi aldım, lisanslı olarak kulüplerde bölgesel/ulusal liglerde oynadım veya aktif oynuyorum', points: 5 },
+            ],
+        },
+        {
+            id: 'q2', section: 2, weight: 0.25,
+            question: 'How would you describe your passing/setting technique (manşet/pas)?',
+            tr: 'Teknik becerini (manşet/pas) en iyi hangisi tanımlıyor?',
+            options: [
+                { text: 'Touching the ball hurts, I cannot direct it', tr: 'Topa vururken canım acıyor, yönlendiremiyorum', points: 0 },
+                { text: "I can bump/set easy balls but they don't reach the setter precisely, I just keep the ball in play", tr: 'Basit gelen toplara manşet veya parmak pas atabiliyorum ama pasöre tam gitmiyor, top sahada kalsın yeter kafasındayım', points: 1.5 },
+                { text: 'I can deliver hard serves/spikes to the setter (position 3) about 50% of the time', tr: 'Gelen sert servisleri veya smaçları %50 oranında pasörün önüne (3 numara) ulaştırabiliyorum', points: 3 },
+                { text: 'As a setter, I can deliberately set the hitter high/low, front/back at the height I choose', tr: 'Pasörüm; her türlü manşeti/parmak pası smaçöre bilerek, arkaya veya öne istenen yükseklikte (kurşun pas, yüksek pas) atabilirim', points: 4.5 },
+                { text: 'Professional-level technique — one-foot attack pass, dump/set-attack, pinpoint set after a dive', tr: 'Profesyonel düzeyde tekniğe sahibim; tek ayak hücum pası, smaç pas veya plonjon sonrası nokta pas çıkarabilirim', points: 5 },
+            ],
+        },
+        {
+            id: 'q3', section: 3, weight: 0.20,
+            question: 'How would you describe your physicality and spike power?',
+            tr: 'Fizik ve smaç gücünü en iyi hangisi tanımlıyor?',
+            options: [
+                { text: "I can't reach the net, I just throw the ball across", tr: 'Fileye uzanamıyorum, topları sadece karşıya fırlatıyorum', points: 0 },
+                { text: "My height/jump isn't enough for a clean spike, I usually place softly or push it over with my wrist", tr: 'Boyum veya sıçramam net smaç vurmaya yetmiyor; genelde boşluklara plase (yavaş bırakma) veya bilek hareketiyle orta sertlikte vuruyorum', points: 2 },
+                { text: 'I can spike cleanly over the net but make mistakes against blocks or bad sets', tr: 'File üzerinden net smaç vurabiliyorum ancak blok gördüğümde veya top kötü geldiğinde hata yapıyorum', points: 3.5 },
+                { text: 'High jump, I can spike hard over/around the block, pick and kill the line or cross I want', tr: 'Sıçrama çizgim yüksek, bloğun üzerinden veya arasından sert smaç vurabiliyorum. İstediğim paraleli veya çaprazı seçip topu "öldürebiliyorum"', points: 5 },
+            ],
+        },
+        {
+            id: 'q4', section: 4, weight: 0.20,
+            question: 'How would you describe your positional/court knowledge?',
+            tr: 'Pozisyon ve saha bilgini en iyi hangisi tanımlıyor?',
+            options: [
+                { text: "I don't know where to stand on court, I just hit whatever comes to me", tr: 'Sahada nerede duracağımı bilmiyorum, top bana gelince vuruyorum', points: 0 },
+                { text: "I know basic rotation (1 to 6) but get confused who's the setter/hitter in play, I rarely cover the back of the block", tr: 'Temel dönüşleri (1\'den 6\'ya dönmeyi) biliyorum ama oyun içinde kim pasör, kim smaçör karışıyor; arka alanda dublaja (bloğun arkasını korumaya) pek girmem', points: 2 },
+                { text: 'I know the 4-2 or 5-1 system in theory, I position myself knowing where to move on serve-receive and who covers what', tr: '4-2 veya 5-1 sistemini teorik olarak biliyorum. Servis karşılanırken nereye kaçacağımı, sahada kimin arkasını kapatacağımı bilerek pozisyon alırım', points: 3.5 },
+                { text: 'I play the 5-1 system flawlessly, never make rotation errors, can shift the defensive line (perimeter/mid/corner) live based on the opponent attack', tr: '5-1 sistemini kusursuz oynarım. Dönüşlerde (rotasyon) asla hata yapmam, rakip hücumuna göre savunma hattını (hata, orta, köşe) anlık kaydırabilirim', points: 5 },
+            ],
+        },
+        {
+            id: 'q5', section: 5, weight: 0.20,
+            question: 'How would you describe your mental game and team fit?',
+            tr: 'Mental ve takım içi uyumunu en iyi hangisi tanımlıyor?',
+            options: [
+                { text: 'I get upset when a teammate makes a mistake, my concentration drops immediately', tr: 'Takım arkadaşım hata yapınca sinirlenirim, oyun konsantrasyonum hemen düşer', points: 0 },
+                { text: "I play quietly, I don't communicate much on court. My mood drops when the team falls behind but I don't say anything to anyone", tr: 'Sessiz oynarım, sahada pek iletişim kurmam. Takım geriye düştüğünde modum düşer ama kimseye de bir şey demem', points: 2 },
+                { text: "I'm a team player, I constantly talk saying \"mine\" or \"leave it\", I applaud and support a teammate even after a mistake", tr: 'Takım oyuncusuyumdur, sürekli "bende" veya "bırak" diyerek konuşarak oynarım. Arkadaşım hata yapsa da alkışlar, moral veririm', points: 3.5 },
+                { text: "I'm a real on-court leader (captain character). I lift the team when it's collapsing, warn teammates tactically, and can stay calm and turn a match around", tr: 'Tam bir saha içi lideriyim (Kaptan karakteri). Takım çöktüğünde ayağa kaldırırım, taktiksel olarak arkadaşları uyarırım ve sakin kalıp maçı çevirebilirim', points: 5 },
+            ],
+        },
+    ],
+
     // Shared default for sports without specific questions
     _default: [
         {
@@ -629,6 +693,75 @@ export function calculateLevel(totalScore, maxScore) {
     else if (pct >= 0.56) level = 'ADVANCED';
     else if (pct >= 0.28) level = 'INTERMEDIATE';
     else level = 'BEGINNER';
+
+    return { level, skillRating, totalPoints };
+}
+
+// ─── VOLLEYBALL honeypot — sadece 'q4' (Pozisyon) sorusuna en üst şık (5 puan,
+// "5-1 sistemini kusursuz oynarım...") seçilirse tetiklenir. Dogru cevap (correctIndex)
+// asla client'a gönderilmez; sadece getVolleyballHoneypotPublic() ile filtrelenmiş hali gider.
+export const VOLLEYBALL_HONEYPOT = {
+    id: 'honeypot_v1',
+    triggerQuestionId: 'q4',
+    triggerOptionPoints: 5,
+    question: 'In the 5-1 system, when the setter rotates to the front row, who runs the offense?',
+    tr: '5-1 sisteminde pasör ön sıraya döndüğünde, hücumu kim organize eder?',
+    correctIndex: 2,
+    options: [
+        { text: 'The libero, from the back row', tr: 'Libero, arka sıradan', },
+        { text: 'The opposite hitter takes over as setter', tr: 'Pasör-karşısı (opposite) devreye girip pasörlük yapar', },
+        { text: 'The setter still sets, but from the front row (right-front)', tr: 'Pasör yine pas atar, ama ön sıradan (sağ ön) çıkar', },
+        { text: 'The team switches to a 6-2 rotation automatically', tr: 'Takım otomatik olarak 6-2 rotasyonuna geçer', },
+    ],
+};
+
+export function getVolleyballHoneypotPublic(lang = 'en') {
+    const { correctIndex, ...rest } = VOLLEYBALL_HONEYPOT;
+    if (lang === 'en') return rest;
+    return {
+        ...rest,
+        question: rest.tr || rest.question,
+        options: rest.options.map(o => ({ ...o, text: o.tr || o.text })),
+    };
+}
+
+// Voleybol için ağırlıklı kategori puanlaması: finalScore = Σ(points_i × weight_i).
+// Honeypot yanlış cevaplanmışsa (üst Pozisyon şıkkı seçilip takip sorusu yanlışsa),
+// q4'ün katkısı kullanıcıya sebep gösterilmeden 5 yerine 2.5 üzerinden hesaplanır.
+// calculateLevel() ile aynı eşikleri kullanır ama onu DEĞİŞTİRMEZ — bağımsız fonksiyon.
+export function calculateVolleyballScore(answers, honeypotOptionIndex = null) {
+    const questions = QUESTIONS.volleyball;
+    let finalScore = 0;
+
+    for (const q of questions) {
+        const ans = answers[q.id];
+        const opt = q.options[ans];
+        if (!opt) continue;
+
+        let points = opt.points;
+        if (
+            q.id === VOLLEYBALL_HONEYPOT.triggerQuestionId &&
+            points === VOLLEYBALL_HONEYPOT.triggerOptionPoints &&
+            honeypotOptionIndex !== null &&
+            honeypotOptionIndex !== VOLLEYBALL_HONEYPOT.correctIndex
+        ) {
+            points = 2.5;
+        }
+
+        finalScore += points * q.weight;
+    }
+
+    finalScore = parseFloat(finalScore.toFixed(2));
+    const pct = finalScore / 5;
+
+    let level;
+    if (pct >= 0.80) level = 'PRO';
+    else if (pct >= 0.56) level = 'ADVANCED';
+    else if (pct >= 0.28) level = 'INTERMEDIATE';
+    else level = 'BEGINNER';
+
+    const skillRating = finalScore;
+    const totalPoints = Math.round(pct * 100);
 
     return { level, skillRating, totalPoints };
 }

@@ -13,6 +13,7 @@ import { startHolidayReminderJob } from './jobs/holidayReminder.js';
 import { startAutoApproveReservationsJob } from './jobs/autoApproveReservations.js';
 import { startTournamentDeadlineReminderJob } from './jobs/tournamentDeadlineReminder.js';
 import { startReservationPaymentConfirmJob } from './jobs/reservationPaymentConfirm.js';
+import { startPeerReviewBlendJob } from './jobs/peerReviewBlend.js';
 import prisma from './config/prisma.js';
 
 const PROVINCES = [
@@ -91,5 +92,6 @@ Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
         startAutoApproveReservationsJob();
         startTournamentDeadlineReminderJob();
         startReservationPaymentConfirmJob();
+        startPeerReviewBlendJob();
     });
 });

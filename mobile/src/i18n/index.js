@@ -189,6 +189,7 @@ const en = {
     musicDescLabel: 'Description', musicDescPh: 'Info about lesson content, level, program',
     musicIndividual: 'Individual Lesson', musicGroup: 'Group Lesson',
     musicPriceIndividualLabel: 'Individual Price', musicPriceGroupLabel: 'Group Price',
+    musicViewCurrent: 'Current', musicViewPast: 'Past Activities', musicNoPast: 'No past activity.',
     cinemaTitle: '🎬 Cinema', cinemaTicketBtn: '🎟️ Buy Ticket', cinemaSeeAllBtn: '🏙️ See Cinemas in My City',
     cinemaCityPh: 'Select city (for ticket link)', cinemaNoMovies: 'No movies found.',
     cinemaCitySubtext: 'City doesn\'t filter the movie list — it only picks which city\'s page the "Buy Ticket" link opens.',
@@ -205,8 +206,8 @@ const en = {
     cinemaClassicsDisclaimer: 'Public-domain classic films, streamed free and fully legally via archive.org. Recent/popular releases are not included.',
     cinemaClassicsSearchPh: 'Search movies...', cinemaClassicsLoadError: 'Could not load classic films.',
     cinemaStreamError: 'This movie could not be played.',
-    theaterTitle: '🎭 Theater', theaterCityPh: 'City', theaterNamePh: 'Which play?',
-    theaterDateFromPh: 'Start date', theaterDateToPh: 'End date', theaterSearchBtn: 'Search',
+    theaterTitle: '🎭 Theater', theaterCityPh: 'City', theaterDatePh: '📅 Date',
+    theaterSearchBtn: 'Search',
     theaterNoResults: 'No plays found for these filters.', theaterTicketBtn: 'Get Tickets',
     theaterLoadError: "Couldn't load plays.",
     theaterCreateListingBtn: '📅 Create Event', theaterViewListingsBtn: '📅 View Events',
@@ -215,6 +216,7 @@ const en = {
     theaterSubEvents: '🎭 Events', theaterSubCourses: '🎓 Courses', theaterSubMedia: '📷 Media',
     theaterCreateCourseBtn: '+ Create Course', theaterShareMediaBtn: '+ Share',
     theaterNoEvents: 'No events yet. Create the first one!', theaterNoCourses: 'No courses yet.', theaterNoMedia: 'No media shared yet.',
+    theaterViewCurrent: 'Current', theaterViewPast: 'Past Activities', theaterNoPast: 'No past activity.',
     theaterEventsLoadError: 'Could not load events.', theaterCoursesLoadError: 'Could not load courses.', theaterMediaLoadError: 'Could not load media.',
     theaterEventMsgRequired: 'Please enter an event description.', theaterEventCreateError: 'Could not create event.',
     theaterJoinSent: 'Join request sent.', theaterJoinError: 'Could not send request.',
@@ -575,6 +577,17 @@ const en = {
     levelPro: '🔴 Pro',
     levelTr: { BEGINNER: 'Beginner', INTERMEDIATE: 'Intermediate', ADVANCED: 'Advanced', PRO: 'Pro' },
 
+    // Peer review modal (volleyball)
+    peerReviewTitle: '🏐 Rate Players',
+    peerReviewSubtitle: 'Rate your teammates and opponents to help build a more accurate skill rating system.',
+    peerReviewTechnicalLabel: 'Technical (Passing/Setting)',
+    peerReviewMentalLabel: 'Mental / Team Fit',
+    peerReviewSubmitBtn: 'Submit',
+    peerReviewSubmittedMsg: '✓ Rated',
+    peerReviewAllDoneMsg: "Thanks! You've rated everyone for this match.",
+    peerReviewNoTargets: 'Nothing to rate here.',
+    peerReviewNeedsReviewBtn: '🏐 Rate Players',
+
     // Football positions
     posGoalkeeper: 'Goalkeeper', posDefender: 'Defender',
     posMidfielder: 'Midfielder', posForward: 'Forward / Winger', posAllrounder: 'Any Position',
@@ -597,6 +610,8 @@ const en = {
     calMonths: ['January','February','March','April','May','June','July','August','September','October','November','December'],
     calDays: ['Mo','Tu','We','Th','Fr','Sa','Su'],
     closeCalendar: 'Close',
+    dateRangeTitle: '📅 Date Range', dateRangeStart: 'Start', dateRangeEnd: 'End',
+    dateRangeSelect: 'Select', dateRangeClear: 'Clear', dateRangeApply: 'Apply',
 
     // SubCategory — additional UI
     createAdBtn: '+ Post Listing',
@@ -1067,6 +1082,7 @@ const tr = {
     musicDescLabel: 'Açıklama', musicDescPh: 'Ders içeriği, seviye, program hakkında bilgi',
     musicIndividual: 'Bireysel Ders', musicGroup: 'Grup Dersi',
     musicPriceIndividualLabel: 'Bireysel Ücret', musicPriceGroupLabel: 'Grup Ücreti',
+    musicViewCurrent: 'Güncel', musicViewPast: 'Geçmiş Aktiviteler', musicNoPast: 'Geçmiş aktivite yok.',
     cinemaTitle: '🎬 Sinema', cinemaTicketBtn: '🎟️ Bilet Al', cinemaSeeAllBtn: '🏙️ Şehrimdeki Sinemaları Gör',
     cinemaCityPh: 'Şehir seçin (bilet linki için)', cinemaNoMovies: 'Film bulunamadı.',
     cinemaCitySubtext: 'Şehir, film listesini değil sadece "Bilet Al" linkinin gideceği sinema sayfasını belirler.',
@@ -1083,8 +1099,8 @@ const tr = {
     cinemaClassicsDisclaimer: 'Telif süresi dolmuş (kamu malı) klasik filmler — archive.org üzerinden ücretsiz ve tamamen yasal olarak izlenir. Güncel/popüler yapımlar bu listede yer almaz.',
     cinemaClassicsSearchPh: 'Film ara...', cinemaClassicsLoadError: 'Klasik filmler yüklenemedi.',
     cinemaStreamError: 'Film oynatılamıyor.',
-    theaterTitle: '🎭 Tiyatro', theaterCityPh: 'İl', theaterNamePh: 'Hangi oyun?',
-    theaterDateFromPh: 'Başlangıç tarihi', theaterDateToPh: 'Bitiş tarihi', theaterSearchBtn: 'Ara',
+    theaterTitle: '🎭 Tiyatro', theaterCityPh: 'İl', theaterDatePh: '📅 Tarih',
+    theaterSearchBtn: 'Ara',
     theaterNoResults: 'Bu filtrelere uyan oyun bulunamadı.', theaterTicketBtn: 'Bilet Al',
     theaterLoadError: 'Oyunlar yüklenemedi.',
     theaterCreateListingBtn: '📅 Etkinlik Oluştur', theaterViewListingsBtn: '📅 Etkinlikleri Gör',
@@ -1093,6 +1109,7 @@ const tr = {
     theaterSubEvents: '🎭 Etkinlikler', theaterSubCourses: '🎓 Kurslar', theaterSubMedia: '📷 Medya',
     theaterCreateCourseBtn: '+ Kurs Oluştur', theaterShareMediaBtn: '+ Paylaş',
     theaterNoEvents: 'Henüz etkinlik yok. İlk etkinliği siz oluşturun!', theaterNoCourses: 'Henüz kurs yok.', theaterNoMedia: 'Henüz medya paylaşılmamış.',
+    theaterViewCurrent: 'Güncel', theaterViewPast: 'Geçmiş Aktiviteler', theaterNoPast: 'Geçmiş aktivite yok.',
     theaterEventsLoadError: 'Etkinlikler yüklenemedi.', theaterCoursesLoadError: 'Kurslar yüklenemedi.', theaterMediaLoadError: 'Medya yüklenemedi.',
     theaterEventMsgRequired: 'Etkinlik açıklaması girin.', theaterEventCreateError: 'Etkinlik oluşturulamadı.',
     theaterJoinSent: 'Katılım isteği gönderildi.', theaterJoinError: 'İstek gönderilemedi.',
@@ -1453,6 +1470,17 @@ const tr = {
     levelPro: '🔴 Pro',
     levelTr: { BEGINNER: 'Başlangıç', INTERMEDIATE: 'Orta', ADVANCED: 'İleri', PRO: 'Pro' },
 
+    // Peer review modal (voleybol)
+    peerReviewTitle: '🏐 Oyuncuları Değerlendir',
+    peerReviewSubtitle: 'Takım arkadaşlarını ve rakiplerini değerlendirerek daha doğru bir derecelendirme sistemine katkıda bulun.',
+    peerReviewTechnicalLabel: 'Teknik (Manşet/Pas)',
+    peerReviewMentalLabel: 'Mental / Takım Uyumu',
+    peerReviewSubmitBtn: 'Gönder',
+    peerReviewSubmittedMsg: '✓ Değerlendirildi',
+    peerReviewAllDoneMsg: 'Teşekkürler! Bu maçtaki herkesi değerlendirdin.',
+    peerReviewNoTargets: 'Değerlendirilecek kimse yok.',
+    peerReviewNeedsReviewBtn: '🏐 Oyuncuları Değerlendir',
+
     // Football positions
     posGoalkeeper: 'Kaleci', posDefender: 'Defans',
     posMidfielder: 'Orta Saha', posForward: 'Forvet / Kanat', posAllrounder: 'Her Mevkide',
@@ -1475,6 +1503,8 @@ const tr = {
     calMonths: ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'],
     calDays: ['Pt','Sa','Ça','Pe','Cu','Ct','Pz'],
     closeCalendar: 'Kapat',
+    dateRangeTitle: '📅 Tarih Aralığı', dateRangeStart: 'Başlangıç', dateRangeEnd: 'Bitiş',
+    dateRangeSelect: 'Seç', dateRangeClear: 'Temizle', dateRangeApply: 'Uygula',
 
     // SubCategory — additional UI
     createAdBtn: '+ İlan Oluştur',

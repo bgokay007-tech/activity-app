@@ -13,6 +13,7 @@ import {
     getForReservation,
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
+import { getPeerReviewTargets, submitPeerReview } from '../controllers/peerReview.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
 const router = Router();
@@ -55,5 +56,7 @@ router.delete('/comments/:commentId', authenticate, deleteMatchComment);
 router.post('/:id/no-show',          authenticate, reportNoShow);
 router.post('/:id/propose-schedule', authenticate, proposeSchedule);
 router.post('/:id/accept-schedule',  authenticate, acceptSchedule);
+router.get('/:id/peer-review-targets', authenticate, getPeerReviewTargets);
+router.post('/:id/peer-review',      authenticate, submitPeerReview);
 
 export default router;

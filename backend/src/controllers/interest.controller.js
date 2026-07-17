@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { getQuestions, calculateLevel } from '../config/assessments.js';
+import { getQuestions, calculateLevel, calculateVolleyballScore, getVolleyballHoneypotPublic, VOLLEYBALL_HONEYPOT } from '../config/assessments.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
 
 // Kategorilerin alt dalları
@@ -241,7 +241,11 @@ export const getAssessmentQuestions = async (req, res) => {
 
     const questions = getQuestions(key, lang || 'en');
     const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
-    res.json({ subCategory, position: position || null, questions, maxScore });
+
+    // Voleybol: takip (honeypot) sorusu ayrı gönderilir, dogru cevap client'a gitmez
+    const honeypot = subCategory === 'volleyball' ? getVolleyballHoneypotPublic(lang || 'en') : undefined;
+
+    res.json({ subCategory, position: position || null, questions, maxScore, ...(honeypot ? { honeypot } : {}) });
 };
 
 // Assessment sonucunu kaydet → level ve initialPoints güncelle
@@ -253,6 +257,24 @@ export const saveAssessment = async (req, res, next) => {
         const interest = await prisma.userInterest.findUnique({ where: { id } });
         if (!interest || interest.userId !== req.userId)
             return res.status(403).json({ message: 'Forbidden' });
+
+        // Voleybol: agirlikli kategori puanlamasi (calculateLevel'dan bagimsiz, bkz. assessments.js)
+        if (interest.subCategory === 'volleyball') {
+            const answersMap = {};
+            let honeypotOptionIndex = null;
+            for (const a of answers) {
+                if (a.questionId === VOLLEYBALL_HONEYPOT.id) honeypotOptionIndex = a.optionIndex;
+                else answersMap[a.questionId] = a.optionIndex;
+            }
+            const { level, skillRating, totalPoints } = calculateVolleyballScore(answersMap, honeypotOptionIndex);
+
+            const updated = await prisma.userInterest.update({
+                where: { id },
+                data: { level, skillRating, totalPoints, assessmentCompleted: true, matchesSinceAssessment: 0 },
+            });
+
+            return res.json({ interest: updated, level, skillRating, totalPoints });
+        }
 
         const questions = getQuestions(interest.subCategory);
         const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);

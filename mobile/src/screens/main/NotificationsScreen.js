@@ -47,6 +47,7 @@ const TYPE_ICON = {
     RESERVATION_UPDATE: '🔄',
     VENUE_ORDER: '🛒',
     PAYMENT_ALERT: '💳',
+    PEER_REVIEW_PROMPT: '🏐',
     default: '🔔',
 };
 
@@ -137,6 +138,12 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('rivals');
         } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') {
             goToSub('archive');
+        } else if (type === 'PEER_REVIEW_PROMPT') {
+            if (!data.category || !data.subCategory) return;
+            navigation.push('SubCategory', {
+                category: data.category, sub: data.subCategory, initialTab: 'archive',
+                highlightRivalId: data.rivalId || null, openPeerReviewRivalId: data.rivalId || null,
+            });
         } else if (type === 'SCORE_DISPUTED') {
             goToSub('rivals');
         } else if (type === 'MATCH_COMMENT') {

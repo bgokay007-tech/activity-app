@@ -3,6 +3,7 @@ import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
+import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
 
 // Fixed transfer lookup based on rating gap + score dominance
 // ratingDiff = |loserRating - winnerRating| (0–5 scale, 1 rating pt = 20 totalPoints)
@@ -1780,6 +1781,20 @@ export async function runScoreConfirmation(request) {
     // Emit to all players so their screens update in real-time
     const allPlayerIds2 = [...new Set([request.senderId, ...participants.map(p => p.id)])];
     for (const uid of allPlayerIds2) emitToUser(uid, 'rivalUpdate', updated);
+
+    // Akran doğrulama: rekabetçi voleybol maçı onaylandığında roster'daki herkese
+    // (kendisi dahil, diğerlerini puanlasın diye) bildirim gönderilir. Hem manuel onay hem
+    // 1 saatlik oto-onay job'u (autoCompleteMatches.js) bu fonksiyona çıktığı için tek nokta.
+    if (PEER_REVIEW_SUBCATEGORIES.includes(request.subCategory) && request.matchMode === 'COMPETITIVE') {
+        for (const uid of new Set(allPlayerIds)) {
+            createNotification(
+                uid, 'PEER_REVIEW_PROMPT',
+                '🏐 Oyuncuları Değerlendir',
+                'Maç arkadaşlarını ve rakiplerini değerlendirerek daha doğru bir eşleşme sistemine katkıda bulun.',
+                { rivalId: request.id, category: request.category, subCategory: request.subCategory }
+            ).catch(() => {});
+        }
+    }
 
     return { updated, pointChanges };
 }

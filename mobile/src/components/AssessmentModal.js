@@ -24,6 +24,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
     const [position, setPosition]   = useState(null);
     const [questions, setQuestions] = useState([]);
     const [maxScore, setMaxScore]   = useState(0);
+    const [honeypot, setHoneypot]   = useState(null);
     const [current, setCurrent]     = useState(0);
     const [answers, setAnswers]     = useState([]);
     const [selected, setSelected]   = useState(null);
@@ -35,6 +36,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
         if (!visible) return;
         setPosition(null);
         setQuestions([]);
+        setHoneypot(null);
         setCurrent(0);
         setAnswers([]);
         setSelected(null);
@@ -50,7 +52,11 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
             ? `/interests/assessment/${subCategory}?position=${position}&lang=${fetchLang}`
             : `/interests/assessment/${subCategory}?lang=${fetchLang}`;
         api.get(url)
-            .then(({ data }) => { setQuestions(data.questions || []); setMaxScore(data.maxScore || 0); })
+            .then(({ data }) => {
+                setQuestions(data.questions || []);
+                setMaxScore(data.maxScore || 0);
+                setHoneypot(data.honeypot || null);
+            })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [visible, subCategory, position]);
@@ -68,9 +74,24 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
     const handleNext = () => {
         if (selected === null) return;
         const opt = q.options[selected];
-        const newAnswers = [...answers, { questionId: q.id, points: opt.points, text: opt.text }];
+        const newAnswers = [...answers, { questionId: q.id, points: opt.points, text: opt.text, optionIndex: selected }];
         setAnswers(newAnswers);
         setSelected(null);
+
+        // Voleybol honeypot: tetikleyici soruda en üst şık seçildiyse takip sorusu hemen eklenir
+        if (
+            honeypot &&
+            q.id === honeypot.triggerQuestionId &&
+            opt.points === honeypot.triggerOptionPoints &&
+            !questions.some(qq => qq.id === honeypot.id)
+        ) {
+            const nextQuestions = [...questions];
+            nextQuestions.splice(current + 1, 0, honeypot);
+            setQuestions(nextQuestions);
+            setCurrent(current + 1);
+            return;
+        }
+
         if (current + 1 < questions.length) {
             setCurrent(current + 1);
         } else {
@@ -199,11 +220,11 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
                                     </Text>
                                     <View style={s.ratingBarBg}>
                                         <View style={[s.ratingBarFill, {
-                                            width: `${Math.round((result.totalScore / result.maxScore) * 100)}%`,
+                                            width: `${Math.round((result.skillRating / 5) * 100)}%`,
                                         }]} />
                                     </View>
                                     <Text style={s.ratingPct}>
-                                        {Math.round((result.totalScore / result.maxScore) * 100)}%
+                                        {Math.round((result.skillRating / 5) * 100)}%
                                     </Text>
                                 </View>
                                 <TouchableOpacity style={s.doneBtn} onPress={handleDone}>

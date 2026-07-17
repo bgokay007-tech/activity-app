@@ -22,6 +22,7 @@ import CityPickerModal from '../../components/CityPickerModal';
 import CityAutocomplete from '../../components/CityAutocomplete';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
+import PeerReviewModal from '../../components/PeerReviewModal';
 import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 
@@ -9288,7 +9289,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
+    const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
+
+    useEffect(() => {
+        if (route.params?.openPeerReviewRivalId) {
+            setPeerReviewRivalId(route.params.openPeerReviewRivalId);
+        }
+    }, [route.params?.openPeerReviewRivalId]);
 
     useEffect(() => {
         if (['open','inprogress'].includes(route.params?.initialTournSubTab)) {
@@ -10427,6 +10435,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                 currentValue={filterCity}
             />
 
+            <PeerReviewModal
+                visible={!!peerReviewRivalId}
+                rivalId={peerReviewRivalId}
+                onClose={() => { setPeerReviewRivalId(null); loadArchive(); }}
+            />
+
             {/* Bildirim il seçici — tüm sekmeler için ortak */}
             <Modal visible={cityPickerTab !== null} animationType="slide" transparent onRequestClose={() => setCityPickerTab(null)}>
                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
@@ -11317,6 +11331,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 )}
                                                 {m.scoreAppeal && (
                                                     <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:4 }}>⏳ İtiraz İnceleniyor</Text>
+                                                )}
+                                                {m.needsPeerReview && (
+                                                    <TouchableOpacity
+                                                        onPress={() => setPeerReviewRivalId(m.id)}
+                                                        style={{ marginTop:4, backgroundColor: cfg.color + '20', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor: cfg.color + '50', alignSelf:'flex-start' }}>
+                                                        <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>{t.peerReviewNeedsReviewBtn}</Text>
+                                                    </TouchableOpacity>
                                                 )}
                                             </View>
                                         );

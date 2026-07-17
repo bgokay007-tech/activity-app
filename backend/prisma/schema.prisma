@@ -99,6 +99,8 @@ model User {
   userAchievements    UserAchievement[]
   matchComments    MatchComment[]
   noShowReports    NoShowReport[] @relation("noShowReporter")
+  peerReviewsGiven    MatchPeerReview[] @relation("PeerReviewGiven")
+  peerReviewsReceived MatchPeerReview[] @relation("PeerReviewReceived")
   cityAlerts       CityAlert[]
   surveyGiven      SportSurvey[] @relation("SurveyRater")
   surveyReceived   SportSurvey[] @relation("SurveySubject")
@@ -194,6 +196,7 @@ model UserInterest {
   lateCancelCount  Int          @default(0)  // unilateral cancels within 5h of match
   alias        String?      // sport-specific display name shown in listings
   hidden       Boolean      @default(false)  // 3+ maci olan branslar silinemez, sadece gizlenir (puan/gecmis korunur)
+  trustScore   Float        @default(1.0)  // 0.2-1.0, akran oyu verirken guvenilirlik (bkz. MatchPeerReview)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -510,6 +513,7 @@ model ActivityRequest {
   joinRequests    RivalJoinRequest[]
   matchComments   MatchComment[]
   noShowReports   NoShowReport[]
+  matchPeerReviews MatchPeerReview[]
 }
 
 model MatchComment {
@@ -537,6 +541,45 @@ model NoShowReport {
 
   rival         ActivityRequest @relation(fields: [rivalId],    references: [id], onDelete: Cascade)
   reporter      User            @relation("noShowReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+}
+
+// AKRAN DOGRULAMA — voleybol maci sonrasi takim arkadaslari/rakipler birbirini
+// puanlar (teknik+mental), skillRating'e trust-agirlikli+medyan-filtreli harman
+// olarak yansitilir. AssessmentVote'tan (kart oylama) tamamen ayri, farkli amac.
+model MatchPeerReview {
+  id                 String   @id @default(uuid())
+  matchId            String                          // ActivityRequest.id
+  reviewerId         String
+  revieweeId         String
+  subCategory        String                          // simdilik sadece 'volleyball'
+  technicalStars     Int                              // 1-5, manset/pas
+  mentalStars        Int                              // 1-5, takim uyumu
+  isPremade          Boolean  @default(false)         // ayni onceden-grup taraf -> harmanlamaya girmez
+  trustWeightApplied Float    @default(1.0)           // oyu verenin oy ANINDAKI trustScore'u
+  createdAt          DateTime @default(now())
+
+  match     ActivityRequest @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  reviewer  User @relation("PeerReviewGiven",    fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewee  User @relation("PeerReviewReceived", fields: [revieweeId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, reviewerId, revieweeId])
+  @@index([revieweeId, subCategory])
+}
+
+// Idempotency defteri: 0.9/0.1 harman formulu mac+kullanici basina TAM BIR KEZ
+// uygulanir (tekrar calisirsa katlanir), bu tablo bunu garanti eder + denetim izi sunar.
+model PeerReviewBlend {
+  id                String   @id @default(uuid())
+  matchId           String
+  userId            String
+  subCategory       String
+  peerAverage       Float
+  votesUsed         Int
+  skillRatingBefore Float
+  skillRatingAfter  Float
+  appliedAt         DateTime @default(now())
+
+  @@unique([matchId, userId])
 }
 
 model RivalJoinRequest {
