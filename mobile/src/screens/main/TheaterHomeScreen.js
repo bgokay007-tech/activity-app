@@ -410,7 +410,7 @@ export default function TheaterHomeScreen({ navigation }) {
                         <FlatList
                             data={playsView === 'current' ? currentPlays : pastPlays}
                             keyExtractor={item => item.id}
-                            numColumns={2}
+                            numColumns={4}
                             columnWrapperStyle={s.gridRow}
                             contentContainerStyle={s.grid}
                             ListEmptyComponent={loaded ? <Text style={s.emptyText}>{playsView === 'past' ? (t.theaterNoPast || 'Geçmiş oyun yok.') : (t.theaterNoResults || 'Bu filtrelere uyan oyun bulunamadı.')}</Text> : null}
@@ -752,11 +752,11 @@ const s = StyleSheet.create({
     cardImg: { width: '100%', aspectRatio: 3 / 4, backgroundColor: colors.surface2 },
     cardImgFallback: { alignItems: 'center', justifyContent: 'center' },
     cardBody: { padding: 3, gap: 3 },
-    cardTitle: { color: '#fff', fontSize: 13, fontWeight: '800' },
-    cardMeta: { color: colors.textMuted, fontSize: 11 },
-    cardPrice: { color: colors.purple, fontSize: 11, fontWeight: '700' },
-    ticketBtn: { backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center' },
-    ticketBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    cardTitle: { color: '#fff', fontSize: 10, fontWeight: '800' },
+    cardMeta: { color: colors.textMuted, fontSize: 8 },
+    cardPrice: { color: colors.purple, fontSize: 8, fontWeight: '700' },
+    ticketBtn: { backgroundColor: colors.purple, borderRadius: 6, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center' },
+    ticketBtnText: { color: '#fff', fontSize: 9, fontWeight: '700' },
 
     eventCard: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
     eventOwner: { color: '#fff', fontSize: 12, fontWeight: '800', flex: 1 },
