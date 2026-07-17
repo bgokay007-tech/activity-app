@@ -1,7 +1,7 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 
-const VALID_TABS = ['rivals', 'tournaments', 'coaches', 'equipment'];
+const VALID_TABS = ['rivals', 'tournaments', 'coaches', 'equipment', 'referees'];
 
 export const getMyAlert = async (req, res, next) => {
     try {
@@ -81,6 +81,7 @@ const TAB_LABELS_TR = {
     tournaments: 'Turnuva',
     coaches: 'Antrenör İlanı',
     equipment: 'Ekipman İlanı',
+    referees: 'Hakem İlanı',
 };
 
 export async function notifyCitySubscribers({ subCategory, category, senderCity, senderUsername, senderId, itemId, tab = 'rivals', type = 'NEW_LISTING', title, body }) {

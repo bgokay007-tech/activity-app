@@ -94,6 +94,7 @@ model User {
   storyViews       StoryView[]
   assessmentVotesCast AssessmentVote[]
   coachListings       CoachListing[]
+  refereeListings     RefereeListing[]
   equipmentListings   EquipmentListing[]
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
@@ -262,6 +263,39 @@ model CoachListing {
   location        String
   city            String?
   days            Json     @default("[]") // ["MON","TUE",...]
+  timeFrom        String   @default("09:00")
+  timeTo          String   @default("21:00")
+
+  description     String?
+  status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
+  reportCount     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// HAKEM İLANI — CoachListing'in küçültülmüş hali, bireysel/grup ayrımı yok,
+// maç başı ücret var (pricePerMatch)
+model RefereeListing {
+  id              String   @id @default(uuid())
+  userId          String
+  category        String   // SPORTS / ARTS / GAMES
+  subCategory     String   // tennis, padel, volleyball vb.
+
+  credentialLevel String   // CERTIFIED | LICENSED | CLUB_REFEREE | INDEPENDENT | AMATEUR
+  certName        String?
+  certificateUrl  String?
+  experience      Int      @default(0) // years
+  achievements    String?
+  achievementUrls Json     @default("[]")
+  cvUrl           String?
+
+  pricePerMatch   Int      @default(0)
+
+  location        String
+  city            String?
+  days            Json     @default("[]")
   timeFrom        String   @default("09:00")
   timeTo          String   @default("21:00")
 

@@ -111,6 +111,22 @@ const en = {
     postsTab: '✏️ Posts',
     venuesTab: '🏟️ Venues',
 
+    // Coaches sub-tabs (tennis/padel/volleyball: Coaches | Courses | Referees | CVs)
+    coachesSubTab: '🎓 Coaches',
+    coursesSubTab: '📚 Courses',
+    refereesSubTab: '🟨 Referees',
+    createRefereeListingBtn: '+ Post Referee Listing',
+    createRefereeMatchBtn: '🟨 Referee for a Match',
+    emptyReferees: 'No referee listings yet',
+    emptyRefereeMatches: 'No referee requests for matches yet',
+    refereeListingsTitle: 'Standing Referee Listings',
+    refereeMatchesTitle: 'Referees Needed for Matches',
+    refereeSeekingLabel: 'Looking for a Referee',
+    refereeOfferingLabel: 'Offering to Referee',
+    refereePaymentLabel: 'Referee Fee',
+    refereeModeLabel: 'What do you need?',
+    pricePerMatchLabel: 'Fee per Match',
+
     // SubCategory — rival card
     joinedCount: (f, t) => `${f}/${t} joined`,
     flexibleBanner: '📅 Flexible Schedule · valid 24h',
@@ -490,7 +506,7 @@ const en = {
     postListingBtn: '+ List Item', equipSearchPh: 'Search product name...', equipCityPh: 'City / Location',
 
     // Coach credentials & lesson types
-    credCertified: 'Certified', credLicensed: 'Licensed', credClubCoach: 'Club Coach', credIndependent: 'Independent', credAmateur: 'Amateur',
+    credCertified: 'Certified', credLicensed: 'Licensed', credClubCoach: 'Club Coach', credClubReferee: 'Club Referee', credIndependent: 'Independent', credAmateur: 'Amateur',
     individualLesson: 'Individual Lesson', groupLesson: 'Group Lesson',
     sendBtn: 'Send',
 
@@ -1006,6 +1022,22 @@ const tr = {
     postsTab: '✏️ Yazılar',
     venuesTab: '🏟️ Tesisler',
 
+    // Antrenörler alt-sekmeleri (tenis/padel/voleybol: Antrenörler | Kurslar | Hakemler | CV'ler)
+    coachesSubTab: '🎓 Antrenörler',
+    coursesSubTab: '📚 Kurslar',
+    refereesSubTab: '🟨 Hakemler',
+    createRefereeListingBtn: '+ Hakem İlanı Ver',
+    createRefereeMatchBtn: '🟨 Maç İçin Hakem',
+    emptyReferees: 'Henüz hakem ilanı yok',
+    emptyRefereeMatches: 'Henüz maç için hakem ilanı yok',
+    refereeListingsTitle: 'Sabit Hakem İlanları',
+    refereeMatchesTitle: 'Maç İçin Hakem Aranıyor',
+    refereeSeekingLabel: 'Hakem Arıyorum',
+    refereeOfferingLabel: 'Hakemlik Teklif Ediyorum',
+    refereePaymentLabel: 'Hakem Ücreti',
+    refereeModeLabel: 'Ne istiyorsun?',
+    pricePerMatchLabel: 'Maç Başı Ücret',
+
     // SubCategory — rival card
     joinedCount: (f, t) => `${f}/${t} katıldı`,
     flexibleBanner: '📅 Esnek Program · 24 saat geçerli',
@@ -1385,7 +1417,7 @@ const tr = {
     postListingBtn: '+ İlan Ver', equipSearchPh: 'Ürün adı ara...', equipCityPh: 'İl / Konum',
 
     // Coach credentials & lesson types
-    credCertified: 'Sertifikalı', credLicensed: 'Lisanslı', credClubCoach: 'Kulüp Antrenörü', credIndependent: 'Bağımsız', credAmateur: 'Amatör',
+    credCertified: 'Sertifikalı', credLicensed: 'Lisanslı', credClubCoach: 'Kulüp Antrenörü', credClubReferee: 'Kulüp Hakemi', credIndependent: 'Bağımsız', credAmateur: 'Amatör',
     individualLesson: 'Bireysel Ders', groupLesson: 'Grup Dersi',
     sendBtn: 'Gönder',
 

@@ -1376,6 +1376,16 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                     <Text style={[s.joinedCount, { fontSize: moderateScale(10), marginTop:0 }]}>{t.joinedCount(filled, TEAM_SPORTS.has(sub) ? item.teamSize : required)}</Text>
                 </View>
+                {Array.isArray(item.positions) && (item.positions.includes('REFEREE') || item.positions.includes('REFEREE_OFFER')) && (
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
+                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>
+                                🟨 {item.positions.includes('REFEREE_OFFER') ? t.refereeOfferingLabel : t.refereeSeekingLabel}
+                            </Text>
+                        </View>
+                        {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>{item.refereePayment}</Text>}
+                    </View>
+                )}
                 {(item.minRating != null || item.maxRating != null) && (
                     <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700', marginBottom:3 }}>
                         ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
@@ -5467,6 +5477,89 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
     );
 }
 
+// ─── Create Referee-for-Match Modal ────────────────────────────────────────────
+// Maça özel hakem talebi ("Hakem Arıyorum") veya teklifi ("Hakemlik Teklif Ediyorum") —
+// ActivityRequest.positions (REFEREE/REFEREE_OFFER) + refereePayment kullanır, backend'de
+// zaten kabul ediliyor (createRivalRequest). matchType:'PLAYER_WANTED' ile aynı marketplace
+// akışına (RivalCard + join-request) girer.
+
+function CreateRefereeMatchModal({ visible, onClose, category, sub, onCreated }) {
+    const t = useT();
+    const [f, setF] = useState({ mode: 'REFEREE', message: '', matchDate: '', matchTime: '', location: '', payment: '' });
+    const [submitting, setSubmitting] = useState(false);
+    const set = (key, val) => setF(p => ({ ...p, [key]: val }));
+
+    useEffect(() => {
+        if (visible) setF({ mode: 'REFEREE', message: '', matchDate: '', matchTime: '', location: '', payment: '' });
+    }, [visible]);
+
+    const submit = async () => {
+        setSubmitting(true);
+        try {
+            await api.post('/rivals', {
+                category, subCategory: sub, matchType: 'PLAYER_WANTED',
+                teamSize: 1,
+                message: f.message,
+                matchDate: f.matchDate || undefined,
+                matchTime: f.matchTime || undefined,
+                location: f.location || undefined,
+                positions: [f.mode],
+                refereePayment: f.payment || undefined,
+            });
+            onCreated(); onClose();
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.sendFailed); }
+        finally { setSubmitting(false); }
+    };
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={s.modalOverlay}>
+                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'} style={{ flex:1, justifyContent:'flex-end' }}>
+                    <View style={s.modalBox}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>{t.createRefereeMatchBtn}</Text>
+                            <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <Text style={s.fieldLabel}>{t.refereeModeLabel}</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:14 }}>
+                                <View style={s.chipRow}>
+                                    {[
+                                        { id:'REFEREE',       label: t.refereeSeekingLabel },
+                                        { id:'REFEREE_OFFER', label: t.refereeOfferingLabel },
+                                    ].map(m => (
+                                        <TouchableOpacity key={m.id} onPress={() => set('mode', m.id)}
+                                            style={[s.chipBtn, f.mode===m.id && s.chipBtnActive]}>
+                                            <Text style={[s.chipBtnText, f.mode===m.id && s.chipBtnTextActive]}>{m.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                            <Text style={s.fieldLabel}>{t.dateFieldLabel}</Text>
+                            <TextInput style={s.fieldInput} value={f.matchDate} onChangeText={v=>set('matchDate',v)}
+                                placeholder="2026-06-20" placeholderTextColor={colors.textMuted} />
+                            <Text style={s.fieldLabel}>{t.locationLabel}</Text>
+                            <TextInput style={s.fieldInput} value={f.location} onChangeText={v=>set('location',v)}
+                                placeholder="İstanbul / Kadıköy" placeholderTextColor={colors.textMuted} />
+                            <Text style={s.fieldLabel}>{t.refereePaymentLabel}</Text>
+                            <TextInput style={s.fieldInput} value={f.payment} onChangeText={v=>set('payment',v)}
+                                placeholder="500₺" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                            <Text style={s.fieldLabel}>{t.messageFieldLabel}</Text>
+                            <TextInput style={[s.fieldInput,{height:80,textAlignVertical:'top'}]}
+                                value={f.message} onChangeText={v=>set('message',v)}
+                                placeholder={t.playerWantedMsgPh}
+                                placeholderTextColor={colors.textMuted} multiline />
+                            <TouchableOpacity style={[s.submitBtn, submitting&&{opacity:0.6}]} onPress={submit} disabled={submitting}>
+                                <Text style={s.submitBtnText}>{submitting ? t.submittingBtn : t.publishAdBtn}</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
+    );
+}
+
 // ─── Tournament Card ──────────────────────────────────────────────────────────
 
 const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t.tournType3, '4': t.tournType4 });
@@ -9316,7 +9409,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [locationLoading, setLocationLoading] = useState(false);
     const [cityAlertCity, setCityAlertCity] = useState(null);
     // Tüm sekmeler için abone olunan il listesi
-    const [tabSubCities, setTabSubCities] = useState({ rivals: [], tournaments: [], coaches: [], equipment: [] });
+    const [tabSubCities, setTabSubCities] = useState({ rivals: [], tournaments: [], coaches: [], equipment: [], referees: [] });
     const [cityAlertLoading, setCityAlertLoading] = useState(null); // toggling tab or null
     const [cityPickerTab, setCityPickerTab] = useState(null); // hangi sekme için picker açık
     const [cityPickerTogglingCity, setCityPickerTogglingCity] = useState(null);
@@ -9342,6 +9435,28 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [cvUploadListingId, setCvUploadListingId] = useState(null);
     const [standaloneCvImage, setStandaloneCvImage] = useState(null);
     const [uploadingStandaloneCv, setUploadingStandaloneCv] = useState(false);
+
+    // Referees data — sadece tennis/padel/volleyball'da Antrenörler sekmesinin
+    // 'referees' alt-sekmesinde kullanılır (bkz. coachSubTab)
+    const [refereeListings, setRefereeListings] = useState([]);
+    const [loadingReferees, setLoadingReferees] = useState(false);
+    const [showCreateReferee, setShowCreateReferee] = useState(false);
+    const [submittingReferee, setSubmittingReferee] = useState(false);
+    const [uploadingRefereeMedia, setUploadingRefereeMedia] = useState(false);
+    const [refereeForm, setRefereeForm] = useState({
+        credentialLevel: 'INDEPENDENT', certName: '', experience: '',
+        achievements: '', pricePerMatch: '',
+        location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+        locationMutual: false,
+    });
+    const [refereeCertImage, setRefereeCertImage] = useState(null);
+    const [refereeCvImage, setRefereeCvImage] = useState(null);
+    const [refereeAchievementImages, setRefereeAchievementImages] = useState([]);
+
+    // Maç için hakem ilanları — ActivityRequest.positions (REFEREE/REFEREE_OFFER) kullanır,
+    // "Oyuncu Aranıyor" listesinden ayrıca bu state'e ayrılır (bkz. load())
+    const [refereeMatches, setRefereeMatches] = useState([]);
+    const [showCreateRefereeMatch, setShowCreateRefereeMatch] = useState(false);
 
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [rivalPrefill, setRivalPrefill] = useState(null);
@@ -9480,10 +9595,10 @@ export default function SubCategoryScreen({ route, navigation }) {
             const allRivals = rvRes.data;
             const openRivals = allRivals.filter(r => r.matchType !== 'PLAYER_WANTED');
             setRivals(openRivals);
-            setPlayerWanted(pwRes.data.filter(p =>
-                !Array.isArray(p.positions) ||
-                (!p.positions.includes('REFEREE') && !p.positions.includes('REFEREE_OFFER'))
-            ));
+            const isRefereeAd = p => Array.isArray(p.positions) &&
+                (p.positions.includes('REFEREE') || p.positions.includes('REFEREE_OFFER'));
+            setPlayerWanted(pwRes.data.filter(p => !isRefereeAd(p)));
+            setRefereeMatches(pwRes.data.filter(isRefereeAd));
             const upcomingList = Array.isArray(upcomingRes.data) ? upcomingRes.data : [];
             setMatchedUpcoming(upcomingList);
             setPendingScore(Array.isArray(pendingRes.data) ? pendingRes.data : []);
@@ -9518,7 +9633,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const onRefresh = () => { setRefreshing(true); load(); };
 
     useEffect(() => {
-        ['rivals', 'tournaments', 'coaches', 'equipment'].forEach(tab => {
+        ['rivals', 'tournaments', 'coaches', 'equipment', 'referees'].forEach(tab => {
             api.get(`/city-alerts/${encodeURIComponent(sub)}?tab=${tab}`)
                 .then(res => {
                     if (res.data.city) setCityAlertCity(res.data.city);
@@ -9722,6 +9837,73 @@ export default function SubCategoryScreen({ route, navigation }) {
             loadCoaches();
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setSubmittingCoach(false); setUploadingCoachMedia(false); }
+    };
+
+    const loadReferees = useCallback(async () => {
+        if (activeTab !== 'coaches' || coachSubTab !== 'referees') return;
+        setLoadingReferees(true);
+        try {
+            const { data } = await api.get(`/referees?category=${category}&subCategory=${sub}`);
+            setRefereeListings(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingReferees(false); }
+    }, [activeTab, coachSubTab, category, sub]);
+
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { loadReferees(); });
+        return () => task.cancel();
+    }, [loadReferees]);
+
+    const pickRefereeAchievementImages = async () => {
+        if (refereeAchievementImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85,
+            selectionLimit: 5 - refereeAchievementImages.length,
+        });
+        if (!result.canceled) {
+            setRefereeAchievementImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+    };
+
+    const resetRefereeForm = () => {
+        setRefereeForm({
+            credentialLevel: 'INDEPENDENT', certName: '', experience: '',
+            achievements: '', pricePerMatch: '',
+            location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+        });
+        setRefereeCertImage(null);
+        setRefereeCvImage(null);
+        setRefereeAchievementImages([]);
+    };
+
+    const submitReferee = async () => {
+        if (!refereeForm.locationMutual && !refereeForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
+        setSubmittingReferee(true);
+        try {
+            setUploadingRefereeMedia(true);
+            const certificateUrl = refereeCertImage ? await uploadCoachImage(refereeCertImage, 'cert.jpg') : undefined;
+            const cvUrl = refereeCvImage ? await uploadCoachImage(refereeCvImage, 'cv.jpg') : undefined;
+            const achievementUrls = [];
+            for (const uri of refereeAchievementImages) {
+                achievementUrls.push(await uploadCoachImage(uri, 'achievement.jpg'));
+            }
+            setUploadingRefereeMedia(false);
+
+            await api.post('/referees', {
+                ...refereeForm,
+                location: refereeForm.locationMutual ? 'Ortaklaşa Kararlaştırılır' : refereeForm.location,
+                category, subCategory: sub,
+                experience: parseInt(refereeForm.experience) || 0,
+                pricePerMatch: parseInt(refereeForm.pricePerMatch) || 0,
+                certificateUrl, cvUrl, achievementUrls,
+            });
+            setShowCreateReferee(false);
+            resetRefereeForm();
+            loadReferees();
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setSubmittingReferee(false); setUploadingRefereeMedia(false); }
     };
 
     const submitStandaloneCv = async () => {
@@ -10349,6 +10531,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         player_wanted: lang === 'tr'
             ? `Seçtiğin illerde yeni ${sub} oyuncu arama ilanlarının bildirimini alırsın.`
             : `You'll get notified about new ${sub} player wanted listings in your selected cities.`,
+        referees:    lang === 'tr'
+            ? `Seçtiğin illerde yeni ${sub} hakem ilanlarının bildirimini alırsın.`
+            : `You'll get notified about new ${sub} referee listings in your selected cities.`,
     };
 
     const CityAlertBtn = ({ tab }) => {
@@ -10945,35 +11130,67 @@ export default function SubCategoryScreen({ route, navigation }) {
 
 
                     {activeTab === 'coaches' && (() => {
+                        const isCoachExpanded = ['tennis', 'padel', 'volleyball'].includes(sub);
+                        const individualCoaches = filteredCoaches.filter(c => c.individual);
+                        const groupCourses = filteredCoaches.filter(c => c.group);
                         const coachesWithCv = filteredCoaches.filter(c => c.cvUrl);
-                        const shown = coachSubTab === 'cvs' ? coachesWithCv : filteredCoaches;
+                        const subTabs = isCoachExpanded
+                            ? [
+                                { key:'listings', label: t.coachesSubTab,  count: individualCoaches.length },
+                                { key:'courses',  label: t.coursesSubTab,  count: groupCourses.length },
+                                { key:'referees', label: t.refereesSubTab, count: refereeListings.length + refereeMatches.length },
+                                { key:'cvs',      label: t.coachCvsTab,    count: coachesWithCv.length },
+                              ]
+                            : [
+                                { key:'listings', label: t.coachListingsTab, count: filteredCoaches.length },
+                                { key:'cvs',      label: t.coachCvsTab,      count: coachesWithCv.length },
+                              ];
+                        const shown = coachSubTab === 'cvs' ? coachesWithCv
+                            : coachSubTab === 'courses' ? groupCourses
+                            : (isCoachExpanded && coachSubTab === 'listings') ? individualCoaches
+                            : filteredCoaches;
                         return (
                         <>
-                            <CityAlertRow tab="coaches">
-                                <TouchableOpacity
-                                    style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
-                                    onPress={() => setShowCreateCoach(true)}>
-                                    <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>{category === 'ARTS' ? (t.createCourseBtn || '🎓 Kurs Oluştur') : t.createCoachBtn}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
-                                    onPress={() => {
-                                        const myListing = coachListings.find(c => c.userId === myId);
-                                        if (!myListing) return Alert.alert('', category === 'ARTS' ? 'Önce "Kurs Oluştur" ile bir kurs ilanı açmanız gerekiyor.' : 'Önce "İlan Oluştur" ile bir antrenör ilanı açmanız gerekiyor.');
-                                        setCvUploadListingId(myListing.id);
-                                        setShowCvUploadModal(true);
-                                    }}>
-                                    <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1}>{t.uploadCvBtn}</Text>
-                                </TouchableOpacity>
-                            </CityAlertRow>
+                            {coachSubTab === 'referees' ? (
+                                <CityAlertRow tab="referees">
+                                    <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
+                                        onPress={() => setShowCreateReferee(true)}>
+                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>{t.createRefereeListingBtn}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, borderColor:'#f59e0b60' }]}
+                                        onPress={() => setShowCreateRefereeMatch(true)}>
+                                        <Text style={[s.createBtnText, { color:'#f59e0b' }]} numberOfLines={1}>{t.createRefereeMatchBtn}</Text>
+                                    </TouchableOpacity>
+                                </CityAlertRow>
+                            ) : (
+                                <CityAlertRow tab="coaches">
+                                    <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
+                                        onPress={() => {
+                                            if (coachSubTab === 'courses') setCoachForm(f => ({ ...f, individual:false, group:true }));
+                                            setShowCreateCoach(true);
+                                        }}>
+                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>{category === 'ARTS' || coachSubTab === 'courses' ? (t.createCourseBtn || '🎓 Kurs Oluştur') : t.createCoachBtn}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
+                                        onPress={() => {
+                                            const myListing = coachListings.find(c => c.userId === myId);
+                                            if (!myListing) return Alert.alert('', category === 'ARTS' ? 'Önce "Kurs Oluştur" ile bir kurs ilanı açmanız gerekiyor.' : 'Önce "İlan Oluştur" ile bir antrenör ilanı açmanız gerekiyor.');
+                                            setCvUploadListingId(myListing.id);
+                                            setShowCvUploadModal(true);
+                                        }}>
+                                        <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1}>{t.uploadCvBtn}</Text>
+                                    </TouchableOpacity>
+                                </CityAlertRow>
+                            )}
 
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                {[
-                                    { key:'listings', label: t.coachListingsTab, count: filteredCoaches.length },
-                                    { key:'cvs',      label: t.coachCvsTab,     count: coachesWithCv.length },
-                                ].map(st => (
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                {subTabs.map(st => (
                                     <TouchableOpacity key={st.key} onPress={() => setCoachSubTab(st.key)}
-                                        style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
+                                        style={{ flex: isCoachExpanded ? undefined : 1, minWidth: isCoachExpanded ? '23%' : undefined, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
                                         <Text style={{ color: coachSubTab===st.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>
                                             {st.label}{st.count > 0 ? `  ${st.count}` : ''}
                                         </Text>
@@ -10982,7 +11199,76 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </View>
 
                             <CompactFilter showDateChips={false} />
-                            {loadingCoaches
+                            {coachSubTab === 'referees' ? (
+                                <>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{t.refereeListingsTitle}</Text>
+                                    {loadingReferees
+                                        ? <ActivityIndicator color={cfg.color} style={{ marginTop:20 }} />
+                                        : refereeListings.length === 0
+                                            ? <EmptyState emoji="🟨" text={t.emptyReferees} />
+                                            : refereeListings.map(r => (
+                                                <View key={r.id} style={{ backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
+                                                        <Text style={{ fontSize:22 }}>🟨</Text>
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{r.credentialLevel}</Text>
+                                                            {r.certName && <Text style={{ color:colors.textMuted, fontSize:11 }}>{r.certName}</Text>}
+                                                        </View>
+                                                        <TouchableOpacity onPress={() => setProfileUserId(r.userId)}>
+                                                            <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{r.user?.username}</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:4 }}>
+                                                        {r.pricePerMatch > 0 && <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{r.pricePerMatch}₺ / maç</Text></View>}
+                                                        {r.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{r.experience} yıl deneyim</Text>}
+                                                    </View>
+                                                    {(r.timeFrom || r.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {r.timeFrom} - {r.timeTo}</Text>}
+                                                    {r.city && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {r.city}{r.location ? ` / ${r.location}` : ''}</Text>}
+                                                    {r.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{r.description}</Text>}
+                                                    {r.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {r.achievements}</Text>}
+                                                    {r.userId !== myId && (
+                                                        <TouchableOpacity
+                                                            onPress={() => reportListing('referees', r.id)}
+                                                            disabled={reportingListingId === r.id}
+                                                            style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                            <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>🚩 Bildir</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                    {(r.certificateUrl || r.cvUrl || (r.achievementUrls || []).length > 0) && (
+                                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
+                                                            {r.certificateUrl && (
+                                                                <TouchableOpacity onPress={() => Linking.openURL(r.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                                    <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                            {(r.achievementUrls || []).length > 0 && (
+                                                                <TouchableOpacity onPress={() => Linking.openURL(r.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({r.achievementUrls.length})</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                            {r.cvUrl && (
+                                                                <TouchableOpacity onPress={() => Linking.openURL(r.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                                    <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            ))
+                                    }
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginTop:14, marginBottom:8 }}>{t.refereeMatchesTitle}</Text>
+                                    {refereeMatches.length === 0
+                                        ? <EmptyState emoji="🟨" text={t.emptyRefereeMatches} />
+                                        : (
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                                {refereeMatches.map(item => (
+                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} />
+                                                ))}
+                                            </View>
+                                        )
+                                    }
+                                </>
+                            ) : loadingCoaches
                                 ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
                                 : shown.length === 0
                                     ? <EmptyState emoji="🎓" text={coachSubTab === 'cvs' ? t.noCvYet : (coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches)} />
@@ -11206,6 +11492,124 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </View>
                         </View>
                     </Modal>
+
+                    {/* ── Hakem İlanı Oluştur ── */}
+                    <Modal visible={showCreateReferee} animationType="slide" onRequestClose={() => setShowCreateReferee(false)}>
+                        <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
+                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🟨 Hakem İlanı Oluştur</Text>
+
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
+                                        {[
+                                            { key:'CERTIFIED',     label: t.credCertified },
+                                            { key:'LICENSED',      label: t.credLicensed },
+                                            { key:'CLUB_REFEREE',  label: t.credClubReferee },
+                                            { key:'INDEPENDENT',   label: t.credIndependent },
+                                            { key:'AMATEUR',       label: t.credAmateur },
+                                        ].map(lvl => (
+                                            <TouchableOpacity key={lvl.key} onPress={() => setRefereeForm(f => ({...f, credentialLevel:lvl.key}))}
+                                                style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: refereeForm.credentialLevel===lvl.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: refereeForm.credentialLevel===lvl.key ? cfg.color : colors.border }}>
+                                                <Text style={{ color: refereeForm.credentialLevel===lvl.key ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>{lvl.label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    <TextInput placeholder="Belge/Sertifika adı (örn. TFF Hakem Lisansı)" placeholderTextColor={colors.textMuted} value={refereeForm.certName} onChangeText={v => setRefereeForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                    <TouchableOpacity onPress={() => pickCoachSingleImage(setRefereeCertImage)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
+                                        <Text style={{ fontSize:14 }}>📜</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{refereeCertImage ? 'Belge Fotoğrafı Seçildi ✓' : 'Belge Fotoğrafı Yükle (opsiyonel)'}</Text>
+                                    </TouchableOpacity>
+                                    <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={refereeForm.experience} onChangeText={v => setRefereeForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.pricePerMatchLabel}</Text>
+                                    <TextInput placeholder="Maç başı ücret (₺)" placeholderTextColor={colors.textMuted} value={refereeForm.pricePerMatch} onChangeText={v => setRefereeForm(f=>({...f,pricePerMatch:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Yer / Zaman</Text>
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                        {[
+                                            { val: false, label: t.courtSpecifyBtn || 'Kort / Tesis Belirt' },
+                                            { val: true,  label: t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır' },
+                                        ].map(({ val, label }) => (
+                                            <TouchableOpacity key={String(val)}
+                                                onPress={() => setRefereeForm(f => ({ ...f, locationMutual: val }))}
+                                                style={{ flex:1, flexDirection:'row', alignItems:'center', gap:3, backgroundColor: refereeForm.locationMutual===val ? cfg.color+'20' : '#ffffff08', borderRadius:8, paddingVertical:4, paddingHorizontal:5, borderWidth:1, borderColor: refereeForm.locationMutual===val ? cfg.color : '#ffffff15' }}
+                                            >
+                                                <View style={{ width:12, height:12, borderRadius:6, borderWidth:2, borderColor: refereeForm.locationMutual===val ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
+                                                    {refereeForm.locationMutual===val && <View style={{ width:5, height:5, borderRadius:3, backgroundColor: cfg.color }} />}
+                                                </View>
+                                                <Text style={{ color: refereeForm.locationMutual===val ? cfg.color : '#6b7280', fontSize:10, fontWeight:'700', flex:1 }}>{label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    {!refereeForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={refereeForm.location} onChangeText={v => setRefereeForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
+                                    <CityAutocomplete
+                                        value={refereeForm.city || ''}
+                                        onChangeText={v => setRefereeForm(f=>({...f,city:v}))}
+                                        placeholder="Şehir"
+                                        style={{ marginBottom: 8 }}
+                                    />
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                        <TextInput placeholder="Başlangıç saati (09:00)" placeholderTextColor={colors.textMuted} value={refereeForm.timeFrom} onChangeText={v => setRefereeForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                        <TextInput placeholder="Bitiş saati (21:00)" placeholderTextColor={colors.textMuted} value={refereeForm.timeTo} onChangeText={v => setRefereeForm(f=>({...f,timeTo:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                    </View>
+
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Başarılar</Text>
+                                    <TextInput placeholder="Başarılarınız (örn. 2023 Bölge Hakemi)" placeholderTextColor={colors.textMuted} value={refereeForm.achievements} onChangeText={v => setRefereeForm(f=>({...f,achievements:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
+                                    {refereeAchievementImages.length > 0 && (
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                            {refereeAchievementImages.map((uri, idx) => (
+                                                <View key={idx} style={{ marginRight:8, position:'relative' }}>
+                                                    <Image source={{ uri }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                    <TouchableOpacity onPress={() => setRefereeAchievementImages(prev => prev.filter((_,i) => i !== idx))}
+                                                        style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            ))}
+                                        </ScrollView>
+                                    )}
+                                    {refereeAchievementImages.length < 5 && (
+                                        <TouchableOpacity onPress={pickRefereeAchievementImages}
+                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                            <Text style={{ fontSize:14 }}>🏆</Text>
+                                            <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>Başarı Fotoğrafı Ekle {refereeAchievementImages.length > 0 ? `(${refereeAchievementImages.length}/5)` : ''}</Text>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>CV</Text>
+                                    <TouchableOpacity onPress={() => pickCoachSingleImage(setRefereeCvImage)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
+                                        <Text style={{ fontSize:14 }}>📄</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{refereeCvImage ? 'CV Fotoğrafı Seçildi ✓' : 'CV Fotoğrafı Yükle (opsiyonel)'}</Text>
+                                    </TouchableOpacity>
+
+                                    <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={refereeForm.description} onChangeText={v => setRefereeForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+
+                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                        <TouchableOpacity onPress={() => { setShowCreateReferee(false); resetRefereeForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                            <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={submitReferee} disabled={submittingReferee || uploadingRefereeMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: '#f59e0b' }}>
+                                            <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
+                                                {uploadingRefereeMedia ? 'Yükleniyor...' : submittingReferee ? '...' : 'İlanı Yayınla'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </ScrollView>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {/* ── Maç İçin Hakem İlanı Oluştur ── */}
+                    <CreateRefereeMatchModal
+                        visible={showCreateRefereeMatch}
+                        onClose={() => setShowCreateRefereeMatch(false)}
+                        category={category}
+                        sub={sub}
+                        onCreated={load}
+                    />
 
                     {/* ── ARCHIVE ── */}
                     {activeTab === 'archive' && (

@@ -9,13 +9,15 @@ export const reportListing = async (req, res, next) => {
         const reporterId = req.userId;
 
         if (!reason?.trim()) return res.status(400).json({ message: 'Sebep gerekli' });
-        if (type !== 'equipment' && type !== 'coach') return res.status(400).json({ message: 'Geçersiz ilan tipi' });
+        if (type !== 'equipment' && type !== 'coach' && type !== 'referee') return res.status(400).json({ message: 'Geçersiz ilan tipi' });
 
-        const listingType = type === 'equipment' ? 'EQUIPMENT' : 'COACH';
+        const listingType = type === 'equipment' ? 'EQUIPMENT' : type === 'referee' ? 'REFEREE' : 'COACH';
 
         const listing = type === 'equipment'
             ? await prisma.equipmentListing.findUnique({ where: { id } })
-            : await prisma.coachListing.findUnique({ where: { id } });
+            : type === 'referee'
+                ? await prisma.refereeListing.findUnique({ where: { id } })
+                : await prisma.coachListing.findUnique({ where: { id } });
 
         if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
         if (listing.userId === reporterId) return res.status(400).json({ message: 'Kendi ilanınızı bildiremezsiniz' });
@@ -31,6 +33,8 @@ export const reportListing = async (req, res, next) => {
 
         if (type === 'equipment') {
             await prisma.equipmentListing.update({ where: { id }, data: updateData });
+        } else if (type === 'referee') {
+            await prisma.refereeListing.update({ where: { id }, data: updateData });
         } else {
             await prisma.coachListing.update({ where: { id }, data: updateData });
         }
