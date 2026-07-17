@@ -124,6 +124,8 @@ import OkeyHomeScreen from '../screens/main/OkeyHomeScreen';
 import OkeyTableScreen from '../screens/main/OkeyTableScreen';
 import TavlaHomeScreen from '../screens/main/TavlaHomeScreen';
 import TavlaTableScreen from '../screens/main/TavlaTableScreen';
+import ChessHomeScreen from '../screens/main/ChessHomeScreen';
+import ChessTableScreen from '../screens/main/ChessTableScreen';
 import FriendFindingHomeScreen from '../screens/main/FriendFindingHomeScreen';
 import FriendFindingMatchesScreen from '../screens/main/FriendFindingMatchesScreen';
 import MiniPlayer from '../components/MiniPlayer';
@@ -163,6 +165,8 @@ function HomeStackNav() {
             <HomeStack.Screen name="OkeyTable" component={OkeyTableScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
             <HomeStack.Screen name="TavlaHome" component={TavlaHomeScreen} />
             <HomeStack.Screen name="TavlaTable" component={TavlaTableScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+            <HomeStack.Screen name="ChessHome" component={ChessHomeScreen} />
+            <HomeStack.Screen name="ChessTable" component={ChessTableScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
             <HomeStack.Screen name="FriendFindingHome" component={FriendFindingHomeScreen} />
             <HomeStack.Screen name="FriendFindingMatches" component={FriendFindingMatchesScreen} />
         </HomeStack.Navigator>
