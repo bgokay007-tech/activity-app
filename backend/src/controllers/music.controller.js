@@ -27,6 +27,35 @@ export const searchMusic = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Apple'ın herkese açık, anahtar gerektirmeyen "Top Songs" chart feed'i — arama
+// yapılmadan önce kullanıcıya boş ekran yerine Türkiye'de popüler şarkıları
+// önermek için. 1 saat bellekte cache'lenir (chart sık değişmiyor).
+let trendingCache = null;
+let trendingCacheExpiry = 0;
+
+function normalizeAppleChartTrack(t) {
+    return {
+        trackId: String(t.id),
+        title: t.name,
+        artist: t.artistName,
+        imageUrl: t.artworkUrl100 ? t.artworkUrl100.replace('100x100bb', '600x600bb') : null,
+        duration: null,
+    };
+}
+
+export const getTrendingMusic = async (req, res, next) => {
+    try {
+        if (trendingCache && Date.now() < trendingCacheExpiry) return res.json({ tracks: trendingCache });
+        const response = await fetch('https://rss.applemarketingtools.com/api/v2/tr/music/most-played/50/songs.json');
+        if (!response.ok) return res.status(502).json({ message: 'Müzik servisi yanıt vermedi' });
+        const data = await response.json();
+        const tracks = (data.feed?.results || []).map(normalizeAppleChartTrack);
+        trendingCache = tracks;
+        trendingCacheExpiry = Date.now() + 60 * 60 * 1000;
+        res.json({ tracks });
+    } catch (e) { next(e); }
+};
+
 // YouTube Data API v3 — Spotify tam şarkı çaldırmadığı (sadece 30sn önizleme) için,
 // bulunan şarkı adı+sanatçı ile eşleşen YouTube videosu aranıp uygulama içi (gizli)
 // bir video oynatıcı ile sesi çalınır. Her arama günlük kotadan (10.000 birim,

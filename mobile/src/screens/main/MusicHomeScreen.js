@@ -153,7 +153,10 @@ export default function MusicHomeScreen({ navigation }) {
     const [tab, setTab] = useState('search'); // 'search' | 'playlists' | 'liked'
     const [query, setQuery] = useState('');
     const [searching, setSearching] = useState(false);
+    const [hasSearched, setHasSearched] = useState(false);
     const [results, setResults] = useState([]);
+    const [trending, setTrending] = useState([]);
+    const [trendingLoading, setTrendingLoading] = useState(false);
     const [playlists, setPlaylists] = useState([]);
     const [liked, setLiked] = useState([]);
     const [loadingLists, setLoadingLists] = useState(false);
@@ -367,7 +370,12 @@ export default function MusicHomeScreen({ navigation }) {
         api.get('/music/liked').then(r => setLiked(r.data)).catch(() => {});
     }, []);
 
-    useEffect(() => { loadPlaylists(); loadLiked(); }, [loadPlaylists, loadLiked]);
+    const loadTrending = useCallback(() => {
+        setTrendingLoading(true);
+        api.get('/music/trending').then(r => setTrending(r.data.tracks || [])).catch(() => {}).finally(() => setTrendingLoading(false));
+    }, []);
+
+    useEffect(() => { loadPlaylists(); loadLiked(); loadTrending(); }, [loadPlaylists, loadLiked, loadTrending]);
 
     const doConcertSearch = useCallback(async () => {
         setConcertSearching(true);
@@ -397,7 +405,10 @@ export default function MusicHomeScreen({ navigation }) {
             setResults(data.tracks || []);
         } catch (e) {
             Alert.alert(t.error || 'Hata', e?.response?.data?.message || 'Arama başarısız');
-        } finally { setSearching(false); }
+        } finally {
+            setSearching(false);
+            setHasSearched(true);
+        }
     };
 
     const handlePlay = (track, list) => {
@@ -440,7 +451,8 @@ export default function MusicHomeScreen({ navigation }) {
         }
     };
 
-    const currentList = tab === 'search' ? results : tab === 'liked' ? liked : [];
+    const showingTrending = tab === 'search' && !hasSearched;
+    const currentList = tab === 'search' ? (showingTrending ? trending : results) : tab === 'liked' ? liked : [];
 
     return (
         <View style={s.root}>
@@ -826,7 +838,7 @@ export default function MusicHomeScreen({ navigation }) {
             <View style={s.searchRow}>
                 <TextInput
                     value={query}
-                    onChangeText={setQuery}
+                    onChangeText={(v) => { setQuery(v); if (!v.trim()) setHasSearched(false); }}
                     onSubmitEditing={doSearch}
                     placeholder={t.musicSearchPh || 'Şarkı, sanatçı ara...'}
                     placeholderTextColor={colors.textMuted}
@@ -869,16 +881,23 @@ export default function MusicHomeScreen({ navigation }) {
                         )}
                     />
                 )
-            ) : searching ? (
+            ) : (searching || (showingTrending && trendingLoading)) ? (
                 <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />
             ) : (
                 <FlatList
                     data={currentList}
                     keyExtractor={item => item.trackId}
                     contentContainerStyle={s.list}
+                    ListHeaderComponent={
+                        showingTrending && trending.length > 0
+                            ? <Text style={s.sectionLabel}>{t.musicTrendingLabel || '🔥 Türkiye\'de Popüler'}</Text>
+                            : null
+                    }
                     ListEmptyComponent={
                         <Text style={s.emptyText}>
-                            {tab === 'search' ? (t.musicNoResults || 'Arama yapın.') : (t.musicNoLiked || 'Henüz beğendiğiniz şarkı yok.')}
+                            {tab === 'search'
+                                ? (showingTrending ? (t.musicNoTrending || 'Öneriler yüklenemedi.') : (t.musicNoSearchResults || 'Sonuç bulunamadı.'))
+                                : (t.musicNoLiked || 'Henüz beğendiğiniz şarkı yok.')}
                         </Text>
                     }
                     renderItem={({ item }) => (
@@ -968,6 +987,7 @@ const s = StyleSheet.create({
 
     list: { paddingHorizontal: 12, paddingBottom: 30 },
     emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 30 },
+    sectionLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 2 },
 
     row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.border },
     rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
