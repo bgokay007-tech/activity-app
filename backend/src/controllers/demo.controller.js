@@ -118,7 +118,7 @@ export const seedDemoFootballJoinRequests = async (req, res, next) => {
             include: {
                 sender: { select: { id: true, username: true, fullName: true, avatar: true } },
                 joinRequests: {
-                    where: { status: 'PENDING' },
+                    where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
                     include: {
                         user: {
                             select: {
@@ -332,7 +332,7 @@ export const seedRivalDemoJoin = async (req, res, next) => {
             where: { id: rivalId },
             include: {
                 sender: { select: { id: true, username: true, fullName: true, avatar: true, city: true } },
-                joinRequests: { where: { status: 'PENDING' }, include: { user: { select: { id: true, username: true, fullName: true, avatar: true, city: true, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, include: { user: { select: { id: true, username: true, fullName: true, avatar: true, city: true, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
             },
         });
         emitToUser(req.userId, 'rivalUpdate', updatedRival);
