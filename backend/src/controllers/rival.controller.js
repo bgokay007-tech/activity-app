@@ -2183,8 +2183,11 @@ export const removeRivalParticipant = async (req, res, next) => {
                 status: 'OPEN',
                 receiverId: null,
                 schedulingDeadline: null,
-                matchDate: null,
-                matchTime: null,
+                // matchDate/matchTime yalnızca esnek programlı ilanlarda (eşleşme sonrası
+                // belirlendiği için) sıfırlanır — sabit tarih/saatli ilanlarda bunlar
+                // kort rezervasyonuyla birlikte ilan sahibinin kendi belirlediği bilgidir,
+                // bir katılımcı çıkarıldı diye kaybolmamalı (kort rezervesi zaten duruyor).
+                ...(rival.flexibleSchedule && { matchDate: null, matchTime: null }),
             },
             include: { sender: { select: SENDER_SELECT } },
         });
