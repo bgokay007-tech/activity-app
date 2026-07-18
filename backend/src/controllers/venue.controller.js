@@ -1003,7 +1003,7 @@ export const getMyReservations = async (req, res, next) => {
                 venue: { select: { id: true, name: true, branch: true, city: true, district: true, address: true, phone: true, pricePerSlot: true, pricingWindows: true, courtIndoorDefault: true, cancelHoursBefore: true, rescheduleHoursBefore: true, acceptedPayments: true } },
                 court: true,
             },
-            orderBy: [{ date: 'desc' }, { startTime: 'asc' }],
+            orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
         });
         // Her rezervasyona, ondan zaten oluşturulmuş bir "rakip bul" ilanı varsa bağlanır —
         // frontend'de "İlan Aç" butonu, ilan zaten varken kafa karıştırmasın diye "İlana Git"e dönüşsün diye.
@@ -1034,9 +1034,13 @@ export const getMyReservations = async (req, res, next) => {
 
 export const getUnlistedReservations = async (req, res, next) => {
     try {
+        const { branch } = req.query;
         const today = new Date().toISOString().slice(0, 10);
         const reservations = await prisma.courtReservation.findMany({
-            where: { userId: req.userId, status: { not: 'CANCELLED' }, date: { gte: today } },
+            where: {
+                userId: req.userId, status: { not: 'CANCELLED' }, date: { gte: today },
+                ...(branch ? { venue: { branch } } : {}),
+            },
             include: {
                 venue: { select: { id: true, name: true, branch: true, city: true } },
                 court: true,

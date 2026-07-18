@@ -2,6 +2,7 @@
 import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
+import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
 
@@ -715,6 +716,15 @@ export const createTournament = async (req, res, next) => {
         // tournament.city can be "İl / İlçe" (district appended) — alerts subscribe by plain province only
         const province = (tournament.city || creatorInfo?.city || '').split('/')[0].trim() || null;
         notifyCitySubscribers({
+            subCategory: tournament.subCategory,
+            category: tournament.category,
+            senderCity: province,
+            senderUsername: creatorInfo?.username || '',
+            senderId: req.userId,
+            itemId: tournament.id,
+            tab: 'tournaments',
+        });
+        notifyActivityAlertSubscribers({
             subCategory: tournament.subCategory,
             category: tournament.category,
             senderCity: province,

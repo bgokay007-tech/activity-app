@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
+import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
 import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
 
@@ -628,13 +629,24 @@ export const createRivalRequest = async (req, res, next) => {
 
         // Notify city-alert subscribers about new listing (async, non-blocking)
         prisma.user.findUnique({ where: { id: creatorId }, select: { city: true } })
-            .then(u => notifyCitySubscribers({
-                subCategory, category,
-                senderCity: u?.city || null,
-                senderUsername: request.sender?.username || '',
-                senderId: creatorId,
-                itemId: request.id,
-            }))
+            .then(u => {
+                notifyCitySubscribers({
+                    subCategory, category,
+                    senderCity: u?.city || null,
+                    senderUsername: request.sender?.username || '',
+                    senderId: creatorId,
+                    itemId: request.id,
+                });
+                notifyActivityAlertSubscribers({
+                    subCategory, category,
+                    senderCity: u?.city || null,
+                    senderUsername: request.sender?.username || '',
+                    senderId: creatorId,
+                    itemId: request.id,
+                    lat: request.courtLat ?? null,
+                    lng: request.courtLng ?? null,
+                });
+            })
             .catch(() => {});
 
         // Auto-submit venue for admin review if courtName + location provided
@@ -2302,15 +2314,30 @@ export const cancelMatch = async (req, res, next) => {
 
             // Re-notify city-alert subscribers that a spot opened back up
             prisma.user.findUnique({ where: { id: request.senderId }, select: { city: true } })
-                .then(u => notifyCitySubscribers({
-                    subCategory: request.subCategory, category: request.category,
-                    senderCity: u?.city || null,
-                    senderUsername: request.sender?.username || '',
-                    senderId: request.senderId,
-                    itemId: id,
-                    title: `📍 Yer Açıldı — ${request.subCategory}`,
-                    body: `${request.sender?.username ? '@' + request.sender.username + ' ilanında' : 'Bir ilanda'} yer açıldı, hemen katıl!`,
-                }))
+                .then(u => {
+                    const alertTitle = `📍 Yer Açıldı — ${request.subCategory}`;
+                    const alertBody = `${request.sender?.username ? '@' + request.sender.username + ' ilanında' : 'Bir ilanda'} yer açıldı, hemen katıl!`;
+                    notifyCitySubscribers({
+                        subCategory: request.subCategory, category: request.category,
+                        senderCity: u?.city || null,
+                        senderUsername: request.sender?.username || '',
+                        senderId: request.senderId,
+                        itemId: id,
+                        title: alertTitle,
+                        body: alertBody,
+                    });
+                    notifyActivityAlertSubscribers({
+                        subCategory: request.subCategory, category: request.category,
+                        senderCity: u?.city || null,
+                        senderUsername: request.sender?.username || '',
+                        senderId: request.senderId,
+                        itemId: id,
+                        title: alertTitle,
+                        body: alertBody,
+                        lat: request.courtLat ?? null,
+                        lng: request.courtLng ?? null,
+                    });
+                })
                 .catch(() => {});
         }
 

@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
+import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -52,6 +53,15 @@ export const createListing = async (req, res, next) => {
 
         // Notify city-alert subscribers for referees tab (async, non-blocking)
         notifyCitySubscribers({
+            subCategory: listing.subCategory,
+            category: listing.category,
+            senderCity: listing.city || null,
+            senderUsername: listing.user?.username || '',
+            senderId: req.userId,
+            itemId: listing.id,
+            tab: 'referees',
+        });
+        notifyActivityAlertSubscribers({
             subCategory: listing.subCategory,
             category: listing.category,
             senderCity: listing.city || null,

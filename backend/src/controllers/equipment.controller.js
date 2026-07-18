@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
+import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -28,6 +29,14 @@ export const createListing = async (req, res, next) => {
             return res.status(400).json({ message: 'Zorunlu alanlar eksik' });
         if (!['NEW', 'USED'].includes(condition))
             return res.status(400).json({ message: 'Geçersiz durum' });
+        if (!parseInt(price) || parseInt(price) <= 0)
+            return res.status(400).json({ message: 'Fiyat zorunludur' });
+        if (!location || !location.trim())
+            return res.status(400).json({ message: 'Konum zorunludur' });
+        if (!description || description.trim().length < 5)
+            return res.status(400).json({ message: 'Açıklama en az 5 karakter olmalıdır' });
+        if (!Array.isArray(images) || images.length === 0)
+            return res.status(400).json({ message: 'En az 1 fotoğraf eklemelisiniz' });
 
         const listing = await prisma.equipmentListing.create({
             data: {
@@ -37,9 +46,9 @@ export const createListing = async (req, res, next) => {
                 condition,
                 title: title.trim(),
                 price: parseInt(price) || 0,
-                images: Array.isArray(images) ? images : [],
-                description: description || null,
-                location: location || null,
+                images,
+                description: description.trim(),
+                location: location.trim(),
                 city: city || null,
             },
             include: { user: { select: USER_SELECT } },
@@ -49,6 +58,15 @@ export const createListing = async (req, res, next) => {
         // Notify city-alert subscribers for equipment tab (async, non-blocking)
         const creatorInfo = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }).catch(() => null);
         notifyCitySubscribers({
+            subCategory: listing.subCategory,
+            category: listing.category,
+            senderCity: listing.city || null,
+            senderUsername: creatorInfo?.username || '',
+            senderId: req.userId,
+            itemId: listing.id,
+            tab: 'equipment',
+        });
+        notifyActivityAlertSubscribers({
             subCategory: listing.subCategory,
             category: listing.category,
             senderCity: listing.city || null,

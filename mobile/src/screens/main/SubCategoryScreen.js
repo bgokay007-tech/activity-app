@@ -1231,6 +1231,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0 }) {
     const t = useT();
     const cfg = getConfig(sub);
+    const isVolleyball = sub === 'volleyball';
     const isOwner = item.senderId === myId;
     const participants = Array.isArray(item.participants) ? item.participants : [];
     const required = item.matchType === 'DOUBLE'
@@ -1428,7 +1429,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     💬 {item.commentCount ?? 0}
                 </Text>
                 <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {item.isCourtReserved ? `✅ ${t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
+                    {item.isCourtReserved ? `✅ ${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
                 </Text>
                 {item.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
@@ -1566,6 +1567,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     const [searching, setSearching] = useState(false);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
     const isTennisPadel = item?.subCategory === 'tennis' || item?.subCategory === 'padel';
+    const isVolleyball = item?.subCategory === 'volleyball';
     const isDouble = item?.matchType === 'DOUBLE';
     const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
@@ -4612,9 +4614,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const cfg         = getConfig(sub);
 
     const INIT = {
-        matchType: isPadel ? 'DOUBLE' : 'SINGLE', teamSize: isFootball ? 5 : 1,
+        matchType: isPadel ? 'DOUBLE' : 'SINGLE', teamSize: isFootball ? 5 : isVolleyball ? 6 : 1,
         matchMode: 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
-        matchDate: null, matchTime: '', duration: '60',
+        matchDate: null, matchTime: '', duration: isVolleyball ? '90' : '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
         courtSearchText: '', courtResults: [], selectedCourt: null,
         showManualCourt: false,
@@ -4684,8 +4686,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showEloWarning, setShowEloWarning] = useState(false);
     const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
     const [showDoubleOptions, setShowDoubleOptions] = useState(false);
-    const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null });
+    const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
+    // "Değiştir"e basılınca kort alanları hemen temizlenir ama eski rezervasyon
+    // burada saklanıp SİLİNMEZ — kullanıcı yeni seçim yapmadan vazgeçerse (✕/geri)
+    // önceki kort bilgisi geri yüklenir; yeni seçim onaylanıp ilan başarıyla
+    // oluşturulduktan SONRA eski rezervasyon iptal edilir (bkz. submit()).
+    const pendingCourtChangeRef = useRef(null);
 
     useEffect(() => {
         AsyncStorage.getItem(ELO_WARNING_DISMISSED_KEY).then(v => { if (v) setEloWarningDismissed(true); });
@@ -4693,10 +4700,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     useEffect(() => {
         if (!visible) return;
-        api.get('/venues/reservations/unlisted')
+        api.get('/venues/reservations/unlisted', { params: { branch: sub } })
             .then(r => setMyUnlistedRes(Array.isArray(r.data) ? r.data : []))
             .catch(() => setMyUnlistedRes([]));
-    }, [visible]);
+    }, [visible, sub]);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
     // Bu formdaki seçenek butonlarında emoji istenmiyor — paylaşılan i18n metinlerindeki
     // baştaki emoji'yi sadece burada (diğer ekranları etkilemeden) kırpar.
@@ -4791,7 +4798,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         }));
     };
 
-    const reset = () => setF(INIT);
+    const reset = () => { setF(INIT); pendingCourtChangeRef.current = null; };
 
     const deselectCourt = () => {
         setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null, courtReserved: false }));
@@ -4816,18 +4823,24 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         );
     };
 
-    const changeCourt = async () => {
+    const changeCourt = () => {
         const vid = f.venueId;
-        if (f.reservationId) {
-            try {
-                await api.delete(`/venues/reservations/${f.reservationId}`);
-            } catch (e) {
-                Alert.alert('Değiştirilemiyor', e?.response?.data?.message || 'Mevcut rezervasyon iptal edilemedi');
-                return;
-            }
-        }
-        setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueCourtId: null }));
-        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: null });
+        const oldReservationId = f.reservationId || f.venueReservationId || null;
+        pendingCourtChangeRef.current = {
+            snapshot: {
+                selectedCourt: f.selectedCourt,
+                courtSearchText: f.courtSearchText,
+                courtResults: f.courtResults,
+                reservationId: f.reservationId,
+                venueReservationId: f.venueReservationId,
+                venueCourtId: f.venueCourtId,
+            },
+            oldReservationId,
+        };
+        setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueReservationId: null, venueCourtId: null }));
+        // Eski rezervasyon burada henüz iptal edilmiyor (bkz. pendingCourtChangeRef notu) —
+        // excludeReservationId ile "dolu" hesabından hariç tutulup gridde boş görünür.
+        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: null, excludeReservationId: oldReservationId });
     };
 
     const submit = async () => {
@@ -4927,6 +4940,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             if (!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && created?.data?.id) {
                 api.post(`/rivals/${created.data.id}/invite`, { userId: f.singleOppInvite.id }).catch(() => {});
             }
+            // İlan başarıyla oluştu — "Değiştir" ile bırakılmış eski rezervasyon varsa
+            // (bkz. pendingCourtChangeRef) artık güvenle iptal edilir.
+            if (pendingCourtChangeRef.current?.oldReservationId) {
+                api.delete(`/venues/reservations/${pendingCourtChangeRef.current.oldReservationId}`).catch(() => {});
+            }
+            pendingCourtChangeRef.current = null;
             onCreated();
             onClose();
             reset();
@@ -5085,8 +5104,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <>
                                     <Text style={s.fieldLabel}>{t.modLabel}</Text>
                                     <View style={s.chipRow}>
-                                        {['PRACTICE','COMPETITIVE','BOTH'].map(mode => {
+                                        {(isVolleyball ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
                                             const isActive = f.matchMode === mode;
+                                            const label = mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode;
                                             return (
                                                 <TouchableOpacity key={mode} onPress={() => set('matchMode', mode)}
                                                     style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isActive && {
@@ -5094,7 +5114,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                     }]}>
                                                     <Text style={[s.chipBtnText, isActive && { color:'#fff' }]}>
-                                                        {mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode}
+                                                        {isVolleyball ? noEmoji(label) : label}
                                                     </Text>
                                                 </TouchableOpacity>
                                             );
@@ -5269,7 +5289,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {/* Kort Adı + Ortaklaşa Kararlaştırılır + Kort Rezerve Edildi — tek satır */}
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:4 }}>
                                         {!f.courtMutual ? (
-                                            <Text style={[s.fieldLabel, { marginBottom:0 }]}>{t.courtLabel}{!f.flexibleSchedule ? ' *' : ''}</Text>
+                                            <Text style={[s.fieldLabel, { marginBottom:0 }]}>{isVolleyball ? t.volleyballHallLabel : t.courtLabel}{!f.flexibleSchedule ? ' *' : ''}</Text>
                                         ) : <View />}
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                             {f.courtMutual && (
@@ -5292,7 +5312,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     <View style={{ width:13, height:13, borderRadius:7, borderWidth:2, borderColor: f.courtReserved ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
                                                         {f.courtReserved && <View style={{ width:5, height:5, borderRadius:3, backgroundColor: cfg.color }} />}
                                                     </View>
-                                                    <Text style={{ color: f.courtReserved ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.courtReservedLabel}</Text>
+                                                    <Text style={{ color: f.courtReserved ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
@@ -5676,7 +5696,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             visible={venueBooking.visible}
             venueId={venueBooking.venueId}
             initialCourtId={venueBooking.initialCourtId}
-            onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null })}
+            excludeReservationId={venueBooking.excludeReservationId}
+            onClose={() => {
+                setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
+                // Yeni bir kort/saat seçilmeden kapatıldıysa (venueCourtId hâlâ boş) —
+                // "Değiştir"den önceki kort bilgisini geri getir, eski rezervasyona dokunulmaz.
+                if (pendingCourtChangeRef.current && !f.venueCourtId) {
+                    setF(p => ({ ...p, ...pendingCourtChangeRef.current.snapshot }));
+                    pendingCourtChangeRef.current = null;
+                }
+            }}
             onBooked={(court, date, startTime, endTime, payMethod) => {
                 const toMin = (tm) => { const [h, m] = tm.split(':').map(Number); return h * 60 + m; };
                 const durMins = (startTime && endTime) ? toMin(endTime) - toMin(startTime) : 0;
@@ -10314,6 +10343,10 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const submitEquipment = async () => {
         if (!equipmentForm.title.trim()) return Alert.alert('', 'Ürün adı zorunludur');
+        if (!parseInt(equipmentForm.price) || parseInt(equipmentForm.price) <= 0) return Alert.alert('', 'Fiyat zorunludur');
+        if (!equipmentForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
+        if (equipmentForm.description.trim().length < 5) return Alert.alert('', 'Açıklama en az 5 karakter olmalıdır');
+        if (equipmentMedia.length === 0) return Alert.alert('', 'En az 1 fotoğraf eklemelisiniz');
         setSubmittingEquipment(true);
         try {
             let uploadedUrls = [];
@@ -11395,12 +11428,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 ))}
                                             </View>
                                             <TextInput placeholder="Ürün adı *" placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                            <TextInput placeholder="Fiyat (₺)" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                            <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+                                            <TextInput placeholder="Fiyat (₺) *" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder="Açıklama * (en az 5 karakter)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
                                             <CityAutocomplete
                                                 value={equipmentForm.location || ''}
                                                 onChangeText={v => setEquipmentForm(f=>({...f,location:v}))}
-                                                placeholder="Konum / Şehir"
+                                                placeholder="Konum / Şehir *"
                                                 style={{ marginBottom: 10 }}
                                             />
 
@@ -11430,7 +11463,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:7, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                                     <Text style={{ fontSize:16 }}>📷</Text>
                                                     <Text style={{ color:colors.textSecondary, fontSize:13, fontWeight:'700' }}>
-                                                        Fotoğraf / Video Ekle {equipmentMedia.length > 0 ? `(${equipmentMedia.length}/5)` : ''}
+                                                        Fotoğraf / Video Ekle * {equipmentMedia.length > 0 ? `(${equipmentMedia.length}/5)` : ''}
                                                     </Text>
                                                 </TouchableOpacity>
                                             )}

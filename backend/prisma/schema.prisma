@@ -103,6 +103,8 @@ model User {
   peerReviewsGiven    MatchPeerReview[] @relation("PeerReviewGiven")
   peerReviewsReceived MatchPeerReview[] @relation("PeerReviewReceived")
   cityAlerts       CityAlert[]
+  activityAlert    ActivityAlert?
+  notifiedExternalEvents NotifiedExternalEvent[]
   surveyGiven      SportSurvey[] @relation("SurveyRater")
   surveyReceived   SportSurvey[] @relation("SurveySubject")
   profileChangeRequests ProfileChangeRequest[]
@@ -988,6 +990,38 @@ model CityAlert {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, subCategory, city, tab])
+}
+
+// AKTİVİTE BİLDİRİM FİLTRESİ — kullanıcı başına tek bir kayıt; kategori/alt-kategori,
+// konum (yakınlık yarıçapı ve/veya seçili şehirler) ve favori sanatçı adlarına göre
+// tüm alanları boş bırakırsa o filtre "tümü" anlamına gelir (bkz. activityAlert.controller.js).
+model ActivityAlert {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  enabled         Boolean  @default(true)
+  categories      String[] @default([])
+  subCategories   String[] @default([])
+  cities          String[] @default([])
+  useProximity    Boolean  @default(false)
+  radiusKm        Int?
+  favoriteArtists String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// DIŞ KAYNAKLI (Ticketmaster) ETKİNLİK BİLDİRİM KAYDI — konser/tiyatro cron'unun
+// aynı etkinlik için bir kullanıcıya tekrar tekrar bildirim atmasını engeller.
+model NotifiedExternalEvent {
+  id          String   @id @default(uuid())
+  userId      String
+  externalId  String   // Ticketmaster event id
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId])
 }
 
 // ABONELİK TALEBİ (EFT dekont onayı bekliyor)

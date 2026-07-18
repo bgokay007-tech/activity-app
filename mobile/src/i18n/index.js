@@ -367,6 +367,7 @@ const en = {
     missingTime: 'Please select a time',
     missingCity: 'Please enter the city',
     courtLabel: 'Court Name',
+    volleyballHallLabel: 'Volleyball Hall',
     courtSearchPlaceholder: 'Search court name...',
     useThisName: n => `+ Use "${n}"`,
     manualCourtLabel: 'Court Name',
@@ -387,6 +388,7 @@ const en = {
     ticketUrlPh: 'e.g. Biletix/Biletinial/Passo event link',
     buyTicketBtn: '🎫 Buy Ticket',
     courtReservedLabel: 'Court Reserved',
+    volleyballHallReservedLabel: 'Volleyball Hall Reserved',
     courtSpecifyBtn: 'Specify Court / Venue',
     courtMutualBtn: 'To Be Decided Together',
     missingCourt: 'Please select a court or choose "To Be Decided Together"',
@@ -1033,6 +1035,20 @@ const en = {
     contactNobody: 'Nobody',
     callBtn: 'Call',
     whatsappBtn: 'WhatsApp',
+
+    // Activity feed — notification alert filter
+    actAlertTitle: '🔔 Activity Notifications',
+    actAlertCategory: 'Category',
+    actAlertSub: 'Sub-category (empty = all)',
+    actAlertCityLabel: 'Add city / district',
+    actAlertCityPlaceholder: 'City or district name',
+    actAlertAdd: 'Add',
+    actAlertProximity: '📡 Near me (live location)',
+    actAlertArtistLabel: '🎵 Favorite artist (concert alerts)',
+    actAlertArtistPlaceholder: 'Artist name',
+    actAlertCancel: 'Cancel',
+    actAlertSave: 'Save',
+    actAlertSaveFailed: 'Could not save',
 };
 
 const tr = {
@@ -1404,6 +1420,7 @@ const tr = {
     missingTime: 'Saat seçiniz',
     missingCity: 'Şehir giriniz',
     courtLabel: 'Kort Adı',
+    volleyballHallLabel: 'Voleybol Salonu',
     courtSearchPlaceholder: 'Kort adı ara...',
     useThisName: n => `+ "${n}" adını kullan`,
     manualCourtLabel: 'Kort Adı',
@@ -1424,6 +1441,7 @@ const tr = {
     ticketUrlPh: 'Örn. Biletix/Biletinial/Passo etkinlik linki',
     buyTicketBtn: '🎫 Bilet Al',
     courtReservedLabel: 'Kort Rezerve Edildi',
+    volleyballHallReservedLabel: 'Voleybol Salonu Rezerve Edildi',
     courtSpecifyBtn: 'Kort / Tesis Belirt',
     courtMutualBtn: 'Ortaklaşa Kararlaştırılır',
     missingCourt: 'Lütfen bir kort seçin ya da "Ortaklaşa Kararlaştırılır" seçeneğini işaretleyin',
@@ -2070,6 +2088,20 @@ const tr = {
     contactNobody: 'Kimse',
     callBtn: 'Ara',
     whatsappBtn: 'WhatsApp',
+
+    // Aktivite akışı — bildirim filtresi
+    actAlertTitle: '🔔 Aktivite Bildirimleri',
+    actAlertCategory: 'Kategori',
+    actAlertSub: 'Dal (boş = tümü)',
+    actAlertCityLabel: 'Şehir / ilçe ekle',
+    actAlertCityPlaceholder: 'Şehir veya ilçe adı',
+    actAlertAdd: 'Ekle',
+    actAlertProximity: '📡 Yakınımdaki (canlı konum)',
+    actAlertArtistLabel: '🎵 Favori sanatçı (konser bildirimleri)',
+    actAlertArtistPlaceholder: 'Sanatçı adı',
+    actAlertCancel: 'Vazgeç',
+    actAlertSave: 'Kaydet',
+    actAlertSaveFailed: 'Kaydedilemedi',
 };
 
 export { en, tr };
