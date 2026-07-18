@@ -521,7 +521,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setLocalJoinRequests(joinRequests.filter(r => r.id !== jrId));
         try {
             const res = await api.patch(`/rivals/join/${jrId}`, { action: 'accept' });
-            if (res.data?.matched) {
+            if (res.data?.lateAccept) {
+                // İstek 1 saatten eskiyse hemen katılımcıya dönüşmez — karşı taraftan son
+                // onay istenir ve bu isteği bekleyen listeden kaldırır. Bilgilendirmeden
+                // sessizce kaybolursa kullanıcı "onayladım, istek kayboldu" sanır.
+                Alert.alert(t.lateAcceptTitle, t.lateAcceptMsg);
+                onRefresh();
+            } else if (res.data?.matched) {
                 setTimeout(onRefresh, 1200);
             } else {
                 onRefresh();
@@ -1335,7 +1341,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const handleRespondJoin = async (jrId, action) => {
         try {
             const res = await api.patch(`/rivals/join/${jrId}`, { action });
-            if (action === 'accept' && res.data?.matched) {
+            if (action === 'accept' && res.data?.lateAccept) {
+                Alert.alert(t.lateAcceptTitle, t.lateAcceptMsg);
+                onRefresh();
+            } else if (action === 'accept' && res.data?.matched) {
                 setTimeout(onRefresh, 1200);
             } else {
                 onRefresh();
