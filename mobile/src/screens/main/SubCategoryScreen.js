@@ -4600,9 +4600,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // inviteTarget hangi alanı doldurduğumuzu belirler ('partner' | 'opp1' | 'opp2' | null).
     const [inviteTarget, setInviteTarget] = useState(null);
     const showPartnerSearch = inviteTarget !== null;
+    // İki sekme: Arkadaşlarım (önceden yüklenen liste) | Tüm Oyuncular (bu sporda ilgi kaydı
+    // olan herkes, yazdıkça sunucudan "başlayanlar" filtresiyle canlı daralır).
+    const [inviteTab, setInviteTab] = useState('friends');
     const [partnerQuery, setPartnerQuery] = useState('');
-    const [partnerResults, setPartnerResults] = useState([]);
-    const [partnerSearching, setPartnerSearching] = useState(false);
+    const [sportUsers, setSportUsers] = useState([]);
+    const [loadingSportUsers, setLoadingSportUsers] = useState(false);
     const [friendsList, setFriendsList] = useState([]);
     const [loadingFriends, setLoadingFriends] = useState(false);
     const [searching, setSearching] = useState(false);
@@ -4631,18 +4634,24 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // baştaki emoji'yi sadece burada (diğer ekranları etkilemeden) kırpar.
     const noEmoji = (str) => (str || '').replace(/^\S+\s+/, '');
 
+    // Davet penceresi her açıldığında "Arkadaşlarım" sekmesiyle başlar, arama kutusu sıfırlanır
     useEffect(() => {
-        if (!showPartnerSearch) return;
-        if (!partnerQuery.trim() || partnerQuery.trim().length < 2) { setPartnerResults([]); return; }
-        setPartnerSearching(true);
+        if (showPartnerSearch) { setInviteTab('friends'); setPartnerQuery(''); }
+    }, [showPartnerSearch]);
+
+    // "Tüm Oyuncular" sekmesi — bu sporda ilgi kaydı olan herkes; q yazıldıkça sunucudan
+    // "ile başlayanlar" filtresiyle canlı daralır (bkz. GET /users/by-sport).
+    useEffect(() => {
+        if (!showPartnerSearch || inviteTab !== 'all') return;
+        setLoadingSportUsers(true);
         const task = setTimeout(() => {
-            api.get(`/users/search?q=${encodeURIComponent(partnerQuery.trim())}&subCategory=${sub}&category=${category}`)
-                .then(res => setPartnerResults(Array.isArray(res.data) ? res.data : []))
-                .catch(() => setPartnerResults([]))
-                .finally(() => setPartnerSearching(false));
-        }, 400);
+            api.get(`/users/by-sport?subCategory=${sub}&category=${category}${partnerQuery.trim() ? `&q=${encodeURIComponent(partnerQuery.trim())}` : ''}`)
+                .then(res => setSportUsers(Array.isArray(res.data) ? res.data : []))
+                .catch(() => setSportUsers([]))
+                .finally(() => setLoadingSportUsers(false));
+        }, 300);
         return () => clearTimeout(task);
-    }, [partnerQuery, showPartnerSearch]);
+    }, [partnerQuery, showPartnerSearch, inviteTab]);
 
     // Arkadaşlar listesi — davet penceresi ilk açıldığında bir kez çekilir
     useEffect(() => {
@@ -5056,11 +5065,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </TouchableOpacity>
                                 {!f.flexibleSchedule && (
                                     <>
-                                        <TouchableOpacity style={[s.triBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingHorizontal:3, paddingVertical:3 }, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
                                             <Text style={s.triLabel}>{t.timeLabel}</Text>
                                             <Text style={[s.triValue, !f.matchTime && s.triPlaceholder]}>{f.matchTime || '—'}</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={[s.triBtn, { paddingHorizontal:3, paddingVertical:3 }, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingHorizontal:3, paddingVertical:3 }, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
                                             <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
                                             <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
                                         </TouchableOpacity>
@@ -5529,16 +5538,25 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0 }}>
                         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1 }}>
                             <TouchableOpacity style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }} activeOpacity={1}
-                                onPress={() => { setInviteTarget(null); setPartnerQuery(''); setPartnerResults([]); }}>
+                                onPress={() => setInviteTarget(null)}>
                                 <View onStartShouldSetResponder={() => true}
                                     style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>
                                             {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : inviteTarget === 'singleOpp' ? t.inviteOpponentTitle : t.choosePartnerBtn}
                                         </Text>
-                                        <TouchableOpacity onPress={() => { setInviteTarget(null); setPartnerQuery(''); setPartnerResults([]); }}>
+                                        <TouchableOpacity onPress={() => setInviteTarget(null)}>
                                             <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
                                         </TouchableOpacity>
+                                    </View>
+                                    {/* Arkadaşlarım | Tüm Oyuncular sekmeleri */}
+                                    <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
+                                        {[{ id:'friends', label: t.friendsListLabel }, { id:'all', label: t.inviteTabAllPlayers }].map(tab => (
+                                            <TouchableOpacity key={tab.id} onPress={() => setInviteTab(tab.id)}
+                                                style={[s.chipBtn, { flex:1, paddingVertical:6 }, inviteTab === tab.id && s.chipBtnActive]}>
+                                                <Text style={[s.chipBtnText, { fontSize:12, textAlign:'center' }, inviteTab === tab.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{tab.label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
                                     </View>
                                     <TextInput
                                         style={s.fieldInput}
@@ -5548,39 +5566,46 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         placeholderTextColor={colors.textMuted}
                                         autoFocus
                                     />
-                                    {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                                    {(inviteTab === 'friends' ? loadingFriends : loadingSportUsers) && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
                                     <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
-                                        {partnerQuery.trim().length < 2 && (
+                                        {inviteTab === 'friends' ? (() => {
+                                            const q = partnerQuery.trim().toLowerCase();
+                                            const shownFriends = q
+                                                ? friendsList.filter(u => (u.username || '').toLowerCase().startsWith(q) || (u.fullName || '').toLowerCase().startsWith(q))
+                                                : friendsList;
+                                            return (
+                                                <>
+                                                    {!loadingFriends && shownFriends.length === 0 && (
+                                                        <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>{t.noFriendsLabel}</Text>
+                                                    )}
+                                                    {shownFriends.map(u => (
+                                                        <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                                            <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.fullName || u.username}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>{u.username}</Text>
+                                                            </View>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </>
+                                            );
+                                        })() : (
                                             <>
-                                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6, letterSpacing:0.3 }}>{t.friendsListLabel}</Text>
-                                                {loadingFriends && <ActivityIndicator color={cfg.color} style={{ marginBottom:12 }} />}
-                                                {!loadingFriends && friendsList.length === 0 && (
-                                                    <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>{t.noFriendsLabel}</Text>
-                                                )}
-                                                {friendsList.map(u => (
+                                                {sportUsers.map(u => (
                                                     <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                                         <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
                                                         <View style={{ flex:1 }}>
-                                                            <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.fullName || u.username}</Text>
-                                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{u.username}</Text>
+                                                            <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                                {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                                            </Text>
                                                         </View>
                                                     </TouchableOpacity>
                                                 ))}
+                                                {!loadingSportUsers && sportUsers.length === 0 && (
+                                                    <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
+                                                )}
                                             </>
-                                        )}
-                                        {partnerResults.map(u => (
-                                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
-                                                <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
-                                                <View style={{ flex:1 }}>
-                                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
-                                                    </Text>
-                                                </View>
-                                            </TouchableOpacity>
-                                        ))}
-                                        {!partnerSearching && partnerQuery.trim().length >= 2 && partnerResults.length === 0 && (
-                                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
                                         )}
                                     </ScrollView>
                                 </View>

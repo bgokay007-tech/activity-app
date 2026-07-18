@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-    getProfile, updateProfile, searchUsers,
+    getProfile, updateProfile, searchUsers, getUsersBySport,
     followUser, unfollowUser, removeFollower, respondFollowRequest,
     getFollowStatus, getFollowers, getFollowing, getPendingFollowRequests,
     submitProfileChangeRequest, getMyProfileChangeRequests,
@@ -11,6 +11,7 @@ import { authenticate } from '../middlewares/auth.middleware.js';
 const router = Router();
 
 router.get('/search',                  authenticate, searchUsers);
+router.get('/by-sport',                authenticate, getUsersBySport);
 router.get('/me',                      authenticate, (req, res, next) => { req.params.userId = req.userId; getProfile(req, res, next); });
 router.get('/follow-requests',         authenticate, getPendingFollowRequests);
 router.get('/:userId/follow-status',   authenticate, getFollowStatus);

@@ -436,3 +436,41 @@ export const searchUsers = async (req, res, next) => {
         res.json(users);
     } catch (error) { next(error); }
 };
+
+// Bir spor/etkinlik dalında ilgi kaydı olan TÜM kullanıcılar — davet listesi "Tüm X'ciler"
+// sekmesi için. q verilirse kullanıcı adı/isim o harflerle BAŞLAYANLAR filtrelenir (yazarken
+// canlı daralır); q boşsa dal içindeki herkes alfabetik listelenir.
+export const getUsersBySport = async (req, res, next) => {
+    try {
+        const { subCategory, category, q } = req.query;
+        if (!subCategory) return res.status(400).json({ message: 'subCategory required' });
+
+        const blocked = await prisma.block.findMany({
+            where: { OR: [{ blockerId: req.userId }, { blockedId: req.userId }] },
+        });
+        const blockedIds = blocked.map(b => b.blockerId === req.userId ? b.blockedId : b.blockerId);
+
+        const users = await prisma.user.findMany({
+            where: {
+                id: { not: req.userId, notIn: blockedIds },
+                interests: { some: { subCategory, ...(category && { category }) } },
+                ...(q && q.trim() && {
+                    OR: [
+                        { username: { startsWith: q.trim(), mode: 'insensitive' } },
+                        { fullName: { startsWith: q.trim(), mode: 'insensitive' } },
+                    ],
+                }),
+            },
+            select: {
+                id: true, username: true, fullName: true, avatar: true, isPublic: true,
+                interests: {
+                    where: { subCategory, ...(category && { category }) },
+                    select: { subCategory: true, skillRating: true, totalPoints: true, level: true, alias: true, assessmentCompleted: true },
+                },
+            },
+            orderBy: { username: 'asc' },
+            take: 50,
+        });
+        res.json(users);
+    } catch (error) { next(error); }
+};
