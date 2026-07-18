@@ -389,6 +389,7 @@ const det = StyleSheet.create({
 });
 
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh }) {
+    const insets = useSafeAreaInsets();
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
@@ -656,7 +657,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 <Half jr={p1} />
                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
                 {slot2}
-                {isOwner && (
+                {isOwner && (p1.status === 'AWAITING_JOINER_CONFIRM' || p2?.status === 'AWAITING_JOINER_CONFIRM' ? (
+                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700', textAlign:'center', marginTop:4 }}>⏳ Son Onay Bekleniyor</Text>
+                ) : (
                     <View style={{ flexDirection:'row', gap:3, marginTop:4 }}>
                         <TouchableOpacity onPress={() => acceptLocal(p1.id)} style={{ flex:1, backgroundColor:'#16a34a30', borderRadius:5, paddingVertical:0, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
                             <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>Kabul</Text>
@@ -665,7 +668,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Red</Text>
                         </TouchableOpacity>
                     </View>
-                )}
+                ))}
             </View>
         );
     };
@@ -693,7 +696,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
-                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
+                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
                     <TouchableOpacity onPress={onClose} style={{ marginRight:14, padding:1 }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
@@ -941,7 +944,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
                                                     <Text style={det.playerSub}>{jr.user?.username}</Text>
                                                 </View>
-                                                {isOwner && (
+                                                {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
+                                                    <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
+                                                ) : (
                                                     <View style={{ flexDirection:'row', gap:3 }}>
                                                         <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
                                                             <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
@@ -950,7 +955,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
                                                         </TouchableOpacity>
                                                     </View>
-                                                )}
+                                                ))}
                                             </View>
                                         ))}
                                     </View>
@@ -962,14 +967,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
                                         <Text style={det.playerSub}>{jr.user?.username}</Text>
                                     </View>
-                                    <View style={{ flexDirection:'row', gap:3 }}>
-                                        <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
-                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
-                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
-                                        </TouchableOpacity>
-                                    </View>
+                                    {jr.status === 'AWAITING_JOINER_CONFIRM' ? (
+                                        <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
+                                    ) : (
+                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                            <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
                                 </View>
                             ))}
                         </View>
@@ -1120,7 +1129,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                 {/* Yorum yaz — bottom */}
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
-                    <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: Platform.OS==='ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
+                    <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: insets.bottom + (Platform.OS==='ios' ? 8 : 10), borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                         <TextInput
                             style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
                             placeholder={t.matchCommentPlaceholder}

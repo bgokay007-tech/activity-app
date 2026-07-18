@@ -279,7 +279,7 @@ export const swapMatchPositions = async (req, res, next) => {
             include: {
                 sender: { select: SENDER_SELECT },
                 joinRequests: {
-                    where: { status: 'PENDING' },
+                    where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
                     orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
                     include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } },
                 },
@@ -305,7 +305,7 @@ export const getRivalById = async (req, res, next) => {
             where: { id },
             include: {
                 sender: { select: { ...SENDER_SELECT, interests: { select: { alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
-                joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
@@ -440,7 +440,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
                 ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
             },
-            include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } } },
+            include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } } },
         });
 
         broadcast('rivalUpdate', updated);
@@ -571,7 +571,7 @@ export const createRivalRequest = async (req, res, next) => {
                     where: { id: request.id },
                     include: {
                         sender: { select: SENDER_SELECT },
-                        joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
+                        joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                     },
                 });
                 if (updatedRival) {
@@ -604,7 +604,7 @@ export const createRivalRequest = async (req, res, next) => {
                     where: { id: request.id },
                     include: {
                         sender: { select: SENDER_SELECT },
-                        joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
+                        joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                     },
                 });
                 if (updatedRival) {
@@ -760,7 +760,7 @@ export const getRivalRequests = async (req, res, next) => {
                     },
                 },
                 joinRequests: {
-                    where: { status: 'PENDING' },
+                    where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
                     orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
                     include: {
                         user: {
@@ -888,7 +888,7 @@ export const sendJoinRequest = async (req, res, next) => {
             where: { id },
             include: {
                 sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
-                joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
         broadcast('rivalUpdate', updatedRival);
@@ -942,7 +942,7 @@ export const withdrawJoinRequest = async (req, res, next) => {
             where: { id: joinReq.rivalId },
             include: {
                 sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
-                joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
         broadcast('rivalUpdate', updatedRival);
@@ -1004,7 +1004,7 @@ export const setRivalJoinPartner = async (req, res, next) => {
             where: { id },
             include: {
                 sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
-                joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
         broadcast('rivalUpdate', updatedRival);
@@ -1077,7 +1077,7 @@ export const inviteToRival = async (req, res, next) => {
             where: { id },
             include: {
                 sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, totalPoints: true, wins: true, losses: true, alias: true } } } },
-                joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
         emitToUser(userId, 'rivalUpdate', updatedRival);
@@ -1145,7 +1145,7 @@ export const respondToJoin = async (req, res, next) => {
                 data: { senderTeam: [joinerData] },
                 include: {
                     sender: { select: SENDER_SELECT },
-                    joinRequests: { where: { status: 'PENDING' }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
                 },
             });
             emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
@@ -1314,7 +1314,7 @@ export const respondToJoin = async (req, res, next) => {
             include: {
                 sender: { select: SENDER_SELECT },
                 joinRequests: {
-                    where: { status: 'PENDING' },
+                    where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
                     orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
                     include: {
                         user: {
@@ -1410,6 +1410,26 @@ export const confirmLateJoin = async (req, res, next) => {
 
         // confirm: proceed with normal join logic
         const rival = joinReq.rival;
+
+        // Bu onay 1 saatten geç kabul yüzünden bekletiliyordu — o süre zarfında ilan sahibi
+        // başka bir oyuncuyu kabul edip maç dolmuş (ya da ilan iptal edilmiş) olabilir.
+        // Böyle bir durumda geç onayı sessizce üstüne eklemek yerine hakkının gittiğini
+        // açıkça bildiririz.
+        const participantsSoFar = Array.isArray(rival.participants) ? rival.participants.filter(p => p && p.id) : [];
+        const alreadyFull = rival.status === 'MATCHED' || rival.status === 'CANCELLED' || participantsSoFar.length >= getRequired(rival);
+        if (alreadyFull) {
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
+            emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
+            createNotification(
+                joinReq.userId,
+                'RIVAL_JOIN_REQUEST',
+                '😕 Yerin Dolmuş',
+                `Onayınızı beklerken "${rival.sender?.username || 'ilan sahibi'}" bu maç için başka bir oyuncu buldu.`,
+                { rivalId: joinReq.rivalId, category: rival.category, subCategory: rival.subCategory }
+            ).catch(() => {});
+            return res.status(409).json({ message: 'Onayınızı beklerken bu maç için başka bir oyuncu bulundu.' });
+        }
+
         let joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
         let partnerJoinReqToAccept = null;
 
@@ -1465,7 +1485,7 @@ export const confirmLateJoin = async (req, res, next) => {
             include: {
                 sender: { select: SENDER_SELECT },
                 joinRequests: {
-                    where: { status: 'PENDING' },
+                    where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
                     orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
                     include: {
                         user: {
