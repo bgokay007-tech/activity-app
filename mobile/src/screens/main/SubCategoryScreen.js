@@ -4281,6 +4281,19 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 );
                             })()}
 
+                            {/* Rezervasyon açılış penceresi bilgisi */}
+                            {venue.reservationOpenDaysBefore != null && (
+                                <View style={{ paddingHorizontal:3, paddingBottom:3 }}>
+                                    <View style={{ backgroundColor:'#f59e0b18', borderRadius:7, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                        <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>
+                                            {venue.reservationOpenTime
+                                                ? t.reservationOpenWindowInfoTime(venue.reservationOpenDaysBefore, venue.reservationOpenTime)
+                                                : t.reservationOpenWindowInfo(venue.reservationOpenDaysBefore)}
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
+
                             {/* Tarih Seçici — 14 günlük yatay strip */}
                             <View style={vb.dateStrip}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}

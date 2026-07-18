@@ -60,7 +60,8 @@ function renderSharePage({ title, description, deepLink, pageUrl, notFound = fal
   img.icon { width:88px; height:88px; border-radius:20px; margin-top:32px; }
   h1 { font-size:20px; margin:20px 0 8px; }
   p.desc { color:#b3b3b3; font-size:15px; line-height:1.5; max-width:420px; }
-  .store-btn { display:inline-block; margin:8px; padding:12px 20px; border-radius:10px; background:#6d28d9; color:#fff; text-decoration:none; font-weight:600; }
+  .open-btn { display:inline-block; margin:20px 8px 8px; padding:14px 26px; border-radius:12px; background:#6d28d9; color:#fff; text-decoration:none; font-weight:700; font-size:16px; }
+  .store-btn { display:inline-block; margin:8px; padding:12px 20px; border-radius:10px; background:#ffffff14; color:#fff; text-decoration:none; font-weight:600; }
   .hint { color:#777; font-size:13px; margin-top:28px; }
 </style>
 </head>
@@ -68,19 +69,20 @@ function renderSharePage({ title, description, deepLink, pageUrl, notFound = fal
   <img class="icon" src="${ogImage}" alt="Activity">
   <h1>${escapeHtml(title)}</h1>
   <p class="desc">${escapeHtml(description)}</p>
-  ${notFound ? '' : `<div id="store-buttons" style="display:none; margin-top:16px;">${storeButtons.join('')}${storeButtons.length ? '' : '<p class=\"hint\">Uygulamayı henüz yüklemediyseniz, yakında mağazalarda!</p>'}</div>`}
-  ${notFound ? '' : `<script>
+  ${notFound ? '' : `
+  <a class="open-btn" id="open-app-btn" href="${escapeHtml(deepLink)}">📱 Uygulamada Aç</a>
+  <div id="store-buttons" style="margin-top:8px;">${storeButtons.join('')}${storeButtons.length ? '' : '<p class=\"hint\">Uygulamayı henüz yüklemediyseniz, yakında mağazalarda!</p>'}</div>
+  <script>
     (function() {
+      // WhatsApp/Instagram gibi uygulama içi tarayıcılar, sayfa yüklenir yüklenmez
+      // yapılan otomatik (kullanıcı etkileşimi olmayan) özel URL şeması yönlendirmelerini
+      // sıkça engelliyor — bu yüzden yukarıdaki "Uygulamada Aç" butonu her zaman görünür
+      // ve gerçek bir dokunuşla açılıyor. Bu otomatik deneme sadece ekstra bir kolaylık;
+      // başarısız olsa da buton zaten orada.
       var ua = navigator.userAgent || '';
       var isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-      if (!isMobile) { document.getElementById('store-buttons').style.display = 'block'; return; }
-      var opened = false;
-      window.addEventListener('blur', function() { opened = true; });
-      document.addEventListener('visibilitychange', function() { if (document.hidden) opened = true; });
+      if (!isMobile) return;
       window.location.href = ${JSON.stringify(deepLink)};
-      setTimeout(function() {
-        if (!opened) document.getElementById('store-buttons').style.display = 'block';
-      }, 1200);
     })();
   </script>`}
 </body>
