@@ -139,10 +139,10 @@ function ReservationCard({ item, onCancel, onCancelRequested, navigation }) {
                         prefillCity:             item.venue?.city || undefined,
                         prefillVenueId:          item.venueId || undefined,
                         prefillVenueCourtId:     item.courtId || undefined,
-                        prefillCourtFee:         item.venue?.pricePerSlot || undefined,
+                        prefillCourtFee:         item.estimatedFee || undefined,
                         prefillReservationId:    item.id,
                         prefillSurface:          item.court?.surface || undefined,
-                        prefillIndoor:           item.court?.indoor != null ? item.court.indoor : undefined,
+                        prefillIndoor:           item.court?.indoor ?? item.venue?.courtIndoorDefault ?? undefined,
                     });
                 }},
             ]
