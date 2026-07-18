@@ -2286,9 +2286,15 @@ export const cancelMatch = async (req, res, next) => {
         } else {
             // A joining-side participant is cancelling — drop the whole joining side
             // (for doubles this is an atomic pair) and reopen the listing for new joiners.
+            // matchDate/matchTime yalnızca esnek programlı ilanlarda sıfırlanır — sabit
+            // tarih/saatli ilanlarda bunlar kort rezervasyonuyla birlikte ilan sahibinin
+            // kendi belirlediği bilgidir, karşı taraf vazgeçti diye kaybolmamalı.
             await prisma.activityRequest.update({
                 where: { id },
-                data: { status: 'OPEN', participants: [], receiverId: null, schedulingDeadline: null, matchDate: null, matchTime: null },
+                data: {
+                    status: 'OPEN', participants: [], receiverId: null, schedulingDeadline: null,
+                    ...(request.flexibleSchedule && { matchDate: null, matchTime: null }),
+                },
             });
             const updated = await prisma.activityRequest.findUnique({ where: { id }, include: { sender: { select: SENDER_SELECT } } });
             broadcast('rivalUpdate', updated);
