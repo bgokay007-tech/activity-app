@@ -1435,6 +1435,7 @@ function StatCard({ emoji, label, count, onAdd, onPress }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ProfileScreen({ route, navigation }) {
+    const insets = useSafeAreaInsets();
     const dispatch = useDispatch();
     const myUser = useSelector(s => s.auth.user);
     const lang = useSelector(s => s.lang?.lang || 'en');
