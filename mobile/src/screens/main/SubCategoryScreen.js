@@ -5510,8 +5510,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         </Modal>
 
         {/* Partner / Rakip 1 / Rakip 2 davet — ortak arama + arkadaşlar penceresi */}
-        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setInviteTarget(null)}>
-            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setInviteTarget(null)} android_keyboardInputMode="adjustResize">
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>
@@ -5565,7 +5565,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         )}
                     </ScrollView>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
         <VenueBookingModal
             visible={venueBooking.visible}
