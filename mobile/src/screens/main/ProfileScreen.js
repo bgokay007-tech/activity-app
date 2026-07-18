@@ -1547,6 +1547,10 @@ export default function ProfileScreen({ route, navigation }) {
     const [mediaViewerComments, setMediaViewerComments] = useState([]);
     const [mediaCommentsHidden, setMediaCommentsHidden] = useState(false);
     const [loadingMediaComments, setLoadingMediaComments] = useState(false);
+    const [mediaCommentText, setMediaCommentText] = useState('');
+    const [sendingMediaComment, setSendingMediaComment] = useState(false);
+    const [mediaHeartFlash, setMediaHeartFlash] = useState(false);
+    const mediaLastTap = useRef(0);
     const [likersModalOpen, setLikersModalOpen] = useState(false);
     const [likersList, setLikersList] = useState([]);
     const [likersHidden, setLikersHidden] = useState(false);
@@ -2387,11 +2391,64 @@ export default function ProfileScreen({ route, navigation }) {
         setMediaViewerPost(p);
         setMediaViewerComments([]);
         setMediaCommentsHidden(false);
+        setMediaCommentText('');
         setLoadingMediaComments(true);
         api.get(`/posts/${p.id}/comments`)
             .then(({ data }) => setMediaViewerComments(Array.isArray(data) ? data : []))
             .catch(e => { if (e?.response?.status === 403) setMediaCommentsHidden(true); })
             .finally(() => setLoadingMediaComments(false));
+    };
+
+    // mediaViewerPost + arkasındaki Gönderiler/Reels ızgaralarını aynı anda günceller —
+    // modal kapanıp tekrar açıldığında beğeni/yorum sayısı bayat kalmasın diye.
+    const patchPostEverywhere = (postId, patch) => {
+        setMediaViewerPost(prev => (prev && prev.id === postId) ? { ...prev, ...patch(prev) } : prev);
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...patch(p) } : p));
+        setReels(prev => prev.map(p => p.id === postId ? { ...p, ...patch(p) } : p));
+    };
+
+    const toggleMediaViewerLike = async (like = null) => {
+        if (!mediaViewerPost) return;
+        const wasLiked = !!mediaViewerPost.isLiked;
+        if (like === true && wasLiked) return; // double-tap: sadece beğenir, geri almaz
+        const nextLiked = like === null ? !wasLiked : like;
+        if (nextLiked === wasLiked) return;
+        patchPostEverywhere(mediaViewerPost.id, p => ({
+            isLiked: nextLiked,
+            _count: { ...p._count, likes: Math.max(0, (p._count?.likes || 0) + (nextLiked ? 1 : -1)) },
+        }));
+        try {
+            await api.post(`/posts/${mediaViewerPost.id}/like`);
+        } catch (e) {
+            // başarısızsa geri al
+            patchPostEverywhere(mediaViewerPost.id, p => ({
+                isLiked: wasLiked,
+                _count: { ...p._count, likes: Math.max(0, (p._count?.likes || 0) + (wasLiked ? 1 : -1)) },
+            }));
+        }
+    };
+
+    const handleMediaImageTap = () => {
+        const now = Date.now();
+        const isDouble = now - mediaLastTap.current < 300;
+        mediaLastTap.current = now;
+        if (!isDouble) return;
+        toggleMediaViewerLike(true);
+        setMediaHeartFlash(true);
+        setTimeout(() => setMediaHeartFlash(false), 800);
+    };
+
+    const sendMediaComment = async () => {
+        if (!mediaViewerPost || !mediaCommentText.trim() || sendingMediaComment) return;
+        setSendingMediaComment(true);
+        try {
+            const { data } = await api.post(`/posts/${mediaViewerPost.id}/comment`, { content: mediaCommentText.trim() });
+            setMediaViewerComments(prev => [...prev, data]);
+            setMediaCommentText('');
+            patchPostEverywhere(mediaViewerPost.id, p => ({ _count: { ...p._count, comments: (p._count?.comments || 0) + 1 } }));
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally { setSendingMediaComment(false); }
     };
 
     const openLikers = () => {
@@ -3347,18 +3404,29 @@ export default function ProfileScreen({ route, navigation }) {
                         <TouchableOpacity onPress={() => setMediaViewerPost(null)}><Text style={{ color:'#fff', fontSize:22 }}>✕</Text></TouchableOpacity>
                     </View>
                     {mediaViewerPost && (
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex:1 }}>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex:1 }} keyboardShouldPersistTaps="handled">
                             {(mediaViewerPost.imageUrl || mediaViewerPost.videoUrl) && (
-                                <Image source={{ uri: mediaViewerPost.imageUrl || mediaViewerPost.videoUrl }} style={{ width:'100%', aspectRatio:1, backgroundColor: colors.surface2 }} resizeMode="contain" />
+                                <Pressable onPress={handleMediaImageTap} style={{ width:'100%', aspectRatio:1 }}>
+                                    <Image source={{ uri: mediaViewerPost.imageUrl || mediaViewerPost.videoUrl }} style={{ width:'100%', height:'100%', backgroundColor: colors.surface2 }} resizeMode="contain" />
+                                    {mediaHeartFlash && (
+                                        <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0, justifyContent:'center', alignItems:'center' }}>
+                                            <Text style={{ fontSize:80 }}>❤️</Text>
+                                        </View>
+                                    )}
+                                </Pressable>
                             )}
                             {mediaViewerPost.content ? (
                                 <Text style={{ color:'#fff', fontSize:13, paddingHorizontal:3, paddingTop:3 }}>{mediaViewerPost.content}</Text>
                             ) : null}
                             <View style={{ flexDirection:'row', gap:20, paddingHorizontal:17, paddingTop:14 }}>
-                                <TouchableOpacity onPress={openLikers} style={{ flexDirection:'row', alignItems:'center', gap:5 }}>
-                                    <Text style={{ fontSize:16 }}>❤️</Text>
-                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{t.likesCountText(mediaViewerPost._count?.likes || 0)}</Text>
-                                </TouchableOpacity>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:5 }}>
+                                    <TouchableOpacity onPress={() => toggleMediaViewerLike()} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                                        <Text style={{ fontSize:18 }}>{mediaViewerPost.isLiked ? '❤️' : '🤍'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={openLikers}>
+                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{t.likesCountText(mediaViewerPost._count?.likes || 0)}</Text>
+                                    </TouchableOpacity>
+                                </View>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:5 }}>
                                     <Text style={{ fontSize:16 }}>💬</Text>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{mediaViewerPost._count?.comments || 0}</Text>
@@ -3391,6 +3459,27 @@ export default function ProfileScreen({ route, navigation }) {
                                 )}
                             </View>
                         </ScrollView>
+                    )}
+                    {mediaViewerPost && !mediaCommentsHidden && (
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                            <View style={{ flexDirection:'row', gap:8, alignItems:'center', paddingHorizontal:13, paddingTop:8, paddingBottom: insets.bottom + (Platform.OS==='ios' ? 8 : 10), borderTopWidth:1, borderTopColor:'#ffffff20' }}>
+                                <TextInput
+                                    style={{ flex:1, height:40, borderRadius:20, backgroundColor:'#ffffff14', color:'#fff', paddingHorizontal:14, fontSize:13 }}
+                                    placeholder={t.addCommentPlaceholder}
+                                    placeholderTextColor="#888"
+                                    value={mediaCommentText}
+                                    onChangeText={setMediaCommentText}
+                                    returnKeyType="send"
+                                    onSubmitEditing={sendMediaComment}
+                                />
+                                <TouchableOpacity onPress={sendMediaComment} disabled={sendingMediaComment || !mediaCommentText.trim()}
+                                    style={{ opacity: (sendingMediaComment || !mediaCommentText.trim()) ? 0.4 : 1 }}>
+                                    {sendingMediaComment
+                                        ? <ActivityIndicator size="small" color={colors.purple} />
+                                        : <Text style={{ color: colors.purple, fontSize:13, fontWeight:'800' }}>{t.postCommentSendBtn}</Text>}
+                                </TouchableOpacity>
+                            </View>
+                        </KeyboardAvoidingView>
                     )}
                 </View>
             </Modal>
