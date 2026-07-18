@@ -470,6 +470,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const isOwner = item.senderId === myId;
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
+    const reqTimeAgo = (dateStr) => {
+        if (!dateStr) return '';
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const m = Math.floor(diff / 60000);
+        if (m < 1) return t.timeNow;
+        if (m < 60) return `${m}${t.timeMinSuffix}`;
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${h}${t.timeHourSuffix}`;
+        return `${Math.floor(h / 24)}${t.timeDaySuffix}`;
+    };
     const genderReq = localGender?.genderReq ?? item.genderReq ?? 'MIX';
     const partnerGenderReq = localGender?.partnerGenderReq ?? item.partnerGenderReq ?? 'MIX';
     const opp1GenderReq = localGender?.opp1GenderReq ?? item.opp1GenderReq ?? 'MIX';
@@ -603,6 +613,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             <View>
                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(jr)}</Text>
                 <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{jr?.user?.username}{ratingOf(jr) != null ? `  ${starEmoji(Number(ratingOf(jr)))} ${Number(ratingOf(jr)).toFixed(2)}` : ''}</Text>
+                {jr?.createdAt && <Text style={{ color: colors.textMuted, fontSize:8 }} numberOfLines={1}>🕐 {reqTimeAgo(jr.createdAt)}</Text>}
             </View>
         );
 
@@ -942,7 +953,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                                 <View style={{ flex:1 }}>
                                                     <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                                    <Text style={det.playerSub}>{jr.user?.username}</Text>
+                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}</Text>
                                                 </View>
                                                 {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
                                                     <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
@@ -965,7 +976,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                     <View style={{ flex:1 }}>
                                         <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                        <Text style={det.playerSub}>{jr.user?.username}</Text>
+                                        <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}</Text>
                                     </View>
                                     {jr.status === 'AWAITING_JOINER_CONFIRM' ? (
                                         <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
