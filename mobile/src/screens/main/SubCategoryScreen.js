@@ -5185,7 +5185,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             )}
                                             <TouchableOpacity
                                                 onPress={() => setF(p => ({ ...p, courtMutual: !p.courtMutual, courtReserved: p.courtMutual ? p.courtReserved : false }))}
-                                                style={{ flexDirection:'row', alignItems:'center', gap:4 }}
+                                                style={{ flexDirection:'row', alignItems:'center', gap:2 }}
                                             >
                                                 <View style={{ width:13, height:13, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
                                                     {f.courtMutual && <View style={{ width:5, height:5, borderRadius:3, backgroundColor: cfg.color }} />}
@@ -5193,7 +5193,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 <Text style={{ color: f.courtMutual ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.courtMutualBtn}</Text>
                                             </TouchableOpacity>
                                             {!f.courtMutual && (
-                                                <TouchableOpacity onPress={() => set('courtReserved', !f.courtReserved)}>
+                                                <TouchableOpacity onPress={() => set('courtReserved', !f.courtReserved)}
+                                                    style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                                                    <View style={{ width:13, height:13, borderRadius:7, borderWidth:2, borderColor: f.courtReserved ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
+                                                        {f.courtReserved && <View style={{ width:5, height:5, borderRadius:3, backgroundColor: cfg.color }} />}
+                                                    </View>
                                                     <Text style={{ color: f.courtReserved ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.courtReservedLabel}</Text>
                                                 </TouchableOpacity>
                                             )}
@@ -5201,7 +5205,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </View>
                                     {!f.courtMutual && <View style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'stretch' }}>
                                         <TextInput
-                                            style={[s.fieldInput, { flex:2, marginBottom:0 }]}
+                                            style={[s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5 }]}
                                             value={f.courtSearchText}
                                             onChangeText={searchCourts}
                                             placeholder={t.courtSearchPlaceholder}
@@ -5214,19 +5218,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             triBtn'in taban flex:1 ağırlığı yarıya (0.5) indirildi, düşen 1.0 birim
                                             arama kutusuna eklendi (flex:1 → flex:2). */}
                                         {isPadel ? (
-                                            <View style={[s.triBtn, { flex:0.5, paddingVertical:3, paddingHorizontal:3 }]}>
+                                            <View style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }]}>
                                                 <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.surfaceLabel}</Text>
                                                 <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Suni Çim</Text>
                                             </View>
                                         ) : (
-                                            <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingVertical:3, paddingHorizontal:3 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
+                                            <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
                                                 <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.surfaceLabel}</Text>
                                                 <Text style={[s.triValue, { fontSize:10 }, !f.surface && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                     {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : '—'}
                                                 </Text>
                                             </TouchableOpacity>
                                         )}
-                                        <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingVertical:3, paddingHorizontal:3 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
                                             <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.venueLabel}</Text>
                                             <Text style={[s.triValue, { fontSize:10 }, !f.venueType && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : '—'}
