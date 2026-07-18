@@ -1555,6 +1555,10 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     // ilk yüklemedeki gerçek rezervasyon kimliğini sabit tutuyoruz (form.venueId vb.
     // kullanıcı yeni bir slot seçtikçe değişir, original* hiç değişmez).
     const originalRef = useRef({ venueId: null, venueCourtId: null, reservationId: null });
+    // "Değiştir"e basılınca kort alanları hemen temizlenir (bkz. changeCourt) — kullanıcı
+    // seçim yapmadan modalı kapatırsa (✕ veya geri) burada saklanan önceki değerler geri
+    // yüklenir, aksi halde vazgeçtiğinde ekranda kort bilgisi kaybolmuş gibi görünüyordu.
+    const preChangeCourtRef = useRef(null);
 
     useEffect(() => {
         if (visible && item) {
@@ -1681,6 +1685,14 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     // geçiliyorsa cancelHoursBefore) handleSave içinde, gerçekten kaydedilirken yapılır.
     const changeCourt = () => {
         const vid = form.venueId;
+        preChangeCourtRef.current = {
+            selectedCourt: form.selectedCourt,
+            courtSearchText: form.courtSearchText,
+            courtResults: form.courtResults,
+            reservationId: form.reservationId,
+            venueReservationId: form.venueReservationId,
+            venueCourtId: form.venueCourtId,
+        };
         setForm(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueReservationId: null, venueCourtId: null }));
         // Mevcut rezervasyon henüz iptal edilmedi (bkz. yukarıdaki not) — bu yüzden
         // gridde hâlâ "Dolu" görünüyor. excludeReservationId ile bu kendi rezervasyonumuz
@@ -2086,7 +2098,15 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
             venueId={venueBooking.venueId}
             initialCourtId={venueBooking.initialCourtId}
             excludeReservationId={venueBooking.excludeReservationId}
-            onClose={() => setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null })}
+            onClose={() => {
+                setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
+                // Yeni bir kort/saat seçilmeden kapatıldıysa (venueCourtId hâlâ boş) —
+                // "Değiştir"den önceki kort bilgisini geri getir.
+                if (preChangeCourtRef.current && !form.venueCourtId) {
+                    setForm(p => ({ ...p, ...preChangeCourtRef.current }));
+                }
+                preChangeCourtRef.current = null;
+            }}
             onBooked={(court, date, startTime, endTime, payMethod) => {
                 const toMin = (tm) => { const [h, m] = tm.split(':').map(Number); return h * 60 + m; };
                 const durMins = (startTime && endTime) ? toMin(endTime) - toMin(startTime) : 0;
@@ -3854,6 +3874,18 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     const toT = (mins) => `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
     const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString('tr-TR',
         { weekday: 'short', day: 'numeric', month: 'short' });
+    // Esnek saatte pencerenin ham başlangıcı bugün için geçtiyse, kalan süreyi boşa
+    // kaçırmamak adına (işletmenin son dakika ikramı gibi) şimdiki saat 10 dakikaya
+    // yukarı yuvarlanıp varsayılan başlangıç olarak sunulur (ör. 07:21 → 07:30).
+    const roundedNowIfPast = (dateStr, win) => {
+        if (dateStr !== todayStr()) return win.start;
+        const winStartM = toM(win.start);
+        const now = new Date();
+        const nowM = now.getHours() * 60 + now.getMinutes();
+        if (nowM <= winStartM) return win.start;
+        const roundedM = Math.ceil(nowM / 10) * 10;
+        return toT(roundedM % 1440);
+    };
 
     const [venue,       setVenue]       = useState(null);
     const [loadingV,    setLoadingV]    = useState(false);
@@ -4114,7 +4146,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                         return (() => {
                             const sel = varStartMap[court.id];
                             const isWinSel = sel?.winStart === w.start;
-                            const customStart = isWinSel ? (sel?.customStart ?? w.start) : w.start;
+                            const customStart = isWinSel ? (sel?.customStart ?? roundedNowIfPast(selDate, w)) : w.start;
                             const dur = isWinSel ? (varDurMap[court.id] ?? 60) : 60;
                             const winStartM = toM(w.start);
                             // Gece yarısını geçen pencerede (ör. 17:00–01:00) winEndM 1440'ın üzerine
@@ -4132,7 +4164,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 <View key={wi} style={{ backgroundColor:'#ffffff08', borderRadius:8, padding:3, marginBottom:3, borderWidth:1, borderColor: isWinSel ? '#9333ea' : '#ffffff15' }}>
                                     <TouchableOpacity
                                         onPress={() => {
-                                            setVarStartMap(p => ({ ...p, [court.id]: { winStart: w.start, winEnd: w.end, customStart: w.start } }));
+                                            setVarStartMap(p => ({ ...p, [court.id]: { winStart: w.start, winEnd: w.end, customStart: roundedNowIfPast(selDate, w) } }));
                                             setVarDurMap(p => ({ ...p, [court.id]: 60 }));
                                             setSelSlot(null);
                                         }}
@@ -4141,10 +4173,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>🕐 {w.start}–{w.end}</Text>
                                         <Text style={{ color: isWinSel ? '#c084fc' : '#888', fontSize:9, fontWeight:'700' }}>{isWinSel ? '▲' : '▼'}</Text>
                                     </TouchableOpacity>
+                                    {isWinSel && roundedNowIfPast(selDate, w) !== w.start && (
+                                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700', marginBottom:3 }}>
+                                            🎁 Pencere {w.start}'te başladı, kort boş kalmasın diye şimdiden ({roundedNowIfPast(selDate, w)}) rezerve edebilirsiniz
+                                        </Text>
+                                    )}
                                     {isWinSel && (<>
                                         <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Başlangıç</Text>
                                         <TextInput
-                                            value={sel?.customStart ?? w.start}
+                                            value={sel?.customStart ?? roundedNowIfPast(selDate, w)}
                                             onChangeText={v => { setVarStartMap(p => ({ ...p, [court.id]: { ...p[court.id], customStart: v } })); setSelSlot(null); }}
                                             placeholder={w.start}
                                             placeholderTextColor="#555"

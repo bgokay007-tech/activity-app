@@ -35,26 +35,42 @@ function isPastSlot(dateStr, timeStr) {
     return new Date(`${dateStr}T${timeStr}:00`).getTime() < Date.now();
 }
 
-function SlotBubble({ slot, selected, onPress }) {
+// Esnek saatte pencerenin ham başlangıcı bugün için geçtiyse, kalan süreyi boşa
+// kaçırmamak adına (işletmenin son dakika ikramı gibi) şimdiki saat 10 dakikaya
+// yukarı yuvarlanıp varsayılan başlangıç olarak sunulur (ör. 07:21 → 07:30).
+function roundedNowIfPast(dateStr, win) {
+    if (dateStr !== getDateStr(0)) return win.start;
+    const winStartM = toM(win.start);
+    const now = new Date();
+    const nowM = now.getHours() * 60 + now.getMinutes();
+    if (nowM <= winStartM) return win.start;
+    const roundedM = Math.ceil(nowM / 10) * 10;
+    return toT(roundedM % 1440);
+}
+
+function SlotBubble({ slot, selected, onPress, dateStr }) {
     const isMaint = slot.maintenance && !slot.free;
+    const isPast = slot.free && !isMaint && isPastSlot(dateStr, slot.start);
+    const disabled = !slot.free || isPast;
     const displayPrice = slot.priceByMethod?.CASH ?? slot.price;
-    const priceLabel = !isMaint && displayPrice != null ? (displayPrice > 0 ? `${displayPrice}₺` : 'Ücretsiz') : null;
+    const priceLabel = !isMaint && !isPast && displayPrice != null ? (displayPrice > 0 ? `${displayPrice}₺` : 'Ücretsiz') : null;
     return (
         <TouchableOpacity
-            style={[ss.bubble, !slot.free && (isMaint ? ss.bubbleMaint : ss.bubbleTaken), selected && ss.bubbleSelected]}
-            onPress={() => slot.free && onPress(slot)}
-            disabled={!slot.free}
+            style={[ss.bubble, !slot.free && (isMaint ? ss.bubbleMaint : ss.bubbleTaken), isPast && ss.bubblePast, selected && ss.bubbleSelected]}
+            onPress={() => !disabled && onPress(slot)}
+            disabled={disabled}
             activeOpacity={0.7}
         >
-            <Text style={[ss.bubbleTime, !slot.free && ss.bubbleTimeTaken, selected && ss.bubbleTimeSelected]}>
+            <Text style={[ss.bubbleTime, disabled && ss.bubbleTimeTaken, selected && ss.bubbleTimeSelected]}>
                 {isMaint ? '🔧' : slot.start}
             </Text>
-            <Text style={[ss.bubbleDash, !slot.free && ss.bubbleTimeTaken, selected && ss.bubbleTimeSelected]}>
+            <Text style={[ss.bubbleDash, disabled && ss.bubbleTimeTaken, selected && ss.bubbleTimeSelected]}>
                 {isMaint ? '' : `–${slot.end}`}
             </Text>
             {priceLabel && slot.free !== false && (
                 <Text style={[ss.bubblePrice, selected && ss.bubblePriceSelected]}>{priceLabel}</Text>
             )}
+            {isPast && <Text style={ss.bubblePastLabel}>Geçmiş</Text>}
         </TouchableOpacity>
     );
 }
@@ -139,12 +155,14 @@ export default function CourtSlotsScreen({ route, navigation }) {
     const [modalVisible, setModal] = useState(false);
     const [confirming, setConf]   = useState(false);
     const [varStartTime, setVarStartTime] = useState(null);
+    const [varWindow, setVarWindow] = useState(null);
 
     const fetchSlots = useCallback(async (date) => {
         setLoading(true);
         setSlots(null);
         setPicked(null);
         setVarStartTime(null);
+        setVarWindow(null);
         try {
             const { data } = await api.get(`/venues/${venue.id}/courts/${court.id}/slots`, { params: { date, ...(rescheduleResId ? { excludeReservationId: rescheduleResId } : {}) } });
             setSlots(data);
@@ -349,26 +367,34 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                                     {(slots?.windows || []).length === 0 ? (
                                         <Text style={s.noSlotsText}>Bu tarihte müsait pencere yok.</Text>
-                                    ) : (slots?.windows || []).map((w, i) => (
-                                        <TouchableOpacity key={i}
-                                            onPress={() => {
-                                                if (isPastSlot(selectedDate, w.start)) {
-                                                    Alert.alert('Geçmiş Saat', 'Geçmişte kalan bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
-                                                    return;
-                                                }
-                                                setVarStartTime(w.start); setPicked(null);
-                                            }}
-                                            style={[vs.timeBtn, varStartTime === w.start && vs.timeBtnActive]}
-                                        >
-                                            <Text style={[vs.timeBtnText, varStartTime === w.start && vs.timeBtnTextActive]}>{w.start}</Text>
-                                            <Text style={[vs.timeBtnSub, varStartTime === w.start && vs.timeBtnTextActive]}>–{w.end}</Text>
-                                        </TouchableOpacity>
-                                    ))}
+                                    ) : (slots?.windows || []).map((w, i) => {
+                                        const winStartM = toM(w.start);
+                                        let winEndM = toM(w.end);
+                                        if (winEndM <= winStartM) winEndM += 1440;
+                                        const effStart = roundedNowIfPast(selectedDate, w);
+                                        const effStartM = toM(effStart) < winStartM ? toM(effStart) + 1440 : toM(effStart);
+                                        const windowPassed = effStartM >= winEndM;
+                                        const isRounded = effStart !== w.start;
+                                        const active = varWindow === w;
+                                        return (
+                                            <TouchableOpacity key={i}
+                                                disabled={windowPassed}
+                                                onPress={() => { setVarStartTime(effStart); setVarWindow(w); setPicked(null); }}
+                                                style={[vs.timeBtn, active && vs.timeBtnActive, windowPassed && { opacity: 0.4 }]}
+                                            >
+                                                <Text style={[vs.timeBtnText, active && vs.timeBtnTextActive]}>{windowPassed ? w.start : effStart}</Text>
+                                                <Text style={[vs.timeBtnSub, active && vs.timeBtnTextActive]}>–{w.end}</Text>
+                                                {isRounded && !windowPassed && <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '800', marginTop: 2 }}>🎁 Şimdi</Text>}
+                                                {windowPassed && <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700', marginTop: 2 }}>Doldu</Text>}
+                                            </TouchableOpacity>
+                                        );
+                                    })}
                                 </View>
-                                {varStartTime && (() => {
-                                    const w = (slots?.windows || []).find(win => win.start === varStartTime);
-                                    if (!w) return null;
-                                    const winEnd = toM(w.end);
+                                {varStartTime && varWindow && (() => {
+                                    const w = varWindow;
+                                    const winStartM = toM(w.start);
+                                    let winEnd = toM(w.end);
+                                    if (winEnd <= winStartM) winEnd += 1440;
                                     const options = [60, 90, 120, 150, 180].filter(d => {
                                         const endM = toM(varStartTime) + d;
                                         return endM <= winEnd && (endM === winEnd || winEnd - endM >= 60);
@@ -399,7 +425,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                         ) : (
                             <>
                                 <Text style={s.slotsTitle}>
-                                    {formatDateLabel(selectedDate)} — {slotList.filter(sl => sl.free !== false).length} müsait slot
+                                    {formatDateLabel(selectedDate)} — {slotList.filter(sl => sl.free !== false && !isPastSlot(selectedDate, sl.start)).length} müsait slot
                                 </Text>
                                 {slotList.length === 0 ? (
                                     <View style={s.noSlots}>
@@ -413,6 +439,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                                 slot={slot}
                                                 selected={pickedSlot?.start === slot.start && pickedSlot?.end === slot.end}
                                                 onPress={handleSelectSlot}
+                                                dateStr={selectedDate}
                                             />
                                         ))}
                                     </View>
@@ -423,6 +450,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                         <View style={s.legend}>
                             <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: colors.purple + '30', borderColor: colors.purple }]} /><Text style={s.legendText}>Müsait</Text></View>
                             <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: colors.surface2 }]} /><Text style={s.legendText}>Dolu</Text></View>
+                            <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: colors.surface2, opacity: 0.6 }]} /><Text style={s.legendText}>Geçmiş</Text></View>
                             <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: '#ef444418', borderColor: '#ef444440' }]} /><Text style={s.legendText}>🔧 Bakım</Text></View>
                         </View>
                     </>
@@ -477,6 +505,7 @@ const ss = StyleSheet.create({
     bubble: { width: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1.5, borderColor: colors.purple + '60' },
     bubbleTaken: { backgroundColor: colors.surface2, borderColor: colors.border, opacity: 0.5 },
     bubbleMaint: { backgroundColor: '#ef444418', borderColor: '#ef444440', opacity: 0.9 },
+    bubblePast: { backgroundColor: colors.surface2, borderColor: colors.border, opacity: 0.4 },
     bubbleSelected: { backgroundColor: colors.purple, borderColor: colors.purple },
     bubbleTime: { color: colors.purple, fontSize: 14, fontWeight: '900' },
     bubbleDash: { color: colors.purple + '99', fontSize: 11, marginTop: 2 },
@@ -484,6 +513,7 @@ const ss = StyleSheet.create({
     bubbleTimeSelected: { color: '#fff' },
     bubblePrice: { color: colors.purple, fontSize: 10, fontWeight: '800', marginTop: 4 },
     bubblePriceSelected: { color: '#ffffffcc' },
+    bubblePastLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '800', marginTop: 4 },
 });
 
 const cm = StyleSheet.create({
