@@ -4754,7 +4754,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (inviteTarget) set(INVITE_FIELD[inviteTarget], user);
         setInviteTarget(null);
         setPartnerQuery('');
-        setPartnerResults([]);
+        setSportUsers([]);
     };
 
     const searchCourts = (text) => {
