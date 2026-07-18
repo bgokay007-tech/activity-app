@@ -4896,7 +4896,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             {!isTeamSport ? (
                                 <>
                                     {/* Mod + Format — tek satır, içeriğe göre boyutlanır (flex:1 yok — sağa boşluk kalırsa kalsın, aralarında boşluk olmasın) */}
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:8 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                                             <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.modLabel}</Text>
                                             <View style={{ flexDirection:'row', gap:3 }}>
