@@ -5076,6 +5076,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
                                             <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
                                         </TouchableOpacity>
+                                        {/* Tahmini Kişi Başı Kort Ücreti — kort seçilince Süre'nin sağına sıkıştırılmış olarak çıkar */}
+                                        {!f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)) && (
+                                            <View style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }]}>
+                                                <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.courtFeeShortLabel}</Text>
+                                                <TextInput
+                                                    style={[s.triValue, { padding:0, minWidth:34, textAlign:'center' }]}
+                                                    value={f.courtFeePerPerson}
+                                                    onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
+                                                    placeholder={t.courtFeePh}
+                                                    placeholderTextColor={colors.textMuted}
+                                                    keyboardType="numeric"
+                                                />
+                                            </View>
+                                        )}
                                     </>
                                 )}
                             </View>
@@ -5377,21 +5391,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <TextInput style={s.fieldInput} value={f.manualAddress}
                                                 onChangeText={v => set('manualAddress', v)}
                                                 placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} />
-                                        </View>
-                                    )}
-
-                                    {/* Kişi Başı Kort Ücreti */}
-                                    {!f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)) && (
-                                        <View style={{ marginBottom:10 }}>
-                                            <Text style={s.fieldLabel}>{t.courtFeeLabel}</Text>
-                                            <TextInput
-                                                style={s.fieldInput}
-                                                value={f.courtFeePerPerson}
-                                                onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
-                                                placeholder={t.courtFeePh}
-                                                placeholderTextColor={colors.textMuted}
-                                                keyboardType="numeric"
-                                            />
                                         </View>
                                     )}
 
