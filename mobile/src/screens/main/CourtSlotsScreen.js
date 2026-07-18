@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import colors from '../../theme/colors';
 import api from '../../services/api';
+import { computeVarDurationPrice } from '../../utils/priceProration';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -58,7 +59,7 @@ function SlotBubble({ slot, selected, onPress }) {
     );
 }
 
-function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirming }) {
+function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirming, rescheduleMode }) {
     const [payment, setPayment] = useState('CASH');
 
     if (!slot) return null;
@@ -67,14 +68,14 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
             <View style={cm.overlay}>
                 <View style={cm.sheet}>
                     <View style={cm.handle} />
-                    <Text style={cm.title}>Rezervasyon Onayla</Text>
+                    <Text style={cm.title}>{rescheduleMode ? 'Yeni Saati Onayla' : 'Rezervasyon Onayla'}</Text>
 
                     <View style={cm.infoCard}>
                         {[
                             { label: 'Tesis', value: venue.name },
                             { label: 'Kort', value: court.name },
                             { label: 'Saat', value: `${slot.start} – ${slot.end}` },
-                            { label: 'Ücret', value: (() => { const p = slot?.priceByMethod?.[payment] ?? slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() },
+                            ...(rescheduleMode ? [] : [{ label: 'Ücret', value: (() => { const p = slot?.priceByMethod?.[payment] ?? slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() }]),
                         ].map(row => (
                             <View key={row.label} style={cm.infoRow}>
                                 <Text style={cm.infoLabel}>{row.label}</Text>
@@ -83,25 +84,27 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
                         ))}
                     </View>
 
-                    <Text style={cm.payLabel}>Ödeme Yöntemi</Text>
-                    {[
-                        { key: 'CASH', label: '💵 Kort Başında Nakit' },
-                        { key: 'EFT', label: '🏦 EFT / Havale' },
-                        { key: 'CREDIT_CARD', label: '💳 Kort Başında Kredi Kartı' },
-                        { key: 'ONLINE', label: '🌐 Online Ödeme', disabled: true },
-                    ].filter(opt => opt.key === 'CASH' || opt.disabled || (Array.isArray(venue.acceptedPayments) && venue.acceptedPayments.includes(opt.key))).map(opt => (
-                        <TouchableOpacity
-                            key={opt.key}
-                            style={[cm.payOpt, payment === opt.key && cm.payOptActive, opt.disabled && cm.payOptDisabled]}
-                            onPress={() => !opt.disabled && setPayment(opt.key)}
-                            disabled={opt.disabled}
-                            activeOpacity={0.8}
-                        >
-                            <Text style={[cm.payOptText, opt.disabled && { color: colors.textMuted }]}>{opt.label}</Text>
-                            {opt.disabled && <View style={cm.soonBadge}><Text style={cm.soonText}>Yakında</Text></View>}
-                            {!opt.disabled && payment === opt.key && <Text style={cm.payCheck}>✓</Text>}
-                        </TouchableOpacity>
-                    ))}
+                    {!rescheduleMode && (<>
+                        <Text style={cm.payLabel}>Ödeme Yöntemi</Text>
+                        {[
+                            { key: 'CASH', label: '💵 Kort Başında Nakit' },
+                            { key: 'EFT', label: '🏦 EFT / Havale' },
+                            { key: 'CREDIT_CARD', label: '💳 Kort Başında Kredi Kartı' },
+                            { key: 'ONLINE', label: '🌐 Online Ödeme', disabled: true },
+                        ].filter(opt => opt.key === 'CASH' || opt.disabled || (Array.isArray(venue.acceptedPayments) && venue.acceptedPayments.includes(opt.key))).map(opt => (
+                            <TouchableOpacity
+                                key={opt.key}
+                                style={[cm.payOpt, payment === opt.key && cm.payOptActive, opt.disabled && cm.payOptDisabled]}
+                                onPress={() => !opt.disabled && setPayment(opt.key)}
+                                disabled={opt.disabled}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={[cm.payOptText, opt.disabled && { color: colors.textMuted }]}>{opt.label}</Text>
+                                {opt.disabled && <View style={cm.soonBadge}><Text style={cm.soonText}>Bakımda</Text></View>}
+                                {!opt.disabled && payment === opt.key && <Text style={cm.payCheck}>✓</Text>}
+                            </TouchableOpacity>
+                        ))}
+                    </>)}
 
                     <View style={cm.btnRow}>
                         <TouchableOpacity style={cm.cancelBtn} onPress={onClose} activeOpacity={0.8}>
@@ -115,7 +118,7 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
                         >
                             {confirming
                                 ? <ActivityIndicator size="small" color="#fff" />
-                                : <Text style={cm.confirmBtnText}>Rezervasyon Yap ✓</Text>}
+                                : <Text style={cm.confirmBtnText}>{rescheduleMode ? 'Saati Değiştir ✓' : 'Rezervasyon Yap ✓'}</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -125,7 +128,8 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
 }
 
 export default function CourtSlotsScreen({ route, navigation }) {
-    const { venue, court } = route.params;
+    const { venue, court, rescheduleResId } = route.params;
+    const rescheduleMode = !!rescheduleResId;
 
     const dateOptions = useMemo(() => Array.from({ length: 14 }, (_, i) => getDateStr(i)), []);
     const [selectedDate, setDate] = useState(dateOptions[0]);
@@ -142,12 +146,12 @@ export default function CourtSlotsScreen({ route, navigation }) {
         setPicked(null);
         setVarStartTime(null);
         try {
-            const { data } = await api.get(`/venues/${venue.id}/courts/${court.id}/slots`, { params: { date } });
+            const { data } = await api.get(`/venues/${venue.id}/courts/${court.id}/slots`, { params: { date, ...(rescheduleResId ? { excludeReservationId: rescheduleResId } : {}) } });
             setSlots(data);
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Slotlar alınamadı');
         } finally { setLoading(false); }
-    }, [venue.id, court.id]);
+    }, [venue.id, court.id, rescheduleResId]);
 
     useEffect(() => { fetchSlots(selectedDate); }, [selectedDate]);
 
@@ -163,6 +167,18 @@ export default function CourtSlotsScreen({ route, navigation }) {
     const handleConfirm = async (paymentMethod) => {
         setConf(true);
         try {
+            if (rescheduleMode) {
+                await api.patch(`/venues/reservations/${rescheduleResId}/reschedule`, {
+                    newDate: selectedDate,
+                    newStartTime: pickedSlot.start,
+                    newEndTime:   pickedSlot.end,
+                });
+                setModal(false);
+                Alert.alert('✅ Rezervasyon Değişti', `Yeni saat: ${selectedDate} ${pickedSlot.start}–${pickedSlot.end}. Varsa ilanınız ve katılımcılar da otomatik güncellendi.`, [
+                    { text: 'Tamam', onPress: () => navigation.navigate('MyReservations') },
+                ]);
+                return;
+            }
             await api.post(`/venues/${venue.id}/courts/${court.id}/reserve`, {
                 date: selectedDate,
                 startTime: pickedSlot.start,
@@ -181,7 +197,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
             const detail  = srvMsg
                 || (netCode === 'ECONNABORTED' ? 'Bağlantı zaman aşımına uğradı (30 sn)' : null)
                 || (netCode ? `Ağ hatası: ${netCode}` : null)
-                || e?.message || 'Rezervasyon yapılamadı';
+                || e?.message || (rescheduleMode ? 'Rezervasyon değiştirilemedi' : 'Rezervasyon yapılamadı');
             Alert.alert('Hata', status ? `[${status}] ${detail}` : detail);
         } finally { setConf(false); }
     };
@@ -195,7 +211,12 @@ export default function CourtSlotsScreen({ route, navigation }) {
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
-            <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
+            {rescheduleMode && (
+                <View style={{ backgroundColor: '#3b82f620', paddingTop: Platform.OS === 'ios' ? 54 : 36, paddingBottom: 8, paddingHorizontal: 16, alignItems: 'center' }}>
+                    <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>🔄 Rezervasyonunuz için yeni bir saat seçin</Text>
+                </View>
+            )}
+            <View style={[s.header, !rescheduleMode && { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
                 </TouchableOpacity>
@@ -205,7 +226,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                     {(() => {
                         const effIndoor = court.indoor ?? venue?.courtIndoorDefault ?? false;
                         return (
-                            <Text style={[s.subtitle, { fontSize: 11, marginTop: 1 }]} numberOfLines={1}>
+                            <Text style={[s.subtitle, { fontSize: 11, marginTop: 1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {court.surface ? `⬜ ${SURFACE_LABEL[court.surface] || court.surface}  ·  ` : ''}{effIndoor ? '🏠 Kapalı' : '☀️ Açık'}
                             </Text>
                         );
@@ -357,11 +378,11 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                             <Text style={vs.stepLabel}>2. Süre Seçin</Text>
                                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                                                 {options.map(d => {
-                                                    const price = w.pricePerHour != null ? Math.round(w.pricePerHour * (d / 60)) : null;
+                                                    const { price, priceByMethod } = computeVarDurationPrice(w, varStartTime, d);
                                                     const endT = toT(toM(varStartTime) + d);
                                                     return (
                                                         <TouchableOpacity key={d}
-                                                            onPress={() => handleSelectSlot({ start: varStartTime, end: endT, free: true, price, durationMins: d })}
+                                                            onPress={() => handleSelectSlot({ start: varStartTime, end: endT, free: true, price, priceByMethod, durationMins: d })}
                                                             style={vs.durBtn}
                                                         >
                                                             <Text style={vs.durBtnDur}>{d} dk</Text>
@@ -418,6 +439,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 onConfirm={handleConfirm}
                 onClose={() => { setModal(false); setPicked(null); }}
                 confirming={confirming}
+                rescheduleMode={rescheduleMode}
             />
         </View>
     );

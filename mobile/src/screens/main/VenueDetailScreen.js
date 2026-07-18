@@ -157,7 +157,7 @@ function ReviewModal({ visible, venue, myReviews, onClose, onSaved }) {
 }
 
 export default function VenueDetailScreen({ route, navigation }) {
-    const { venue } = route.params;
+    const { venue, rescheduleResId } = route.params;
     const [selectedCourt, setSelected] = useState(null);
     const [reviews, setReviews]         = useState(null); // null = loading
     const [showReviewModal, setShowReviewModal] = useState(false);
@@ -210,8 +210,14 @@ export default function VenueDetailScreen({ route, navigation }) {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
                 </TouchableOpacity>
-                <Text style={s.title} numberOfLines={1}>{venue.name}</Text>
+                <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{venue.name}</Text>
             </View>
+
+            {rescheduleResId && (
+                <View style={{ backgroundColor: '#3b82f620', paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' }}>
+                    <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>🔄 Rezervasyonunuzu değiştirmek için bir kort seçin</Text>
+                </View>
+            )}
 
             <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
                 {/* Tesis Bilgileri */}
@@ -261,6 +267,14 @@ export default function VenueDetailScreen({ route, navigation }) {
                         <Text style={s.infoLabel}>Rezervasyon</Text>
                         <Text style={[s.infoValue, { textAlign: 'right', flex: 1 }]}>{courtSlotLabels(venue)}</Text>
                     </View>
+                    {venue.reservationOpenDaysBefore != null && (
+                        <View style={s.infoRow}>
+                            <Text style={s.infoLabel}>Rezervasyon{'\n'}Açılışı</Text>
+                            <Text style={[s.infoValue, { color: '#fbbf24', textAlign: 'right', flex: 1 }]}>
+                                {venue.reservationOpenDaysBefore} gün önceden{venue.reservationOpenTime ? `, saat ${venue.reservationOpenTime}'te` : ''}
+                            </Text>
+                        </View>
+                    )}
                     {(() => {
                         const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
                         if (pw.length === 0) return null;
@@ -412,9 +426,11 @@ export default function VenueDetailScreen({ route, navigation }) {
 
                 {selectedCourt && (
                     <TouchableOpacity style={s.reserveBtn}
-                        onPress={() => navigation.navigate('CourtSlots', { venue, court: selectedCourt })}
+                        onPress={() => navigation.navigate('CourtSlots', { venue, court: selectedCourt, rescheduleResId })}
                         activeOpacity={0.8}>
-                        <Text style={s.reserveBtnText}>Saat Seç — {selectedCourt.name} →</Text>
+                        <Text style={s.reserveBtnText}>
+                            {rescheduleResId ? `Yeni Saat Seç — ${selectedCourt.name} →` : `Saat Seç — ${selectedCourt.name} →`}
+                        </Text>
                     </TouchableOpacity>
                 )}
 

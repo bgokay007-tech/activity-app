@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
-    View, Text, TouchableOpacity, FlatList, TextInput,
+    View, Text, TouchableOpacity, FlatList,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -28,15 +28,23 @@ function calcDuration(start, end) {
     return String((eh * 60 + em) - (sh * 60 + sm));
 }
 
-function ReservationCard({ item, onCancel, onReschedule, onCancelRequested, navigation }) {
+function ReservationCard({ item, onCancel, onCancelRequested, navigation }) {
     const t = useT();
     const [cancelling,   setCanc]   = useState(false);
-    const [rescheduling, setRSched] = useState(false);
     const [requesting,   setReq]    = useState(false);
-    const [showReschedule, setShowRS] = useState(false);
-    const [newDate,  setNewDate]  = useState('');
-    const [newStart, setNewStart] = useState('');
-    const [newEnd,   setNewEnd]   = useState('');
+    const [loadingVenue, setLV]     = useState(false);
+
+    // "Değiştir": tesisin TÜM kortlarını görüp seçebilsin diye önce kortlar dahil tam
+    // tesis verisini çekip VenueDetail'e gönderiyoruz — item.venue'de sadece özet bilgi var.
+    const handleReschedulePress = async () => {
+        setLV(true);
+        try {
+            const { data: fullVenue } = await api.get(`/venues/${item.venue.id}`);
+            navigation.navigate('VenueDetail', { venue: fullVenue, rescheduleResId: item.id });
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || 'Tesis bilgisi alınamadı');
+        } finally { setLV(false); }
+    };
 
     const sc = STATUS_COLOR[item.status] || '#9ca3af';
     const sl = {
@@ -76,19 +84,6 @@ function ReservationCard({ item, onCancel, onReschedule, onCancelRequested, navi
                 finally { setCanc(false); }
             }},
         ]);
-    };
-
-    const handleReschedule = async () => {
-        if (!newDate || !newStart || !newEnd) { Alert.alert(t.error, t.resReschedAllFields); return; }
-        setRSched(true);
-        try {
-            const { data } = await api.patch(`/venues/reservations/${item.id}/reschedule`, {
-                newDate, newStartTime: newStart, newEndTime: newEnd,
-            });
-            onReschedule(item.id, data.reservation);
-            setShowRS(false);
-        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.resRescheduleFailed); }
-        finally { setRSched(false); }
     };
 
     const handleCancelRequest = (requestType) => {
@@ -222,8 +217,11 @@ function ReservationCard({ item, onCancel, onReschedule, onCancelRequested, navi
                     </View>
                 )}
                 {canReschedule && (
-                    <TouchableOpacity style={s.reschedBtn} onPress={() => setShowRS(v => !v)} activeOpacity={0.8}>
-                        <Text style={s.reschedBtnText}>{t.resReschedBtn}</Text>
+                    <TouchableOpacity style={s.reschedBtn} activeOpacity={0.8}
+                        onPress={handleReschedulePress} disabled={loadingVenue}>
+                        {loadingVenue
+                            ? <ActivityIndicator size="small" color="#60a5fa" />
+                            : <Text style={s.reschedBtnText}>{t.resReschedBtn}</Text>}
                     </TouchableOpacity>
                 )}
                 {canRival && (
@@ -232,35 +230,6 @@ function ReservationCard({ item, onCancel, onReschedule, onCancelRequested, navi
                     </TouchableOpacity>
                 )}
             </View>
-
-            {showReschedule && (
-                <View style={s.reschedForm}>
-                    <Text style={s.reschedLabel}>{t.resReschedDateLabel}</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                        <TextInput style={s.reschedInput} placeholder={t.resReschedDatePh} placeholderTextColor="#555"
-                            value={newDate} onChangeText={setNewDate} keyboardType="numbers-and-punctuation" />
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-                        <TextInput style={[s.reschedInput, { flex: 1 }]} placeholder="10:00" placeholderTextColor="#555"
-                            value={newStart} onChangeText={setNewStart} keyboardType="numbers-and-punctuation" maxLength={5} />
-                        <Text style={{ color: '#666', alignSelf: 'center' }}>–</Text>
-                        <TextInput style={[s.reschedInput, { flex: 1 }]} placeholder="11:00" placeholderTextColor="#555"
-                            value={newEnd} onChangeText={setNewEnd} keyboardType="numbers-and-punctuation" maxLength={5} />
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <TouchableOpacity onPress={() => setShowRS(false)}
-                            style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ffffff10', alignItems: 'center' }}>
-                            <Text style={{ color: '#aaa', fontSize: 12 }}>{t.cancelBtn}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={handleReschedule} disabled={rescheduling}
-                            style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#3b82f630', alignItems: 'center' }}>
-                            {rescheduling
-                                ? <ActivityIndicator size="small" color="#60a5fa" />
-                                : <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>{t.resReschedSaveBtn}</Text>}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            )}
         </View>
     );
 }
@@ -374,7 +343,6 @@ export default function MyReservationsScreen({ navigation, route }) {
                     renderItem={({ item }) => (
                         <ReservationCard item={item} navigation={navigation}
                             onCancel={id => setRes(prev => prev.map(r => r.id === id ? { ...r, status: 'CANCELLED' } : r))}
-                            onReschedule={(id, updated) => setRes(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r))}
                             onCancelRequested={id => setRes(prev => prev.map(r => r.id === id ? { ...r, cancelRequested: true } : r))} />
                     )}
                 />
