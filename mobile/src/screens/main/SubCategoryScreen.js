@@ -5459,8 +5459,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </TouchableOpacity>
                                                     )
                                                 )}
-                                                {/* Rakip 1 + Rakip 2 Cinsiyeti, altlarında Davet Et — tek satır */}
-                                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
+                                                {/* Rakip 1 + Rakip 2 Cinsiyeti, altlarında Davet Et — alt alta */}
+                                                <View style={{ gap:8 }}>
                                                     <View style={{ gap:4 }}>
                                                         <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
                                                         {f.opp1Invite ? (
