@@ -466,6 +466,7 @@ export const createRivalRequest = async (req, res, next) => {
             opp1GenderReq = 'MIX',
             opp2GenderReq = 'MIX',
             partnerInviteId, // DOUBLE: partner daveti gönderilecek kullanıcının id'si
+            opp1InviteId, opp2InviteId, // DOUBLE: rakip 1 / rakip 2 slotuna doğrudan davet gönderilecek kullanıcı id'leri
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
@@ -586,6 +587,39 @@ export const createRivalRequest = async (req, res, next) => {
                 emitToUser(partnerInviteId, 'notification', {
                     type: 'MATCH_INVITE', title: '🤝 Partner Daveti',
                     body: `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.`,
+                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
+                });
+            }).catch(() => {});
+        }
+
+        // DOUBLE rakip daveti: Rakip 1 / Rakip 2 slotuna doğrudan davet — isPartnerInvite:false,
+        // yani inviteToRival ile aynı mantık (owner-initiated rakip daveti), sadece ilan oluşturulurken tetiklenir.
+        for (const oppInviteId of [opp1InviteId, opp2InviteId].filter(Boolean)) {
+            if (matchType.toUpperCase() !== 'DOUBLE' || oppInviteId === partnerInviteId) continue;
+            prisma.rivalJoinRequest.create({
+                data: { rivalId: request.id, userId: oppInviteId, initiatedBy: 'OWNER' },
+            }).then(async () => {
+                const updatedRival = await prisma.activityRequest.findUnique({
+                    where: { id: request.id },
+                    include: {
+                        sender: { select: SENDER_SELECT },
+                        joinRequests: { where: { status: 'PENDING' }, include: { user: { select: SENDER_SELECT } } },
+                    },
+                });
+                if (updatedRival) {
+                    emitToUser(creatorId, 'rivalUpdate', updatedRival);
+                    emitToUser(oppInviteId, 'rivalUpdate', updatedRival);
+                }
+                const me = request.sender;
+                createNotification(
+                    oppInviteId, 'MATCH_INVITE',
+                    '🎾 Maç Daveti',
+                    `@${me?.username || 'Biri'} sizi bir maça davet etti.`,
+                    { category: request.category, subCategory: request.subCategory, rivalId: request.id }
+                ).catch(() => {});
+                emitToUser(oppInviteId, 'notification', {
+                    type: 'MATCH_INVITE', title: '🎾 Maç Daveti',
+                    body: `@${me?.username || 'Biri'} sizi bir maça davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
             }).catch(() => {});

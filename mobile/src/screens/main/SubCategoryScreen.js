@@ -3575,6 +3575,104 @@ function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
     );
 }
 
+// Alt + Üst puan limitini tek modalda belirleme — iki ayrı popup yerine tek form
+function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMax, onClose }) {
+    const t = useT();
+    const ratings = ['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0','9.5','10.0'];
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={tg.overlay}>
+                <View style={[tg.box, { height:'55%' }]}>
+                    <View style={tg.header}>
+                        <Text style={tg.title}>{t.ratingLimitLabel}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.ratingMinHeader}</Text>
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:16 }}>
+                            {ratings.map(item => (
+                                <TouchableOpacity key={'min'+(item||'none')}
+                                    style={[tg.cell, { flex:0, paddingHorizontal:3, paddingVertical:3 }, minValue === item && tg.cellActive]}
+                                    onPress={() => onSelectMin(item)}>
+                                    <Text style={[tg.cellText, { fontSize:11 }, minValue === item && tg.cellTextActive]}>{item === '' ? t.ratingFreeLabel : item}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.ratingMaxHeader}</Text>
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                            {ratings.map(item => (
+                                <TouchableOpacity key={'max'+(item||'none')}
+                                    style={[tg.cell, { flex:0, paddingHorizontal:3, paddingVertical:3 }, maxValue === item && tg.cellActive]}
+                                    onPress={() => onSelectMax(item)}>
+                                    <Text style={[tg.cellText, { fontSize:11 }, maxValue === item && tg.cellTextActive]}>{item === '' ? t.ratingFreeLabel : item}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+const ELO_WARNING_DISMISSED_KEY = 'elo_warning_dismissed';
+
+// Rekabetçi mod seçilince açılan ELO uyarısı — boş alana ya da çarpıya dokununca kapanır.
+// "Bir daha gösterme" işaretlenip onaylanırsa AsyncStorage'a yazılır, onDismissForever ile
+// çağıran tarafa bildirilir ki bir daha bu modalı açmasın.
+function EloWarningModal({ visible, onClose, onDismissForever }) {
+    const t = useT();
+    const [checked, setChecked] = useState(false);
+    useEffect(() => { if (visible) setChecked(false); }, [visible]);
+
+    const handleCheckboxPress = () => {
+        if (checked) { setChecked(false); return; }
+        Alert.alert(t.eloConfirmTitle, t.eloConfirmMsg, [
+            { text: t.eloConfirmNo, style: 'cancel' },
+            { text: t.eloConfirmYes, style: 'destructive', onPress: async () => {
+                setChecked(true);
+                await AsyncStorage.setItem(ELO_WARNING_DISMISSED_KEY, '1');
+                onDismissForever?.();
+                onClose();
+            }},
+        ]);
+    };
+
+    return (
+        <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+            <TouchableOpacity style={ew.overlay} activeOpacity={1} onPress={onClose}>
+                <View style={ew.box} onStartShouldSetResponder={() => true}>
+                    <View style={ew.header}>
+                        <Text style={ew.title}>⚔️ {noEmojiStr(t.competitiveMode)}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={ew.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <Text style={ew.body}>{t.eloWarning}</Text>
+                    <TouchableOpacity onPress={handleCheckboxPress} style={ew.checkRow}>
+                        <View style={[ew.checkbox, checked && ew.checkboxChecked]}>
+                            {checked && <Text style={{ color:'#fff', fontSize:10 }}>✓</Text>}
+                        </View>
+                        <Text style={ew.checkLabel}>{t.eloDontShowAgain}</Text>
+                    </TouchableOpacity>
+                </View>
+            </TouchableOpacity>
+        </Modal>
+    );
+}
+const noEmojiStr = (str) => (str || '').replace(/^\S+\s+/, '');
+
+const ew = StyleSheet.create({
+    overlay: { flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:24 },
+    box:     { backgroundColor: colors.surface, borderRadius:16, padding:17, width:'100%', maxWidth:320 },
+    header:  { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:10 },
+    title:   { color:'#fff', fontSize:15, fontWeight:'900' },
+    close:   { color: colors.textMuted, fontSize:20 },
+    body:    { color:'#fca5a5', fontSize:13, lineHeight:19 },
+    checkRow: { flexDirection:'row', alignItems:'center', gap:8, marginTop:14 },
+    checkbox: { width:16, height:16, borderRadius:4, borderWidth:2, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    checkboxChecked: { backgroundColor: colors.purple, borderColor: colors.purple },
+    checkLabel: { color: colors.textSecondary, fontSize:12, fontWeight:'600' },
+});
+
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
 
 const DURATIONS_FULL_VALUES = ['30','60','90','120','150','180'];
@@ -4459,6 +4557,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         ticketUrl: '',
         minRating: '', maxRating: '',
         partner: null,
+        opp1Invite: null,
+        opp2Invite: null,
         genderReq: 'MIX',
         partnerGenderReq: 'MIX',
         opp1GenderReq: 'MIX',
@@ -4495,15 +4595,29 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const [f, setF]               = useState(() => buildInitialState());
-    const [showPartnerSearch, setShowPartnerSearch] = useState(false);
+    // Partner / Rakip 1 / Rakip 2 davet arayışı hepsi aynı arama+arkadaşlar penceresini paylaşır —
+    // inviteTarget hangi alanı doldurduğumuzu belirler ('partner' | 'opp1' | 'opp2' | null).
+    const [inviteTarget, setInviteTarget] = useState(null);
+    const showPartnerSearch = inviteTarget !== null;
     const [partnerQuery, setPartnerQuery] = useState('');
     const [partnerResults, setPartnerResults] = useState([]);
     const [partnerSearching, setPartnerSearching] = useState(false);
+    const [friendsList, setFriendsList] = useState([]);
+    const [loadingFriends, setLoadingFriends] = useState(false);
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [ratingPickerTarget, setRatingPickerTarget] = useState(null);
+    const [showRatingRange, setShowRatingRange] = useState(false);
+    const [showSurfacePicker, setShowSurfacePicker] = useState(false);
+    const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
+    const [showEloWarning, setShowEloWarning] = useState(false);
+    const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
+    const [showDoubleOptions, setShowDoubleOptions] = useState(false);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
+
+    useEffect(() => {
+        AsyncStorage.getItem(ELO_WARNING_DISMISSED_KEY).then(v => { if (v) setEloWarningDismissed(true); });
+    }, []);
 
     useEffect(() => {
         if (!visible) return;
@@ -4512,6 +4626,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             .catch(() => setMyUnlistedRes([]));
     }, [visible]);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
+    // Bu formdaki seçenek butonlarında emoji istenmiyor — paylaşılan i18n metinlerindeki
+    // baştaki emoji'yi sadece burada (diğer ekranları etkilemeden) kırpar.
+    const noEmoji = (str) => (str || '').replace(/^\S+\s+/, '');
 
     useEffect(() => {
         if (!showPartnerSearch) return;
@@ -4526,9 +4643,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         return () => clearTimeout(task);
     }, [partnerQuery, showPartnerSearch]);
 
+    // Arkadaşlar listesi — davet penceresi ilk açıldığında bir kez çekilir
+    useEffect(() => {
+        if (!showPartnerSearch || friendsList.length > 0 || loadingFriends) return;
+        setLoadingFriends(true);
+        api.get('/friends')
+            .then(res => setFriendsList(Array.isArray(res.data) ? res.data : []))
+            .catch(() => setFriendsList([]))
+            .finally(() => setLoadingFriends(false));
+    }, [showPartnerSearch]);
+
+    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite' };
     const choosePartner = (user) => {
-        set('partner', user);
-        setShowPartnerSearch(false);
+        if (inviteTarget) set(INVITE_FIELD[inviteTarget], user);
+        setInviteTarget(null);
         setPartnerQuery('');
         setPartnerResults([]);
     };
@@ -4705,6 +4833,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 partnerInviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
                     ? f.partner.id
                     : undefined,
+                opp1InviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.opp1Invite
+                    ? f.opp1Invite.id
+                    : undefined,
+                opp2InviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.opp2Invite
+                    ? f.opp2Invite.id
+                    : undefined,
                 venueId:            f.venueId       || undefined,
                 venueCourtId:       f.venueCourtId   || undefined,
                 venueReservationId,
@@ -4745,7 +4879,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             <View style={s.modalOverlay}>
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
-                        <View style={s.modalHeader}>
+                        <View style={[s.modalHeader, { marginBottom:3 }]}>
                             <Text style={s.modalTitle}>{t.createTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
@@ -4754,15 +4888,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             {/* 1+2 - Mod + Format yan yana (non-team) / Mod + Takım (team) */}
                             {!isTeamSport ? (
                                 <>
-                                    <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={s.fieldLabel}>{t.modLabel}</Text>
-                                            <View style={[s.chipRow, { marginBottom:0 }]}>
+                                    {/* Mod + Format — tek satır, içeriğe göre boyutlanır (flex:1 yok — sağa boşluk kalırsa kalsın, aralarında boşluk olmasın) */}
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:8 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.modLabel}</Text>
+                                            <View style={{ flexDirection:'row', gap:3 }}>
                                                 {((sub === 'tennis' || sub === 'padel') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
                                                     const isActive = (sub === 'tennis' || sub === 'padel')
                                                         ? (f.matchMode === mode || f.matchMode === 'BOTH')
                                                         : f.matchMode === mode;
                                                     const handleModePress = () => {
+                                                        if (mode === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
                                                         if ((sub !== 'tennis' && sub !== 'padel') || !f.flexibleSchedule) { set('matchMode', mode); return; }
                                                         if (mode === 'PRACTICE') {
                                                             if (f.matchMode === 'PRACTICE') return;
@@ -4774,109 +4910,184 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     };
                                                     return (
                                                         <TouchableOpacity key={mode} onPress={handleModePress}
-                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isActive && {
+                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, isActive && {
                                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                                 borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                             }]}>
-                                                            <Text style={[s.chipBtnText, isActive && { color:'#fff' }]}>
-                                                                {mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode}
+                                                            <Text style={[s.chipBtnText, { fontSize:11 }, isActive && { color:'#fff' }]} numberOfLines={1}>
+                                                                {noEmoji(mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode)}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
                                         </View>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={s.fieldLabel}>{t.formatLabel}</Text>
-                                            <View style={[s.chipRow, { marginBottom:0 }]}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.formatLabel}</Text>
+                                            <View style={{ flexDirection:'row', gap:3 }}>
                                                 {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
-                                                    <TouchableOpacity key={fmt.id} onPress={() => setF(p => ({
-                                                        ...p,
-                                                        matchType: fmt.id,
-                                                        partner: fmt.id === 'DOUBLE' ? p.partner : null,
-                                                        courtFeePerPerson: p.selectedCourt?.totalPrice > 0
-                                                            ? String(Math.round(p.selectedCourt.totalPrice / (fmt.id === 'DOUBLE' ? 4 : 2)))
-                                                            : p.courtFeePerPerson,
-                                                    }))}
-                                                        style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, f.matchType===fmt.id && s.chipBtnActive]}>
-                                                        <Text style={[s.chipBtnText, f.matchType===fmt.id && s.chipBtnTextActive]}>{fmt.label}</Text>
+                                                    <TouchableOpacity key={fmt.id} onPress={() => {
+                                                        if (fmt.id === 'DOUBLE') setShowDoubleOptions(true);
+                                                        setF(p => ({
+                                                            ...p,
+                                                            matchType: fmt.id,
+                                                            partner: fmt.id === 'DOUBLE' ? p.partner : null,
+                                                            courtFeePerPerson: p.selectedCourt?.totalPrice > 0
+                                                                ? String(Math.round(p.selectedCourt.totalPrice / (fmt.id === 'DOUBLE' ? 4 : 2)))
+                                                                : p.courtFeePerPerson,
+                                                        }));
+                                                    }}
+                                                        style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive]}>
+                                                        <Text style={[s.chipBtnText, { fontSize:11, textAlign:'center' }, f.matchType===fmt.id && s.chipBtnTextActive]} numberOfLines={1}>{fmt.label}</Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
                                         </View>
                                     </View>
-                                    {f.matchType === 'DOUBLE' && (
-                                        <View style={{ marginBottom:8 }}>
-                                            <Text style={s.fieldLabel}>{t.teamFlexLabel}</Text>
-                                            <View style={[s.chipRow, { marginBottom:0 }]}>
-                                                {[{id:'FLEXIBLE',label:t.flexModeFlexible},{id:'STRICT',label:t.flexModeStrict}].map(opt => (
-                                                    <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
-                                                        style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
-                                                        <Text style={[s.chipBtnText, f.teamFlexibility===opt.id && s.chipBtnTextActive]}>{opt.label}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
-                                        </View>
-                                    )}
-                                    {!isTeamSport && f.matchType === 'DOUBLE' && (
-                                        f.partner ? (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:7, paddingVertical:5, marginBottom:8 }}>
-                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }}>👥 {t.partnerLabel}: {f.partner.fullName || f.partner.username}</Text>
-                                                <TouchableOpacity onPress={() => set('partner', null)}>
-                                                    <Text style={{ color: colors.textMuted, fontSize:16 }}>✕</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        ) : (
-                                            <TouchableOpacity onPress={() => setShowPartnerSearch(true)}
-                                                style={{ backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:7, paddingVertical:5, marginBottom:8, alignItems:'center' }}>
-                                                <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>👥+ {t.choosePartnerBtn}</Text>
+
+                                    {/* Derece + Cinsiyet Kısıtlaması — tek satır, içeriğe göre boyutlanır */}
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:8 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1}>{t.ratingLimitLabel}</Text>
+                                            <TouchableOpacity
+                                                style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.minRating || f.maxRating) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:3 }}
+                                                onPress={() => setShowRatingRange(true)}>
+                                                <Text style={[s.triValue, { fontSize:10 }, !(f.minRating || f.maxRating) && s.triPlaceholder]} numberOfLines={1}>
+                                                    {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
+                                                </Text>
                                             </TouchableOpacity>
-                                        )
-                                    )}
-                                    {(sub === 'tennis' || sub === 'padel') && (() => {
-                                        const GENDERS = [
-                                            { id:'MIX', label: t.genderMix || '🤝 Mix' },
-                                            { id:'MALE', label: t.genderMale || '👨 Erkek' },
-                                            { id:'FEMALE', label: t.genderFemale || '👩 Kadın' },
-                                        ];
-                                        const GenderRow = ({ label, field }) => (
-                                            <View style={{ flex:1 }}>
-                                                <Text style={[s.fieldLabel, { marginBottom:4, fontSize:11 }]}>{label}</Text>
+                                        </View>
+                                        {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1}>{t.genderReqLabel || 'Rakip Cinsiyeti'}</Text>
                                                 <View style={{ flexDirection:'row', gap:3 }}>
-                                                    {GENDERS.map(g => (
-                                                        <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
-                                                            style={[s.chipBtn, { flex:1, paddingHorizontal:0, paddingVertical:1 }, f[field]===g.id && s.chipBtnActive]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:10 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
+                                                    {[
+                                                        { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
+                                                        { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
+                                                        { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
+                                                    ].map(g => (
+                                                        <TouchableOpacity key={g.id} onPress={() => set('genderReq', g.id)}
+                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.genderReq===g.id && s.chipBtnActive]}>
+                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
                                                         </TouchableOpacity>
                                                     ))}
                                                 </View>
                                             </View>
-                                        );
-                                        if (f.matchType === 'SINGLE') {
-                                            return (
-                                                <View style={{ marginBottom:8 }}>
-                                                    <GenderRow label={t.genderReqLabel || 'Rakip Cinsiyeti'} field="genderReq" />
+                                        )}
+                                    </View>
+                                    <RatingRangeModal
+                                        visible={showRatingRange}
+                                        minValue={f.minRating}
+                                        maxValue={f.maxRating}
+                                        onSelectMin={(v) => set('minRating', v)}
+                                        onSelectMax={(v) => set('maxRating', v)}
+                                        onClose={() => setShowRatingRange(false)}
+                                    />
+                                    <Modal visible={showDoubleOptions && f.matchType === 'DOUBLE'} animationType="slide" transparent onRequestClose={() => setShowDoubleOptions(false)}>
+                                        <TouchableOpacity style={tg.overlay} activeOpacity={1} onPress={() => setShowDoubleOptions(false)}>
+                                            <View style={tg.box} onStartShouldSetResponder={() => true}>
+                                                <View style={tg.header}>
+                                                    <Text style={tg.title}>👥 {t.doubleFormat}</Text>
+                                                    <TouchableOpacity onPress={() => setShowDoubleOptions(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
                                                 </View>
-                                            );
-                                        }
-                                        return (
-                                            <View style={{ marginBottom:8, gap:3 }}>
-                                                <GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti'} field="partnerGenderReq" />
-                                                <View style={{ flexDirection:'row', gap:3 }}>
-                                                    <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
-                                                    <GenderRow label={t.opp2GenderLabel || 'Rakip 2 Cinsiyeti'} field="opp2GenderReq" />
-                                                </View>
+                                                <ScrollView showsVerticalScrollIndicator={false}>
+                                                    {(sub === 'tennis' || sub === 'padel') && (() => {
+                                                        const GENDERS = [
+                                                            { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
+                                                            { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
+                                                            { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
+                                                        ];
+                                                        const GenderRow = ({ label, field }) => (
+                                                            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1}>{label}</Text>
+                                                                <View style={{ flexDirection:'row', gap:3 }}>
+                                                                    {GENDERS.map(g => (
+                                                                        <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
+                                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f[field]===g.id && s.chipBtnActive]}>
+                                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
+                                                                        </TouchableOpacity>
+                                                                    ))}
+                                                                </View>
+                                                            </View>
+                                                        );
+                                                        return (
+                                                            <View style={{ marginBottom:10, gap:8 }}>
+                                                                {/* Takım Arkadaşı Cinsiyeti */}
+                                                                <GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti'} field="partnerGenderReq" />
+                                                                {/* Partneri Seç — Takım Arkadaşı'nın altında, kendi satırında */}
+                                                                {!isTeamSport && (
+                                                                    f.partner ? (
+                                                                        <TouchableOpacity onPress={() => set('partner', null)}
+                                                                            style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{f.partner.fullName || f.partner.username}</Text>
+                                                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>✕</Text>
+                                                                        </TouchableOpacity>
+                                                                    ) : (
+                                                                        <TouchableOpacity onPress={() => setInviteTarget('partner')}
+                                                                            style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }} numberOfLines={1}>{t.choosePartnerBtn}</Text>
+                                                                        </TouchableOpacity>
+                                                                    )
+                                                                )}
+                                                                {/* Rakip 1 + Rakip 2 Cinsiyeti, altlarında Davet Et — tek satır */}
+                                                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
+                                                                    <View style={{ gap:4 }}>
+                                                                        <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
+                                                                        {f.opp1Invite ? (
+                                                                            <TouchableOpacity onPress={() => set('opp1Invite', null)}
+                                                                                style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.opp1Invite.fullName || f.opp1Invite.username}</Text>
+                                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                        ) : (
+                                                                            <TouchableOpacity onPress={() => setInviteTarget('opp1')}
+                                                                                style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}</Text>
+                                                                            </TouchableOpacity>
+                                                                        )}
+                                                                    </View>
+                                                                    <View style={{ gap:4 }}>
+                                                                        <GenderRow label={t.opp2GenderLabel || 'Rakip 2 Cinsiyeti'} field="opp2GenderReq" />
+                                                                        {f.opp2Invite ? (
+                                                                            <TouchableOpacity onPress={() => set('opp2Invite', null)}
+                                                                                style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.opp2Invite.fullName || f.opp2Invite.username}</Text>
+                                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                        ) : (
+                                                                            <TouchableOpacity onPress={() => setInviteTarget('opp2')}
+                                                                                style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}</Text>
+                                                                            </TouchableOpacity>
+                                                                        )}
+                                                                    </View>
+                                                                </View>
+                                                            </View>
+                                                        );
+                                                    })()}
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
+                                                        <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1}>{t.teamFlexLabel}</Text>
+                                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                                            {[{id:'FLEXIBLE',label:t.flexModeShortFlexible},{id:'STRICT',label:t.flexModeShortStrict}].map(opt => (
+                                                                <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
+                                                                    style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
+                                                                    <Text style={[s.chipBtnText, { fontSize:11 }, f.teamFlexibility===opt.id && s.chipBtnTextActive]} numberOfLines={1}>{opt.label}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    </View>
+                                                    <TouchableOpacity onPress={() => setShowDoubleOptions(false)}
+                                                        style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center' }}>
+                                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{t.doubleOptionsContinueBtn}</Text>
+                                                    </TouchableOpacity>
+                                                </ScrollView>
                                             </View>
-                                        );
-                                    })()}
+                                        </TouchableOpacity>
+                                    </Modal>
                                     {(sub === 'tennis' || sub === 'padel') && f.flexibleSchedule && (
                                         <Text style={s.modeHint}>{t.multiSelectHint}</Text>
                                     )}
-                                    {(f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
-                                        <View style={s.eloWarning}>
-                                            <Text style={s.eloWarningText}>{t.eloWarning}</Text>
-                                        </View>
-                                    )}
+                                    <EloWarningModal visible={showEloWarning} onClose={() => setShowEloWarning(false)} onDismissForever={() => setEloWarningDismissed(true)} />
                                 </>
                             ) : (
                                 <>
@@ -4920,64 +5131,65 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
-                            {/* Puan Limiti + Esnek Program yan yana */}
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                                <View style={{ flex:1 }}>
-                                    <Text style={s.fieldLabel}>{t.ratingLimitLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:3 }}>
-                                        <TouchableOpacity style={{ flex:1, backgroundColor:colors.surface2, borderRadius:10, padding:0, borderWidth:1, borderColor: f.minRating ? colors.purple+'80' : colors.border, alignItems:'center' }} onPress={() => setRatingPickerTarget('min')}>
-                                            <Text style={s.triLabel}>{t.minRatingLabel}</Text>
-                                            <Text style={[s.triValue, !f.minRating && s.triPlaceholder]}>{f.minRating ? `${f.minRating} ★` : 'Serbest'}</Text>
+                            {/* Tarih · Saat · Süre — tek satır, daraltılmış kutular. Tarih her zaman görünür, Saat/Süre sadece esnek program kapalıyken */}
+                            <View style={[s.triRow, { marginBottom:6 }]}>
+                                <TouchableOpacity style={[s.triBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchDate && s.triBtnFilled]} onPress={() => set('showDatePicker', true)}>
+                                    <Text style={s.triLabel}>{t.dateLabel}</Text>
+                                    <Text style={[s.triValue, !f.matchDate && s.triPlaceholder]} numberOfLines={1}>
+                                        {f.flexibleSchedule ? noEmoji(t.flexLabel) : (f.matchDate ? `${String(f.matchDate.getDate()).padStart(2,'0')}/${String(f.matchDate.getMonth()+1).padStart(2,'0')}/${f.matchDate.getFullYear()}` : '—')}
+                                    </Text>
+                                </TouchableOpacity>
+                                {!f.flexibleSchedule && (
+                                    <>
+                                        <TouchableOpacity style={[s.triBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
+                                            <Text style={s.triLabel}>{t.timeLabel}</Text>
+                                            <Text style={[s.triValue, !f.matchTime && s.triPlaceholder]}>{f.matchTime || '—'}</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={{ flex:1, backgroundColor:colors.surface2, borderRadius:10, padding:0, borderWidth:1, borderColor: f.maxRating ? colors.purple+'80' : colors.border, alignItems:'center' }} onPress={() => setRatingPickerTarget('max')}>
-                                            <Text style={s.triLabel}>{t.maxRatingLabel}</Text>
-                                            <Text style={[s.triValue, !f.maxRating && s.triPlaceholder]}>{f.maxRating ? `${f.maxRating} ★` : 'Serbest'}</Text>
+                                        <TouchableOpacity style={[s.triBtn, { paddingHorizontal:3, paddingVertical:3 }, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
+                                            <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
+                                            <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
                                         </TouchableOpacity>
-                                    </View>
-                                </View>
-                                <View style={[s.switchRow, { flex:1, marginBottom:0, padding:0 }]}>
-                                    <View style={{ flex:1 }}>
-                                        <Text style={[s.fieldLabel, { marginBottom:2 }]}>{t.flexLabel}</Text>
-                                        <Text style={[s.fieldHint, { marginBottom:0 }]}>{t.flexHint}</Text>
-                                    </View>
-                                    <Switch value={f.flexibleSchedule} onValueChange={v => setF(p => ({ ...p, flexibleSchedule: v, matchMode: !v && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
-                                        trackColor={{ false: colors.border, true: '#eab308' }}
-                                        thumbColor={f.flexibleSchedule ? '#fff' : colors.textMuted} />
-                                </View>
+                                    </>
+                                )}
                             </View>
-                            <RatingPickerModal
-                                visible={ratingPickerTarget !== null}
-                                title={ratingPickerTarget === 'min' ? '⭐ Alt Puan Limiti' : '⭐ Üst Puan Limiti'}
-                                value={ratingPickerTarget === 'min' ? f.minRating : f.maxRating}
-                                onSelect={(v) => { set(ratingPickerTarget === 'min' ? 'minRating' : 'maxRating', v); setRatingPickerTarget(null); }}
-                                onClose={() => setRatingPickerTarget(null)}
+                            <TimePickerModal
+                                visible={f.showTimePicker}
+                                title={t.selectTime}
+                                value={f.matchTime}
+                                onSelect={(v) => set('matchTime', v)}
+                                onClose={() => set('showTimePicker', false)}
+                            />
+                            <OptionPickerModal
+                                visible={f.showDurationPicker}
+                                title={t.selectDuration}
+                                options={DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` }))}
+                                value={f.duration}
+                                onSelect={(v) => set('duration', v)}
+                                onClose={() => set('showDurationPicker', false)}
+                            />
+                            <CalendarPickerModal
+                                visible={f.showDatePicker}
+                                value={f.matchDate}
+                                onSelect={(date) => setF(p => ({ ...p, matchDate: date, showDatePicker: false }))}
+                                onClose={() => set('showDatePicker', false)}
+                                footerExtra={
+                                    <View style={{ backgroundColor:'#ffffff08', borderRadius:12, borderWidth:1, borderColor: f.flexibleSchedule ? '#eab308' : '#ffffff15', padding:10, marginBottom:10 }}>
+                                        <TouchableOpacity
+                                            onPress={() => setF(p => ({ ...p, flexibleSchedule: !p.flexibleSchedule, matchMode: p.flexibleSchedule && p.matchMode === 'BOTH' ? 'PRACTICE' : p.matchMode }))}
+                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                            <Text style={{ color: f.flexibleSchedule ? '#eab308' : '#fff', fontSize:13, fontWeight:'800' }}>{t.flexLabel}</Text>
+                                            <View style={{ width:38, height:22, borderRadius:11, backgroundColor: f.flexibleSchedule ? '#eab308' : '#ffffff20', padding:2, alignItems: f.flexibleSchedule ? 'flex-end' : 'flex-start' }}>
+                                                <View style={{ width:18, height:18, borderRadius:9, backgroundColor:'#fff' }} />
+                                            </View>
+                                        </TouchableOpacity>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>{t.flexHint}</Text>
+                                    </View>
+                                }
                             />
 
                             {/* 4 - Geri kalanlar sadece esnek program KAPALI ise */}
                             {!f.flexibleSchedule && (
                                 <>
-                                    {/* Kort Ara */}
-                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                                        <Text style={[s.fieldLabel, { marginBottom:0 }]}>{t.courtLabel}{!f.flexibleSchedule && !f.courtMutual ? ' *' : ''}</Text>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                            {f.courtMutual && (
-                                                <TouchableOpacity
-                                                    onPress={() => set('courtMutual', false)}
-                                                    style={{ paddingVertical:4, paddingHorizontal:8, borderRadius:10, backgroundColor:'#ffffff10', borderWidth:1, borderColor:'#ffffff25' }}>
-                                                    <Text style={{ color:'#aaa', fontSize:11, fontWeight:'700' }}>↩ Vazgeç</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                            <TouchableOpacity
-                                                onPress={() => setF(p => ({ ...p, courtMutual: !p.courtMutual, courtReserved: p.courtMutual ? p.courtReserved : false }))}
-                                                style={{ flexDirection:'row', alignItems:'center', gap:4, paddingVertical:4, paddingHorizontal:8, borderRadius:10, backgroundColor: f.courtMutual ? cfg.color+'18' : '#ffffff08', borderWidth:1, borderColor: f.courtMutual ? cfg.color+'60' : '#ffffff15' }}
-                                            >
-                                                <View style={{ width:14, height:14, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
-                                                    {f.courtMutual && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
-                                                </View>
-                                                <Text style={{ color: f.courtMutual ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>🤝 {t.courtMutualBtn}</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
                                     {/* Mevcut rezervasyonlardan hızlı seçim */}
                                     {!f.courtMutual && !f.selectedCourt && myUnlistedRes.length > 0 && (
                                         <View style={{ marginBottom: 10 }}>
@@ -5045,16 +5257,85 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     )}
 
-                                    {!f.courtMutual && <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                    {/* Kort Adı + Ortaklaşa Kararlaştırılır + Kort Rezerve Edildi — tek satır */}
+                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:4 }}>
+                                        {!f.courtMutual ? (
+                                            <Text style={[s.fieldLabel, { marginBottom:0 }]}>{t.courtLabel}{!f.flexibleSchedule ? ' *' : ''}</Text>
+                                        ) : <View />}
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                            {f.courtMutual && (
+                                                <TouchableOpacity
+                                                    onPress={() => set('courtMutual', false)}
+                                                    style={{ paddingVertical:3, paddingHorizontal:3, borderRadius:10, backgroundColor:'#ffffff10', borderWidth:1, borderColor:'#ffffff25' }}>
+                                                    <Text style={{ color:'#aaa', fontSize:11, fontWeight:'700' }}>↩</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            <TouchableOpacity
+                                                onPress={() => setF(p => ({ ...p, courtMutual: !p.courtMutual, courtReserved: p.courtMutual ? p.courtReserved : false }))}
+                                                style={{ flexDirection:'row', alignItems:'center', gap:4, paddingVertical:3, paddingHorizontal:3, borderRadius:10, backgroundColor: f.courtMutual ? cfg.color+'18' : '#ffffff08', borderWidth:1, borderColor: f.courtMutual ? cfg.color+'60' : '#ffffff15' }}
+                                            >
+                                                <View style={{ width:13, height:13, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
+                                                    {f.courtMutual && <View style={{ width:5, height:5, borderRadius:3, backgroundColor: cfg.color }} />}
+                                                </View>
+                                                <Text style={{ color: f.courtMutual ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.courtMutualBtn}</Text>
+                                            </TouchableOpacity>
+                                            {!f.courtMutual && (
+                                                <TouchableOpacity
+                                                    onPress={() => set('courtReserved', !f.courtReserved)}
+                                                    style={{ paddingVertical:3, paddingHorizontal:3, borderRadius:10, backgroundColor: f.courtReserved ? cfg.color+'18' : '#ffffff08', borderWidth:1, borderColor: f.courtReserved ? cfg.color+'60' : '#ffffff15' }}>
+                                                    <Text style={{ color: f.courtReserved ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.courtReservedLabel}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    </View>
+                                    {!f.courtMutual && <View style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'center' }}>
                                         <TextInput
-                                            style={[s.fieldInput, { flex:1, marginBottom:0 }]}
+                                            style={[s.fieldInput, { flex:1.6, marginBottom:0 }]}
                                             value={f.courtSearchText}
                                             onChangeText={searchCourts}
                                             placeholder={t.courtSearchPlaceholder}
                                             placeholderTextColor={colors.textMuted}
                                         />
+                                        {isPadel ? (
+                                            <View style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }]}>
+                                                <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.surfaceLabel}</Text>
+                                                <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1}>Suni Çim</Text>
+                                            </View>
+                                        ) : (
+                                            <TouchableOpacity style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
+                                                <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.surfaceLabel}</Text>
+                                                <Text style={[s.triValue, { fontSize:10 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
+                                                    {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : '—'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        <TouchableOpacity style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
+                                            <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.venueLabel}</Text>
+                                            <Text style={[s.triValue, { fontSize:10 }, !f.venueType && s.triPlaceholder]} numberOfLines={1}>
+                                                {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : '—'}
+                                            </Text>
+                                        </TouchableOpacity>
                                         {searching && <ActivityIndicator color={cfg.color} style={{ alignSelf:'center' }} />}
                                     </View>}
+                                    <OptionPickerModal
+                                        visible={showSurfacePicker}
+                                        title={t.surfaceLabel}
+                                        options={courtSurfaces.map(sf => ({ value: sf.id, label: sf.label || getSurface(t, sf.id) }))}
+                                        value={f.surface}
+                                        onSelect={(v) => set('surface', v)}
+                                        onClose={() => setShowSurfacePicker(false)}
+                                    />
+                                    <OptionPickerModal
+                                        visible={showVenueTypePicker}
+                                        title={t.venueLabel}
+                                        options={(isPadel
+                                            ? [{ id:'OUTDOOR', label:t.outdoor }, { id:'INDOOR', label:t.indoor }, { id:'INDOOR_AC', label:t.indoorAc }]
+                                            : [{ id:'OUTDOOR', label:t.outdoor }, { id:'INDOOR', label:t.indoor }]
+                                        ).map(vt => ({ value: vt.id, label: noEmoji(vt.label) }))}
+                                        value={f.venueType}
+                                        onSelect={(v) => set('venueType', v)}
+                                        onClose={() => setShowVenueTypePicker(false)}
+                                    />
 
                                     {!f.courtMutual && <>
                                     {/* DB Sonuçları */}
@@ -5166,16 +5447,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     )}
 
-                                    {/* Kort Rezerve Edildi — kort "ortaklaşa kararlaştırılır" ise anlamsız, gösterilmez */}
-                                    {!f.courtMutual && (
-                                        <TouchableOpacity style={[s.checkRow, { marginBottom:10 }]} onPress={() => set('courtReserved', !f.courtReserved)}>
-                                            <View style={[s.checkbox, f.courtReserved && s.checkboxChecked]}>
-                                                {f.courtReserved && <Text style={{ color:'#fff', fontSize:12 }}>✓</Text>}
-                                            </View>
-                                            <Text style={s.checkLabel}>{t.courtReservedLabel}</Text>
-                                        </TouchableOpacity>
-                                    )}
-
                                     {/* Kişi Başı Kort Ücreti */}
                                     {!f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)) && (
                                         <View style={{ marginBottom:10 }}>
@@ -5189,96 +5460,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 keyboardType="numeric"
                                             />
                                         </View>
-                                    )}
-
-                                    {/* Tarih / Saat / Süre — yan yana */}
-                                    <Text style={s.fieldLabel}>{t.dateTimeLabel}</Text>
-                                    <View style={s.triRow}>
-                                        <TouchableOpacity style={[s.triBtn, f.matchDate && s.triBtnFilled]} onPress={() => set('showDatePicker', true)}>
-                                            <Text style={s.triLabel}>{t.dateLabel}</Text>
-                                            <Text style={[s.triValue, !f.matchDate && s.triPlaceholder]} numberOfLines={1}>
-                                                {f.matchDate ? `${String(f.matchDate.getDate()).padStart(2,'0')}/${String(f.matchDate.getMonth()+1).padStart(2,'0')}/${f.matchDate.getFullYear()}` : '—'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={[s.triBtn, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
-                                            <Text style={s.triLabel}>{t.timeLabel}</Text>
-                                            <Text style={[s.triValue, !f.matchTime && s.triPlaceholder]}>{f.matchTime || '—'}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={[s.triBtn, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
-                                            <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
-                                            <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    {/* Picker modalleri */}
-                                    <CalendarPickerModal
-                                        visible={f.showDatePicker}
-                                        value={f.matchDate}
-                                        onSelect={(date) => setF(p => ({ ...p, matchDate: date, showDatePicker: false }))}
-                                        onClose={() => set('showDatePicker', false)}
-                                    />
-                                    <TimePickerModal
-                                        visible={f.showTimePicker}
-                                        title={t.selectTime}
-                                        value={f.matchTime}
-                                        onSelect={(v) => set('matchTime', v)}
-                                        onClose={() => set('showTimePicker', false)}
-                                    />
-                                    <OptionPickerModal
-                                        visible={f.showDurationPicker}
-                                        title={t.selectDuration}
-                                        options={DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` }))}
-                                        value={f.duration}
-                                        onSelect={(v) => set('duration', v)}
-                                        onClose={() => set('showDurationPicker', false)}
-                                    />
-
-                                    {/* Zemin + Mekan Tipi */}
-                                    {isPadel ? (
-                                        <View style={{ flexDirection:'row', alignItems:'flex-start', gap:12, marginBottom:14 }}>
-                                            <View>
-                                                <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
-                                                <View style={[s.chipRow, { marginBottom:0 }]}>
-                                                    <View style={[s.chipBtn, s.chipBtnActive]}>
-                                                        <Text style={[s.chipBtnText, s.chipBtnTextActive]}>🟩 Suni Çim</Text>
-                                                    </View>
-                                                </View>
-                                            </View>
-                                            <View style={{ flex:1 }}>
-                                                <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.venueLabel}</Text>
-                                                <View style={[s.chipRow, { marginBottom:0, flexWrap:'wrap' }]}>
-                                                    {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor},{id:'INDOOR_AC',label:t.indoorAc}].map(vt => (
-                                                        <TouchableOpacity key={vt.id} onPress={() => set('venueType', vt.id)}
-                                                            style={[s.chipBtn, f.venueType===vt.id && s.chipBtnActive]}>
-                                                            <Text style={[s.chipBtnText, f.venueType===vt.id && s.chipBtnTextActive]}>{vt.label}</Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        </View>
-                                    ) : (
-                                        <>
-                                            <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.surfaceLabel}</Text>
-                                            <View style={s.chipRow}>
-                                                {courtSurfaces.map(sf => (
-                                                    <TouchableOpacity key={sf.id} onPress={() => set('surface', sf.id)}
-                                                        style={[s.chipBtn, f.surface===sf.id && s.chipBtnActive]}>
-                                                        <Text style={[s.chipBtnText, f.surface===sf.id && s.chipBtnTextActive]}>{sf.emoji} {sf.label || getSurface(t, sf.id)}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
-                                            <View style={{ marginBottom:14 }}>
-                                                <Text style={[s.fieldLabel, { marginTop:0 }]}>{t.venueLabel}</Text>
-                                                <View style={[s.chipRow, { marginBottom:0 }]}>
-                                                    {[{id:'OUTDOOR',label:t.outdoor},{id:'INDOOR',label:t.indoor}].map(vt => (
-                                                        <TouchableOpacity key={vt.id} onPress={() => set('venueType', vt.id)}
-                                                            style={[s.chipBtn, f.venueType===vt.id && s.chipBtnActive]}>
-                                                            <Text style={[s.chipBtnText, f.venueType===vt.id && s.chipBtnTextActive]}>{vt.label}</Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        </>
                                     )}
 
                                 </>
@@ -5312,13 +5493,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             </View>
         </Modal>
 
-        {/* Çift maç partneri — arama modali */}
-        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowPartnerSearch(false)}>
+        {/* Partner / Rakip 1 / Rakip 2 davet — ortak arama + arkadaşlar penceresi */}
+        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setInviteTarget(null)}>
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.choosePartnerBtn}</Text>
-                        <TouchableOpacity onPress={() => { setShowPartnerSearch(false); setPartnerQuery(''); setPartnerResults([]); }}>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>
+                            {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : t.choosePartnerBtn}
+                        </Text>
+                        <TouchableOpacity onPress={() => { setInviteTarget(null); setPartnerQuery(''); setPartnerResults([]); }}>
                             <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
                         </TouchableOpacity>
                     </View>
@@ -5332,6 +5515,24 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     />
                     {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
                     <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                        {partnerQuery.trim().length < 2 && (
+                            <>
+                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6, letterSpacing:0.3 }}>{t.friendsListLabel}</Text>
+                                {loadingFriends && <ActivityIndicator color={cfg.color} style={{ marginBottom:12 }} />}
+                                {!loadingFriends && friendsList.length === 0 && (
+                                    <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>{t.noFriendsLabel}</Text>
+                                )}
+                                {friendsList.map(u => (
+                                    <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                        <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.fullName || u.username}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{u.username}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </>
+                        )}
                         {partnerResults.map(u => (
                             <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                 <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
@@ -6824,13 +7025,26 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             const fmtT = (d) => d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
                             let prevDeadline = item.eventDate ? new Date(item.eventDate) : null;
                             const roundRanges = {};
+                            // Turun normal bitiş tarihi = o turdaki maçların en sık geçen (mode) deadline'ı.
+                            // Joker kullanılan maçların deadline'ı +7 gün uzadığı için tekil kalır ve
+                            // moddan farklı olur — bu sayede kart bazında "joker'lı" maçı ayırt edebiliyoruz.
+                            const roundDefaultDeadline = {};
                             for (const { phase, round } of roundKeys) {
-                                const rm = tournMatches.find(m => m.phase === phase && m.round === round && m.deadline);
                                 const key = `${phase}|${round}`;
-                                if (rm) {
-                                    const end = new Date(rm.deadline);
+                                const times = tournMatches
+                                    .filter(m => m.phase === phase && m.round === round && m.deadline)
+                                    .map(m => new Date(m.deadline).getTime());
+                                if (times.length) {
+                                    const counts = {};
+                                    let modeTime = times[0], modeCount = 0;
+                                    for (const tm of times) {
+                                        counts[tm] = (counts[tm] || 0) + 1;
+                                        if (counts[tm] > modeCount) { modeCount = counts[tm]; modeTime = tm; }
+                                    }
+                                    const end = new Date(modeTime);
                                     roundRanges[key] = prevDeadline ? `${fmtD(prevDeadline)} - ${fmtD(end)} ${fmtT(end)}` : `${fmtD(end)} ${fmtT(end)}`;
                                     prevDeadline = end;
+                                    roundDefaultDeadline[key] = modeTime;
                                 } else {
                                     roundRanges[key] = null;
                                 }
@@ -6987,6 +7201,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 );
                                                             })()}
                                                         </View>
+                                                        {(() => {
+                                                            if (isDone || isBye || isTBD || !match.deadline) return null;
+                                                            const roundDefaultTime = roundDefaultDeadline[`${match.phase}|${match.round}`];
+                                                            const matchDeadlineTime = new Date(match.deadline).getTime();
+                                                            if (!roundDefaultTime || matchDeadlineTime === roundDefaultTime) return null;
+                                                            const md = new Date(match.deadline);
+                                                            return (
+                                                                <Text style={{ color:'#c084fc', fontSize:8, fontWeight:'700', marginTop:2 }}>
+                                                                    🃏 Joker — Yeni bitiş: {fmtD(md)} {fmtT(md)}
+                                                                </Text>
+                                                            );
+                                                        })()}
                                                         <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:3, marginTop:3 }}>
                                                             {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:9 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
                                                             {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (

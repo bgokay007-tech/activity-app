@@ -64,7 +64,7 @@ export default function TimePickerModal({ visible, title, value, onSelect, onClo
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView keyboardShouldPersistTaps="always" style={{ flex: 1 }}>
+                    <ScrollView keyboardShouldPersistTaps="always" style={{ maxHeight: 340 }}>
                         <View style={s.grid}>
                             {times.map(item => {
                                 const isSelected = item === value;

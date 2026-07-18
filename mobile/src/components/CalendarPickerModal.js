@@ -6,7 +6,7 @@ import useT from '../hooks/useT';
 // Uygulama genelinde tek tarih seçilen her yerde (turnuva/maç tarihleri, konser/tiyatro
 // filtreleri, işletme rezervasyon formları vb.) kullanılan tek takvim bileşeni — hepsi
 // aynı görünsün diye buraya taşındı (önceden SubCategoryScreen.js'e özeldi).
-export default function CalendarPickerModal({ visible, value, onSelect, onClose }) {
+export default function CalendarPickerModal({ visible, value, onSelect, onClose, footerExtra }) {
     const t = useT();
     const today = new Date();
     const init = value || today;
@@ -56,6 +56,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
                             ))}
                         </View>
                     ))}
+                    {footerExtra}
                     <TouchableOpacity style={s.closeBtn} onPress={onClose}>
                         <Text style={s.closeTxt}>{t.closeCalendar}</Text>
                     </TouchableOpacity>
