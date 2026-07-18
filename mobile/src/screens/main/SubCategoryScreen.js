@@ -5203,33 +5203,36 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             )}
                                         </View>
                                     </View>
-                                    {!f.courtMutual && <View style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'center' }}>
+                                    {!f.courtMutual && <View style={{ flexDirection:'row', gap:4, marginBottom:6, alignItems:'center' }}>
                                         <TextInput
-                                            style={[s.fieldInput, { flex:1.6, marginBottom:0 }]}
+                                            style={[s.fieldInput, { flex:1, marginBottom:0 }]}
                                             value={f.courtSearchText}
                                             onChangeText={searchCourts}
                                             placeholder={t.courtSearchPlaceholder}
                                             placeholderTextColor={colors.textMuted}
                                         />
-                                        {isPadel ? (
-                                            <View style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }]}>
-                                                <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.surfaceLabel}</Text>
-                                                <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1}>Suni Çim</Text>
-                                            </View>
-                                        ) : (
-                                            <TouchableOpacity style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
-                                                <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.surfaceLabel}</Text>
-                                                <Text style={[s.triValue, { fontSize:10 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
-                                                    {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : '—'}
+                                        {/* Zemin + Mekan Türü — sağdan soldan daralttık, yan yana yerine alt alta (dikey) tek dar sütun */}
+                                        <View style={{ gap:2 }}>
+                                            {isPadel ? (
+                                                <View style={[s.triBtn, { paddingVertical:2, paddingHorizontal:2 }]}>
+                                                    <Text style={[s.triLabel, { fontSize:7 }]} numberOfLines={1}>{t.surfaceLabel}</Text>
+                                                    <Text style={[s.triValue, { fontSize:9 }]} numberOfLines={1}>Suni Çim</Text>
+                                                </View>
+                                            ) : (
+                                                <TouchableOpacity style={[s.triBtn, { paddingVertical:2, paddingHorizontal:2 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
+                                                    <Text style={[s.triLabel, { fontSize:7 }]} numberOfLines={1}>{t.surfaceLabel}</Text>
+                                                    <Text style={[s.triValue, { fontSize:9 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
+                                                        {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : '—'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            <TouchableOpacity style={[s.triBtn, { paddingVertical:2, paddingHorizontal:2 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
+                                                <Text style={[s.triLabel, { fontSize:7 }]} numberOfLines={1}>{t.venueLabel}</Text>
+                                                <Text style={[s.triValue, { fontSize:9 }, !f.venueType && s.triPlaceholder]} numberOfLines={1}>
+                                                    {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : '—'}
                                                 </Text>
                                             </TouchableOpacity>
-                                        )}
-                                        <TouchableOpacity style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
-                                            <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.venueLabel}</Text>
-                                            <Text style={[s.triValue, { fontSize:10 }, !f.venueType && s.triPlaceholder]} numberOfLines={1}>
-                                                {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : '—'}
-                                            </Text>
-                                        </TouchableOpacity>
+                                        </View>
                                         {searching && <ActivityIndicator color={cfg.color} style={{ alignSelf:'center' }} />}
                                     </View>}
                                     <OptionPickerModal
