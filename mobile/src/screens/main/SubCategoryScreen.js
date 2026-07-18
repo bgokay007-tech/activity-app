@@ -4559,6 +4559,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         partner: null,
         opp1Invite: null,
         opp2Invite: null,
+        singleOppInvite: null,
         genderReq: 'MIX',
         partnerGenderReq: 'MIX',
         opp1GenderReq: 'MIX',
@@ -4653,7 +4654,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             .finally(() => setLoadingFriends(false));
     }, [showPartnerSearch]);
 
-    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite' };
+    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite', singleOpp: 'singleOppInvite' };
     const choosePartner = (user) => {
         if (inviteTarget) set(INVITE_FIELD[inviteTarget], user);
         setInviteTarget(null);
@@ -4803,7 +4804,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         }
 
         try {
-            await api.post('/rivals', {
+            const created = await api.post('/rivals', {
                 category,
                 subCategory: sub,
                 matchType: isTeamSport ? 'FIND_OPPONENT' : f.matchType === 'DOUBLE' ? 'DOUBLE' : 'SINGLE',
@@ -4843,6 +4844,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueCourtId:       f.venueCourtId   || undefined,
                 venueReservationId,
             });
+            // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
+            // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
+            // farklı olarak burada ayrı bir istek — inviteToRival zaten her maç tipinde çalışıyor).
+            if (!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && created?.data?.id) {
+                api.post(`/rivals/${created.data.id}/invite`, { userId: f.singleOppInvite.id }).catch(() => {});
+            }
             onCreated();
             onClose();
             reset();
@@ -4928,6 +4935,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
                                                     <TouchableOpacity key={fmt.id} onPress={() => {
                                                         if (fmt.id === 'DOUBLE') setShowDoubleOptions(true);
+                                                        if (fmt.id === 'SINGLE') setInviteTarget('singleOpp');
                                                         setF(p => ({
                                                             ...p,
                                                             matchType: fmt.id,
@@ -4975,6 +4983,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </View>
                                         )}
                                     </View>
+                                    {!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && (
+                                        <TouchableOpacity onPress={() => set('singleOppInvite', null)}
+                                            style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5, marginBottom:8 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}:</Text>
+                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.singleOppInvite.fullName || f.singleOppInvite.username}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <RatingRangeModal
                                         visible={showRatingRange}
                                         minValue={f.minRating}
@@ -5499,7 +5515,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>
-                            {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : t.choosePartnerBtn}
+                            {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : inviteTarget === 'singleOpp' ? t.inviteOpponentTitle : t.choosePartnerBtn}
                         </Text>
                         <TouchableOpacity onPress={() => { setInviteTarget(null); setPartnerQuery(''); setPartnerResults([]); }}>
                             <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
