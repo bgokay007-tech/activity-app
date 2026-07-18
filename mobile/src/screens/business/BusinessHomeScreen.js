@@ -735,7 +735,7 @@ function VenueAnalyticsModal({ visible, venue, onClose }) {
                     <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
                         <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
                     </TouchableOpacity>
-                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1}>
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {venue?.name} — Doluluk Raporu
                     </Text>
                 </View>
@@ -1134,7 +1134,7 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                     <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
                         <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
                     </TouchableOpacity>
-                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1}>
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {venue?.name} — Rezervasyon Takvimi
                     </Text>
                 </View>
@@ -1183,11 +1183,11 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                 <View style={{ backgroundColor: BIZ_COLOR + '22', borderRadius: 8,
                                                     paddingVertical: 7, paddingHorizontal: 6, marginBottom: 6, alignItems: 'center',
                                                     borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
-                                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 11, textAlign: 'center' }} numberOfLines={1}>
+                                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 11, textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                         {court.courtName}
                                                     </Text>
                                                     {court.surface ? (
-                                                        <Text style={{ color: '#aaa', fontSize: 9, marginTop: 2 }} numberOfLines={1}>
+                                                        <Text style={{ color: '#aaa', fontSize: 9, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                             {SURFACE_ICON[court.surface]} {SURFACE_LABEL[court.surface]}
                                                         </Text>
                                                     ) : null}
@@ -1244,12 +1244,12 @@ function VenueScheduleModal({ visible, venue, onClose, onUserPress }) {
                                                             {slot.user ? (
                                                                 <TouchableOpacity onPress={() => onUserPress?.(slot.user)}>
                                                                     <Text style={{ color: '#60a5fa', fontSize: 10, marginTop: 4,
-                                                                        fontWeight: '700', textDecorationLine: 'underline' }} numberOfLines={1}>
+                                                                        fontWeight: '700', textDecorationLine: 'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                         @{slot.user.username}
                                                                     </Text>
                                                                 </TouchableOpacity>
                                                             ) : slot.manualName ? (
-                                                                <Text style={{ color: color + 'cc', fontSize: 10, marginTop: 4, fontWeight: '700' }} numberOfLines={1}>
+                                                                <Text style={{ color: color + 'cc', fontSize: 10, marginTop: 4, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                     📞 {slot.manualName}
                                                                 </Text>
                                                             ) : (
@@ -2342,7 +2342,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         ? <Text style={vc.emptyTxt}>Henüz menü kalemi yok. Yukarıdan ekleyin.</Text>
                         : menuItems.map(item => (
                             <View key={item.id} style={vc.menuRow}>
-                                <Text style={{ color: item.available ? '#fff' : '#555', flex: 1, fontSize: 13 }} numberOfLines={1}>
+                                <Text style={{ color: item.available ? '#fff' : '#555', flex: 1, fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     {MENU_CATS.find(c => c.key === item.category)?.label.split(' ')[0]} {item.name}
                                     {item.unit && item.unit !== '/saat' ? <Text style={{ color: '#666', fontSize: 11 }}> ({item.unit})</Text> : null}
                                 </Text>

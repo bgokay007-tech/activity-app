@@ -320,8 +320,8 @@ export default function CreatePostScreen({ navigation }) {
                                 : <View style={[s.trackCover, { backgroundColor: colors.surface2, justifyContent: 'center', alignItems: 'center' }]}><Text>🎵</Text></View>
                             }
                             <View style={{ flex: 1 }}>
-                                <Text style={s.trackTitle} numberOfLines={1}>{selectedTrack.title}</Text>
-                                <Text style={s.trackArtist} numberOfLines={1}>{selectedTrack.artist}</Text>
+                                <Text style={s.trackTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{selectedTrack.title}</Text>
+                                <Text style={s.trackArtist} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{selectedTrack.artist}</Text>
                             </View>
                             <TouchableOpacity onPress={() => setSelectedTrack(null)} style={{ paddingLeft: 5 }}>
                                 <Text style={{ color: colors.textMuted, fontSize: 16 }}>✕</Text>
@@ -404,8 +404,8 @@ export default function CreatePostScreen({ navigation }) {
                                 >
                                     <Image source={{ uri: track.album.cover_small }} style={s.trackRowCover} />
                                     <View style={{ flex: 1 }}>
-                                        <Text style={s.trackRowTitle} numberOfLines={1}>{track.title}</Text>
-                                        <Text style={s.trackRowArtist} numberOfLines={1}>{track.artist.name}</Text>
+                                        <Text style={s.trackRowTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.title}</Text>
+                                        <Text style={s.trackRowArtist} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.artist.name}</Text>
                                     </View>
                                     <TouchableOpacity
                                         style={s.previewBtn}

@@ -127,7 +127,7 @@ export default function BatakTableScreen({ route, navigation }) {
             <View style={s.scoreRow}>
                 {state.seats.map(seat => (
                     <View key={seat.seat} style={s.scoreCell}>
-                        <Text style={s.scoreName} numberOfLines={1}>
+                        <Text style={s.scoreName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {seat.userId === myId ? (t.batakYou || 'Sen') : seat.username}
                             {seat.seat === state.dealerIndex ? ' 🎯' : ''}
                             {!seat.connected ? ' 🤖' : ''}
@@ -140,13 +140,13 @@ export default function BatakTableScreen({ route, navigation }) {
             {/* Masa */}
             <View style={s.table}>
                 <View style={s.topSeat}>
-                    <Text style={s.seatLabel} numberOfLines={1}>{seatByIdx(topSeat).username}</Text>
+                    <Text style={s.seatLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(topSeat).username}</Text>
                     <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
                     {trickCardFor(topSeat) && <PlayingCard card={trickCardFor(topSeat)} small />}
                 </View>
                 <View style={s.middleRow}>
                     <View style={s.sideSeat}>
-                        <Text style={s.seatLabel} numberOfLines={1}>{seatByIdx(leftSeat).username}</Text>
+                        <Text style={s.seatLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(leftSeat).username}</Text>
                         <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(leftSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
                     </View>
                     <View style={s.trickCenter}>
@@ -156,7 +156,7 @@ export default function BatakTableScreen({ route, navigation }) {
                         {(!state.trick || state.trick.length === 0) && <Text style={s.tableEmoji}>🎴</Text>}
                     </View>
                     <View style={s.sideSeat}>
-                        <Text style={s.seatLabel} numberOfLines={1}>{seatByIdx(rightSeat).username}</Text>
+                        <Text style={s.seatLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(rightSeat).username}</Text>
                         <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(rightSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
                     </View>
                 </View>

@@ -172,21 +172,21 @@ export default function CinemaHomeScreen({ navigation }) {
                             style={{ flex: 1 }}
                         />
                         <TouchableOpacity style={s.compactBtn} onPress={() => setShowDateModal(true)}>
-                            <Text style={s.compactBtnText} numberOfLines={1}>
+                            <Text style={s.compactBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {dateFrom || dateTo
                                     ? `📅 ${dateFrom ? fmtDate(dateFrom) : '…'} – ${dateTo ? fmtDate(dateTo) : '…'}`
                                     : (t.cinemaDateBtnPh || '📅 Tarih')}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={s.compactBtn} onPress={() => setShowTimeModal(true)}>
-                            <Text style={s.compactBtnText} numberOfLines={1}>
+                            <Text style={s.compactBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {timeFrom || timeTo
                                     ? `🕐 ${timeFrom || '…'}–${timeTo || '…'}`
                                     : (t.cinemaTimeBtnPh || '🕐 Saat')}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={s.compactBtn} onPress={() => setShowGenreModal(true)}>
-                            <Text style={s.compactBtnText} numberOfLines={1}>
+                            <Text style={s.compactBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {selectedGenres.length > 0
                                     ? `🎭 ${selectedGenres.length}`
                                     : (t.cinemaGenreBtnPh || '🎭 Tür')}

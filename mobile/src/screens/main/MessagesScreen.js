@@ -104,7 +104,7 @@ export default function MessagesScreen({ navigation }) {
                 </View>
                 <View style={styles.rowContent}>
                     <View style={styles.rowTop}>
-                        <Text style={[styles.name, unread && { color: '#fff', fontWeight: '900' }]} numberOfLines={1}>
+                        <Text style={[styles.name, unread && { color: '#fff', fontWeight: '900' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {other?.fullName || other?.username}
                         </Text>
                         {last && (
@@ -113,7 +113,7 @@ export default function MessagesScreen({ navigation }) {
                             </Text>
                         )}
                     </View>
-                    <Text style={[styles.lastMsg, unread && { color: '#d1d5db', fontWeight: '600' }]} numberOfLines={1}>
+                    <Text style={[styles.lastMsg, unread && { color: '#d1d5db', fontWeight: '600' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {last ? (last.senderId === myId ? (t.youPrefix || 'Sen: ') : '') + last.content : t.noMsgYet}
                     </Text>
                 </View>

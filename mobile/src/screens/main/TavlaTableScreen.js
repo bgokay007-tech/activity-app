@@ -135,11 +135,11 @@ export default function TavlaTableScreen({ route, navigation }) {
 
             <View style={s.scoreRow}>
                 <View style={s.scoreCell}>
-                    <Text style={s.scoreName} numberOfLines={1}>{t.tavlaYou || 'Sen'}{!state.players[myIndex]?.connected ? ' 🤖' : ''}</Text>
+                    <Text style={s.scoreName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.tavlaYou || 'Sen'}{!state.players[myIndex]?.connected ? ' 🤖' : ''}</Text>
                     <Text style={s.scoreValue}>{t.tavlaBorneOff || 'Çıkan'}: {myBorneOff}/15</Text>
                 </View>
                 <View style={s.scoreCell}>
-                    <Text style={s.scoreName} numberOfLines={1}>{opponent?.username}{opponent && !opponent.connected ? ' 🤖' : ''}</Text>
+                    <Text style={s.scoreName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opponent?.username}{opponent && !opponent.connected ? ' 🤖' : ''}</Text>
                     <Text style={s.scoreValue}>{t.tavlaBorneOff || 'Çıkan'}: {oppBorneOff}/15</Text>
                 </View>
             </View>

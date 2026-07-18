@@ -95,7 +95,7 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                         ) : cart.map(item => (
                             <View key={item.key} style={cm.cartRow}>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={cm.cartRowTitle} numberOfLines={1}>{item.venue.name} — {item.court.name}</Text>
+                                    <Text style={cm.cartRowTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.venue.name} — {item.court.name}</Text>
                                     <Text style={cm.cartRowSub}>{formatDateLabel(item.date, t.dateLocale)} · {item.slot.start}–{item.slot.end}</Text>
                                 </View>
                                 <Text style={cm.cartRowPrice}>{priceOf(item) > 0 ? `${priceOf(item)}₺` : t.vsFree}</Text>
@@ -391,7 +391,7 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                     {(() => {
                                         const effIndoor = court.indoor ?? venue?.courtIndoorDefault ?? false;
                                         return (
-                                            <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: 'center', marginBottom: 4 }} numberOfLines={1}>
+                                            <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: 'center', marginBottom: 4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {court.surface ? `⬜ ${t['surface' + court.surface] || court.surface}  ·  ` : ''}{effIndoor ? t.indoor : t.outdoor}
                                             </Text>
                                         );

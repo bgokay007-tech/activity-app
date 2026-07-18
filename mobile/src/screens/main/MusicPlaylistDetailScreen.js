@@ -58,7 +58,7 @@ export default function MusicPlaylistDetailScreen({ route, navigation }) {
                     <Text style={s.backBtnText}>‹</Text>
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
-                    <Text style={s.title} numberOfLines={1}>{playlist.name}</Text>
+                    <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playlist.name}</Text>
                     <Text style={s.subtitle}>{tracks.length} şarkı</Text>
                 </View>
                 <TouchableOpacity onPress={handleDeletePlaylist} style={s.deleteBtn}>
@@ -80,8 +80,8 @@ export default function MusicPlaylistDetailScreen({ route, navigation }) {
                                 <View style={[s.rowArt, s.rowArtFallback]}><Text style={{ fontSize: 16 }}>🎵</Text></View>
                             )}
                             <View style={{ flex: 1, marginLeft: 10 }}>
-                                <Text style={s.rowTitle} numberOfLines={1}>{item.title}</Text>
-                                <Text style={s.rowArtist} numberOfLines={1}>{item.artist}</Text>
+                                <Text style={s.rowTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.title}</Text>
+                                <Text style={s.rowArtist} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.artist}</Text>
                             </View>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => handleRemove(item)} style={s.rowIconBtn}>

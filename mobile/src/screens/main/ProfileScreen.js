@@ -482,8 +482,8 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             <View style={fc.topRow}>
                                 <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>
                                 <View style={{ flexShrink: 1 }}>
-                                    <Text style={fc.smallSportName} numberOfLines={1}>{item.subCategory?.toUpperCase()}</Text>
-                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1}>{item.alias}</Text> : null}
+                                    <Text style={fc.smallSportName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.subCategory?.toUpperCase()}</Text>
+                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.alias}</Text> : null}
                                 </View>
                                 {item.assessmentCompleted && (
                                     <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
@@ -2513,7 +2513,7 @@ export default function ProfileScreen({ route, navigation }) {
                         {/* Right: Name + personal info column */}
                         <View style={{ flex: 1, paddingTop: 3, gap: 3 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 2 }}>
-                                <Text style={[s.fullName, { marginBottom: 0, flex: 1 }]} numberOfLines={1}>
+                                <Text style={[s.fullName, { marginBottom: 0, flex: 1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     {profile?.fullName || profile?.username}
                                 </Text>
                                 {isOwnProfile && (
@@ -2934,7 +2934,7 @@ export default function ProfileScreen({ route, navigation }) {
                                         <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', gap:3 }}>
                                             <View style={{ flex:1 }}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2 }}>
-                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flexShrink:1 }} numberOfLines={1}>{tourn.name}</Text>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{tourn.name}</Text>
                                                     {tourn.myPlacement ? (
                                                         <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
                                                             <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'800' }}>
@@ -3123,7 +3123,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                         </View>
                                                         {archiveStandings.map((row2, i) => (
                                                             <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:2, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
-                                                                <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row2.name}</Text>
+                                                                <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{i+1}. {row2.name}</Text>
                                                                 {[row2.played, row2.won, row2.lost, (() => { const d=row2.setsWon-row2.setsLost; return (d>=0?'+':'')+d; })(), row2.points].map((v,j) => (
                                                                     <Text key={j} style={{ color: j===4 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===4 ? '800' : '400', width:28, textAlign:'center' }}>{String(v)}</Text>
                                                                 ))}
@@ -3718,14 +3718,14 @@ export default function ProfileScreen({ route, navigation }) {
                                 {!!story.musicName && (
                                     <View style={{ position: 'absolute', top: 90, left: 14, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00000075', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4, maxWidth: '65%' }}>
                                         <Text style={{ fontSize: 14 }}>🎵</Text>
-                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{story.musicName}{story.musicArtist ? ` – ${story.musicArtist}` : ''}</Text>
+                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{story.musicName}{story.musicArtist ? ` – ${story.musicArtist}` : ''}</Text>
                                     </View>
                                 )}
                                 {/* Konum — sağ alt */}
                                 {!!story.location && (
                                     <View style={{ position: 'absolute', bottom: isOwnProfile ? 180 : 72, right: 14, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 7, paddingVertical: 3 }}>
                                         <Text style={{ fontSize: 12 }}>📍</Text>
-                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{story.location}</Text>
+                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{story.location}</Text>
                                     </View>
                                 )}
                                 {/* Yazı overlay — ortada */}
@@ -3754,7 +3754,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                                     : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{v.user?.username?.[0]?.toUpperCase()}</Text>
                                                                 }
                                                             </View>
-                                                            <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600', marginTop: 4 }} numberOfLines={1}>
+                                                            <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600', marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                 {v.user?.username}
                                                             </Text>
                                                         </View>

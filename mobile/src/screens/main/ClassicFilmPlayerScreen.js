@@ -34,7 +34,7 @@ export default function ClassicFilmPlayerScreen({ route, navigation }) {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={s.closeBtn}>
                     <Text style={s.closeBtnText}>✕</Text>
                 </TouchableOpacity>
-                <Text style={s.title} numberOfLines={1}>{filmTitle}</Text>
+                <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{filmTitle}</Text>
             </View>
 
             {loading || !videoUrl ? (

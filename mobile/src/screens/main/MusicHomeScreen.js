@@ -42,8 +42,8 @@ function ConcertCard({ item, t }) {
                 <View style={[s.concertImg, s.rowArtFallback]}><Text style={{ fontSize: 22 }}>🎤</Text></View>
             )}
             <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={s.concertArtist} numberOfLines={1}>{item.artist}</Text>
-                <Text style={s.concertMeta} numberOfLines={1}>
+                <Text style={s.concertArtist} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.artist}</Text>
+                <Text style={s.concertMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {[item.venueName, item.city].filter(Boolean).join(' · ')}
                 </Text>
                 <Text style={s.concertMeta}>
@@ -67,7 +67,7 @@ function MusicEventCard({ item, myId, onJoin, onOpen, t }) {
     return (
         <TouchableOpacity style={s.eventCard} onPress={() => onOpen(item)} activeOpacity={0.8}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Text style={s.eventOwner} numberOfLines={1}>👤 {item.sender?.fullName || item.sender?.username}</Text>
+                <Text style={s.eventOwner} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>👤 {item.sender?.fullName || item.sender?.username}</Text>
                 <Text style={s.eventCount}>👥 {participantCount}</Text>
             </View>
             {item.message ? <Text style={s.eventMessage} numberOfLines={3}>{item.message}</Text> : null}
@@ -131,8 +131,8 @@ function TrackRow({ track, onPlay, onLike, liked, onAddToPlaylist }) {
                     <View style={[s.rowArt, s.rowArtFallback]}><Text style={{ fontSize: 16 }}>🎵</Text></View>
                 )}
                 <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={s.rowTitle} numberOfLines={1}>{track.title}</Text>
-                    <Text style={s.rowArtist} numberOfLines={1}>{track.artist}</Text>
+                    <Text style={s.rowTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.title}</Text>
+                    <Text style={s.rowArtist} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.artist}</Text>
                 </View>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onLike(track)} style={s.rowIconBtn}>

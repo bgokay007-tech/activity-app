@@ -439,10 +439,10 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
                 <View style={s.cardTop}>
                     <Text style={s.cardEmoji}>{subEmoji}</Text>
                     <View style={{ flex: 1 }}>
-                        <Text style={s.cardSub} numberOfLines={1}>
+                        <Text style={s.cardSub} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {item.subCategory?.toUpperCase()}{item.matchMode === 'COMPETITIVE' ? ' · Rekabetçi' : ''}
                         </Text>
-                        <Text style={s.cardUser} numberOfLines={1}>{item.sender?.fullName || item.sender?.username || '—'}</Text>
+                        <Text style={s.cardUser} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.sender?.fullName || item.sender?.username || '—'}</Text>
                     </View>
                     <View style={[s.catBadge, { backgroundColor: catMeta.color + '22', borderColor: catMeta.color + '55' }]}>
                         <Text style={[s.catBadgeText, { color: catMeta.color }]}>{catMeta.emoji} {catMeta.label}</Text>
@@ -450,7 +450,7 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
                 </View>
                 <View style={s.infoRow}>
                     {item.matchDate && <Text style={s.infoChip}>📅 {fmtDate(item.matchDate)}{item.matchTime ? ` · ${item.matchTime}` : ''}</Text>}
-                    {(item.location || item.courtAddress) && <Text style={s.infoChip} numberOfLines={1}>📍 {item.location || item.courtAddress}</Text>}
+                    {(item.location || item.courtAddress) && <Text style={s.infoChip} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📍 {item.location || item.courtAddress}</Text>}
                     {item.duration && <Text style={s.infoChip}>⏱ {item.duration} dk</Text>}
                     {item.level && <Text style={s.infoChip}>🎯 {item.level}</Text>}
                 </View>
@@ -490,9 +490,9 @@ function TicketedCard({ item, emoji }) {
                 <View style={[s.ticketedImg, s.ticketedImgFallback]}><Text style={{ fontSize: 22 }}>{emoji}</Text></View>
             )}
             <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={s.ticketedTitle} numberOfLines={1}>{item.name || item.title}</Text>
-                {item.artist ? <Text style={s.ticketedMeta} numberOfLines={1}>{item.artist}</Text> : null}
-                <Text style={s.ticketedMeta} numberOfLines={1}>
+                <Text style={s.ticketedTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.name || item.title}</Text>
+                {item.artist ? <Text style={s.ticketedMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.artist}</Text> : null}
+                <Text style={s.ticketedMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {[item.venueName, item.city].filter(Boolean).join(' · ')}
                 </Text>
                 {dateLabel && <Text style={s.ticketedMeta}>{dateLabel}{item.time ? ` · ${item.time.slice(0, 5)}` : ''}</Text>}
@@ -518,9 +518,9 @@ function CourseFeedCard({ item }) {
         <View style={s.ticketedCard}>
             <View style={[s.ticketedImg, s.ticketedImgFallback]}><Text style={{ fontSize: 22 }}>🎓</Text></View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={s.ticketedTitle} numberOfLines={1}>{item.user?.fullName || item.user?.username}</Text>
-                <Text style={s.ticketedMeta} numberOfLines={1}>{item.credentialLevel}</Text>
-                <Text style={s.ticketedMeta} numberOfLines={1}>📍 {item.location}{item.city ? `, ${item.city}` : ''}</Text>
+                <Text style={s.ticketedTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.user?.fullName || item.user?.username}</Text>
+                <Text style={s.ticketedMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.credentialLevel}</Text>
+                <Text style={s.ticketedMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📍 {item.location}{item.city ? `, ${item.city}` : ''}</Text>
                 {priceLabel ? <Text style={s.ticketedPrice}>{priceLabel}</Text> : null}
             </View>
         </View>
@@ -784,12 +784,12 @@ export default function ActivityFeedScreen({ navigation }) {
                         <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" compact />
                         <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} compact />
                         <TouchableOpacity style={[s.pickerField, { flex: 1 }, dateLabel && s.pickerFieldActive]} onPress={() => setShowDateModal(true)} activeOpacity={0.8}>
-                            <Text style={[s.pickerFieldText, dateLabel && { color: colors.purpleLight }]} numberOfLines={1}>
+                            <Text style={[s.pickerFieldText, dateLabel && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {dateLabel || '📅'}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[s.pickerField, { flex: 1 }, timeLabel && s.pickerFieldActive]} onPress={() => setShowTimeModal(true)} activeOpacity={0.8}>
-                            <Text style={[s.pickerFieldText, timeLabel && { color: colors.purpleLight }]} numberOfLines={1}>
+                            <Text style={[s.pickerFieldText, timeLabel && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {timeLabel || '🕐'}
                             </Text>
                         </TouchableOpacity>
@@ -818,7 +818,7 @@ export default function ActivityFeedScreen({ navigation }) {
                         onPress={() => setShowSubsModal(true)}
                         activeOpacity={0.8}
                     >
-                        <Text style={[s.pickerFieldText, selSubs.length > 0 && { color: colors.purpleLight }]} numberOfLines={1}>
+                        <Text style={[s.pickerFieldText, selSubs.length > 0 && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {selSubs.length > 0 ? selSubs.map(k => SUB_MAP[k]?.label || k).join(', ') : 'Dal seç…'}
                         </Text>
                         <Text style={s.pickerArrow}>›</Text>

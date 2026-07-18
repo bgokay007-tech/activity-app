@@ -77,8 +77,8 @@ export default function NowPlayingScreen({ navigation }) {
             </View>
 
             <View style={s.infoBlock}>
-                <Text style={s.songTitle} numberOfLines={1}>{track.title}</Text>
-                <Text style={s.songArtist} numberOfLines={1}>{track.artist}</Text>
+                <Text style={s.songTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.title}</Text>
+                <Text style={s.songArtist} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.artist}</Text>
             </View>
 
             <TouchableOpacity

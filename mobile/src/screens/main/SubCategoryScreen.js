@@ -594,8 +594,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const ratingOf = (jr) => jr?.user?.interests?.find(i => i.subCategory === sub)?.skillRating;
         const Half = ({ jr }) => (
             <View>
-                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(jr)}</Text>
-                <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{jr?.user?.username}{ratingOf(jr) != null ? `  ${starEmoji(Number(ratingOf(jr)))} ${Number(ratingOf(jr)).toFixed(2)}` : ''}</Text>
+                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(jr)}</Text>
+                <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{jr?.user?.username}{ratingOf(jr) != null ? `  ${starEmoji(Number(ratingOf(jr)))} ${Number(ratingOf(jr)).toFixed(2)}` : ''}</Text>
             </View>
         );
 
@@ -609,7 +609,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 const target = byUserId.get(p1.partnerId);
                 slot2 = (
                     <View>
-                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
+                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
                         {isMine && (
                             <TouchableOpacity onPress={() => setMyRivalJoinPartner(null)} disabled={partnerActionLoading} style={{ marginTop:2 }}>
                                 <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>✕ Geri Çek</Text>
@@ -620,7 +620,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             } else if (invitedBy) {
                 slot2 = (
                     <View>
-                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} davet etti</Text>
+                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(invitedBy)} davet etti</Text>
                         {isMine && (
                             <TouchableOpacity onPress={() => setMyRivalJoinPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
                                 <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>✓ Kabul Et</Text>
@@ -631,7 +631,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             } else {
                 slot2 = (
                     <View>
-                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>Partner aranıyor</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Partner aranıyor</Text>
                         {isMine && (
                             <TouchableOpacity
                                 onPress={() => { setJoinInviteCandidates(solos.filter(s => s.userId !== myId)); setShowJoinInvitePicker(true); }}
@@ -805,8 +805,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <View>
                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                     <TouchableOpacity onPress={() => !swapSlot && p.id && navigation.push('Profile', { userId: p.id })} style={{ flex:1 }}>
-                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{p.username}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p.username}</Text>
                                                     </TouchableOpacity>
                                                     {isSelected && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'900', marginLeft:4 }}>✓</Text>}
                                                     {isTarget  && <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'900', marginLeft:4 }}>⇄</Text>}
@@ -859,7 +859,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <SlotBox slot="partner" p={PartnerContent} fallback="Partner yok" gReqLabel={null} />
                                             ) : pendingPartnerInvite ? (
                                                 <View>
-                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
+                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
                                                     <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
                                                 </View>
                                             ) : (
@@ -1359,7 +1359,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                     <View style={{ flex:1, minWidth:0 }}>
-                        <Text style={[s.cardName, { fontSize: moderateScale(13) }]} numberOfLines={1}>{senderAlias(item.sender)}</Text>
+                        <Text style={[s.cardName, { fontSize: moderateScale(13) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
                         {item.sender?.interests?.[0]?.assessmentCompleted && (
                             <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(10) }]}>
                                 {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
@@ -1397,9 +1397,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Tarih / Saat / Süre */}
                 {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
                     <View style={{ gap:3, marginBottom:3 }}>
-                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text>}
+                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text>}
                         {(item.matchTime || item.duration) && (
-                            <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1}>
+                            <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {item.matchTime ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const dur=parseInt(item.duration||0); const tot=h*60+m+dur; const endT=dur>0?`–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`:''; return `🕐 ${item.matchTime}${endT}`; })() : ''}{item.matchTime && item.duration ? '  ·  ' : ''}{item.duration ? `${item.duration} ${t.timeMinSuffix}` : ''}
                             </Text>
                         )}
@@ -1409,16 +1409,16 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginBottom:3 }}>
                     💬 {item.commentCount ?? 0}
                 </Text>
-                <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1}>
+                <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {item.isCourtReserved ? `✅ ${t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
                 </Text>
                 {item.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
-                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1}>🏟️ {item.courtName}</Text>
+                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🏟️ {item.courtName}</Text>
                     </TouchableOpacity>
                 )}
                 {item.courtFeePerPerson > 0 && (
-                    <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1}>💰 {item.courtFeePerPerson}₺ / {t.perPerson}</Text>
+                    <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>💰 {item.courtFeePerPerson}₺ / {t.perPerson}</Text>
                 )}
 
                 {item.flexibleSchedule && (
@@ -1429,8 +1429,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 )}
                 {(item.level || item.levelDetail) && (
                     <View style={[s.levelRow, { gap:3, marginBottom:3 }]}>
-                        {item.level && <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>}
-                        {item.levelDetail && <Text style={[s.levelDetail, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1}>{item.levelDetail}</Text>}
+                        {item.level && <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>}
+                        {item.levelDetail && <Text style={[s.levelDetail, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.levelDetail}</Text>}
                     </View>
                 )}
                 {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
@@ -1439,7 +1439,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <View style={[s.participantsRow, { gap:3, marginBottom:3 }]}>
                         {participants.filter(p => p?.id).map((p, i) => (
                             <View key={p.id || i} style={[s.participantChip, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
-                                <Text style={[s.participantChipText, { fontSize: moderateScale(10) }]} numberOfLines={1}>✓ {senderAlias(p)}</Text>
+                                <Text style={[s.participantChipText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✓ {senderAlias(p)}</Text>
                             </View>
                         ))}
                     </View>
@@ -1447,7 +1447,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Bekleyen istek badge */}
                 {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                     <View style={[s.pendingBadge, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0, marginBottom:3 }]}>
-                        <Text style={[s.pendingBadgeText, { fontSize: moderateScale(11) }]} numberOfLines={1}>📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests || 'istek'}</Text>
+                        <Text style={[s.pendingBadgeText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests || 'istek'}</Text>
                     </View>
                 )}
             </TouchableOpacity>
@@ -1463,7 +1463,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[s.cancelBtn, { flex: 1, paddingHorizontal:0, paddingVertical: moderateScale(5), borderRadius: moderateScale(10) }]} onPress={handleCancel}>
-                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1}>{t.cancelAdBtn}</Text>
+                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.cancelAdBtn}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : myInvite ? (
@@ -1471,7 +1471,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         style={{ backgroundColor:'#16a34a', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
                         onPress={() => setDetailVisible(true)}
                     >
-                        <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>{t.invitedBadge}</Text>
+                        <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.invitedBadge}</Text>
                     </TouchableOpacity>
                 ) : mySentReq === 'AWAITING_JOINER_CONFIRM' ? (
                     <View style={{ gap:3 }}>
@@ -1806,7 +1806,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         <View style={{ flex: 1 }}>
                             <Text style={s.fieldLabel}>📅 Tarih</Text>
                             <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center', paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0 }]} onPress={() => setCalVisible(true)}>
-                                <Text style={{ color: form.matchDate ? '#fff' : colors.textMuted, fontSize: 13 }} numberOfLines={1}>
+                                <Text style={{ color: form.matchDate ? '#fff' : colors.textMuted, fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     {form.matchDate
                                         ? form.matchDate.toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'short' })
                                         : 'Tarih seçin...'}
@@ -1816,7 +1816,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         <View style={{ flex: 1 }}>
                             <Text style={s.fieldLabel}>🕐 Saat</Text>
                             <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center', paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0 }]} onPress={() => setTimeVisible(true)}>
-                                <Text style={{ color: form.matchTime ? '#fff' : colors.textMuted, fontSize: 13 }} numberOfLines={1}>
+                                <Text style={{ color: form.matchTime ? '#fff' : colors.textMuted, fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     {form.matchTime || 'Saat seçin...'}
                                 </Text>
                             </TouchableOpacity>
@@ -2846,7 +2846,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             borderColor: isSel ? '#f59e0b' : isTgt ? '#4ade80' : '#ffffff15',
                                             backgroundColor: isSel ? '#f59e0b18' : isTgt ? '#4ade8015' : '#1e293b' }}
                                     >
-                                        <Text style={{ color, fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                                        <Text style={{ color, fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                             {senderAlias(p)}
                                         </Text>
                                         <Text style={{ color: isSel ? '#f59e0b' : isTgt ? '#4ade80' : colors.textMuted, fontSize:10 }}>
@@ -2875,7 +2875,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
                                         <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>👑 Kurucu</Text>
                                         <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, marginBottom:2, backgroundColor:'#1e293b' }}>
-                                            <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1}>{senderAlias(match.sender)} 🔒</Text>
+                                            <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
                                         </View>
                                         {mkSlot('partner', partner, '#c084fc')}
                                     </View>
@@ -2897,7 +2897,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <View style={{ marginBottom:12, gap:3 }}>
                             {participantsArr.map(p => (
                                 <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:7, paddingVertical:3 }}>
-                                    <Text style={{ color:'#94a3b8', fontSize:13 }} numberOfLines={1}>{senderAlias(p)}</Text>
+                                    <Text style={{ color:'#94a3b8', fontSize:13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
                                     <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))}>
                                         <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>Çıkar</Text>
                                     </TouchableOpacity>
@@ -2972,7 +2972,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     {/* Court search */}
                                     {propSelectedCourt ? (
                                         <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#16a34a15', borderRadius:8, padding:7, borderWidth:1, borderColor:'#16a34a50', gap:3 }}>
-                                            <Text style={{ color:'#4ade80', fontSize:13, flex:1 }} numberOfLines={1}>🏟️ {propSelectedCourt.name}{propSelectedCourt.city ? `  · ${propSelectedCourt.city}` : ''}</Text>
+                                            <Text style={{ color:'#4ade80', fontSize:13, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🏟️ {propSelectedCourt.name}{propSelectedCourt.city ? `  · ${propSelectedCourt.city}` : ''}</Text>
                                             <TouchableOpacity onPress={clearPropCourt}><Text style={{ color: colors.textMuted, fontSize:14 }}>✕</Text></TouchableOpacity>
                                         </View>
                                     ) : (
@@ -4036,7 +4036,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                 {(() => {
                     const effIndoor = court.indoor ?? venue?.courtIndoorDefault ?? false;
                     return (
-                        <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginBottom:3 }} numberOfLines={1}>
+                        <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {court.surface ? `⬜ ${getSurface(t, court.surface)}  ·  ` : ''}{effIndoor ? t.indoor : t.outdoor}
                         </Text>
                     );
@@ -4205,7 +4205,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                     {/* Header */}
                     <View style={[vb.header, { padding: 3 }]}>
                         <View style={{ flex: 1 }}>
-                            <Text style={vb.title} numberOfLines={1}>{venue?.name || 'Tesis'}</Text>
+                            <Text style={vb.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{venue?.name || 'Tesis'}</Text>
                             {venue && <Text style={vb.subtitle}>{venue.branch} · {venue.city}</Text>}
                         </View>
                     </View>
@@ -4240,7 +4240,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     ))}
                                     {initialCourtId && (
                                         <View style={{ backgroundColor:'#9333ea20', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea50', justifyContent:'center' }}>
-                                            <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }} numberOfLines={1}>📍 {venue.name}</Text>
+                                            <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📍 {venue.name}</Text>
                                         </View>
                                     )}
                                 </>
@@ -4921,7 +4921,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                                 borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                             }]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:11 }, isActive && { color:'#fff' }]} numberOfLines={1}>
+                                                            <Text style={[s.chipBtnText, { fontSize:11 }, isActive && { color:'#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                 {noEmoji(mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode)}
                                                             </Text>
                                                         </TouchableOpacity>
@@ -4946,7 +4946,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         }));
                                                     }}
                                                         style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive]}>
-                                                        <Text style={[s.chipBtnText, { fontSize:11, textAlign:'center' }, f.matchType===fmt.id && s.chipBtnTextActive]} numberOfLines={1}>{fmt.label}</Text>
+                                                        <Text style={[s.chipBtnText, { fontSize:11, textAlign:'center' }, f.matchType===fmt.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{fmt.label}</Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
@@ -4956,18 +4956,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {/* Derece + Cinsiyet Kısıtlaması — tek satır, içeriğe göre boyutlanır */}
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:8 }}>
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1}>{t.ratingLimitLabel}</Text>
+                                            <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
                                             <TouchableOpacity
                                                 style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.minRating || f.maxRating) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:3 }}
                                                 onPress={() => setShowRatingRange(true)}>
-                                                <Text style={[s.triValue, { fontSize:10 }, !(f.minRating || f.maxRating) && s.triPlaceholder]} numberOfLines={1}>
+                                                <Text style={[s.triValue, { fontSize:10 }, !(f.minRating || f.maxRating) && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                     {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1}>{t.genderReqLabel || 'Rakip Cinsiyeti'}</Text>
+                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderReqLabel || 'Rakip Cinsiyeti'}</Text>
                                                 <View style={{ flexDirection:'row', gap:3 }}>
                                                     {[
                                                         { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
@@ -4976,7 +4976,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     ].map(g => (
                                                         <TouchableOpacity key={g.id} onPress={() => set('genderReq', g.id)}
                                                             style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.genderReq===g.id && s.chipBtnActive]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
+                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{g.label}</Text>
                                                         </TouchableOpacity>
                                                     ))}
                                                 </View>
@@ -4986,8 +4986,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && (
                                         <TouchableOpacity onPress={() => set('singleOppInvite', null)}
                                             style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5, marginBottom:8 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}:</Text>
-                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.singleOppInvite.fullName || f.singleOppInvite.username}</Text>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteSendBtn}:</Text>
+                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.singleOppInvite.fullName || f.singleOppInvite.username}</Text>
                                             <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
                                         </TouchableOpacity>
                                     )}
@@ -5050,7 +5050,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             <View style={[s.triRow, { marginBottom:6 }]}>
                                 <TouchableOpacity style={[s.triBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchDate && s.triBtnFilled]} onPress={() => set('showDatePicker', true)}>
                                     <Text style={s.triLabel}>{t.dateLabel}</Text>
-                                    <Text style={[s.triValue, !f.matchDate && s.triPlaceholder]} numberOfLines={1}>
+                                    <Text style={[s.triValue, !f.matchDate && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                         {f.flexibleSchedule ? noEmoji(t.flexLabel) : (f.matchDate ? `${String(f.matchDate.getDate()).padStart(2,'0')}/${String(f.matchDate.getMonth()+1).padStart(2,'0')}/${f.matchDate.getFullYear()}` : '—')}
                                     </Text>
                                 </TouchableOpacity>
@@ -5153,7 +5153,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         }}
                                                         style={{ backgroundColor: '#22c55e10', borderRadius: 8, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#22c55e30', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                                         <View style={{ flex: 1 }}>
-                                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                 {r.venue?.name}{r.court?.name ? ` · ${r.court.name}` : ''}
                                                             </Text>
                                                             <Text style={{ color: '#86efac', fontSize: 11, marginTop: 2 }}>
@@ -5214,20 +5214,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         {/* Zemin solda, Mekan Türü sağda — tek satır, arama kutusuyla aynı yükseklik */}
                                         {isPadel ? (
                                             <View style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }]}>
-                                                <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.surfaceLabel}</Text>
-                                                <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1}>Suni Çim</Text>
+                                                <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.surfaceLabel}</Text>
+                                                <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Suni Çim</Text>
                                             </View>
                                         ) : (
                                             <TouchableOpacity style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
-                                                <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.surfaceLabel}</Text>
-                                                <Text style={[s.triValue, { fontSize:10 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
+                                                <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.surfaceLabel}</Text>
+                                                <Text style={[s.triValue, { fontSize:10 }, !f.surface && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                     {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : '—'}
                                                 </Text>
                                             </TouchableOpacity>
                                         )}
                                         <TouchableOpacity style={[s.triBtn, { paddingVertical:3, paddingHorizontal:3 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
-                                            <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1}>{t.venueLabel}</Text>
-                                            <Text style={[s.triValue, { fontSize:10 }, !f.venueType && s.triPlaceholder]} numberOfLines={1}>
+                                            <Text style={[s.triLabel, { fontSize:8 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.venueLabel}</Text>
+                                            <Text style={[s.triValue, { fontSize:10 }, !f.venueType && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : '—'}
                                             </Text>
                                         </TouchableOpacity>
@@ -5427,12 +5427,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         ];
                                         const GenderRow = ({ label, field }) => (
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1}>{label}</Text>
+                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{label}</Text>
                                                 <View style={{ flexDirection:'row', gap:3 }}>
                                                     {GENDERS.map(g => (
                                                         <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
                                                             style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f[field]===g.id && s.chipBtnActive]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
+                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{g.label}</Text>
                                                         </TouchableOpacity>
                                                     ))}
                                                 </View>
@@ -5447,13 +5447,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     f.partner ? (
                                                         <TouchableOpacity onPress={() => set('partner', null)}
                                                             style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{f.partner.fullName || f.partner.username}</Text>
+                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.partner.fullName || f.partner.username}</Text>
                                                             <Text style={{ color: colors.textMuted, fontSize:13 }}>✕</Text>
                                                         </TouchableOpacity>
                                                     ) : (
                                                         <TouchableOpacity onPress={() => setInviteTarget('partner')}
                                                             style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }} numberOfLines={1}>{t.choosePartnerBtn}</Text>
+                                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.choosePartnerBtn}</Text>
                                                         </TouchableOpacity>
                                                     )
                                                 )}
@@ -5464,13 +5464,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         {f.opp1Invite ? (
                                                             <TouchableOpacity onPress={() => set('opp1Invite', null)}
                                                                 style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.opp1Invite.fullName || f.opp1Invite.username}</Text>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.opp1Invite.fullName || f.opp1Invite.username}</Text>
                                                                 <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
                                                             </TouchableOpacity>
                                                         ) : (
                                                             <TouchableOpacity onPress={() => setInviteTarget('opp1')}
                                                                 style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}</Text>
+                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteSendBtn}</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                     </View>
@@ -5479,13 +5479,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         {f.opp2Invite ? (
                                                             <TouchableOpacity onPress={() => set('opp2Invite', null)}
                                                                 style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.opp2Invite.fullName || f.opp2Invite.username}</Text>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.opp2Invite.fullName || f.opp2Invite.username}</Text>
                                                                 <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
                                                             </TouchableOpacity>
                                                         ) : (
                                                             <TouchableOpacity onPress={() => setInviteTarget('opp2')}
                                                                 style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}</Text>
+                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteSendBtn}</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                     </View>
@@ -5494,12 +5494,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         );
                                     })()}
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
-                                        <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1}>{t.teamFlexLabel}</Text>
+                                        <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamFlexLabel}</Text>
                                         <View style={{ flexDirection:'row', gap:3 }}>
                                             {[{id:'FLEXIBLE',label:t.flexModeShortFlexible},{id:'STRICT',label:t.flexModeShortStrict}].map(opt => (
                                                 <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
                                                     style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
-                                                    <Text style={[s.chipBtnText, { fontSize:11 }, f.teamFlexibility===opt.id && s.chipBtnTextActive]} numberOfLines={1}>{opt.label}</Text>
+                                                    <Text style={[s.chipBtnText, { fontSize:11 }, f.teamFlexibility===opt.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opt.label}</Text>
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
@@ -6205,10 +6205,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         const ratingOf = (p) => p?.user?.interests?.[0]?.skillRating;
         const PlayerHalf = ({ p }) => (
             <View>
-                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{nameOf(p)}</Text>
+                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(p)}</Text>
                 {p?.manualName
                     ? <Text style={{ color:'#3b82f6', fontSize:9, fontWeight:'700' }}>✏️ Manuel</Text>
-                    : <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{p?.user?.username}{ratingOf(p) != null ? `  ${starEmoji(Number(ratingOf(p)))} ${Number(ratingOf(p)).toFixed(2)}` : ''}</Text>
+                    : <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p?.user?.username}{ratingOf(p) != null ? `  ${starEmoji(Number(ratingOf(p)))} ${Number(ratingOf(p)).toFixed(2)}` : ''}</Text>
                 }
                 {isCreatorView && (
                     <TouchableOpacity onPress={() => p?.manualName ? removeManualParticipant(p.id) : removeParticipant(p.userId)} style={{ marginTop:2 }}>
@@ -6228,7 +6228,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 const target = byUserId.get(p1.partnerId);
                 slot2 = (
                     <View>
-                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
+                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ marginTop:2 }}>
                                 <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>✕ Geri Çek</Text>
@@ -6239,7 +6239,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             } else if (invitedBy) {
                 slot2 = (
                     <View>
-                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{nameOf(invitedBy)} davet etti</Text>
+                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(invitedBy)} davet etti</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity onPress={() => setMyTournamentPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
                                 <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>✓ Kabul Et</Text>
@@ -6250,7 +6250,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             } else {
                 slot2 = (
                     <View>
-                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>Partner aranıyor</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Partner aranıyor</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity
                                 onPress={() => { setInviteCandidates(solos.filter(s => s.userId !== myId)); setShowInvitePicker(true); }}
@@ -7026,7 +7026,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </View>
                             {standings.map((row, i) => (
                                 <View key={row.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:2, borderBottomWidth: i < standings.length-1 ? 1 : 0, borderBottomColor: colors.border+'30' }}>
-                                    <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>
+                                    <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                         {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ${starEmoji(Number(skillRatingMap[row.id]))} ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
                                     </Text>
                                     {[row.played, row.won, row.drawn, row.lost, (() => { const t = row.gamesWon + row.gamesLost; return t === 0 ? '-' : `${Math.round((row.gamesWon / t) * 100)}%`; })(), row.points].map((v,j) => (
@@ -7920,8 +7920,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     {pending.map((r, i) => (
                                                         <View key={r.id || r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:3, borderBottomWidth: i < pending.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
                                                             <View style={{ flex:1 }}>
-                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{r.user?.fullName || r.user?.username}</Text>
-                                                                <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{r.user?.fullName || r.user?.username}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                             </View>
                                                             <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>⏳ Bekliyor</Text>
                                                         </View>
@@ -8621,7 +8621,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             style={[s.triBtn, f.regEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
                                             onPress={() => { setTimeField(null); setDpField('end'); }}>
                                             <Text style={[s.triLabel, { fontSize:8 }]}>{t.dateLabel}</Text>
-                                            <Text style={[s.triValue, !f.regEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1}>
+                                            <Text style={[s.triValue, !f.regEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {f.regEndDate ? `${String(f.regEndDate.getDate()).padStart(2,'0')}/${String(f.regEndDate.getMonth()+1).padStart(2,'0')}` : '—'}
                                             </Text>
                                         </TouchableOpacity>
@@ -8689,7 +8689,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                                 style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:4, paddingHorizontal:3 }]}
                                                 onPress={() => { setTimeField(null); setDpField(field); }}>
                                                 <Text style={[s.triLabel, { fontSize:9 }]}>{t.dateLabel}</Text>
-                                                <Text style={[s.triValue, !dateVal && s.triPlaceholder, { fontSize:11 }]} numberOfLines={1}>
+                                                <Text style={[s.triValue, !dateVal && s.triPlaceholder, { fontSize:11 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                     {dateVal ? `${String(dateVal.getDate()).padStart(2,'0')}/${String(dateVal.getMonth()+1).padStart(2,'0')}/${dateVal.getFullYear()}` : '—'}
                                                 </Text>
                                             </TouchableOpacity>
@@ -8888,7 +8888,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             style={[s.triBtn, f.pollEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
                                             onPress={() => { setTimeField(null); setDpField('pollEnd'); }}>
                                             <Text style={[s.triLabel, { fontSize:8 }]}>{t.dateLabel}</Text>
-                                            <Text style={[s.triValue, !f.pollEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1}>
+                                            <Text style={[s.triValue, !f.pollEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {f.pollEndDate ? `${String(f.pollEndDate.getDate()).padStart(2,'0')}/${String(f.pollEndDate.getMonth()+1).padStart(2,'0')}` : '—'}
                                             </Text>
                                         </TouchableOpacity>
@@ -9296,7 +9296,7 @@ function SpotlightTierRow({ label, entry }) {
             <Text style={spot.tierLabel}>{label}</Text>
             {entry ? (
                 <>
-                    <Text style={spot.tierName} numberOfLines={1}>{entry.name || '—'}</Text>
+                    <Text style={spot.tierName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{entry.name || '—'}</Text>
                     <Text style={spot.tierDetail} numberOfLines={2}>
                         {entry.type === 'tournament'
                             ? `🏆 ${entry.tournamentName} — ${entry.placement}.`
@@ -9473,7 +9473,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
                 {!!story.musicName && (
                     <View style={{ position: 'absolute', top: 90, left: 14, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00000075', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4, maxWidth: '65%' }}>
                         <Text style={{ fontSize: 14 }}>🎵</Text>
-                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{story.musicName}{story.musicArtist ? ` – ${story.musicArtist}` : ''}</Text>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{story.musicName}{story.musicArtist ? ` – ${story.musicArtist}` : ''}</Text>
                     </View>
                 )}
 
@@ -9481,7 +9481,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
                 {!!story.location && (
                     <View style={{ position: 'absolute', bottom: 72, right: 14, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 7, paddingVertical: 3 }}>
                         <Text style={{ fontSize: 12 }}>📍</Text>
-                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{story.location}</Text>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{story.location}</Text>
                     </View>
                 )}
 
@@ -10868,7 +10868,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onPress={() => setShowCityFilter(true)}
                 style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border, minWidth:70 }}
             >
-                <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1}>
+                <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {filterCity ? filterCity : '📍 İl'}
                 </Text>
                 {filterCity
@@ -11286,7 +11286,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{eq.condition==='NEW' ? 'Sıfır' : '2.El'}</Text>
                                             </View>
                                             <View style={{ padding:5 }}>
-                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{eq.title}</Text>
+                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{eq.title}</Text>
                                                 <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : 'Fiyat sor'}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>{eq.user?.username}</Text>
                                             </View>
@@ -11446,12 +11446,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
                                         onPress={() => setShowCreateReferee(true)}>
-                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>{t.createRefereeListingBtn}</Text>
+                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.createRefereeListingBtn}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor:'#f59e0b60' }]}
                                         onPress={() => setShowCreateRefereeMatch(true)}>
-                                        <Text style={[s.createBtnText, { color:'#f59e0b' }]} numberOfLines={1}>{t.createRefereeMatchBtn}</Text>
+                                        <Text style={[s.createBtnText, { color:'#f59e0b' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.createRefereeMatchBtn}</Text>
                                     </TouchableOpacity>
                                 </CityAlertRow>
                             ) : (
@@ -11462,7 +11462,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             if (coachSubTab === 'courses') setCoachForm(f => ({ ...f, individual:false, group:true }));
                                             setShowCreateCoach(true);
                                         }}>
-                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1}>{category === 'ARTS' || coachSubTab === 'courses' ? (t.createCourseBtn || '🎓 Kurs Oluştur') : t.createCoachBtn}</Text>
+                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{category === 'ARTS' || coachSubTab === 'courses' ? (t.createCourseBtn || '🎓 Kurs Oluştur') : t.createCoachBtn}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
@@ -11472,7 +11472,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             setCvUploadListingId(myListing.id);
                                             setShowCvUploadModal(true);
                                         }}>
-                                        <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1}>{t.uploadCvBtn}</Text>
+                                        <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.uploadCvBtn}</Text>
                                     </TouchableOpacity>
                                 </CityAlertRow>
                             )}
@@ -11981,12 +11981,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
                                                     {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
                                                 </View>
-                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1}>
+                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                     {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
                                                     {!m.flexibleSchedule && m.matchTime ? ` ${m.matchTime}` : ''}
                                                 </Text>
                                                 {(m.courtName || m.location) ? (
-                                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                         🏟️ {m.courtName || m.location}
                                                         {m.courtName && m.location ? `  📍 ${m.location}` : ''}
                                                     </Text>
@@ -12002,7 +12002,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         return (
                                                             <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:3 }}>
                                                                 <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:0, paddingVertical:0, flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1}>{senderAlias(p)}</Text>
+                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
                                                                     {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(rBefore).toFixed(2)} ★</Text>}
                                                                     {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                                 </TouchableOpacity>
@@ -12129,7 +12129,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <View style={{ width: 62, height: 62, borderRadius: 31, borderWidth: 2.5, borderColor: cfg.color, padding: 0, backgroundColor: colors.surface2 }}>
                                                     <Avatar name={group.user?.username} size={54} color={cfg.color} />
                                                 </View>
-                                                <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4, maxWidth: 62, textAlign: 'center' }} numberOfLines={1}>
+                                                <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4, maxWidth: 62, textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                     {group.user?.username}
                                                 </Text>
                                             </TouchableOpacity>
@@ -12194,7 +12194,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingVertical: 7 }}>
                                                                 <Avatar name={post.user?.username} avatar={post.user?.avatar} size={36} color={cfg.color} />
                                                                 <View style={{ flex: 1 }}>
-                                                                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{post.user?.fullName || post.user?.username}</Text>
+                                                                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{post.user?.fullName || post.user?.username}</Text>
                                                                     <Text style={{ color: colors.textMuted, fontSize: 11 }}>{post.user?.username} · {fmtAgo(post.createdAt)}</Text>
                                                                 </View>
                                                                 {post.type === 'REEL' && <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '800' }}>🎬</Text>}
@@ -12306,7 +12306,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         {/* Müzik başlığı + süre */}
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 10 }}>
                                                             {shareMusic.coverUrl && <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 26, height: 26, borderRadius: 4 }} />}
-                                                            <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800', flex: 1 }} numberOfLines={1}>🎵 {shareMusic.title}</Text>
+                                                            <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🎵 {shareMusic.title}</Text>
                                                             <Text style={{ color: '#6b7280', fontSize: 11 }}>{s}s – {e}s ({e - s}sn)</Text>
                                                         </View>
                                                         {/* Trim bar */}
@@ -12353,7 +12353,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 22, height: 22, borderRadius: 4 }} />
                                                         : <Text style={{ fontSize: 16 }}>🎵</Text>}
                                                     <View style={{ flex: 1 }}>
-                                                        <Text style={{ color: shareMusic ? '#a78bfa' : colors.textMuted, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                                                        <Text style={{ color: shareMusic ? '#a78bfa' : colors.textMuted, fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                             {shareMusic ? `${shareMusic.title} – ${shareMusic.artist}` : 'Müzik Ekle'}
                                                         </Text>
                                                         {shareMusic && <Text style={{ color: '#7c3aed90', fontSize: 10 }}>{trimStart}s – {trimEnd}s · düzenle</Text>}
@@ -12365,7 +12365,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <TouchableOpacity onPress={getGpsLocation} disabled={gettingLocation}
                                                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 6, paddingHorizontal: 7, borderRadius: 10, backgroundColor: shareLocation ? '#16a34a20' : colors.surface2, borderWidth: 1, borderColor: shareLocation ? '#16a34a60' : colors.border }}>
                                                     <Text style={{ fontSize: 14 }}>📍</Text>
-                                                    <Text style={{ color: shareLocation ? '#4ade80' : colors.textMuted, fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                                                    <Text style={{ color: shareLocation ? '#4ade80' : colors.textMuted, fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                         {gettingLocation ? 'Alınıyor...' : shareLocation || 'Konum Ekle'}
                                                     </Text>
                                                     {shareLocation && <TouchableOpacity onPress={() => setShareLocation('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
@@ -12393,7 +12393,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} />
                                                                 : <Text style={{ fontSize: 30, marginRight: 10 }}>🎵</Text>}
                                                             <View style={{ flex: 1 }}>
-                                                                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }} numberOfLines={1}>{shareMusic?.title}</Text>
+                                                                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{shareMusic?.title}</Text>
                                                                 <Text style={{ color: colors.textMuted, fontSize: 11 }}>{shareMusic?.artist}</Text>
                                                             </View>
                                                             <TouchableOpacity onPress={() => { setMusicTrimOpen(false); stopMusicPreview(); }}>
@@ -12517,7 +12517,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                                                 <Image source={{ uri: track.album.cover_small }} style={{ width: 44, height: 44, borderRadius: 6 }} />
                                                                 <View style={{ flex: 1 }}>
-                                                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{track.title}</Text>
+                                                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.title}</Text>
                                                                     <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>{track.artist.name}</Text>
                                                                 </View>
                                                                 <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>Seç</Text>
@@ -12616,12 +12616,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </View>
                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                                 <TouchableOpacity onPress={() => setShowTicketFromPicker(true)} style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '600' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                         {ticketDateFrom ? fmtTicketDate(ticketDateFrom) : (lang === 'tr' ? 'Başlangıç tarihi' : 'Start date')}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setShowTicketToPicker(true)} style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '600' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                         {ticketDateTo ? fmtTicketDate(ticketDateTo) : (lang === 'tr' ? 'Bitiş tarihi' : 'End date')}
                                     </Text>
                                 </TouchableOpacity>
@@ -12655,7 +12655,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         )}
                                         <View style={{ flex: 1, marginLeft: 12 }}>
                                             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }} numberOfLines={2}>{ev.name}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
+                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {[ev.venueName, ev.city, ev.country].filter(Boolean).join(' · ')}
                                             </Text>
                                             <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
@@ -13283,7 +13283,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                         return (
                                                                             <View key={match.id} style={{ width:'48.5%', backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
                                                                                 <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                                                    <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
+                                                                                    <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p1Name || 'TBD'}</Text>
                                                                                     {isDone && mSets2.length > 0 && (
                                                                                         <View style={{ flexDirection:'row', gap:3 }}>
                                                                                             {mSets2.map((s,i) => <Text key={i} style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#94a3b8', fontSize:12, fontWeight:'900', minWidth:16, textAlign:'center' }}>{s.p1}</Text>)}
@@ -13293,7 +13293,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                                 </View>
                                                                                 <Text style={{ color:colors.textMuted, fontSize:9, marginVertical:3 }}>vs</Text>
                                                                                 <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                                                    <Text style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{match.p2Name || 'TBD'}</Text>
+                                                                                    <Text style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p2Name || 'TBD'}</Text>
                                                                                     {isDone && mSets2.length > 0 && (
                                                                                         <View style={{ flexDirection:'row', gap:3 }}>
                                                                                             {mSets2.map((s,i) => <Text key={i} style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#94a3b8', fontSize:12, fontWeight:'900', minWidth:16, textAlign:'center' }}>{s.p2}</Text>)}
@@ -13327,7 +13327,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         </View>
                                                         {archiveStandings.map((row2, i) => (
                                                             <View key={row2.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:2, borderBottomWidth: i < archiveStandings.length-1 ? 1 : 0, borderBottomColor:colors.border+'30' }}>
-                                                                <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{i+1}. {row2.name}</Text>
+                                                                <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{i+1}. {row2.name}</Text>
                                                                 {[row2.played, row2.won, row2.drawn, row2.lost, (() => { const t = row2.gamesWon + row2.gamesLost; return t === 0 ? '-' : `${Math.round((row2.gamesWon / t) * 100)}%`; })(), row2.points].map((v,j) => (
                                                                     <Text key={j} style={{ color: j===5 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===5 ? '800' : '400', width:24, textAlign:'center' }}>{String(v)}</Text>
                                                                 ))}

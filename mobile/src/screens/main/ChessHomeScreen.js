@@ -24,7 +24,7 @@ function EventCard({ item, myId, onJoin, onOpen, t }) {
     return (
         <TouchableOpacity style={s.eventCard} onPress={() => onOpen(item)} activeOpacity={0.8}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Text style={s.eventOwner} numberOfLines={1}>👤 {item.sender?.fullName || item.sender?.username}</Text>
+                <Text style={s.eventOwner} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>👤 {item.sender?.fullName || item.sender?.username}</Text>
                 <Text style={s.eventCount}>👥 {participantCount}</Text>
             </View>
             {item.message ? <Text style={s.eventMessage} numberOfLines={3}>{item.message}</Text> : null}
@@ -311,7 +311,7 @@ export default function ChessHomeScreen({ navigation }) {
                 ].map(tb => (
                     <TouchableOpacity key={tb.id} onPress={() => setMainTab(tb.id)}
                         style={[s.mainTabBtn, mainTab === tb.id && s.mainTabBtnActive]}>
-                        <Text style={[s.mainTabBtnText, mainTab === tb.id && s.mainTabBtnTextActive]} numberOfLines={1}>{tb.label}</Text>
+                        <Text style={[s.mainTabBtnText, mainTab === tb.id && s.mainTabBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{tb.label}</Text>
                     </TouchableOpacity>
                 ))}
             </View>

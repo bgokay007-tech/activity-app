@@ -43,8 +43,8 @@ function PlayCard({ item, t }) {
                 <View style={[s.cardImg, s.cardImgFallback]}><Text style={{ fontSize: 22 }}>🎭</Text></View>
             )}
             <View style={s.cardBody}>
-                <Text style={s.cardTitle} numberOfLines={1}>{item.name}</Text>
-                <Text style={s.cardMeta} numberOfLines={1}>
+                <Text style={s.cardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.name}</Text>
+                <Text style={s.cardMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {[item.venueName, item.city].filter(Boolean).join(' · ')}
                 </Text>
                 <Text style={s.cardMeta}>
@@ -68,7 +68,7 @@ function EventCard({ item, myId, onJoin, onOpen, t }) {
     return (
         <TouchableOpacity style={s.eventCard} onPress={() => onOpen(item)} activeOpacity={0.8}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Text style={s.eventOwner} numberOfLines={1}>👤 {item.sender?.fullName || item.sender?.username}</Text>
+                <Text style={s.eventOwner} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>👤 {item.sender?.fullName || item.sender?.username}</Text>
                 <Text style={s.eventCount}>👥 {participantCount}</Text>
             </View>
             {item.message ? <Text style={s.eventMessage} numberOfLines={3}>{item.message}</Text> : null}
@@ -376,7 +376,7 @@ export default function TheaterHomeScreen({ navigation }) {
                                 style={{ flex: 1 }}
                             />
                             <TouchableOpacity style={[s.dateBtn, { flex: 1 }]} onPress={() => setShowDateRangeModal(true)}>
-                                <Text style={s.dateBtnText} numberOfLines={1}>
+                                <Text style={s.dateBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     {dateFrom || dateTo
                                         ? [dateFrom && fmtDate(dateFrom), dateTo && fmtDate(dateTo)].filter(Boolean).join(' – ')
                                         : (t.theaterDatePh || '📅 Tarih')}

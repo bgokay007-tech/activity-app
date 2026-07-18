@@ -167,7 +167,7 @@ export default function ChessTableScreen({ route, navigation }) {
             </View>
 
             <View style={s.playerRow}>
-                <Text style={s.playerText} numberOfLines={1}>
+                <Text style={s.playerText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {oppPlayer?.userId ? oppPlayer.username : oppPlayer?.username}
                     {!oppPlayer?.connected && !oppPlayer?.isBot ? ' (💤)' : ''}
                     {' '}· {myColor === 'w' ? '⚫' : '⚪'}
@@ -223,7 +223,7 @@ export default function ChessTableScreen({ route, navigation }) {
             </View>
 
             <View style={s.playerRow}>
-                <Text style={s.playerText} numberOfLines={1}>
+                <Text style={s.playerText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {t.chessYou || 'Sen'} · {myColor === 'w' ? '⚪' : '⚫'}
                 </Text>
             </View>

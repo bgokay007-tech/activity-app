@@ -27,8 +27,8 @@ export default function MiniPlayer() {
                 <View style={[s.art, s.artFallback]}><Text style={{ fontSize: 16 }}>🎵</Text></View>
             )}
             <View style={{ flex: 1, marginHorizontal: 8 }}>
-                <Text style={s.title} numberOfLines={1}>{track.title}</Text>
-                <Text style={s.artist} numberOfLines={1}>{track.artist}</Text>
+                <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.title}</Text>
+                <Text style={s.artist} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.artist}</Text>
             </View>
             <TouchableOpacity
                 onPress={(e) => { e.stopPropagation?.(); togglePlayPause(!!playing); }}

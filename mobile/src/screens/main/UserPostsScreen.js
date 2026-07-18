@@ -194,9 +194,9 @@ function PostCard({ post, liked, onToggleLike, isVisible, dataSaver, isMusicPlay
                         </View>
                     )}
                     <View style={{ flex: 1 }}>
-                        <Text style={s.musicName} numberOfLines={1}>{post.musicName}</Text>
+                        <Text style={s.musicName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{post.musicName}</Text>
                         {!!post.musicArtist && (
-                            <Text style={s.musicArtist} numberOfLines={1}>{post.musicArtist}</Text>
+                            <Text style={s.musicArtist} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{post.musicArtist}</Text>
                         )}
                     </View>
                     <View style={[s.musicPlayBtn, isMusicPlaying && s.musicPlayBtnActive]}>
