@@ -7,7 +7,20 @@ import { useTranslation } from 'react-i18next';
 import padelImg from '../assets/padel.png';
 
 // Bazı alt kategoriler SubCategoryPage yerine kendi bağımsız sayfasına gider
-const SPECIAL_ROUTES = { music: '/music', cinema: '/cinema' };
+const SPECIAL_ROUTES = {
+    music: '/music', cinema: '/cinema', theater: '/theater', friend_finding: '/friend-finding',
+    batak: '/games/batak', okey: '/games/okey', chess: '/games/chess', tavla: '/games/tavla',
+};
+
+// Batak/Okey/Satranç/Tavla kendi gerçek zamanlı oyun ekranlarına gider — genel "ilan"
+// sistemine değil, bu yüzden backend /interests/categories listesinde yer almazlar
+// (mobildeki CategoryScreen.js ile aynı desen — bkz. SPECIAL_SCREENS orada).
+const EXTRA_GAMES_SUBS = [
+    { id: 'batak', name: 'Batak', emoji: '🃏' },
+    { id: 'okey',  name: 'Okey',  emoji: '🀄' },
+    { id: 'chess', name: 'Chess', emoji: '♞' },
+    { id: 'tavla', name: 'Backgammon', emoji: '🎲' },
+];
 
 const CATEGORY_CONFIG = {
     sports: {
@@ -46,7 +59,7 @@ function CategoryPage() {
             api.get(`/rivals/counts?category=${config.id}`),
         ]).then(([catRes, countRes]) => {
             const cat = catRes.data.categories.find(c => c.id === config.id);
-            if (cat) setSubCategories(cat.subCategories);
+            if (cat) setSubCategories(config.id === 'GAMES' ? [...cat.subCategories, ...EXTRA_GAMES_SUBS] : cat.subCategories);
             setCounts(countRes.data);
         }).catch(console.error)
         .finally(() => setIsLoading(false));

@@ -8,6 +8,9 @@ const STATUS_COLOR = { PENDING: 'text-yellow-400 bg-yellow-500/10 border-yellow-
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+// Slot listesi yüklendikten sonra saat ilerlemiş olabilir — seçim anında tarayıcı
+// saatiyle tekrar kontrol edilir, sadece ilk yüklemedeki backend verisine güvenilmez.
+function isPastSlot(date, timeStr) { return new Date(`${date}T${timeStr}:00`).getTime() < Date.now(); }
 
 function RescheduleModal({ reservation, onClose, onRescheduled, t }) {
     const [venue, setVenue] = useState(null);
@@ -96,7 +99,10 @@ function RescheduleModal({ reservation, onClose, onRescheduled, t }) {
                             ) : (
                                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                                     {(slotData.slots || []).map(s => {
-                                        const disabled = !s.free || s.maintenance;
+                                        // Dolu slotlar geçmiş olsa da "Dolu" görünmeye devam eder — sadece boş
+                                        // ama saati geçmiş slotlar ayrıca geçmiş olarak işaretlenir.
+                                        const isPast = s.free && !s.maintenance && isPastSlot(date, s.start);
+                                        const disabled = !s.free || s.maintenance || isPast;
                                         const isSel = selectedSlot?.start === s.start;
                                         return (
                                             <button key={s.start} disabled={disabled} onClick={() => setSelectedSlot({ start: s.start, end: s.end })}
@@ -106,6 +112,7 @@ function RescheduleModal({ reservation, onClose, onRescheduled, t }) {
                                                     : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500'
                                                 }`}>
                                                 {s.start}–{s.end}
+                                                {isPast && <span className="block text-[9px] font-normal opacity-80">Geçmiş</span>}
                                             </button>
                                         );
                                     })}

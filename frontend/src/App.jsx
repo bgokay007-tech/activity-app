@@ -15,6 +15,14 @@ import AdminPage from './pages/AdminPage';
 import ArchivePage from './pages/ArchivePage';
 import MusicPage from './pages/MusicPage';
 import CinemaPage from './pages/CinemaPage';
+import TheaterPage from './pages/TheaterPage';
+import ActivityFeedPage from './pages/ActivityFeedPage';
+import BusinessHomePage from './pages/BusinessHomePage';
+import FriendFindingPage from './pages/FriendFindingPage';
+import ChessPage from './pages/games/ChessPage';
+import TavlaPage from './pages/games/TavlaPage';
+import OkeyPage from './pages/games/OkeyPage';
+import BatakPage from './pages/games/BatakPage';
 import MyReservationsPage from './pages/MyReservationsPage';
 
 function App() {
@@ -43,6 +51,14 @@ function App() {
       <Route path="/archive" element={token ? <ArchivePage /> : <Navigate to="/login" />} />
       <Route path="/music" element={token ? <MusicPage /> : <Navigate to="/login" />} />
       <Route path="/cinema" element={token ? <CinemaPage /> : <Navigate to="/login" />} />
+      <Route path="/theater" element={token ? <TheaterPage /> : <Navigate to="/login" />} />
+      <Route path="/activity" element={token ? <ActivityFeedPage /> : <Navigate to="/login" />} />
+      <Route path="/business" element={token ? <BusinessHomePage /> : <Navigate to="/login" />} />
+      <Route path="/friend-finding" element={token ? <FriendFindingPage /> : <Navigate to="/login" />} />
+      <Route path="/games/chess" element={token ? <ChessPage /> : <Navigate to="/login" />} />
+      <Route path="/games/tavla" element={token ? <TavlaPage /> : <Navigate to="/login" />} />
+      <Route path="/games/okey" element={token ? <OkeyPage /> : <Navigate to="/login" />} />
+      <Route path="/games/batak" element={token ? <BatakPage /> : <Navigate to="/login" />} />
       <Route path="/reservations" element={token ? <MyReservationsPage /> : <Navigate to="/login" />} />
       <Route path="*" element={<Navigate to={token ? "/home" : "/login"} />} />
     </Routes>

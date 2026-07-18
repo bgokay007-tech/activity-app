@@ -5,7 +5,7 @@ export const ENABLED_CATEGORIES = {
     sports: true,
     social: true,
     arts:   true,
-    games:  false,
+    games:  true,
 };
 
 export const ENABLED_SUBS = {
@@ -16,7 +16,7 @@ export const ENABLED_SUBS = {
     football:   false,
     basketball: false,
     // Social
-    friend_finding: false,
+    friend_finding: true,
     language:       false,
     // Arts
     music:      true,

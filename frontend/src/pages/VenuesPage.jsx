@@ -90,7 +90,7 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
 }
 
 // ── Kort sütunu: bir kortun secili tarihteki slotlari ────────────────────────
-function CourtColumn({ court, data, cartKeys, onAddToCart }) {
+function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
     const [varStart, setVarStart] = useState(null);
 
     if (!data || data.loading) {
@@ -178,18 +178,21 @@ function CourtColumn({ court, data, cartKeys, onAddToCart }) {
                 {slots.map(s => {
                     const key = `${court.id}_${s.start}`;
                     const inCart = cartKeys.has(key);
-                    const disabled = !s.free || s.maintenance || inCart;
+                    // Dolu slotlar geçmiş olsa da "Dolu" görünmeye devam eder — sadece boş
+                    // ama saati geçmiş slotlar ayrıca "Geçmiş" olarak işaretlenir.
+                    const isPast = s.free && !s.maintenance && isPastSlot(date, s.start);
+                    const disabled = !s.free || s.maintenance || inCart || isPast;
                     return (
                         <button key={s.start} disabled={disabled}
                             onClick={() => onAddToCart(court, s, key)}
                             className={`w-full text-left px-2 py-1.5 rounded-lg border text-xs font-bold transition ${
                                 inCart ? 'bg-green-600/20 border-green-600 text-green-400'
-                                : !s.free || s.maintenance ? 'bg-gray-800/50 border-gray-800 text-gray-600 cursor-not-allowed'
+                                : disabled ? 'bg-gray-800/50 border-gray-800 text-gray-600 cursor-not-allowed'
                                 : 'bg-gray-800 border-gray-700 text-gray-200 hover:border-purple-500'
                             }`}>
                             <span className="block">{s.start}–{s.end}</span>
                             <span className="block text-[10px] font-normal opacity-80">
-                                {inCart ? '✓ Sepette' : !s.free ? (s.status === 'PENDING' ? '⏳ Onay Bekliyor' : 'Dolu') : s.maintenance ? '🔧 Bakım' : (s.price > 0 ? `${s.price}₺` : 'Ücretsiz')}
+                                {inCart ? '✓ Sepette' : !s.free ? (s.status === 'PENDING' ? '⏳ Onay Bekliyor' : 'Dolu') : s.maintenance ? '🔧 Bakım' : isPast ? 'Geçmiş' : (s.price > 0 ? `${s.price}₺` : 'Ücretsiz')}
                             </span>
                         </button>
                     );
@@ -273,7 +276,7 @@ function VenueBookingPanel({ venue, onClose, cart, onAddToCart, onOpenCart }) {
                 <div className="flex-1 overflow-x-auto overflow-y-hidden px-5 pb-5">
                     <div className="flex gap-3 h-full">
                         {(venue.courts || []).map(court => (
-                            <CourtColumn key={court.id} court={court} data={slotsByCourt[court.id]}
+                            <CourtColumn key={court.id} court={court} data={slotsByCourt[court.id]} date={date}
                                 cartKeys={cartKeys}
                                 onAddToCart={(c, slot) => onAddToCart(venue, c, slot, date)} />
                         ))}

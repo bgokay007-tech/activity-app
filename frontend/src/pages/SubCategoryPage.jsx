@@ -56,6 +56,7 @@ const WELLNESS_BRANCHES = new Set(['wellness']);
 const TEAM_SPORTS = new Set(['volleyball', 'football']);
 const TICKET_SPORTS = new Set(['tennis', 'padel', 'volleyball']);
 const COACH_EXPANDED_SPORTS = new Set(['tennis', 'padel', 'volleyball']);
+const EQUIPMENT_SPORTS = new Set(['tennis', 'padel']);
 
 // 15-minute interval time select (06:00 – 23:45)
 const TIME_OPTIONS = (() => {
@@ -2592,6 +2593,14 @@ function SubCategoryPage() {
     const [refereeListings, setRefereeListings] = useState([]);
     const [loadingReferees, setLoadingReferees] = useState(false);
     const [refereesLoaded, setRefereesLoaded] = useState(false);
+    const [equipmentListings, setEquipmentListings] = useState([]);
+    const [loadingEquipment, setLoadingEquipment] = useState(false);
+    const [equipmentLoaded, setEquipmentLoaded] = useState(false);
+    const [showEquipmentForm, setShowEquipmentForm] = useState(false);
+    const [equipmentForm, setEquipmentForm] = useState({ title: '', price: '', condition: 'NEW', description: '', location: '', images: [] });
+    const [equipmentFiles, setEquipmentFiles] = useState([]); // File[] not yet uploaded
+    const [submittingEquipment, setSubmittingEquipment] = useState(false);
+    const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [showCreateReferee, setShowCreateReferee] = useState(false);
     const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
     const [branchStories, setBranchStories] = useState([]);
@@ -2786,6 +2795,62 @@ function SubCategoryPage() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, coachSubTab, refereesLoaded, sub]);
+
+    const loadEquipment = async () => {
+        setLoadingEquipment(true);
+        try {
+            const { data } = await api.get('/equipment', { params: { category: categoryUpper, subCategory: sub } });
+            setEquipmentListings(Array.isArray(data) ? data : []);
+        } catch { setEquipmentListings([]); }
+        finally { setLoadingEquipment(false); setEquipmentLoaded(true); }
+    };
+
+    useEffect(() => {
+        if (EQUIPMENT_SPORTS.has(sub) && activeTab === 'equipment' && !equipmentLoaded) {
+            loadEquipment();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, equipmentLoaded, sub]);
+
+    const submitEquipment = async () => {
+        if (!equipmentForm.title.trim()) return alert(t('equipment.title_required') || 'Ürün adı zorunludur');
+        if (!parseInt(equipmentForm.price) || parseInt(equipmentForm.price) <= 0) return alert(t('equipment.price_required') || 'Fiyat zorunludur');
+        if (!equipmentForm.location.trim()) return alert(t('equipment.location_required') || 'Konum zorunludur');
+        if (equipmentForm.description.trim().length < 5) return alert(t('equipment.description_required') || 'Açıklama en az 5 karakter olmalıdır');
+        if (equipmentFiles.length === 0) return alert(t('equipment.photo_required') || 'En az 1 fotoğraf eklemelisiniz');
+        setSubmittingEquipment(true);
+        try {
+            const uploadedUrls = [];
+            for (const file of equipmentFiles) {
+                const form = new FormData();
+                form.append('file', file);
+                const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+                uploadedUrls.push(data.url);
+            }
+            await api.post('/equipment', {
+                ...equipmentForm, category: categoryUpper, subCategory: sub,
+                price: parseInt(equipmentForm.price) || 0, images: uploadedUrls,
+            });
+            setShowEquipmentForm(false);
+            setEquipmentForm({ title: '', price: '', condition: 'NEW', description: '', location: '', images: [] });
+            setEquipmentFiles([]);
+            setEquipmentLoaded(false);
+            loadEquipment();
+        } catch (e) {
+            alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız');
+        } finally { setSubmittingEquipment(false); }
+    };
+
+    const deleteEquipment = async (id) => {
+        if (!confirm(t('equipment.delete_confirm') || 'Bu ilanı silmek istediğinize emin misiniz?')) return;
+        try {
+            await api.delete(`/equipment/${id}`);
+            setEquipmentListings(prev => prev.filter(e => e.id !== id));
+            setSelectedEquipment(null);
+        } catch (e) {
+            alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız');
+        }
+    };
 
     // Socket.io — real-time rival updates
     useEffect(() => {
@@ -3452,7 +3517,12 @@ function SubCategoryPage() {
                             ? ['events', 'media']
                             : TEAM_SPORTS.has(sub)
                                 ? ['player_wanted', 'rivals', 'tournaments', ...(COACH_EXPANDED_SPORTS.has(sub) ? ['coaches'] : []), 'media', 'archive', ...(TICKET_SPORTS.has(sub) ? ['tickets'] : [])]
-                                : TICKET_SPORTS.has(sub) ? [...LEFT_TABS, 'tickets'] : LEFT_TABS
+                                : [
+                                    ...LEFT_TABS.slice(0, 3),
+                                    ...(EQUIPMENT_SPORTS.has(sub) ? ['equipment'] : []),
+                                    ...LEFT_TABS.slice(3),
+                                    ...(TICKET_SPORTS.has(sub) ? ['tickets'] : []),
+                                  ]
                         ).map(tab => (
                             <button
                                 key={tab}
@@ -3467,6 +3537,7 @@ function SubCategoryPage() {
                                  tab === 'events'        ? `📅 ${t('tabs.events')}` :
                                  tab === 'tournaments'   ? `🏆 ${t('tabs.tournaments')}` :
                                  tab === 'coaches'       ? `🎓 ${COACH_EXPANDED_SPORTS.has(sub) ? t('tabs.support') : t('tabs.coaches')}` :
+                                 tab === 'equipment'     ? `🎾 ${t('tabs.equipment')}` :
                                  tab === 'tickets'       ? `🎟️ ${t('tabs.tickets')}` :
                                  tab === 'archive'       ? `🗃️ ${t('tabs.archive')}` : `📷 ${t('tabs.media')}`}
                             </button>
@@ -6721,6 +6792,150 @@ function SubCategoryPage() {
                             </div>
                         );
                     })()}
+
+                    {/* EQUIPMENT TAB — tennis/padel ikinci el / sıfır ekipman ilanları */}
+                    {activeTab === 'equipment' && EQUIPMENT_SPORTS.has(sub) && (
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => setShowEquipmentForm(true)}
+                                className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}
+                            >
+                                + {t('equipment.new_listing') || 'Yeni İlan Ver'}
+                            </button>
+
+                            {loadingEquipment ? (
+                                <p className="text-gray-500 text-sm text-center py-8">{t('common.loading')}</p>
+                            ) : equipmentListings.length === 0 ? (
+                                equipmentLoaded && (
+                                    <div className="text-center py-14 bg-gray-900 rounded-2xl border border-gray-800">
+                                        <p className="text-4xl mb-2">🎾</p>
+                                        <p className="text-white font-bold mb-1">{t('equipment.empty') || 'Henüz ekipman ilanı yok'}</p>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {equipmentListings.map(eq => (
+                                        <button key={eq.id} onClick={() => setSelectedEquipment(eq)}
+                                            className="text-left bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-600 transition">
+                                            {eq.images?.[0] ? (
+                                                <img src={eq.images[0]} alt="" className="w-full h-28 object-cover" />
+                                            ) : (
+                                                <div className="w-full h-28 bg-gray-800 flex items-center justify-center text-3xl">🎾</div>
+                                            )}
+                                            <div className="p-2.5">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${eq.condition === 'NEW' ? 'bg-green-600 text-white' : 'bg-yellow-600 text-black'}`}>
+                                                        {eq.condition === 'NEW' ? (t('equipment.new') || 'Sıfır') : (t('equipment.used') || 'İkinci El')}
+                                                    </span>
+                                                </div>
+                                                <p className="text-white text-xs font-bold truncate">{eq.title}</p>
+                                                <p className={`text-sm font-black mt-0.5`} style={{ color: undefined }}>
+                                                    <span className="bg-gradient-to-r bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(to right, #a855f7, #ec4899)' }}>
+                                                        {eq.price > 0 ? `${eq.price} ₺` : (t('equipment.ask_price') || 'Fiyat sor')}
+                                                    </span>
+                                                </p>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Ekipman ilanı oluştur modalı */}
+                    {showEquipmentForm && (
+                        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowEquipmentForm(false)}>
+                            <div className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-white font-black text-lg">{t('equipment.new_listing') || 'Yeni İlan Ver'}</h3>
+                                    <button onClick={() => setShowEquipmentForm(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+                                </div>
+                                <div className="flex gap-2 mb-3">
+                                    {['NEW', 'USED'].map(c => (
+                                        <button key={c} onClick={() => setEquipmentForm(f => ({ ...f, condition: c }))}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-bold border transition ${equipmentForm.condition === c ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-900 border-gray-700 text-gray-400'}`}>
+                                            {c === 'NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}
+                                        </button>
+                                    ))}
+                                </div>
+                                <input value={equipmentForm.title} onChange={e => setEquipmentForm(f => ({ ...f, title: e.target.value }))}
+                                    placeholder={`${t('equipment.product_name') || 'Ürün adı'} *`}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white mb-2.5 focus:outline-none focus:border-purple-500" />
+                                <input value={equipmentForm.price} onChange={e => setEquipmentForm(f => ({ ...f, price: e.target.value.replace(/[^0-9]/g, '') }))}
+                                    placeholder={`${t('equipment.price') || 'Fiyat (₺)'} *`} inputMode="numeric"
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white mb-2.5 focus:outline-none focus:border-purple-500" />
+                                <textarea value={equipmentForm.description} onChange={e => setEquipmentForm(f => ({ ...f, description: e.target.value }))}
+                                    placeholder={`${t('equipment.description') || 'Açıklama'} * (min. 5 ${t('equipment.chars') || 'karakter'})`} rows={3}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white mb-2.5 focus:outline-none focus:border-purple-500" />
+                                <input value={equipmentForm.location} onChange={e => setEquipmentForm(f => ({ ...f, location: e.target.value }))}
+                                    placeholder={`${t('equipment.location') || 'Konum / Şehir'} *`}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:border-purple-500" />
+
+                                <input type="file" accept="image/*" multiple
+                                    onChange={e => setEquipmentFiles(prev => [...prev, ...Array.from(e.target.files || [])].slice(0, 5))}
+                                    className="w-full text-xs text-gray-400 mb-2" />
+                                {equipmentFiles.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {equipmentFiles.map((f, idx) => (
+                                            <div key={idx} className="relative">
+                                                <img src={URL.createObjectURL(f)} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                                                <button onClick={() => setEquipmentFiles(prev => prev.filter((_, i) => i !== idx))}
+                                                    className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">✕</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <p className="text-gray-500 text-[11px] mb-3">* {t('equipment.photo_required') || 'En az 1 fotoğraf eklemelisiniz'}</p>
+
+                                <button onClick={submitEquipment} disabled={submittingEquipment}
+                                    className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
+                                    {submittingEquipment ? '...' : (t('equipment.publish') || 'İlanı Yayınla')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Ekipman ilanı detay modalı */}
+                    {selectedEquipment && (
+                        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setSelectedEquipment(null)}>
+                            <div className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${selectedEquipment.condition === 'NEW' ? 'bg-green-600 text-white' : 'bg-yellow-600 text-black'}`}>
+                                        {selectedEquipment.condition === 'NEW' ? (t('equipment.new') || 'Sıfır') : (t('equipment.used') || 'İkinci El')}
+                                    </span>
+                                    <button onClick={() => setSelectedEquipment(null)} className="text-gray-400 hover:text-white text-xl">✕</button>
+                                </div>
+                                {selectedEquipment.images?.length > 0 && (
+                                    <div className="flex gap-2 overflow-x-auto mb-3">
+                                        {selectedEquipment.images.map((img, idx) => (
+                                            <img key={idx} src={img} alt="" className="w-full max-w-[280px] h-48 rounded-xl object-cover flex-shrink-0" />
+                                        ))}
+                                    </div>
+                                )}
+                                <h3 className="text-white font-black text-lg mb-1">{selectedEquipment.title}</h3>
+                                <p className="text-purple-300 text-xl font-black mb-2">{selectedEquipment.price > 0 ? `${selectedEquipment.price} ₺` : (t('equipment.ask_price') || 'Fiyat sor')}</p>
+                                {selectedEquipment.description && <p className="text-gray-300 text-sm mb-2">{selectedEquipment.description}</p>}
+                                {selectedEquipment.location && <p className="text-gray-500 text-xs mb-3">📍 {selectedEquipment.location}</p>}
+                                <div className="flex items-center gap-2 mb-4 pt-3 border-t border-gray-800">
+                                    <div className={`w-8 h-8 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+                                        {selectedEquipment.user?.username?.[0]?.toUpperCase()}
+                                    </div>
+                                    <p className="text-white text-sm font-bold">{selectedEquipment.user?.fullName || selectedEquipment.user?.username}</p>
+                                </div>
+                                {selectedEquipment.userId === myId ? (
+                                    <button onClick={() => deleteEquipment(selectedEquipment.id)}
+                                        className="w-full bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold py-2.5 rounded-xl text-sm transition">
+                                        🗑 {t('equipment.delete') || 'İlanı Sil'}
+                                    </button>
+                                ) : (
+                                    <button onClick={() => navigate(`/messages/${selectedEquipment.userId}`)}
+                                        className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}>
+                                        💬 {t('equipment.message_seller') || 'Satıcıya Mesaj Gönder'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* TICKETS TAB — Ticketmaster ulusal + uluslararasi mac bileti */}
                     {activeTab === 'tickets' && (

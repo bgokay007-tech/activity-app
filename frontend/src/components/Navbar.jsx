@@ -225,6 +225,20 @@ export default function Navbar({ onBack, backLabel, title }) {
                         </button>
                     )}
 
+                    {user?.isBusiness && (
+                        location.pathname.startsWith('/business') ? (
+                            <button onClick={() => navigate('/home')} className={`${NAV_BTN} border-amber-600 text-amber-300 hover:text-amber-200`}>
+                                <span>←</span>
+                                <span className="hidden sm:inline">{t('nav.back_to_app', { defaultValue: 'Uygulamaya Dön' })}</span>
+                            </button>
+                        ) : (
+                            <button onClick={() => navigate('/business')} className={`${NAV_BTN} border-amber-600 text-amber-300 hover:text-amber-200`}>
+                                <span>🏢</span>
+                                <span className="hidden sm:inline">{t('nav.business', { defaultValue: 'İşletme Paneli' })}</span>
+                            </button>
+                        )
+                    )}
+
                     {user?.isAdmin && (
                         location.pathname.startsWith('/admin') ? (
                             <button onClick={() => navigate('/home')} className={`${NAV_BTN} border-purple-600 text-purple-300 hover:text-purple-200`}>
@@ -267,6 +281,16 @@ export default function Navbar({ onBack, backLabel, title }) {
                                 >
                                     <span className="text-lg">💬</span>
                                     <span className="text-gray-300 text-sm font-bold">{t('nav.messages')}</span>
+                                </button>
+
+                                <div className="border-t border-gray-800" />
+
+                                <button
+                                    onClick={() => { setMenuOpen(false); navigate('/activity'); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition text-left"
+                                >
+                                    <span className="text-lg">🌟</span>
+                                    <span className="text-gray-300 text-sm font-bold">{t('nav.activity', { defaultValue: 'Aktivite' })}</span>
                                 </button>
 
                                 <div className="border-t border-gray-800" />
