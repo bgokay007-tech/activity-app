@@ -1005,7 +1005,17 @@ export const getMyReservations = async (req, res, next) => {
             },
             orderBy: [{ date: 'desc' }, { startTime: 'asc' }],
         });
-        res.json(reservations);
+        // Her rezervasyona, ondan zaten oluşturulmuş bir "rakip bul" ilanı varsa bağlanır —
+        // frontend'de "İlan Aç" butonu, ilan zaten varken kafa karıştırmasın diye "İlana Git"e dönüşsün diye.
+        const linkedRivals = await prisma.activityRequest.findMany({
+            where: { venueReservationId: { in: reservations.map(r => r.id) }, senderId: req.userId, status: { not: 'CANCELLED' } },
+            select: { id: true, venueReservationId: true, category: true, subCategory: true },
+        });
+        const withLinks = reservations.map(r => ({
+            ...r,
+            linkedRival: linkedRivals.find(a => a.venueReservationId === r.id) || null,
+        }));
+        res.json(withLinks);
     } catch (error) { next(error); }
 };
 

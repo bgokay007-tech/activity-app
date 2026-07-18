@@ -108,27 +108,19 @@ function ReservationCard({ item, onCancel, onCancelRequested, navigation }) {
         );
     };
 
-    const handleCreateRival = async () => {
+    const handleCreateRival = () => {
         const venueName = item.venue?.name || '';
         const courtName = item.court?.name || '';
         const { sub, cat } = branchToSub(item.venue?.branch);
-        try {
-            const { data } = await api.get(`/activity/for-reservation/${item.id}`);
-            if (data?.listing) {
-                Alert.alert(
-                    '📢 Aktif İlanınız Var',
-                    'Bu rezervasyon için zaten bir rakip arama ilanınız bulunuyor.',
-                    [
-                        { text: 'Kapat', style: 'cancel' },
-                        { text: 'İlana Git', onPress: () => navigation.navigate('SubCategory', {
-                            category: cat, sub, initialTab: 'rivals',
-                            highlightRivalId: data.listing.id,
-                        })},
-                    ]
-                );
-                return;
-            }
-        } catch {}
+        // Bu rezervasyondan zaten bir ilan açılmışsa (linkedRival, rezervasyon listesiyle
+        // birlikte backend'den geliyor) "İlan Aç" akışı kafa karıştırmasın diye direkt ilana gidilir.
+        if (item.linkedRival) {
+            navigation.navigate('SubCategory', {
+                category: item.linkedRival.category, sub: item.linkedRival.subCategory,
+                initialTab: 'rivals', highlightRivalId: item.linkedRival.id,
+            });
+            return;
+        }
         Alert.alert(
             t.resCreateRivalTitle,
             t.resCreateRivalMsg(venueName, courtName, item.date, item.startTime, item.endTime),
@@ -226,7 +218,7 @@ function ReservationCard({ item, onCancel, onCancelRequested, navigation }) {
                 )}
                 {canRival && (
                     <TouchableOpacity style={s.rivalBtn} onPress={handleCreateRival} activeOpacity={0.8}>
-                        <Text style={s.rivalBtnText}>{t.resCreateRivalBtn}</Text>
+                        <Text style={s.rivalBtnText}>{item.linkedRival ? t.resGoToListingBtn : t.resCreateRivalBtn}</Text>
                     </TouchableOpacity>
                 )}
             </View>
