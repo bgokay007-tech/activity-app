@@ -4999,107 +4999,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         onSelectMax={(v) => set('maxRating', v)}
                                         onClose={() => setShowRatingRange(false)}
                                     />
-                                    <Modal visible={showDoubleOptions && f.matchType === 'DOUBLE'} animationType="slide" transparent onRequestClose={() => setShowDoubleOptions(false)}>
-                                        <TouchableOpacity style={tg.overlay} activeOpacity={1} onPress={() => setShowDoubleOptions(false)}>
-                                            <View style={tg.box} onStartShouldSetResponder={() => true}>
-                                                <View style={tg.header}>
-                                                    <Text style={tg.title}>👥 {t.doubleFormat}</Text>
-                                                    <TouchableOpacity onPress={() => setShowDoubleOptions(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
-                                                </View>
-                                                <ScrollView showsVerticalScrollIndicator={false}>
-                                                    {(sub === 'tennis' || sub === 'padel') && (() => {
-                                                        const GENDERS = [
-                                                            { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
-                                                            { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
-                                                            { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
-                                                        ];
-                                                        const GenderRow = ({ label, field }) => (
-                                                            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1}>{label}</Text>
-                                                                <View style={{ flexDirection:'row', gap:3 }}>
-                                                                    {GENDERS.map(g => (
-                                                                        <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
-                                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f[field]===g.id && s.chipBtnActive]}>
-                                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
-                                                                        </TouchableOpacity>
-                                                                    ))}
-                                                                </View>
-                                                            </View>
-                                                        );
-                                                        return (
-                                                            <View style={{ marginBottom:10, gap:8 }}>
-                                                                {/* Takım Arkadaşı Cinsiyeti */}
-                                                                <GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti'} field="partnerGenderReq" />
-                                                                {/* Partneri Seç — Takım Arkadaşı'nın altında, kendi satırında */}
-                                                                {!isTeamSport && (
-                                                                    f.partner ? (
-                                                                        <TouchableOpacity onPress={() => set('partner', null)}
-                                                                            style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{f.partner.fullName || f.partner.username}</Text>
-                                                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>✕</Text>
-                                                                        </TouchableOpacity>
-                                                                    ) : (
-                                                                        <TouchableOpacity onPress={() => setInviteTarget('partner')}
-                                                                            style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }} numberOfLines={1}>{t.choosePartnerBtn}</Text>
-                                                                        </TouchableOpacity>
-                                                                    )
-                                                                )}
-                                                                {/* Rakip 1 + Rakip 2 Cinsiyeti, altlarında Davet Et — tek satır */}
-                                                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
-                                                                    <View style={{ gap:4 }}>
-                                                                        <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
-                                                                        {f.opp1Invite ? (
-                                                                            <TouchableOpacity onPress={() => set('opp1Invite', null)}
-                                                                                style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.opp1Invite.fullName || f.opp1Invite.username}</Text>
-                                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
-                                                                            </TouchableOpacity>
-                                                                        ) : (
-                                                                            <TouchableOpacity onPress={() => setInviteTarget('opp1')}
-                                                                                style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}</Text>
-                                                                            </TouchableOpacity>
-                                                                        )}
-                                                                    </View>
-                                                                    <View style={{ gap:4 }}>
-                                                                        <GenderRow label={t.opp2GenderLabel || 'Rakip 2 Cinsiyeti'} field="opp2GenderReq" />
-                                                                        {f.opp2Invite ? (
-                                                                            <TouchableOpacity onPress={() => set('opp2Invite', null)}
-                                                                                style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.opp2Invite.fullName || f.opp2Invite.username}</Text>
-                                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
-                                                                            </TouchableOpacity>
-                                                                        ) : (
-                                                                            <TouchableOpacity onPress={() => setInviteTarget('opp2')}
-                                                                                style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}</Text>
-                                                                            </TouchableOpacity>
-                                                                        )}
-                                                                    </View>
-                                                                </View>
-                                                            </View>
-                                                        );
-                                                    })()}
-                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
-                                                        <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1}>{t.teamFlexLabel}</Text>
-                                                        <View style={{ flexDirection:'row', gap:3 }}>
-                                                            {[{id:'FLEXIBLE',label:t.flexModeShortFlexible},{id:'STRICT',label:t.flexModeShortStrict}].map(opt => (
-                                                                <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
-                                                                    style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
-                                                                    <Text style={[s.chipBtnText, { fontSize:11 }, f.teamFlexibility===opt.id && s.chipBtnTextActive]} numberOfLines={1}>{opt.label}</Text>
-                                                                </TouchableOpacity>
-                                                            ))}
-                                                        </View>
-                                                    </View>
-                                                    <TouchableOpacity onPress={() => setShowDoubleOptions(false)}
-                                                        style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center' }}>
-                                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{t.doubleOptionsContinueBtn}</Text>
-                                                    </TouchableOpacity>
-                                                </ScrollView>
-                                            </View>
-                                        </TouchableOpacity>
-                                    </Modal>
                                     {(sub === 'tennis' || sub === 'padel') && f.flexibleSchedule && (
                                         <Text style={s.modeHint}>{t.multiSelectHint}</Text>
                                     )}
@@ -5506,67 +5405,186 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         </ScrollView>
                     </View>
                 </KeyboardAvoidingView>
+
+                {/* Çiftler ayarları (Partner/Rakip cinsiyeti+davet, Takım Değişikliği) — ayrı bir
+                    <Modal> değil, aynı sebep: iç içe Modal Android'de sorun çıkarabiliyor. Ana
+                    Modal içinde mutlak konumlu katman olarak render ediliyor. */}
+                {showDoubleOptions && f.matchType === 'DOUBLE' && (
+                    <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0 }}>
+                        <TouchableOpacity style={tg.overlay} activeOpacity={1} onPress={() => setShowDoubleOptions(false)}>
+                            <View style={tg.box} onStartShouldSetResponder={() => true}>
+                                <View style={tg.header}>
+                                    <Text style={tg.title}>👥 {t.doubleFormat}</Text>
+                                    <TouchableOpacity onPress={() => setShowDoubleOptions(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                                </View>
+                                <ScrollView showsVerticalScrollIndicator={false}>
+                                    {(sub === 'tennis' || sub === 'padel') && (() => {
+                                        const GENDERS = [
+                                            { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
+                                            { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
+                                            { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
+                                        ];
+                                        const GenderRow = ({ label, field }) => (
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1}>{label}</Text>
+                                                <View style={{ flexDirection:'row', gap:3 }}>
+                                                    {GENDERS.map(g => (
+                                                        <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
+                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f[field]===g.id && s.chipBtnActive]}>
+                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </View>
+                                        );
+                                        return (
+                                            <View style={{ marginBottom:10, gap:8 }}>
+                                                {/* Takım Arkadaşı Cinsiyeti */}
+                                                <GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti'} field="partnerGenderReq" />
+                                                {/* Partneri Seç — Takım Arkadaşı'nın altında, kendi satırında */}
+                                                {!isTeamSport && (
+                                                    f.partner ? (
+                                                        <TouchableOpacity onPress={() => set('partner', null)}
+                                                            style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{f.partner.fullName || f.partner.username}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    ) : (
+                                                        <TouchableOpacity onPress={() => setInviteTarget('partner')}
+                                                            style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }} numberOfLines={1}>{t.choosePartnerBtn}</Text>
+                                                        </TouchableOpacity>
+                                                    )
+                                                )}
+                                                {/* Rakip 1 + Rakip 2 Cinsiyeti, altlarında Davet Et — tek satır */}
+                                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
+                                                    <View style={{ gap:4 }}>
+                                                        <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
+                                                        {f.opp1Invite ? (
+                                                            <TouchableOpacity onPress={() => set('opp1Invite', null)}
+                                                                style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.opp1Invite.fullName || f.opp1Invite.username}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        ) : (
+                                                            <TouchableOpacity onPress={() => setInviteTarget('opp1')}
+                                                                style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
+                                                    <View style={{ gap:4 }}>
+                                                        <GenderRow label={t.opp2GenderLabel || 'Rakip 2 Cinsiyeti'} field="opp2GenderReq" />
+                                                        {f.opp2Invite ? (
+                                                            <TouchableOpacity onPress={() => set('opp2Invite', null)}
+                                                                style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{f.opp2Invite.fullName || f.opp2Invite.username}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        ) : (
+                                                            <TouchableOpacity onPress={() => setInviteTarget('opp2')}
+                                                                style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
+                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.inviteSendBtn}</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        );
+                                    })()}
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
+                                        <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1}>{t.teamFlexLabel}</Text>
+                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                            {[{id:'FLEXIBLE',label:t.flexModeShortFlexible},{id:'STRICT',label:t.flexModeShortStrict}].map(opt => (
+                                                <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
+                                                    style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
+                                                    <Text style={[s.chipBtnText, { fontSize:11 }, f.teamFlexibility===opt.id && s.chipBtnTextActive]} numberOfLines={1}>{opt.label}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+                                    <TouchableOpacity onPress={() => setShowDoubleOptions(false)}
+                                        style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center' }}>
+                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{t.doubleOptionsContinueBtn}</Text>
+                                    </TouchableOpacity>
+                                </ScrollView>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Partner / Rakip 1 / Rakip 2 davet — ortak arama + arkadaşlar penceresi.
+                    Ayrı bir <Modal> DEĞİL: Android'de iç içe Modal, klavye açılınca pencerenin
+                    sıfır yüksekliğe çökmesine yol açıyordu (aynı köke sahip Tarih/Saat sorunuyla
+                    aynı sebep). Bunun yerine ana Modal'ın içinde, kesin ölçülü (top/left/right/
+                    bottom:0) mutlak konumlu bir katman olarak render ediliyor — flex çözümlemesine
+                    bağımlı değil, güvenilir bir şekilde tam ekran boyutunu alıyor. */}
+                {showPartnerSearch && (
+                    <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0 }}>
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1 }}>
+                            <TouchableOpacity style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }} activeOpacity={1}
+                                onPress={() => { setInviteTarget(null); setPartnerQuery(''); setPartnerResults([]); }}>
+                                <View onStartShouldSetResponder={() => true}
+                                    style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>
+                                            {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : inviteTarget === 'singleOpp' ? t.inviteOpponentTitle : t.choosePartnerBtn}
+                                        </Text>
+                                        <TouchableOpacity onPress={() => { setInviteTarget(null); setPartnerQuery(''); setPartnerResults([]); }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <TextInput
+                                        style={s.fieldInput}
+                                        value={partnerQuery}
+                                        onChangeText={setPartnerQuery}
+                                        placeholder={t.inviteSearchPh}
+                                        placeholderTextColor={colors.textMuted}
+                                        autoFocus
+                                    />
+                                    {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                                        {partnerQuery.trim().length < 2 && (
+                                            <>
+                                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6, letterSpacing:0.3 }}>{t.friendsListLabel}</Text>
+                                                {loadingFriends && <ActivityIndicator color={cfg.color} style={{ marginBottom:12 }} />}
+                                                {!loadingFriends && friendsList.length === 0 && (
+                                                    <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>{t.noFriendsLabel}</Text>
+                                                )}
+                                                {friendsList.map(u => (
+                                                    <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                                        <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.fullName || u.username}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{u.username}</Text>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </>
+                                        )}
+                                        {partnerResults.map(u => (
+                                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                                <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                                    </Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
+                                        {!partnerSearching && partnerQuery.trim().length >= 2 && partnerResults.length === 0 && (
+                                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
+                                        )}
+                                    </ScrollView>
+                                </View>
+                            </TouchableOpacity>
+                        </KeyboardAvoidingView>
+                    </View>
+                )}
             </View>
         </Modal>
 
-        {/* Partner / Rakip 1 / Rakip 2 davet — ortak arama + arkadaşlar penceresi */}
-        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setInviteTarget(null)} android_keyboardInputMode="adjustResize">
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>
-                            {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : inviteTarget === 'singleOpp' ? t.inviteOpponentTitle : t.choosePartnerBtn}
-                        </Text>
-                        <TouchableOpacity onPress={() => { setInviteTarget(null); setPartnerQuery(''); setPartnerResults([]); }}>
-                            <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <TextInput
-                        style={s.fieldInput}
-                        value={partnerQuery}
-                        onChangeText={setPartnerQuery}
-                        placeholder={t.inviteSearchPh}
-                        placeholderTextColor={colors.textMuted}
-                        autoFocus
-                    />
-                    {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
-                        {partnerQuery.trim().length < 2 && (
-                            <>
-                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6, letterSpacing:0.3 }}>{t.friendsListLabel}</Text>
-                                {loadingFriends && <ActivityIndicator color={cfg.color} style={{ marginBottom:12 }} />}
-                                {!loadingFriends && friendsList.length === 0 && (
-                                    <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>{t.noFriendsLabel}</Text>
-                                )}
-                                {friendsList.map(u => (
-                                    <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
-                                        <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
-                                        <View style={{ flex:1 }}>
-                                            <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.fullName || u.username}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{u.username}</Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                ))}
-                            </>
-                        )}
-                        {partnerResults.map(u => (
-                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
-                                <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
-                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-                        ))}
-                        {!partnerSearching && partnerQuery.trim().length >= 2 && partnerResults.length === 0 && (
-                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
-                        )}
-                    </ScrollView>
-                </View>
-            </KeyboardAvoidingView>
-        </Modal>
         <VenueBookingModal
             visible={venueBooking.visible}
             venueId={venueBooking.venueId}
