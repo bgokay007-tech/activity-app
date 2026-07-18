@@ -5055,9 +5055,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
-                            {/* Tarih · Saat · Süre — tek satır, daraltılmış kutular. Tarih her zaman görünür, Saat/Süre sadece esnek program kapalıyken */}
-                            <View style={[s.triRow, { marginBottom:6 }]}>
-                                <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingHorizontal:3, paddingVertical:3 }, f.matchDate && s.triBtnFilled]} onPress={() => set('showDatePicker', true)}>
+                            {/* Tarih · Saat · Süre — tek satır, içeriğe göre boyutlanır (flex YOK — flex ile
+                                genişletince kutu, kısa metnin (ör. "22/07/2026") ihtiyacından fazla yer
+                                kaplayıp sağ-solda boş alan bırakıyordu; içerik kadar sarılınca o boşluk
+                                tamamen kalkıyor). Tarih her zaman görünür, Saat/Süre sadece esnek program kapalıyken */}
+                            <View style={[s.triRow, { flexGrow:0, marginBottom:6 }]}>
+                                <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.matchDate && s.triBtnFilled]} onPress={() => set('showDatePicker', true)}>
                                     <Text style={s.triLabel}>{t.dateLabel}</Text>
                                     <Text style={[s.triValue, !f.matchDate && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                         {f.flexibleSchedule ? noEmoji(t.flexLabel) : (f.matchDate ? `${String(f.matchDate.getDate()).padStart(2,'0')}/${String(f.matchDate.getMonth()+1).padStart(2,'0')}/${f.matchDate.getFullYear()}` : '—')}
@@ -5065,11 +5068,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </TouchableOpacity>
                                 {!f.flexibleSchedule && (
                                     <>
-                                        <TouchableOpacity style={[s.triBtn, { flex:0.25, paddingHorizontal:3, paddingVertical:3 }, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
                                             <Text style={s.triLabel}>{t.timeLabel}</Text>
                                             <Text style={[s.triValue, !f.matchTime && s.triPlaceholder]}>{f.matchTime || '—'}</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={[s.triBtn, { flex:0.25, paddingHorizontal:3, paddingVertical:3 }, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
                                             <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
                                             <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
                                         </TouchableOpacity>
