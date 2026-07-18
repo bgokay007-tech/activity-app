@@ -5230,14 +5230,34 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     </View>
                                     {!f.courtMutual && <View style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'stretch' }}>
-                                        <TextInput
-                                            style={[s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5 }]}
-                                            value={f.courtSearchText}
-                                            onChangeText={searchCourts}
-                                            placeholder={t.courtSearchPlaceholder}
-                                            placeholderTextColor={colors.textMuted}
-                                            textAlignVertical="center"
-                                        />
+                                        {f.selectedCourt ? (
+                                            <TouchableOpacity
+                                                style={[s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5, justifyContent:'center' }]}
+                                                onPress={() => {
+                                                    Alert.alert(
+                                                        f.selectedCourt.venueName || f.selectedCourt.name,
+                                                        null,
+                                                        [
+                                                            { text: '↩ Vazgeç', style: 'cancel' },
+                                                            ...(f.venueId ? [{ text: '🔄 Değiştir', onPress: () => changeCourt() }] : []),
+                                                            { text: '🗑 Sil', style: 'destructive', onPress: () => (f.reservationId ? cancelCourt() : deselectCourt()) },
+                                                        ]
+                                                    );
+                                                }}>
+                                                <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                    ✅ {f.selectedCourt.venueName || f.selectedCourt.name}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ) : (
+                                            <TextInput
+                                                style={[s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5 }]}
+                                                value={f.courtSearchText}
+                                                onChangeText={searchCourts}
+                                                placeholder={t.courtSearchPlaceholder}
+                                                placeholderTextColor={colors.textMuted}
+                                                textAlignVertical="center"
+                                            />
+                                        )}
                                         {/* Zemin solda, Mekan Türü sağda — tek satır. Satır alignItems:'stretch' olduğu için
                                             arama kutusu, bu iki kutunun (etiket+değer içerdikleri için daha uzun olan)
                                             yüksekliğine otomatik eşitleniyor — sabit piksel tahmini yerine güvenilir yöntem.
@@ -5332,40 +5352,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     )}
 
-                                    {/* Seçilen kort */}
-                                    {f.selectedCourt && (
-                                        <View style={s.selectedCourtBox}>
-                                            <View style={{ flex:1 }}>
-                                                <Text style={s.selectedCourtText}>✅ {f.selectedCourt.venueName || f.selectedCourt.name}</Text>
-                                                {f.venueId && f.matchDate && (
-                                                    <Text style={{ color:'#22c55e', fontSize:10, marginTop:2 }}>
-                                                        📅 {f.matchDate.toLocaleDateString('tr-TR')} · {f.matchTime}{f.reservationEndTime ? `–${f.reservationEndTime}` : ''}{f.selectedCourt.totalPrice ? `  💰 ${f.selectedCourt.totalPrice}₺` : ''}
-                                                    </Text>
-                                                )}
-                                            </View>
-                                            <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', justifyContent:'flex-end', marginTop:4 }}>
-                                                <TouchableOpacity
-                                                    onPress={deselectCourt}
-                                                    style={{ backgroundColor:'#ffffff12', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ffffff25' }}>
-                                                    <Text style={{ color:'#aaa', fontSize:11, fontWeight:'700' }}>↩ Vazgeç</Text>
-                                                </TouchableOpacity>
-                                                {f.venueId && (
-                                                    <TouchableOpacity
-                                                        onPress={changeCourt}
-                                                        style={{ backgroundColor:'#3b82f620', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#3b82f650' }}>
-                                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>🔄 Değiştir</Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                                {f.reservationId && (
-                                                    <TouchableOpacity
-                                                        onPress={cancelCourt}
-                                                        style={{ backgroundColor:'#ef444420', borderRadius:7, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#ef444450' }}>
-                                                        <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>🗑 Sil</Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                            </View>
-                                        </View>
-                                    )}
 
                                     {/* Kort bulunamadı → Manuel giriş */}
                                     {!f.selectedCourt && f.courtSearchText.length >= 2 && visibleCourtResults.length === 0 && !searching && (
