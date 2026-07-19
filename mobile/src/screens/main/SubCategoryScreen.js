@@ -4123,25 +4123,26 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                     return cData.slots.map((sl, i) => {
                     const isSel    = rangeStartIdx !== -1 && i >= rangeStartIdx && i <= rangeEndIdx;
                     const isPend   = !sl.free && sl.status === 'PENDING';
+                    const isPast   = !sl.free && !isPend && sl.past;
                     const slotPrice = sl.priceByMethod?.CASH ?? (sl.price != null ? sl.price : venue?.pricePerSlot);
                     return (
                         <TouchableOpacity key={i} disabled={!sl.free}
                             style={[vb.colSlot,
-                                sl.free ? vb.colSlotFree : (isPend ? vb.colSlotPend : vb.colSlotTaken),
+                                sl.free ? vb.colSlotFree : (isPend ? vb.colSlotPend : (isPast ? vb.colSlotPast : vb.colSlotTaken)),
                                 isSel && vb.colSlotSel]}
                             onPress={() => tapGridSlot(court, cData, sl)} activeOpacity={0.75}>
                             <Text style={[vb.colSlotT,
-                                !sl.free && { color: isPend ? '#fbbf24' : '#ef4444' },
+                                !sl.free && { color: isPend ? '#fbbf24' : (isPast ? '#a1a1aa' : '#ef4444') },
                                 isSel && { color:'#fff' }]}>
                                 {isPend ? '⏳' : sl.start}
                             </Text>
                             <Text style={[vb.colSlotSub,
-                                !sl.free && { color: isPend ? '#fbbf2480' : '#ef444480' },
+                                !sl.free && { color: isPend ? '#fbbf2480' : (isPast ? '#a1a1aa80' : '#ef444480') },
                                 isSel && { color:'#fff', opacity:0.8 }]}>
                                 {isPend ? 'Onay Bek.' : sl.end}
                             </Text>
                             {!sl.free && !isPend && (
-                                <Text style={{ color:'#ef4444', fontSize:8, fontWeight:'800', marginTop:1 }}>Dolu</Text>
+                                <Text style={{ color: isPast ? '#a1a1aa' : '#ef4444', fontSize:8, fontWeight:'800', marginTop:1 }}>{isPast ? 'Geçmiş' : 'Dolu'}</Text>
                             )}
                             {sl.free && slotPrice > 0 && (
                                 <Text style={[vb.colSlotPrice, isSel && { color:'#bbf7d0' }]}>{slotPrice}₺</Text>
@@ -4604,6 +4605,7 @@ const vb = StyleSheet.create({
     colSlot:      { borderRadius:4, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:3, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#5c0a0a', borderColor:'#ef4444', borderWidth:1.5 },
+    colSlotPast:  { backgroundColor:'#27272a', borderColor:'#3f3f46', opacity:0.6 },
     colSlotPend:  { backgroundColor:'#78350fcc', borderColor:'#f59e0b', borderWidth:1.5 },
     colSlotSel:   { backgroundColor:'#581c87', borderColor:'#c084fc', borderWidth:2 },
     colSlotT:     { color:'#4ade80', fontSize:12, fontWeight:'700' },

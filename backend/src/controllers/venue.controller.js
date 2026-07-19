@@ -262,24 +262,29 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
 
     if (venue.slotType === 'HALF_HOUR') {
         const slots = [];
-        for (let wi = 0; wi < openWindows.length; wi++) {
-            const w = openWindows[wi];
+        // Gece yarısını geçen pencereler (ör. 08:00–01:00) burada TEK parça olarak, "to"
+        // 1440'ın üzerine taşınmış halde gelir (keepOvernight) — splitOvernight'ın çıktısını
+        // sonradan "bir sonraki pencere 00:00'dan mı başlıyor" diye tahmin etmeye çalışmak
+        // (eski yaklaşım) yanlıştı: pencereler from'a göre sıralandığı için 00:00 parçası
+        // dizinin BAŞINA düşüyor, ardışık (wi+1) değil — bu yüzden kapanışa yakın slotlar
+        // (ör. 22:30–23:30, 23:30–00:30) hiç üretilmiyordu.
+        const hhWindows = getOpenWindows(venue, date, courtId, true);
+        for (const w of hhWindows) {
             let open = toMins(w.from);
-            const close = toMins(w.to);
+            const close = toMins(w.to); // gece yarısını geçiyorsa >1440 olabilir
             // Buçuklu saat: slotlar her zaman :30 dakikasında başlar
             if (open % 60 !== 30) { open = Math.floor(open / 60) * 60 + 30; if (open < toMins(w.from)) open += 60; }
-            // Gece yarısını geçen slot: pencere 24:00'de bitiyorsa ve sonraki pencere 00:00'dan başlıyorsa 23:30-00:30 slotuna izin ver
-            const nextW = openWindows[wi + 1];
-            const effectiveClose = (close === 1440 && nextW && toMins(nextW.from) === 0) ? 1470 : close;
-            for (let t = open; t + 60 <= effectiveClose; t += 60) {
+            for (let t = open; t + 60 <= close; t += 60) {
                 const endT = t + 60;
+                const rem = close - endT;
+                if (rem > 0 && rem < 60) continue; // kapanışta kullanılamaz boşluk bırakır
                 const midnight = endT > 1440;
-                if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; } // kapanışta kullanılamaz boşluk
-                const maint = midnight ? (isMaint(t, 1440) || isMaint(0, endT - 1440)) : isMaint(t, endT);
-                const past  = isPastMin(t);
-                const free  = !maint && !past && (midnight ? (isFree(t, 1440) && isFree(0, endT - 1440)) : isFree(t, endT));
-                const st    = !free && !maint && !past ? (midnight ? (slotStatus(t, 1440) || slotStatus(0, endT - 1440)) : slotStatus(t, endT)) : undefined;
-                slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), free, ...(maint ? { maintenance: true } : {}), ...(past ? { past: true } : {}), ...(!free && !maint && !past ? { status: st } : {}) });
+                const s = t, e = midnight ? endT - 1440 : endT;
+                const maint = midnight ? (isMaint(s, 1440) || isMaint(0, e)) : isMaint(s, e);
+                const past  = isPastMin(s);
+                const free  = !maint && !past && (midnight ? (isFree(s, 1440) && isFree(0, e)) : isFree(s, e));
+                const st    = !free && !maint && !past ? (midnight ? (slotStatus(s, 1440) || slotStatus(0, e)) : slotStatus(s, e)) : undefined;
+                slots.push({ start: toTime(s), end: toTime(e), free, ...(maint ? { maintenance: true } : {}), ...(past ? { past: true } : {}), ...(!free && !maint && !past ? { status: st } : {}) });
             }
         }
         return { type: 'HALF_HOUR', slots };

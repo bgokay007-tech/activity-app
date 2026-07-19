@@ -1258,41 +1258,34 @@ export const respondToJoin = async (req, res, next) => {
                 }
                 updatedParticipants = isTeamJoin ? joiningTeam : [joinerEntry, { id: partnerJoinReqToAccept.userId, username: partnerJoinReqToAccept.user.username, fullName: partnerJoinReqToAccept.user.fullName, avatar: partnerJoinReqToAccept.user.avatar }];
             } else {
-                // Bireysel kabul: önce partner slotu (kendi takımı), sonra rakip slotları
+                // Bireysel kabul: rakip slotlarına atanır. Partner slotu bu satıra HİÇ
+                // atanmaz — buraya ulaşan istek zaten isPartnerInvite=false (partner
+                // daveti ayrı, yukarıda erken dönen bir branch), yani her zaman rakip
+                // arayan bir başvurudur; ilan sahibinin partner slotu boş diye oraya
+                // otomatik atanırsa başvuran "karşımıza gelmedi" gibi kaybolmuş görünür.
                 const gUser = await prisma.user.findUnique({ where: { id: u.id }, select: { gender: true } });
                 const pg = gUser?.gender;
                 const fits = (req) => !pg || pg === 'OTHER' || !req || req === 'MIX' || pg === req;
 
-                const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
-                const partnerFilled = !!(senderTeamArr[0] && senderTeamArr[0].id);
-                const partnerGReq = rival.partnerGenderReq || 'MIX';
-
                 const opp1Filled = !!(participants[0] && participants[0].id);
                 const opp2Filled = !!(participants[1] && participants[1].id);
 
-                if (!partnerFilled && fits(partnerGReq)) {
-                    // Partner slotu boş ve cinsiyet uygun → kendi takımına partner yap
-                    assignedToPartner = true;
-                    updatedSenderTeam = [joinerEntry];
-                    updatedParticipants = participants;
+                const newP = [participants[0] || null, participants[1] || null];
+                if (!opp1Filled && fits(opp1Req)) {
+                    newP[0] = joinerEntry;
+                } else if (!opp2Filled && fits(opp2Req)) {
+                    newP[1] = joinerEntry;
                 } else {
-                    const newP = [participants[0] || null, participants[1] || null];
-                    if (!opp1Filled && fits(opp1Req)) {
-                        newP[0] = joinerEntry;
-                    } else if (!opp2Filled && fits(opp2Req)) {
-                        newP[1] = joinerEntry;
+                    if (!opp1Filled || !opp2Filled) {
+                        const req1label = opp1Req !== 'MIX' ? (opp1Req === 'MALE' ? 'erkek' : 'kadın') : null;
+                        const req2label = opp2Req !== 'MIX' ? (opp2Req === 'MALE' ? 'erkek' : 'kadın') : null;
+                        const details = [req1label && `Rakip 1: ${req1label}`, req2label && `Rakip 2: ${req2label}`].filter(Boolean).join(', ');
+                        return res.status(400).json({ message: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` });
                     } else {
-                        if (!partnerFilled || !opp1Filled || !opp2Filled) {
-                            const req1label = opp1Req !== 'MIX' ? (opp1Req === 'MALE' ? 'erkek' : 'kadın') : null;
-                            const req2label = opp2Req !== 'MIX' ? (opp2Req === 'MALE' ? 'erkek' : 'kadın') : null;
-                            const details = [req1label && `Rakip 1: ${req1label}`, req2label && `Rakip 2: ${req2label}`].filter(Boolean).join(', ');
-                            return res.status(400).json({ message: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` });
-                        } else {
-                            return res.status(400).json({ message: 'Tüm slotlar dolu.' });
-                        }
+                        return res.status(400).json({ message: 'Tüm slotlar dolu.' });
                     }
-                    updatedParticipants = newP;
                 }
+                updatedParticipants = newP;
             }
         } else {
             if (isTeamJoin && countFilled(participants) > 0) {
