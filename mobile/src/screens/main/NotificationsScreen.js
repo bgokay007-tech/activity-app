@@ -48,6 +48,7 @@ const TYPE_ICON = {
     VENUE_ORDER: '🛒',
     PAYMENT_ALERT: '💳',
     PEER_REVIEW_PROMPT: '🏐',
+    EQUIPMENT_OFFER: '💰',
     default: '🔔',
 };
 
@@ -152,6 +153,8 @@ export default function NotificationsScreen({ navigation }) {
             navigation.push('Profile', { openTournamentPermissions: true });
         } else if (type === 'NEW_LISTING') {
             goToSub(data.tab || 'rivals');
+        } else if (type === 'EQUIPMENT_OFFER') {
+            goToSub('equipment');
         } else if (type === 'TOURNAMENT_STARTED' || type === 'TOURNAMENT_EXTRA_ROUND') {
             goToSub('tournaments', 'inprogress');
         } else if (type === 'TOURNAMENT_COMPLETED') {

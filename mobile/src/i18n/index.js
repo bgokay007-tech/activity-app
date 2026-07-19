@@ -614,6 +614,21 @@ const en = {
 
     // Equipment
     postListingBtn: '+ List Item', equipSearchPh: 'Search product name...', equipCityPh: 'City / Location',
+    equipActiveTab: 'Active', equipSoldTab: 'Sold',
+    equipChatBtn: '💬 Chat', equipSendOfferBtn: '💰 Send Offer',
+    equipOfferPricePh: 'Your offer (₺)', equipOfferMsgPh: 'Add a note (optional)', equipOfferSendBtn: 'Send Offer',
+    equipOffersTitle: 'Offers', equipNoOffers: 'No offers yet',
+    equipOfferAccept: 'Accept', equipOfferReject: 'Reject',
+    equipOfferAcceptedBadge: '✓ Accepted', equipOfferRejectedBadge: '✕ Rejected',
+    equipReserveUntilTitle: 'Hold this item until...', equipReserveConfirmBtn: 'Confirm & Reserve',
+    equipReservedBadge: (d) => `⏳ Reserved until ${d}`,
+    equipReservedForYouBadge: (d) => `⏳ Reserved for you until ${d}`,
+    equipSoldBadge: '✅ Sold',
+    equipMarkSoldBtn: '✅ Mark as Sold', equipCancelReserveBtn: '↩ Cancel Reservation',
+    equipMarkSoldConfirmTitle: 'Mark as sold?', equipMarkSoldConfirmMsg: 'This listing will move to the Sold tab.',
+    equipOwnOfferMsg: 'You cannot offer on your own listing',
+    equipOfferSentMsg: 'Your offer was sent',
+    equipNoSold: 'No sold items yet',
 
     // Coach credentials & lesson types
     credCertified: 'Certified', credLicensed: 'Licensed', credClubCoach: 'Club Coach', credClubReferee: 'Club Referee', credIndependent: 'Independent', credAmateur: 'Amateur',
@@ -1682,6 +1697,21 @@ const tr = {
 
     // Equipment
     postListingBtn: '+ İlan Ver', equipSearchPh: 'Ürün adı ara...', equipCityPh: 'İl / Konum',
+    equipActiveTab: 'Aktif', equipSoldTab: 'Satılanlar',
+    equipChatBtn: '💬 Sohbet Aç', equipSendOfferBtn: '💰 Teklif Gönder',
+    equipOfferPricePh: 'Teklifiniz (₺)', equipOfferMsgPh: 'Not ekle (isteğe bağlı)', equipOfferSendBtn: 'Teklifi Gönder',
+    equipOffersTitle: 'Teklifler', equipNoOffers: 'Henüz teklif yok',
+    equipOfferAccept: 'Kabul Et', equipOfferReject: 'Reddet',
+    equipOfferAcceptedBadge: '✓ Kabul Edildi', equipOfferRejectedBadge: '✕ Reddedildi',
+    equipReserveUntilTitle: 'Bu ürünü şu tarihe kadar tutun...', equipReserveConfirmBtn: 'Onayla ve Opsiyonla',
+    equipReservedBadge: (d) => `⏳ ${d} tarihine kadar opsiyonlu`,
+    equipReservedForYouBadge: (d) => `⏳ Sizin için ${d} tarihine kadar ayrıldı`,
+    equipSoldBadge: '✅ Satıldı',
+    equipMarkSoldBtn: '✅ Satıldı Olarak İşaretle', equipCancelReserveBtn: '↩ Opsiyonu İptal Et',
+    equipMarkSoldConfirmTitle: 'Satıldı olarak işaretlensin mi?', equipMarkSoldConfirmMsg: 'Bu ilan Satılanlar sekmesine taşınacak.',
+    equipOwnOfferMsg: 'Kendi ilanınıza teklif veremezsiniz',
+    equipOfferSentMsg: 'Teklifiniz gönderildi',
+    equipNoSold: 'Henüz satılan ürün yok',
 
     // Coach credentials & lesson types
     credCertified: 'Sertifikalı', credLicensed: 'Lisanslı', credClubCoach: 'Kulüp Antrenörü', credClubReferee: 'Kulüp Hakemi', credIndependent: 'Bağımsız', credAmateur: 'Amatör',

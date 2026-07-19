@@ -1,23 +1,46 @@
 import prisma from '../config/prisma.js';
+import { createNotification } from './notification.controller.js';
+import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
+// Opsiyon süresi geçmiş (reservedUntil < now) ilanları otomatik olarak ACTIVE'e döndürür —
+// alıcı tarihine kadar dönmezse ilan tekrar herkese açık hale gelir.
+async function expireStaleReservations() {
+    const now = new Date();
+    const stale = await prisma.equipmentListing.findMany({
+        where: { status: 'RESERVED', reservedUntil: { lt: now } },
+        select: { id: true },
+    });
+    if (stale.length > 0) {
+        await prisma.equipmentListing.updateMany({
+            where: { id: { in: stale.map(s => s.id) } },
+            data: { status: 'ACTIVE', reservedForUserId: null, reservedUntil: null },
+        });
+    }
+}
+
 export const getListings = async (req, res, next) => {
     try {
-        const { category, subCategory, condition } = req.query;
+        await expireStaleReservations();
+        const { category, subCategory, condition, status } = req.query;
+        const statusWhere = status === 'SOLD' ? { status: 'SOLD' } : { status: { in: ['ACTIVE', 'RESERVED'] } };
         const listings = await prisma.equipmentListing.findMany({
             where: {
-                status: 'ACTIVE',
+                ...statusWhere,
                 ...(category    && { category }),
                 ...(subCategory && { subCategory }),
                 ...(condition   && { condition }),
             },
-            include: { user: { select: USER_SELECT } },
+            include: {
+                user: { select: USER_SELECT },
+                offers: { where: { status: 'PENDING' }, select: { id: true } },
+            },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(listings);
+        res.json(listings.map(l => ({ ...l, offerCount: l.offers.length, offers: undefined })));
     } catch (err) { next(err); }
 };
 
@@ -88,5 +111,163 @@ export const deleteListing = async (req, res, next) => {
             return res.status(403).json({ message: 'Yetkisiz' });
         await prisma.equipmentListing.delete({ where: { id } });
         res.json({ ok: true });
+    } catch (err) { next(err); }
+};
+
+// Alıcı bir fiyat teklifi gönderir — daha önce reddedilmiş/geri çekilmişse yeniden teklif etmiş olur.
+export const sendOffer = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { price, message } = req.body;
+        if (!parseInt(price) || parseInt(price) <= 0)
+            return res.status(400).json({ message: 'Geçerli bir teklif fiyatı girin' });
+
+        const listing = await prisma.equipmentListing.findUnique({ where: { id } });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (listing.userId === req.userId) return res.status(400).json({ message: 'Kendi ilanınıza teklif veremezsiniz' });
+        if (listing.status === 'SOLD') return res.status(400).json({ message: 'Bu ürün satıldı' });
+
+        const offer = await prisma.equipmentOffer.upsert({
+            where: { listingId_fromUserId: { listingId: id, fromUserId: req.userId } },
+            create: { listingId: id, fromUserId: req.userId, price: parseInt(price), message: message?.trim() || null },
+            update: { price: parseInt(price), message: message?.trim() || null, status: 'PENDING' },
+            include: { fromUser: { select: USER_SELECT } },
+        });
+        res.status(201).json(offer);
+
+        emitToUser(listing.userId, 'equipmentOffer', { listingId: id });
+        createNotification(
+            listing.userId, 'EQUIPMENT_OFFER',
+            '💰 Yeni Teklif',
+            `${offer.fromUser?.fullName || offer.fromUser?.username}, "${listing.title}" ilanınıza ${offer.price}₺ teklif verdi.`,
+            { listingId: id, category: listing.category, subCategory: listing.subCategory }
+        ).catch(() => {});
+    } catch (err) { next(err); }
+};
+
+// İlan sahibi kendi ilanına gelen teklifleri görür.
+export const getOffers = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const listing = await prisma.equipmentListing.findUnique({ where: { id } });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (listing.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const offers = await prisma.equipmentOffer.findMany({
+            where: { listingId: id },
+            include: { fromUser: { select: USER_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(offers);
+    } catch (err) { next(err); }
+};
+
+// İlan sahibi bir teklifi kabul/red eder. Kabul edilirse, anlaşılan alıcı için ilan
+// belirtilen tarihe kadar opsiyonlu (RESERVED) hale gelir.
+export const respondOffer = async (req, res, next) => {
+    try {
+        const { offerId } = req.params;
+        const { action, reservedUntil } = req.body; // action: 'accept' | 'reject'
+
+        const offer = await prisma.equipmentOffer.findUnique({
+            where: { id: offerId },
+            include: { listing: true, fromUser: { select: USER_SELECT } },
+        });
+        if (!offer) return res.status(404).json({ message: 'Teklif bulunamadı' });
+        if (offer.listing.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (offer.status !== 'PENDING') return res.status(400).json({ message: 'Bu teklif artık bekleyen durumda değil' });
+
+        if (action === 'reject') {
+            await prisma.equipmentOffer.update({ where: { id: offerId }, data: { status: 'REJECTED' } });
+            res.json({ message: 'Teklif reddedildi' });
+            createNotification(
+                offer.fromUserId, 'EQUIPMENT_OFFER',
+                '❌ Teklifiniz Reddedildi',
+                `"${offer.listing.title}" ilanına verdiğiniz ${offer.price}₺ teklif reddedildi.`,
+                { listingId: offer.listingId, category: offer.listing.category, subCategory: offer.listing.subCategory }
+            ).catch(() => {});
+            return;
+        }
+
+        if (action === 'accept') {
+            if (!reservedUntil) return res.status(400).json({ message: 'Opsiyon tarihi zorunludur' });
+            const untilDate = new Date(reservedUntil);
+            if (isNaN(untilDate) || untilDate <= new Date())
+                return res.status(400).json({ message: 'Geçerli bir gelecek tarih seçin' });
+
+            const [updatedOffer, updatedListing] = await Promise.all([
+                prisma.equipmentOffer.update({ where: { id: offerId }, data: { status: 'ACCEPTED' } }),
+                prisma.equipmentListing.update({
+                    where: { id: offer.listingId },
+                    data: { status: 'RESERVED', reservedForUserId: offer.fromUserId, reservedUntil: untilDate },
+                    include: { user: { select: USER_SELECT } },
+                }),
+            ]);
+            res.json({ offer: updatedOffer, listing: updatedListing });
+
+            broadcast('equipmentUpdate', updatedListing);
+            createNotification(
+                offer.fromUserId, 'EQUIPMENT_OFFER',
+                '✅ Teklifiniz Kabul Edildi',
+                `"${offer.listing.title}" ilanı, ${untilDate.toLocaleDateString('tr-TR')} tarihine kadar sizin için opsiyonlu.`,
+                { listingId: offer.listingId, category: offer.listing.category, subCategory: offer.listing.subCategory }
+            ).catch(() => {});
+            return;
+        }
+
+        return res.status(400).json({ message: 'Geçersiz aksiyon' });
+    } catch (err) { next(err); }
+};
+
+// İlan sahibi anlaşma bozulunca opsiyonu iptal edip ilanı tekrar herkese açar.
+export const cancelReservation = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const listing = await prisma.equipmentListing.findUnique({ where: { id } });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (listing.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (listing.status !== 'RESERVED') return res.status(400).json({ message: 'Bu ilan opsiyonlu değil' });
+
+        const reservedForUserId = listing.reservedForUserId;
+        const updated = await prisma.equipmentListing.update({
+            where: { id },
+            data: { status: 'ACTIVE', reservedForUserId: null, reservedUntil: null },
+            include: { user: { select: USER_SELECT } },
+        });
+        res.json(updated);
+        broadcast('equipmentUpdate', updated);
+        if (reservedForUserId) {
+            createNotification(
+                reservedForUserId, 'EQUIPMENT_OFFER',
+                '⚠️ Opsiyon İptal Edildi',
+                `"${listing.title}" ilanındaki opsiyonunuz iptal edildi, ilan tekrar satışa açıldı.`,
+                { listingId: id, category: listing.category, subCategory: listing.subCategory }
+            ).catch(() => {});
+        }
+    } catch (err) { next(err); }
+};
+
+// İlan sahibi satışı tamamlayınca ilan "Satılanlar" sekmesine geçer.
+export const markSold = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const listing = await prisma.equipmentListing.findUnique({ where: { id } });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (listing.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (listing.status === 'SOLD') return res.status(400).json({ message: 'Bu ilan zaten satıldı olarak işaretli' });
+
+        const updated = await prisma.equipmentListing.update({
+            where: { id },
+            data: { status: 'SOLD' },
+            include: { user: { select: USER_SELECT } },
+        });
+        res.json(updated);
+        broadcast('equipmentUpdate', updated);
+
+        // Bekleyen diğer teklifleri kapat — ürün artık satıldı.
+        prisma.equipmentOffer.updateMany({
+            where: { listingId: id, status: 'PENDING' },
+            data: { status: 'REJECTED' },
+        }).catch(() => {});
     } catch (err) { next(err); }
 };

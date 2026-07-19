@@ -48,6 +48,14 @@
           "sounds": []
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Yakınındaki rakip ilanlarını bulabilmek için konumunu kullanmak istiyoruz.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
       "@react-native-community/datetimepicker",
       "expo-video"
     ],

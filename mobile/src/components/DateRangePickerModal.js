@@ -22,7 +22,7 @@ function fmtShort(d, t) {
     return `${d.getDate()} ${t.calMonths[d.getMonth()].slice(0, 3)}`;
 }
 
-export default function DateRangePickerModal({ visible, dateFrom, dateTo, onApply, onClose }) {
+export default function DateRangePickerModal({ visible, dateFrom, dateTo, onApply, onClose, quickOptions, activeQuick, onQuickSelect }) {
     const t = useT();
     const [from, setFrom] = useState(dateFrom || null);
     const [to, setTo] = useState(dateTo || null);
@@ -79,6 +79,20 @@ export default function DateRangePickerModal({ visible, dateFrom, dateTo, onAppl
                         <Text style={s.title}>{t.dateRangeTitle || '📅 Tarih Aralığı'}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
                     </View>
+
+                    {quickOptions && (
+                        <View style={s.quickRow}>
+                            {quickOptions.map(([val, label]) => (
+                                <TouchableOpacity
+                                    key={val}
+                                    onPress={() => onQuickSelect?.(val)}
+                                    style={[s.quickChip, activeQuick === val && s.quickChipActive]}
+                                >
+                                    <Text style={[s.quickChipText, activeQuick === val && s.quickChipTextActive]}>{label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
 
                     <View style={s.tabRow}>
                         <TouchableOpacity style={[s.tab, picking === 'from' && s.tabActive]} onPress={() => setPicking('from')}>
@@ -140,6 +154,12 @@ const s = StyleSheet.create({
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     title: { color: '#fff', fontSize: 16, fontWeight: '900' },
     close: { color: colors.textMuted, fontSize: 22 },
+
+    quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
+    quickChip: { backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.border },
+    quickChipActive: { backgroundColor: colors.purple + '20', borderColor: colors.purple },
+    quickChipText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+    quickChipTextActive: { color: colors.purple },
 
     tabRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
     tab: { flex: 1, backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 8, paddingHorizontal: 10 },

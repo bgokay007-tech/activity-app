@@ -96,6 +96,7 @@ model User {
   coachListings       CoachListing[]
   refereeListings     RefereeListing[]
   equipmentListings   EquipmentListing[]
+  equipmentOffers     EquipmentOffer[]
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
   matchComments    MatchComment[]
@@ -337,13 +338,34 @@ model EquipmentListing {
   description String?
   location    String?
   city        String?
-  status      String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
+  status      String   @default("ACTIVE")  // ACTIVE | RESERVED | SOLD | FLAGGED | REMOVED
   reportCount Int      @default(0)
+
+  // Karşılıklı anlaşınca opsiyonlu (RESERVED) hale getirilir — belirlenen tarihe kadar
+  // bu alıcı için tutulur, sonra ilan sahibi "Satıldı" ile SOLD'a geçirir.
+  reservedForUserId String?
+  reservedUntil     DateTime?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offers      EquipmentOffer[]
+}
+
+model EquipmentOffer {
+  id         String   @id @default(uuid())
+  listingId  String
+  fromUserId String
+  price      Int
+  message    String?
+  status     String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | WITHDRAWN
+  createdAt  DateTime @default(now())
+
+  listing    EquipmentListing @relation(fields: [listingId],  references: [id], onDelete: Cascade)
+  fromUser   User             @relation(fields: [fromUserId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, fromUserId])
 }
 
 model UserAchievement {
