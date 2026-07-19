@@ -215,6 +215,15 @@ function getRequired(request) {
     return REQUIRED_PARTICIPANTS[request.matchType] || 1;
 }
 
+// Hakem ücretini oyunculara eşit bölmek için maçtaki toplam oyuncu sayısı
+// (getRequired'daki "1 opponent rep" voleybol kısayolu burada işe yaramaz,
+// gerçek toplam oyuncu sayısı gerekiyor).
+function totalPlayerCount(request) {
+    if (request.matchType === 'DOUBLE') return 4;
+    if (request.teamSize > 1) return request.teamSize * 2; // voleybol: her tarafta teamSize kişi
+    return 2; // SINGLE
+}
+
 export const swapMatchPositions = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -413,7 +422,7 @@ export const updateRivalRequest = async (req, res, next) => {
 
         const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
-                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, refereeRequested } = req.body;
+                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, refereeRequested, refereePayment } = req.body;
 
         const updated = await prisma.activityRequest.update({
             where: { id },
@@ -442,11 +451,13 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
                 ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
                 ...(refereeRequested !== undefined && { refereeRequested: !!refereeRequested }),
+                ...(refereePayment !== undefined && { refereePayment: refereePayment || null }),
             },
             include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } } },
         });
 
         // Hakem talebi kapatıldı/açıldı → bağlı "Hakem Arıyorum" ilanını senkronize et
+        const refereeWillBeRequested = refereeRequested !== undefined ? !!refereeRequested : rival.refereeRequested;
         if (refereeRequested !== undefined && !!refereeRequested !== rival.refereeRequested) {
             if (refereeRequested) {
                 prisma.activityRequest.create({
@@ -462,6 +473,7 @@ export const updateRivalRequest = async (req, res, next) => {
                         courtName: updated.courtName,
                         courtAddress: updated.courtAddress,
                         positions: ['REFEREE'],
+                        ...(refereePayment && { refereePayment }),
                         linkedRivalId: updated.id,
                         status: 'OPEN',
                     },
@@ -477,6 +489,17 @@ export const updateRivalRequest = async (req, res, next) => {
                             .then(() => broadcast('rivalDeleted', { rivalId: refAd.id, subCategory: refAd.subCategory }));
                     }).catch(() => {});
             }
+        } else if (refereeWillBeRequested && refereePayment !== undefined) {
+            // Hakem talebi zaten açıktı, sadece ücret değişti — bağlı ilanı (hakem henüz kabul
+            // edilmediyse) güncel fiyatla senkronize et.
+            prisma.activityRequest.findFirst({ where: { linkedRivalId: id, status: 'OPEN' } })
+                .then(refAd => {
+                    if (!refAd) return;
+                    const parts = Array.isArray(refAd.participants) ? refAd.participants : [];
+                    if (parts.length > 0) return;
+                    return prisma.activityRequest.update({ where: { id: refAd.id }, data: { refereePayment: refereePayment || null } })
+                        .then(a => broadcast('rivalUpdate', a));
+                }).catch(() => {});
         }
 
         broadcast('rivalUpdate', updated);
@@ -611,6 +634,7 @@ export const createRivalRequest = async (req, res, next) => {
                     courtName: resolvedCourtName,
                     courtAddress,
                     positions: ['REFEREE'],
+                    ...(refereePayment && { refereePayment }),
                     linkedRivalId: request.id,
                     status: 'OPEN',
                 },
@@ -1428,6 +1452,24 @@ export const respondToJoin = async (req, res, next) => {
             request: updated,
             matched: isFull,
         });
+
+        // Hakem ilanı kabul edildi (linkedRivalId dolu, teamSize:1 tek slot doldu) →
+        // hakem ücretini bağlı asıl maçtaki oyuncu sayısına eşit bölüp asıl maça yaz.
+        if (isFull && rival.linkedRivalId) {
+            prisma.activityRequest.findUnique({ where: { id: rival.linkedRivalId } })
+                .then(async (mainMatch) => {
+                    if (!mainMatch) return;
+                    const feeNum = parseInt(String(rival.refereePayment || '').replace(/[^0-9]/g, ''), 10);
+                    if (!feeNum) return;
+                    const share = Math.round(feeNum / totalPlayerCount(mainMatch));
+                    const updatedMain = await prisma.activityRequest.update({
+                        where: { id: mainMatch.id },
+                        data: { refereeFeePerPerson: share },
+                        include: { sender: { select: SENDER_SELECT } },
+                    });
+                    broadcast('rivalUpdate', updatedMain);
+                }).catch(() => {});
+        }
 
         createNotification(
             u.id,
