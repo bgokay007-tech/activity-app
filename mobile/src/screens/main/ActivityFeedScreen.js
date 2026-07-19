@@ -629,7 +629,7 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
         <TouchableOpacity style={s.card} activeOpacity={0.85}
             onPress={() => navigation.navigate('HomeTab', {
                 screen: 'SubCategory',
-                params: { category: item.category, sub: item.subCategory, highlightRivalId: item.id },
+                params: { category: item.category, sub: item.subCategory, initialTab: 'rivals', highlightRivalId: item.id },
             })}>
             <View style={[s.cardStripe, { backgroundColor: catMeta.color }]} />
             <View style={s.cardBody}>
