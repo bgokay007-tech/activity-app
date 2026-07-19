@@ -1047,7 +1047,7 @@ export const getUnlistedReservations = async (req, res, next) => {
                 ...(branch ? { venue: { branch } } : {}),
             },
             include: {
-                venue: { select: { id: true, name: true, branch: true, city: true } },
+                venue: { select: { id: true, name: true, branch: true, city: true, pricePerSlot: true, pricingWindows: true, courtIndoorDefault: true } },
                 court: true,
             },
             orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
@@ -1058,14 +1058,26 @@ export const getUnlistedReservations = async (req, res, next) => {
             select: { venueCourtId: true, matchTime: true, matchDate: true },
         });
 
-        const unlisted = reservations.filter(r =>
-            !linked.some(a =>
-                a.venueCourtId === r.courtId &&
-                a.matchTime === r.startTime &&
-                a.matchDate &&
-                new Date(a.matchDate).toISOString().slice(0, 10) === r.date
+        const unlisted = reservations
+            .filter(r =>
+                !linked.some(a =>
+                    a.venueCourtId === r.courtId &&
+                    a.matchTime === r.startTime &&
+                    a.matchDate &&
+                    new Date(a.matchDate).toISOString().slice(0, 10) === r.date
+                )
             )
-        );
+            // "Mevcut rezervasyonlarından seç" hızlı seçiminde kişi başı ücret otomatik
+            // dolabilsin diye (bkz. getMyReservations'daki aynı hesaplama) — reservation'ın
+            // kendi ücreti hiçbir yerde saklanmıyor, tesisin güncel fiyat kuralına göre yeniden hesaplanır.
+            .map(r => {
+                let durationMins = 60;
+                if (r.startTime && r.endTime) {
+                    const d = toMins(r.endTime) - toMins(r.startTime);
+                    durationMins = d > 0 ? d : d + 1440;
+                }
+                return { ...r, estimatedFee: getSlotPrice(r.venue, r.court, r.startTime, durationMins) };
+            });
 
         res.json(unlisted);
     } catch (error) { next(error); }

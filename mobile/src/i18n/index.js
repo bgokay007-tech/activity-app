@@ -426,6 +426,9 @@ const en = {
     cityAlertBtn: (city, sport) => `🔔 Get alerts for new ${sport} listings in ${city}`,
     cityAlertOn: (city, sport) => `🔔 ${sport} alerts on for ${city} — tap to turn off`,
     cityAlertNoCity: 'Set your city in your profile to receive city alerts.',
+    cityAlertInfoTitle: '🔔 Notification Info',
+    cityAlertEnableBtn: 'Enable Notification',
+    cityAlertDisableBtn: 'Disable Notification',
 
     // SubCategory — archive / score
     enterScore: 'Enter Score',
@@ -1481,6 +1484,9 @@ const tr = {
     cityAlertBtn: (city, sport) => `🔔 ${city} şehrindeki ${sport} ilanları için bildirim al`,
     cityAlertOn: (city, sport) => `🔔 ${city} — ${sport} bildirimleri açık`,
     cityAlertNoCity: 'Bildirim alabilmek için profil sayfanızdan şehrinizi ekleyin.',
+    cityAlertInfoTitle: '🔔 Bildirim Bilgisi',
+    cityAlertEnableBtn: 'Bildirimi Aç',
+    cityAlertDisableBtn: 'Bildirimi Kapat',
 
     // SubCategory — archive / score
     enterScore: 'Skor Gir',

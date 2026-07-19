@@ -394,6 +394,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
+    // Çiftlerde kabul edilen oyuncular varsayılan olarak Partner/Rakip 1/Rakip 2 kartlarına
+    // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
+    // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
+    const [showTeamCards, setShowTeamCards] = useState(false);
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -416,6 +420,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setLocalJoinRequests(null);
         setLocalGender(null);
         setSwapSlot(null);
+        setShowTeamCards(false);
         setComments([]);
         setCommentText('');
         if (item?.id && visible) {
@@ -856,8 +861,60 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     ? null // pending state özel gösterim
                                     : null;
 
+                            // Kabul edilmiş katılımcılar (kurucu hariç) — henüz Partner/Rakip 1/
+                            // Rakip 2 kartlarına atanmış gibi değil, sırayla numaralı gösterilir.
+                            const acceptedOthers = [PartnerContent, participants[0], participants[1]].filter(p => p?.id);
+
+                            if (!showTeamCards) {
+                                return (
+                                    <View>
+                                        <View style={det.playerRow}>
+                                            <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
+                                            <View style={{ flex:1 }}>
+                                                <Text style={det.playerName}>{playerDisplayName(item.sender)}</Text>
+                                                <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                            </View>
+                                        </View>
+                                        {acceptedOthers.map((p, i) => (
+                                            <View key={p.id || i} style={det.playerRow}>
+                                                <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={det.playerName}>{playerDisplayName(p)}</Text>
+                                                    <Text style={det.playerSub}>{t.cardParticipantLabel(i + 1)} · {p.username}</Text>
+                                                </View>
+                                                {isOwner && (
+                                                    <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:3 }}>
+                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>Çıkar</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        ))}
+                                        {pendingPartnerInvite && (
+                                            <View style={det.playerRow}>
+                                                <Avatar name={pendingPartnerInvite.user?.username} avatar={pendingPartnerInvite.user?.avatar} size={moderateScale(32)} color={cfg.color} />
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={det.playerName}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
+                                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
+                                                </View>
+                                            </View>
+                                        )}
+                                        {acceptedOthers.length === 0 && !pendingPartnerInvite && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                                        {isOwner && acceptedOthers.length > 0 && (
+                                            <TouchableOpacity onPress={() => setShowTeamCards(true)} style={{ marginTop:6, alignSelf:'flex-start', backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ Takımları Düzenle</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                );
+                            }
+
                             return (
                                 <View>
+                                    {isOwner && (
+                                        <TouchableOpacity onPress={() => { setSwapSlot(null); setShowTeamCards(false); }} style={{ marginBottom:6, alignSelf:'flex-start' }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>‹ Katılımcı Listesine Dön</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     {swapSlot && (
                                         <View style={{ backgroundColor:'#f59e0b18', borderRadius:6, padding:3, marginBottom:6, alignItems:'center' }}>
                                             <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>Taşınacak oyuncu seçildi — hedef slota dokun</Text>
@@ -3133,6 +3190,54 @@ function EloWarningModal({ visible, onClose, onDismissForever }) {
 }
 const noEmojiStr = (str) => (str || '').replace(/^\S+\s+/, '');
 
+const CITY_ALERT_INFO_DISMISSED_KEY = 'city_alert_info_dismissed';
+
+// Zile (🔔) tıklayınca bildirim aç/kapat işlemi doğrudan yapılmaz — önce bu bilgilendirme
+// modalı açılır (ne için bildirim aldığını anlatır), "Bir daha gösterme" işaretlenip
+// onaylanırsa AsyncStorage'a yazılır ve bir sonraki tıklamalarda zil doğrudan aç/kapat yapar
+// (aynı EloWarningModal deseni).
+function CityAlertInfoModal({ visible, desc, active, onClose, onToggle, onDismissForever }) {
+    const t = useT();
+    const [checked, setChecked] = useState(false);
+    useEffect(() => { if (visible) setChecked(false); }, [visible]);
+
+    const handleCheckboxPress = () => {
+        if (checked) { setChecked(false); return; }
+        Alert.alert(t.eloConfirmTitle, t.eloConfirmMsg, [
+            { text: t.eloConfirmNo, style: 'cancel' },
+            { text: t.eloConfirmYes, style: 'destructive', onPress: async () => {
+                setChecked(true);
+                await AsyncStorage.setItem(CITY_ALERT_INFO_DISMISSED_KEY, '1');
+                onDismissForever?.();
+                onClose();
+            }},
+        ]);
+    };
+
+    return (
+        <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+            <TouchableOpacity style={ew.overlay} activeOpacity={1} onPress={onClose}>
+                <View style={ew.box} onStartShouldSetResponder={() => true}>
+                    <View style={ew.header}>
+                        <Text style={ew.title}>{t.cityAlertInfoTitle}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={ew.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <Text style={[ew.body, { color: colors.textSecondary }]}>{desc}</Text>
+                    <TouchableOpacity onPress={onToggle} style={{ backgroundColor: colors.purple + '20', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:14, borderWidth:1, borderColor: colors.purple + '50' }}>
+                        <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>{active ? t.cityAlertDisableBtn : t.cityAlertEnableBtn}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleCheckboxPress} style={ew.checkRow}>
+                        <View style={[ew.checkbox, checked && ew.checkboxChecked]}>
+                            {checked && <Text style={{ color:'#fff', fontSize:10 }}>✓</Text>}
+                        </View>
+                        <Text style={ew.checkLabel}>{t.eloDontShowAgain}</Text>
+                    </TouchableOpacity>
+                </View>
+            </TouchableOpacity>
+        </Modal>
+    );
+}
+
 const ew = StyleSheet.create({
     overlay: { flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:24 },
     box:     { backgroundColor: colors.surface, borderRadius:16, padding:17, width:'100%', maxWidth:320 },
@@ -4805,7 +4910,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         onPress={() => {
                                                             const court = r.court;
                                                             const venue = r.venue;
-                                                            const effectiveIndoor = court?.indoor ?? false;
+                                                            const effectiveIndoor = court?.indoor ?? venue?.courtIndoorDefault ?? false;
                                                             const courtObj = {
                                                                 name: court?.name || '',
                                                                 venueName: venue?.name || '',
@@ -4813,7 +4918,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 courtId: r.courtId,
                                                                 id: r.courtId,
                                                                 city: venue?.city,
-                                                                totalPrice: 0,
+                                                                totalPrice: r.estimatedFee || 0,
                                                                 surface: court?.surface || null,
                                                                 indoor: effectiveIndoor,
                                                             };
@@ -4832,7 +4937,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 courtReserved: true,
                                                                 manualCity: venue?.city || '',
                                                                 surface: court?.surface || p.surface,
-                                                                venueType: court?.indoor != null ? (court.indoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
+                                                                venueType: effectiveIndoor != null ? (effectiveIndoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
+                                                                courtFeePerPerson: r.estimatedFee > 0
+                                                                    ? String(Math.round(r.estimatedFee / (p.matchType === 'DOUBLE' ? 4 : 2)))
+                                                                    : p.courtFeePerPerson,
                                                             }));
                                                         }}
                                                         style={{ backgroundColor: '#22c55e10', borderRadius: 8, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#22c55e30', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -9369,6 +9477,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [cityAlertLoading, setCityAlertLoading] = useState(null); // toggling tab or null
     const [cityPickerTab, setCityPickerTab] = useState(null); // hangi sekme için picker açık
     const [cityPickerTogglingCity, setCityPickerTogglingCity] = useState(null);
+    // Zile tıklayınca önce bilgilendirme modalı açılır — "bir daha gösterme" onaylanana kadar
+    const [cityAlertInfoTab, setCityAlertInfoTab] = useState(null); // hangi sekme için bilgi modalı açık
+    const [cityAlertInfoDismissed, setCityAlertInfoDismissed] = useState(false);
+    useEffect(() => {
+        AsyncStorage.getItem(CITY_ALERT_INFO_DISMISSED_KEY).then(v => { if (v) setCityAlertInfoDismissed(true); });
+    }, []);
 
     // Coaches data
     const [coachListings, setCoachListings] = useState([]);
@@ -10453,7 +10567,16 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         return true;
     };
-    const filteredRivals = rivals.filter(applyFilter);
+    // Maçın başlama zamanına göre en yakından en uzağa sıralanır — esnek programlı
+    // ilanların (sabit bir tarih/saati olmadığı için) sırası belirsiz kalır, bu yüzden
+    // hep en sona atılır (Infinity), aralarındaki mevcut sıra (createdAt) korunur.
+    const rivalTimeKey = (item) => {
+        if (item.flexibleSchedule || !item.matchDate) return Infinity;
+        const dateStr = new Date(item.matchDate).toISOString().slice(0, 10);
+        const timeStr = item.matchTime || '00:00';
+        return new Date(`${dateStr}T${timeStr}:00`).getTime();
+    };
+    const filteredRivals = rivals.filter(applyFilter).slice().sort((a, b) => rivalTimeKey(a) - rivalTimeKey(b));
 
     // Maç saati geçmiş MATCHED maçları yaklaşan listesinden çıkar, skor bekleniyor olarak göster
     const matchHasEnded = (m) => {
@@ -10521,7 +10644,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         const isLoading = cityAlertLoading === tab;
         return (
             <TouchableOpacity
-                onPress={() => isLoading ? null : quickToggleTab(tab)}
+                onPress={() => { if (isLoading) return; cityAlertInfoDismissed ? quickToggleTab(tab) : setCityAlertInfoTab(tab); }}
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
@@ -10538,18 +10661,12 @@ export default function SubCategoryScreen({ route, navigation }) {
         );
     };
 
-    const CityAlertRow = ({ tab, children }) => {
-        const cities = tabSubCities[tab] || [];
-        const active = cities.length > 0;
-        const desc = cityAlertDesc[tab] || '';
-        return (
-            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
-                {children}
-                <CityAlertBtn tab={tab} />
-                <Text numberOfLines={3} style={{ color: active ? cfg.color : '#6b7280', fontSize:9, lineHeight:13, flex:1 }}>{desc}</Text>
-            </View>
-        );
-    };
+    const CityAlertRow = ({ tab, children }) => (
+        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
+            {children}
+            <CityAlertBtn tab={tab} />
+        </View>
+    );
 
     const CompactFilter = ({ showDateChips = true, showNearMe = true }) => (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 0, paddingVertical: 0 }}>
@@ -10603,6 +10720,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                 visible={!!peerReviewRivalId}
                 rivalId={peerReviewRivalId}
                 onClose={() => { setPeerReviewRivalId(null); loadArchive(); }}
+            />
+
+            <CityAlertInfoModal
+                visible={cityAlertInfoTab !== null}
+                desc={cityAlertDesc[cityAlertInfoTab] || ''}
+                active={(tabSubCities[cityAlertInfoTab] || []).length > 0}
+                onClose={() => setCityAlertInfoTab(null)}
+                onToggle={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); quickToggleTab(tab); }}
+                onDismissForever={() => setCityAlertInfoDismissed(true)}
             />
 
             {/* Bildirim il seçici — tüm sekmeler için ortak */}
