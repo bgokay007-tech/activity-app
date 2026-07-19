@@ -1571,6 +1571,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
 
 function EditRivalModal({ visible, item, onClose, onSave }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     const [form, setForm] = useState({});
     const [saving, setSaving] = useState(false);
     const [calVisible, setCalVisible] = useState(false);
@@ -1829,7 +1830,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
         <>
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: colors.bg }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingTop: insets.top + (Platform.OS === 'ios' ? 8 : 14), paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                     <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 1 }}>
                         <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
                     </TouchableOpacity>
