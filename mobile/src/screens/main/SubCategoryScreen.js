@@ -1524,6 +1524,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>{item.refereePayment}</Text>}
                     </View>
                 )}
+                {item.linkedRivalId && (
+                    <Text style={{ color:'#fbbf24', fontSize:moderateScale(10), fontWeight:'700', marginBottom:3 }} numberOfLines={2}>
+                        {t.refereeForMatchLabel}
+                    </Text>
+                )}
                 {/* Tarih / Saat / Süre */}
                 {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
                     <View style={{ gap:3, marginBottom:3 }}>
@@ -4266,6 +4271,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         venueReservationId: null,
         reservationEndTime: null,
         venuePayMethod: 'CASH',
+        refereeRequested: false,
     };
 
     const buildInitialState = () => {
@@ -4305,6 +4311,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueType: editItem.indoor != null ? (editItem.indoor ? 'INDOOR' : 'OUTDOOR') : '',
                 courtReserved: !!editItem.isCourtReserved,
                 courtMutual: !editItem.courtName && !editItem.venueId,
+                refereeRequested: !!editItem.refereeRequested,
             };
         }
         if (!prefill) return INIT;
@@ -4588,6 +4595,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 ...((sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' && {
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
                 }),
+                ...(['tennis', 'padel', 'volleyball'].includes(sub) && { refereeRequested: !!f.refereeRequested }),
             });
             onCreated();
             onClose();
@@ -4693,6 +4701,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueId:            f.venueId       || undefined,
                 venueCourtId:       f.venueCourtId   || undefined,
                 venueReservationId,
+                refereeRequested: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.refereeRequested : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
@@ -5233,6 +5242,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     )}
 
                                 </>
+                            )}
+
+                            {/* Hakem Talep Et — sadece tenis/padel/voleybol */}
+                            {['tennis', 'padel', 'volleyball'].includes(sub) && (
+                                <TouchableOpacity
+                                    onPress={() => set('refereeRequested', !f.refereeRequested)}
+                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:5, marginBottom:10, paddingVertical:9, borderRadius: moderateScale(10), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
+                                >
+                                    <Text style={{ fontSize:15 }}>🟨</Text>
+                                    <Text style={{ color: f.refereeRequested ? '#f59e0b' : colors.textMuted, fontSize:13, fontWeight:'800' }}>
+                                        {t.requestRefereeBtn}
+                                    </Text>
+                                </TouchableOpacity>
                             )}
 
                             {/* Açıklama */}
