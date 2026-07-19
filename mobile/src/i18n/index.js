@@ -181,6 +181,7 @@ const en = {
 
     // SubCategory — create form
     createTitle: '⚔️ Create Match Listing',
+    editRivalTitle: '✏️ Edit Listing',
     modLabel: 'Mode',
     formatLabel: 'Format',
     teamSizeLabel: 'Team Size',
@@ -1234,6 +1235,7 @@ const tr = {
 
     // SubCategory — create form
     createTitle: '⚔️ Maç İlanı Oluştur',
+    editRivalTitle: '✏️ İlanı Düzenle',
     modLabel: 'Mod',
     formatLabel: 'Format',
     teamSizeLabel: 'Takım Büyüklüğü',
