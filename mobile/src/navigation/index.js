@@ -6,6 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setCredentials, setUser } from '../store/slices/authSlice';
 import { setLang } from '../store/slices/langSlice';
+import { setUnreadCount, incrementUnread } from '../store/slices/notificationSlice';
 import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform } from 'react-native';
 import RainbowLogo from '../components/RainbowLogo';
@@ -240,10 +241,13 @@ function AppTabs() {
     const insets = useSafeAreaInsets();
     const tabBarHeight = 56 + insets.bottom;
     const t = useT();
+    const dispatch = useDispatch();
     const userId = useSelector(s => s.auth.user?.id);
     const lang = useSelector(s => s.lang?.lang || 'en');
     const activityLogoText = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
-    const [unreadNotifs, setUnreadNotifs] = useState(0);
+    // Rozet sayısı Redux'ta tutulur — NotificationsScreen okundu işaretlerken doğrudan
+    // aynı state'i güncelliyor, 30sn'lik poll'u beklemeden rozet anında düşüyor.
+    const unreadNotifs = useSelector(s => s.notifications.unreadCount);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
     const shownNotifIdsRef = useRef(new Set());
@@ -258,9 +262,9 @@ function AppTabs() {
             // setten düşüyor ve soket olayı tekrar/gecikmeli gelirse yeniymiş gibi tekrar
             // yerel bildirim (toast) tetikleniyordu.
             (data.notifications || []).forEach(n => shownNotifIdsRef.current.add(n.id));
-            setUnreadNotifs(count);
+            dispatch(setUnreadCount(count));
         } catch { /* silent */ }
-    }, []);
+    }, [dispatch]);
 
     // Poll every 30s — keeps badge in sync with server after mark-all-read
     useEffect(() => {
@@ -274,7 +278,7 @@ function AppTabs() {
         if (!userId) return;
         connectSocket(userId);
         const off = onSocket('notification', (notif) => {
-            setUnreadNotifs(prev => prev + 1);
+            dispatch(incrementUnread());
             if (notif?.id && !shownNotifIdsRef.current.has(notif.id)) {
                 shownNotifIdsRef.current.add(notif.id);
                 Notifications.scheduleNotificationAsync({
@@ -284,7 +288,7 @@ function AppTabs() {
             }
         });
         return () => { off(); disconnectSocket(); };
-    }, [userId]);
+    }, [userId, dispatch]);
 
     return (
         <View style={{ flex: 1 }}>

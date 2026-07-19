@@ -9450,12 +9450,14 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
-            openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor } = route.params;
+            openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
+            openEquipmentId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
     const myRating = myInterests.find(i => i.subCategory === sub)?.skillRating ?? 0;
     const lang = useSelector(s => s.lang?.lang || 'en');
+    const insets = useSafeAreaInsets();
     const t = useT();
     const cfg = getConfig(sub);
     const sportDisplayName = lang === 'tr' ? (cfg.nameTR || cfg.name) : cfg.name;
@@ -10158,6 +10160,19 @@ export default function SubCategoryScreen({ route, navigation }) {
         return () => task.cancel();
     }, [loadEquipment]);
 
+    // Bildirim/sohbetten "o ilana git" ile gelindiğinde, ilan mevcut liste/filtre görünümünde
+    // olmasa bile (ör. Satılanlar'daysa) doğrudan çekip detay modalını açar.
+    useEffect(() => {
+        if (!openEquipmentId) return;
+        api.get(`/equipment/${openEquipmentId}`)
+            .then(({ data }) => {
+                setEquipmentViewStatus(data.status === 'SOLD' ? 'SOLD' : 'ACTIVE');
+                setSelectedEquipment(data);
+                navigation.setParams({ openEquipmentId: undefined });
+            })
+            .catch(() => { navigation.setParams({ openEquipmentId: undefined }); });
+    }, [openEquipmentId]);
+
     const pickEquipmentMedia = async () => {
         if (equipmentMedia.length >= 5) return Alert.alert('', 'En fazla 5 medya ekleyebilirsiniz');
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -10569,12 +10584,26 @@ export default function SubCategoryScreen({ route, navigation }) {
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
     };
 
-    const openChatWithSeller = async (userId) => {
+    const openChatWithSeller = async (listing) => {
         try {
-            const { data: conv } = await api.get(`/messages/conversation/${userId}`);
+            const { data: conv } = await api.get(`/messages/conversation/${listing.userId}`);
             const enriched = { ...conv, other: conv.user1Id === myId ? conv.user2 : conv.user1 };
+
+            // Bu ilan bu sohbette daha önce hiç referans verilmemişse, alıcının hangi ürün
+            // hakkında yazdığı karşı tarafa da net olsun diye otomatik bir ilk mesaj gönderilir.
+            try {
+                const { data: history } = await api.get(`/messages/conversation/${conv.id}/messages`);
+                const alreadyReferenced = (history || []).some(m => m.equipmentListingId === listing.id || m.equipmentListing?.id === listing.id);
+                if (!alreadyReferenced) {
+                    await api.post(`/messages/send/${listing.userId}`, {
+                        content: `🎾 "${listing.title}" ilanı hakkında mesajlaşmak istiyorum.`,
+                        equipmentListingId: listing.id,
+                    });
+                }
+            } catch { /* mesaj geçmişi/otomatik mesaj başarısız olsa da sohbeti açmaya devam et */ }
+
             setSelectedEquipment(null);
-            navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other } });
+            navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other, equipment: listing } });
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         }
@@ -11487,7 +11516,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* İlan detay Modal */}
                             <Modal visible={!!selectedEquipment} animationType="slide" transparent onRequestClose={() => setSelectedEquipment(null)}>
                                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
-                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:17, paddingBottom:33, maxHeight:'85%' }}>
+                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:17, paddingBottom: 17 + Math.max(insets.bottom, 16), maxHeight:'85%' }}>
                                         <ScrollView showsVerticalScrollIndicator={false}>
                                             {selectedEquipment?.images?.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:12 }}>
@@ -11598,7 +11627,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <>
                                                     <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
                                                         <TouchableOpacity
-                                                            onPress={() => openChatWithSeller(selectedEquipment.userId)}
+                                                            onPress={() => openChatWithSeller(selectedEquipment)}
                                                             style={{ flex:1, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor: cfg.color+'50' }}>
                                                             <Text style={{ color: cfg.color, fontWeight:'800' }}>{t.equipChatBtn}</Text>
                                                         </TouchableOpacity>

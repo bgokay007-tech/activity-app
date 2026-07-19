@@ -44,6 +44,21 @@ export const getListings = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
+// Tek bir ilanı doğrudan getirir — bildirim/sohbetten "o ilana git" ile açılırken kullanılır
+// (liste o an başka bir durum/koşul filtresinde olabilir, listeden aramak yerine direkt çeker).
+export const getListing = async (req, res, next) => {
+    try {
+        await expireStaleReservations();
+        const { id } = req.params;
+        const listing = await prisma.equipmentListing.findUnique({
+            where: { id },
+            include: { user: { select: USER_SELECT } },
+        });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        res.json(listing);
+    } catch (err) { next(err); }
+};
+
 export const createListing = async (req, res, next) => {
     try {
         const { category, subCategory, condition, title, price, images, description, location, city } = req.body;

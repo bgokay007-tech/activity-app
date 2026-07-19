@@ -2,11 +2,12 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
+import { decrementUnread, clearUnread } from '../../store/slices/notificationSlice';
 
 const TYPE_ICON = {
     RIVAL_REQUEST: '⚔️',
@@ -54,6 +55,7 @@ const TYPE_ICON = {
 
 export default function NotificationsScreen({ navigation }) {
     const t = useT();
+    const dispatch = useDispatch();
     const isBusiness = useSelector(s => s.auth.user?.isBusiness);
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -87,9 +89,11 @@ export default function NotificationsScreen({ navigation }) {
     const onRefresh = () => { setRefreshing(true); load(); };
 
     const markRead = async (id) => {
+        const wasUnread = notifications.find(n => n.id === id)?.read === false;
         try {
             await api.patch(`/notifications/${id}/read`);
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+            if (wasUnread) dispatch(decrementUnread());
         } catch (e) { console.warn(e?.message); }
     };
 
@@ -97,6 +101,7 @@ export default function NotificationsScreen({ navigation }) {
         try {
             await api.patch('/notifications/read-all');
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            dispatch(clearUnread());
         } catch (e) { console.warn(e?.message); }
     };
 
@@ -108,8 +113,16 @@ export default function NotificationsScreen({ navigation }) {
             if (!data.category || !data.subCategory) return;
             navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab, openChatTournamentId });
         };
+        const goToEquipmentListing = () => {
+            if (!data.category || !data.subCategory || !data.listingId) return;
+            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: 'equipment', openEquipmentId: data.listingId });
+        };
 
-        if (type === 'MESSAGE') {
+        if (type === 'EQUIPMENT_OFFER') {
+            goToEquipmentListing();
+        } else if (type === 'MESSAGE' && data.listingId) {
+            goToEquipmentListing();
+        } else if (type === 'MESSAGE') {
             if (data.senderId) {
                 navigation.push('Chat', {
                     other: { id: data.senderId, username: data.senderUsername },

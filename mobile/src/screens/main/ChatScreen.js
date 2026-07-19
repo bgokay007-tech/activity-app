@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import colors from '../../theme/colors';
@@ -17,7 +17,7 @@ function Avatar({ user, size = 36 }) {
 }
 
 export default function ChatScreen({ route, navigation }) {
-    const { conversation: convParam, other: otherProp, rival } = route.params;
+    const { conversation: convParam, other: otherProp, rival, equipment } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const t = useT();
     const [messages, setMessages] = useState([]);
@@ -30,6 +30,11 @@ export default function ChatScreen({ route, navigation }) {
     const pollRef = useRef(null);
 
     const other = otherProp || convParam?.other;
+
+    const openEquipmentListing = (listing) => {
+        if (!listing?.category || !listing?.subCategory) return;
+        navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'equipment', openEquipmentId: listing.id });
+    };
 
     const fetchMessages = useCallback(async (id) => {
         if (!id) return;
@@ -108,6 +113,19 @@ export default function ChatScreen({ route, navigation }) {
             <View style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowThem]}>
                 {!isMe && <Avatar user={item.sender} size={30} />}
                 <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
+                    {item.equipmentListing && (
+                        <TouchableOpacity style={styles.msgEquipCard} onPress={() => openEquipmentListing(item.equipmentListing)} activeOpacity={0.8}>
+                            {item.equipmentListing.images?.[0] ? (
+                                <Image source={{ uri: item.equipmentListing.images[0] }} style={styles.msgEquipImg} resizeMode="cover" />
+                            ) : (
+                                <View style={[styles.msgEquipImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 16 }}>🎾</Text></View>
+                            )}
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.msgEquipTitle} numberOfLines={1}>{item.equipmentListing.title}</Text>
+                                <Text style={styles.msgEquipPrice}>{item.equipmentListing.price > 0 ? `${item.equipmentListing.price} ₺` : 'Fiyat sor'}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
                     <Text style={styles.bubbleText}>{item.content}</Text>
                     <Text style={[styles.bubbleTime, isMe ? styles.bubbleTimeMe : styles.bubbleTimeThem]}>
                         {new Date(item.createdAt).toLocaleTimeString(t.dateLocale, { hour: '2-digit', minute: '2-digit' })}
@@ -147,6 +165,22 @@ export default function ChatScreen({ route, navigation }) {
                         )}
                     </View>
                 </View>
+            )}
+
+            {/* Equipment Context Banner */}
+            {equipment && (
+                <TouchableOpacity style={styles.equipBanner} onPress={() => openEquipmentListing(equipment)} activeOpacity={0.8}>
+                    {equipment.images?.[0] ? (
+                        <Image source={{ uri: equipment.images[0] }} style={styles.equipBannerImg} resizeMode="cover" />
+                    ) : (
+                        <View style={[styles.equipBannerImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 20 }}>🎾</Text></View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.equipBannerTitle} numberOfLines={1}>{equipment.title}</Text>
+                        <Text style={styles.equipBannerPrice}>{equipment.price > 0 ? `${equipment.price} ₺` : 'Fiyat sor'}</Text>
+                    </View>
+                    <Text style={styles.equipBannerArrow}>›</Text>
+                </TouchableOpacity>
             )}
 
             {/* Messages */}
@@ -203,6 +237,16 @@ const styles = StyleSheet.create({
     rivalBannerLabel: { color: '#a78bfa', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     rivalBannerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
     rivalBannerChip: { color: '#c4b5fd', fontSize: 12, fontWeight: '600', backgroundColor: '#7c3aed25', paddingHorizontal: 3, paddingVertical: 3, borderRadius: 20, overflow: 'hidden' },
+    equipBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#16a34a18', borderBottomWidth: 1, borderBottomColor: '#16a34a40', paddingHorizontal: 13, paddingVertical: 7 },
+    equipBannerImg: { width: 36, height: 36, borderRadius: 8 },
+    equipBannerImgPh: { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    equipBannerTitle: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    equipBannerPrice: { color: '#4ade80', fontSize: 12, fontWeight: '800', marginTop: 1 },
+    equipBannerArrow: { color: colors.textMuted, fontSize: 20 },
+    msgEquipCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#00000020', borderRadius: 10, padding: 5, marginBottom: 6 },
+    msgEquipImg: { width: 32, height: 32, borderRadius: 6 },
+    msgEquipTitle: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    msgEquipPrice: { color: '#4ade80', fontSize: 11, fontWeight: '800' },
     list: { paddingHorizontal: 13, paddingVertical: 13, gap: 3 },
     msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
     msgRowMe: { justifyContent: 'flex-end' },

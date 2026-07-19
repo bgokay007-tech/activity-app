@@ -351,6 +351,7 @@ model EquipmentListing {
 
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   offers      EquipmentOffer[]
+  messages    Message[]
 }
 
 model EquipmentOffer {
@@ -1000,6 +1001,11 @@ model Message {
   content        String
   read           Boolean      @default(false)
   createdAt      DateTime     @default(now())
+
+  // Bir ekipman ilanı üzerinden "Sohbet Aç" ile başlatılan mesajlar, hangi ilan hakkında
+  // olduğunu taşır — sohbet ekranında ilan kartı gösterilir, bildirime tıklanınca ilana gidilir.
+  equipmentListingId String?
+  equipmentListing   EquipmentListing? @relation(fields: [equipmentListingId], references: [id], onDelete: SetNull)
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)

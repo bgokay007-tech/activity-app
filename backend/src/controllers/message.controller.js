@@ -53,7 +53,10 @@ export const getMessages = async (req, res, next) => {
 
         const messages = await prisma.message.findMany({
             where: { conversationId },
-            include: { sender: { select: USER_SELECT } },
+            include: {
+                sender: { select: USER_SELECT },
+                equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
+            },
             orderBy: { createdAt: 'asc' },
         });
 
@@ -83,7 +86,7 @@ async function sendPushNotification(pushToken, title, body) {
 export const sendMessage = async (req, res, next) => {
     try {
         const { userId: receiverId } = req.params;
-        const { content } = req.body;
+        const { content, equipmentListingId } = req.body;
 
         if (!content?.trim()) return res.status(400).json({ message: 'Message cannot be empty' });
 
@@ -96,8 +99,11 @@ export const sendMessage = async (req, res, next) => {
 
         const [message, sender, receiver] = await Promise.all([
             prisma.message.create({
-                data: { conversationId: conv.id, senderId: req.userId, content: content.trim() },
-                include: { sender: { select: USER_SELECT } },
+                data: { conversationId: conv.id, senderId: req.userId, content: content.trim(), ...(equipmentListingId && { equipmentListingId }) },
+                include: {
+                    sender: { select: USER_SELECT },
+                    equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
+                },
             }),
             prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }),
             prisma.user.findUnique({ where: { id: receiverId }, select: { pushToken: true } }),
@@ -126,7 +132,14 @@ export const sendMessage = async (req, res, next) => {
                 type: 'MESSAGE',
                 title: `@${senderUsername}`,
                 body: notifBody,
-                data: { senderId: req.userId, senderUsername, conversationId: conv.id },
+                data: {
+                    senderId: req.userId, senderUsername, conversationId: conv.id,
+                    ...(message.equipmentListing && {
+                        listingId: message.equipmentListing.id,
+                        category: message.equipmentListing.category,
+                        subCategory: message.equipmentListing.subCategory,
+                    }),
+                },
             },
         }).catch(notifErr => console.log('NOTIF_CREATE_FAIL:', notifErr?.message));
     } catch (error) { next(error); }
