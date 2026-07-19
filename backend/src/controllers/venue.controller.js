@@ -1040,7 +1040,7 @@ export const getMyReservations = async (req, res, next) => {
 export const getUnlistedReservations = async (req, res, next) => {
     try {
         const { branch } = req.query;
-        const today = new Date().toISOString().slice(0, 10);
+        const { dateStr: today } = nowIstanbul();
         const reservations = await prisma.courtReservation.findMany({
             where: {
                 userId: req.userId, status: { not: 'CANCELLED' }, date: { gte: today },
@@ -1059,6 +1059,7 @@ export const getUnlistedReservations = async (req, res, next) => {
         });
 
         const unlisted = reservations
+            .filter(r => !isPastDateTime(r.date, r.startTime))
             .filter(r =>
                 !linked.some(a =>
                     a.venueCourtId === r.courtId &&

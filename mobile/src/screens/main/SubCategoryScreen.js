@@ -1492,25 +1492,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                                 </Text>
                             </View>
-                            {item.genderReq && item.genderReq !== 'MIX' && (
-                                <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                    <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
-                                        {item.genderReq === 'MALE' ? '👨' : '👩'}
-                                    </Text>
-                                </View>
-                            )}
-                            {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
-                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
-                                const label = allSame && item.opp1GenderReq !== 'MIX'
-                                    ? gL(item.opp1GenderReq)
-                                    : `${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
-                                return (
-                                    <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                        <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
-                                    </View>
-                                );
-                            })()}
                         </View>
                     </View>
                 </View>
@@ -1540,11 +1521,40 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         )}
                     </View>
                 )}
-                {(item.minRating != null || item.maxRating != null) && (
-                    <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700', marginBottom:3 }}>
-                        ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
-                    </Text>
-                )}
+                {(() => {
+                    const hasRatingRange = item.minRating != null || item.maxRating != null;
+                    const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
+                    const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
+                    if (!hasRatingRange && !hasSingleGenderReq && !hasDoubleGenderReq) return null;
+                    return (
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:3, flexWrap:'wrap' }}>
+                            {hasRatingRange && (
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }}>
+                                    ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
+                                </Text>
+                            )}
+                            {hasSingleGenderReq && (
+                                <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
+                                    <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
+                                        {item.genderReq === 'MALE' ? '👨' : '👩'}
+                                    </Text>
+                                </View>
+                            )}
+                            {hasDoubleGenderReq && (() => {
+                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                                const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
+                                const label = allSame && item.opp1GenderReq !== 'MIX'
+                                    ? gL(item.opp1GenderReq)
+                                    : `${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
+                                return (
+                                    <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
+                                        <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
+                                    </View>
+                                );
+                            })()}
+                        </View>
+                    );
+                })()}
 
                 {item.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
@@ -4272,6 +4282,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         reservationEndTime: null,
         venuePayMethod: 'CASH',
         refereeRequested: false,
+        refereePayment: '',
     };
 
     const buildInitialState = () => {
@@ -4312,6 +4323,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtReserved: !!editItem.isCourtReserved,
                 courtMutual: !editItem.courtName && !editItem.venueId,
                 refereeRequested: !!editItem.refereeRequested,
+                refereePayment: editItem.refereePayment || '',
             };
         }
         if (!prefill) return INIT;
@@ -4580,7 +4592,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 matchTime: f.flexibleSchedule ? null : (f.matchTime || null),
                 duration: f.flexibleSchedule ? null : (f.duration || null),
                 location: f.selectedCourt?.city || f.manualCity || null,
-                courtName: f.selectedCourt ? (f.selectedCourt.venueName || f.selectedCourt.name) : (f.showManualCourt ? f.manualCourtName : null) || f.courtSearchText || null,
+                courtName: f.selectedCourt ? ([f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') || null) : (f.showManualCourt ? f.manualCourtName : null) || f.courtSearchText || null,
                 courtAddress: f.manualAddress || undefined,
                 minRating: f.minRating !== '' ? f.minRating : null,
                 maxRating: f.maxRating !== '' ? f.maxRating : null,
@@ -4595,7 +4607,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 ...((sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' && {
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
                 }),
-                ...(['tennis', 'padel', 'volleyball'].includes(sub) && { refereeRequested: !!f.refereeRequested }),
+                ...(['tennis', 'padel', 'volleyball'].includes(sub) && {
+                    refereeRequested: !!f.refereeRequested,
+                    refereePayment: f.refereeRequested && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
+                }),
             });
             onCreated();
             onClose();
@@ -4673,7 +4688,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 matchDate: f.flexibleSchedule ? undefined : matchDateStr,
                 matchTime: f.flexibleSchedule ? undefined : f.matchTime || undefined,
                 duration:  f.flexibleSchedule ? undefined : f.duration,
-                courtName: f.selectedCourt ? (f.selectedCourt.venueName || f.selectedCourt.name) : (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
+                courtName: f.selectedCourt ? ([f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') || undefined) : (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
                 courtId:   f.selectedCourt?.id || undefined,
                 location:  f.selectedCourt?.city || f.manualCity || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
@@ -4702,6 +4717,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueCourtId:       f.venueCourtId   || undefined,
                 venueReservationId,
                 refereeRequested: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.refereeRequested : undefined,
+                refereePayment: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereePayment !== ''
+                    ? `${f.refereePayment}₺` : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
@@ -5255,6 +5272,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         {t.requestRefereeBtn}
                                     </Text>
                                 </TouchableOpacity>
+                            )}
+                            {['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && (
+                                <>
+                                    <Text style={[s.fieldLabel, { marginTop:0 }]}>{t.refereePaymentLabel}</Text>
+                                    <TextInput style={s.fieldInput} value={f.refereePayment}
+                                        onChangeText={v => set('refereePayment', v.replace(/[^0-9]/g, ''))}
+                                        placeholder="500" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                </>
                             )}
 
                             {/* Açıklama */}
