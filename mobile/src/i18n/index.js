@@ -595,6 +595,7 @@ const en = {
     emptyTournOpen: 'No open tournament listings', emptyTournInProgress: 'No tournaments in progress', emptyTournCompleted: 'No completed tournaments',
     emptyRivals: 'No rival listings yet', emptyTournaments: 'No tournaments yet',
     emptyCoaches: 'No support listings yet', emptyMedia: 'No media yet',
+    cardParticipantLabel: n => `Participant ${n}`,
     emptyArchive: 'No matches in archive', emptyNews: 'No news yet',
     emptyPosts: 'No text posts yet',
 
@@ -1649,6 +1650,7 @@ const tr = {
     emptyTournOpen: 'Açık turnuva ilanı yok', emptyTournInProgress: 'Devam eden turnuva yok', emptyTournCompleted: 'Tamamlanan turnuva yok',
     emptyRivals: 'Henüz rakip ilanı yok', emptyTournaments: 'Henüz turnuva yok',
     emptyCoaches: 'Henüz destek ilanı yok', emptyMedia: 'Henüz medya yok',
+    cardParticipantLabel: n => `Katılımcı ${n}`,
     emptyArchive: 'Arşivde maç yok', emptyNews: 'Henüz haber yok',
     emptyPosts: 'Henüz yazılı gönderi yok',
 

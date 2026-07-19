@@ -1464,15 +1464,33 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 )}
                 {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
-                {/* Kabul edilen oyuncular */}
-                {participants.filter(p => p?.id).length > 0 && (
-                    <View style={[s.participantsRow, { gap:3, marginBottom:3 }]}>
-                        {participants.filter(p => p?.id).map((p, i) => (
-                            <View key={p.id || i} style={[s.participantChip, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
-                                <Text style={[s.participantChipText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✓ {senderAlias(p)}</Text>
-                            </View>
-                        ))}
-                    </View>
+                {/* Kabul edilen oyuncular — çiftlerde henüz "Rakip 1/Rakip 2" gibi kesin bir
+                    koltuğa atanmış gibi gösterilmez (bu, kendi aralarında karar verip
+                    pozisyon değiştirebildikleri "yaklaşan maçlar" ekranındaki kartlarda olur) —
+                    burada sadece kaçıncı sırada kabul edildikleri (Katılımcı 1/2/3) gösterilir. */}
+                {item.matchType === 'DOUBLE' ? (() => {
+                    const partner = Array.isArray(item.senderTeam) ? item.senderTeam[0] : null;
+                    const slots = [partner, participants[0], participants[1]].filter(p => p?.id);
+                    if (slots.length === 0) return null;
+                    return (
+                        <View style={{ gap:2, marginBottom:3 }}>
+                            {slots.map((p, i) => (
+                                <Text key={p.id || i} style={{ color: colors.textSecondary, fontSize: moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    ✓ {t.cardParticipantLabel(i + 1)}: {senderAlias(p)}
+                                </Text>
+                            ))}
+                        </View>
+                    );
+                })() : (
+                    participants.filter(p => p?.id).length > 0 && (
+                        <View style={[s.participantsRow, { gap:3, marginBottom:3 }]}>
+                            {participants.filter(p => p?.id).map((p, i) => (
+                                <View key={p.id || i} style={[s.participantChip, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
+                                    <Text style={[s.participantChipText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✓ {senderAlias(p)}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    )
                 )}
                 {/* Bekleyen istek badge */}
                 {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
