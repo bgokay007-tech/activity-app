@@ -3196,7 +3196,7 @@ const CITY_ALERT_INFO_DISMISSED_KEY = 'city_alert_info_dismissed';
 // modalı açılır (ne için bildirim aldığını anlatır), "Bir daha gösterme" işaretlenip
 // onaylanırsa AsyncStorage'a yazılır ve bir sonraki tıklamalarda zil doğrudan aç/kapat yapar
 // (aynı EloWarningModal deseni).
-function CityAlertInfoModal({ visible, desc, active, onClose, onToggle, onDismissForever }) {
+function CityAlertInfoModal({ visible, desc, active, onClose, onToggle, onPickCities, onDismissForever }) {
     const t = useT();
     const [checked, setChecked] = useState(false);
     useEffect(() => { if (visible) setChecked(false); }, [visible]);
@@ -3225,6 +3225,9 @@ function CityAlertInfoModal({ visible, desc, active, onClose, onToggle, onDismis
                     <Text style={[ew.body, { color: colors.textSecondary }]}>{desc}</Text>
                     <TouchableOpacity onPress={onToggle} style={{ backgroundColor: colors.purple + '20', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:14, borderWidth:1, borderColor: colors.purple + '50' }}>
                         <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>{active ? t.cityAlertDisableBtn : t.cityAlertEnableBtn}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={onPickCities} style={{ backgroundColor:'#ffffff10', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:8, borderWidth:1, borderColor:'#ffffff20' }}>
+                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>📍 {t.cityAlertPickCitiesBtn}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={handleCheckboxPress} style={ew.checkRow}>
                         <View style={[ew.checkbox, checked && ew.checkboxChecked]}>
@@ -10728,6 +10731,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 active={(tabSubCities[cityAlertInfoTab] || []).length > 0}
                 onClose={() => setCityAlertInfoTab(null)}
                 onToggle={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); quickToggleTab(tab); }}
+                onPickCities={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); setCityPickerTab(tab); }}
                 onDismissForever={() => setCityAlertInfoDismissed(true)}
             />
 

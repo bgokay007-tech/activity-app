@@ -234,8 +234,8 @@ export const swapMatchPositions = async (req, res, next) => {
         const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
 
         // İlan sahibi veya maç katılımcısı olmalı
-        const isParticipant = participants.some(p => p.id === req.userId) ||
-                              senderTeam.some(p => p.id === req.userId);
+        const isParticipant = participants.some(p => p?.id === req.userId) ||
+                              senderTeam.some(p => p?.id === req.userId);
         if (rival.senderId !== req.userId && !isParticipant) {
             return res.status(403).json({ message: 'Bu maçın katılımcısı değilsiniz' });
         }
@@ -1051,13 +1051,13 @@ export const inviteToRival = async (req, res, next) => {
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
-        const isParticipant = participants.some(p => p.id === req.userId);
+        const isParticipant = participants.some(p => p?.id === req.userId);
         // Owner or any already-accepted participant can invite more players
         if (rival.senderId !== req.userId && !isParticipant) return res.status(403).json({ message: 'Forbidden' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
         if (userId === req.userId) return res.status(400).json({ message: 'Kendinizi davet edemezsiniz' });
 
-        if (participants.some(p => p.id === userId)) {
+        if (participants.some(p => p?.id === userId)) {
             return res.status(400).json({ message: 'Bu kullanıcı zaten maça katılmış' });
         }
 
@@ -1759,7 +1759,7 @@ export const enterScore = async (req, res, next) => {
 
         // Must be sender or a participant
         const participants = Array.isArray(request.participants) ? request.participants : [];
-        const isInvolved = request.senderId === req.userId || participants.some(p => p.id === req.userId);
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         const updated = await prisma.activityRequest.update({
@@ -1931,7 +1931,7 @@ export const extendScoreDeadline = async (req, res, next) => {
         if (request.scoreStatus !== 'NONE') return res.status(400).json({ message: 'Score already entered or confirmed' });
 
         const participants = Array.isArray(request.participants) ? request.participants : [];
-        const isInvolved = request.senderId === req.userId || participants.some(p => p.id === req.userId);
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         // Push completedAt forward so auto-draw job won't fire for `hours` from now
@@ -2028,7 +2028,7 @@ export const appealScore = async (req, res, next) => {
         if (!request) return res.status(404).json({ message: 'Maç bulunamadı' });
 
         const participants = Array.isArray(request.participants) ? request.participants : [];
-        const isInvolved = request.senderId === req.userId || participants.some(p => p.id === req.userId);
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Yetkisiz' });
         if (request.scoreStatus !== 'CONFIRMED') return res.status(400).json({ message: 'Yalnızca onaylanmış skorlara itiraz edilebilir' });
         if (request.scoreAppeal) return res.status(400).json({ message: 'Bu maç için zaten itiraz yapılmış' });
@@ -2173,7 +2173,7 @@ export const removeRivalParticipant = async (req, res, next) => {
 
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
-        const inParticipants = participants.some(p => p.id === userId);
+        const inParticipants = participants.some(p => p?.id === userId);
         const inSenderTeam  = senderTeamArr.some(p => p.id === userId);
         if (!inParticipants && !inSenderTeam) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
 
@@ -2232,7 +2232,7 @@ export const cancelMatch = async (req, res, next) => {
         if (request.status !== 'MATCHED') return res.status(400).json({ message: 'Not a matched listing' });
 
         const participants = Array.isArray(request.participants) ? request.participants : [];
-        const isInvolved = request.senderId === req.userId || participants.some(p => p.id === req.userId);
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         const allPlayerIds = [request.senderId, ...participants.map(p => p.id)];
@@ -2269,7 +2269,7 @@ export const cancelMatch = async (req, res, next) => {
             }
 
             await prisma.activityRequest.update({ where: { id }, data: { mutualCancelRequests: mutualReqs } });
-            const me = request.senderId === req.userId ? request.sender : (participants.find(p => p.id === req.userId) || { username: 'Rakip' });
+            const me = request.senderId === req.userId ? request.sender : (participants.find(p => p?.id === req.userId) || { username: 'Rakip' });
             res.json({ cancelled: false, mutual: true, requested: true });
             for (const uid of otherPlayerIds) {
                 createNotification(uid, 'MUTUAL_CANCEL_REQUEST',

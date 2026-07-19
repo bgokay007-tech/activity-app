@@ -429,6 +429,7 @@ const en = {
     cityAlertInfoTitle: '🔔 Notification Info',
     cityAlertEnableBtn: 'Enable Notification',
     cityAlertDisableBtn: 'Disable Notification',
+    cityAlertPickCitiesBtn: 'Choose City / Cities',
 
     // SubCategory — archive / score
     enterScore: 'Enter Score',
@@ -1487,6 +1488,7 @@ const tr = {
     cityAlertInfoTitle: '🔔 Bildirim Bilgisi',
     cityAlertEnableBtn: 'Bildirimi Aç',
     cityAlertDisableBtn: 'Bildirimi Kapat',
+    cityAlertPickCitiesBtn: 'İl/İlleri Seç',
 
     // SubCategory — archive / score
     enterScore: 'Skor Gir',
