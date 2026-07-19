@@ -413,7 +413,7 @@ export const updateRivalRequest = async (req, res, next) => {
 
         const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
-                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson } = req.body;
+                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, refereeRequested } = req.body;
 
         const updated = await prisma.activityRequest.update({
             where: { id },
@@ -441,9 +441,43 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(isCourtReserved !== undefined && { isCourtReserved: !!isCourtReserved }),
                 ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
                 ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
+                ...(refereeRequested !== undefined && { refereeRequested: !!refereeRequested }),
             },
             include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } } },
         });
+
+        // Hakem talebi kapatıldı/açıldı → bağlı "Hakem Arıyorum" ilanını senkronize et
+        if (refereeRequested !== undefined && !!refereeRequested !== rival.refereeRequested) {
+            if (refereeRequested) {
+                prisma.activityRequest.create({
+                    data: {
+                        senderId: req.userId,
+                        category: updated.category,
+                        subCategory: updated.subCategory,
+                        matchType: 'PLAYER_WANTED',
+                        teamSize: 1,
+                        matchDate: updated.matchDate,
+                        matchTime: updated.matchTime,
+                        location: updated.location,
+                        courtName: updated.courtName,
+                        courtAddress: updated.courtAddress,
+                        positions: ['REFEREE'],
+                        linkedRivalId: updated.id,
+                        status: 'OPEN',
+                    },
+                    include: { sender: { select: SENDER_SELECT } },
+                }).then(refAd => broadcast('rivalUpdate', refAd)).catch(() => {});
+            } else {
+                prisma.activityRequest.findFirst({ where: { linkedRivalId: id, status: 'OPEN' } })
+                    .then(refAd => {
+                        if (!refAd) return;
+                        const parts = Array.isArray(refAd.participants) ? refAd.participants : [];
+                        if (parts.length > 0) return; // hakem zaten kabul edildiyse dokunma
+                        return prisma.activityRequest.update({ where: { id: refAd.id }, data: { status: 'CANCELLED' } })
+                            .then(() => broadcast('rivalDeleted', { rivalId: refAd.id, subCategory: refAd.subCategory }));
+                    }).catch(() => {});
+            }
+        }
 
         broadcast('rivalUpdate', updated);
         res.json(updated);
@@ -463,6 +497,7 @@ export const createRivalRequest = async (req, res, next) => {
             senderTeam, // COMPETITIVE football: [{id,username,fullName,skillRating}]
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
             refereePayment,
+            refereeRequested, // bu maç ilanı için ayrıca hakem talep ediliyor mu (tenis/padel/voleybol)
             minRating, maxRating,
             genderReq = 'MIX',
             partnerGenderReq = 'MIX',
@@ -541,6 +576,7 @@ export const createRivalRequest = async (req, res, next) => {
                     : (Array.isArray(senderTeam) ? senderTeam : []),
                 positions: Array.isArray(positions) ? positions : [],
                 ...(refereePayment && { refereePayment }),
+                refereeRequested: !!refereeRequested,
                 ...(minRating !== undefined && minRating !== null && minRating !== '' && { minRating: parseFloat(minRating) }),
                 ...(maxRating !== undefined && maxRating !== null && maxRating !== '' && { maxRating: parseFloat(maxRating) }),
                 ...(courtFeePerPerson !== undefined && courtFeePerPerson !== null && { courtFeePerPerson: parseInt(courtFeePerPerson, 10) }),
@@ -557,6 +593,30 @@ export const createRivalRequest = async (req, res, next) => {
 
         // Real-time: show new listing instantly on all screens
         broadcast('rivalUpdate', request);
+
+        // Hakem talebi: bu asıl maç ilanına bağlı, matchType PLAYER_WANTED ayrı bir
+        // "Hakem Arıyorum" ilanı - Hakemler sekmesinde refereeMatches listesine düşer,
+        // teklif verme/davet etme zaten mevcut join-request/invite akışını kullanır.
+        if (refereeRequested && matchType.toUpperCase() !== 'PLAYER_WANTED') {
+            prisma.activityRequest.create({
+                data: {
+                    senderId: req.userId,
+                    category,
+                    subCategory,
+                    matchType: 'PLAYER_WANTED',
+                    teamSize: 1,
+                    matchDate: matchDate ? new Date(matchDate) : null,
+                    matchTime,
+                    location,
+                    courtName: resolvedCourtName,
+                    courtAddress,
+                    positions: ['REFEREE'],
+                    linkedRivalId: request.id,
+                    status: 'OPEN',
+                },
+                include: { sender: { select: SENDER_SELECT } },
+            }).then(refAd => broadcast('rivalUpdate', refAd)).catch(() => {});
+        }
 
         // DOUBLE partner daveti: ilan oluştuktan sonra join request yarat ve bildirim gönder
         if (partnerInviteId && matchType.toUpperCase() === 'DOUBLE') {
@@ -2153,6 +2213,9 @@ export const cancelRequest = async (req, res, next) => {
 
         await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
 
+        // Bağlı "Hakem Arıyorum" ilanı varsa (henüz hakem kabul edilmemişse) onu da iptal et
+        prisma.activityRequest.updateMany({ where: { linkedRivalId: id, status: 'OPEN' }, data: { status: 'CANCELLED' } }).catch(() => {});
+
         res.json({ message: 'Cancelled' });
 
         // Real-time: remove from all users' screens instantly
@@ -2301,6 +2364,7 @@ export const cancelMatch = async (req, res, next) => {
         if (isCreatorSide) {
             // The listing's own side is cancelling — the post itself is no longer valid.
             await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+            prisma.activityRequest.updateMany({ where: { linkedRivalId: id, status: 'OPEN' }, data: { status: 'CANCELLED' } }).catch(() => {});
             for (const uid of allPlayerIds) emitToUser(uid, 'rivalDeleted', { rivalId: id, subCategory: request.subCategory });
         } else {
             // A joining-side participant is cancelling — drop the whole joining side
