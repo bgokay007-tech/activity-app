@@ -736,7 +736,7 @@ export default function ActivityFeedScreen({ navigation }) {
     const [courseItems,  setCourseItems]  = useState([]);
     const [loading,   setLoading]   = useState(false);
     const [joiningId, setJoiningId] = useState(null);
-    const [feedTab,   setFeedTab]   = useState('current'); // 'current' | 'past'
+    const [feedTab,   setFeedTab]   = useState('current'); // 'current' | 'upcomingFull' | 'past'
 
     // Dinamik sub listesi (static + DB'den ekstralar)
     const [extraSubs, setExtraSubs] = useState([]);
@@ -940,9 +940,12 @@ export default function ActivityFeedScreen({ navigation }) {
     // yakından uzağa (tarihi olmayanlar en yakına) karışık sıralanır. Gerçek
     // tarihi olan türler (etkinlik/konser/tiyatro) başlangıcından 15 dk sonra
     // "geçmiş" sayılıp ayrı sekmeye düşer — sinema/kurs tarihsiz/süregelen
-    // olduğu için hiçbir zaman geçmişe düşmez.
+    // olduğu için hiçbir zaman geçmişe düşmez. Henüz geçmemiş ama kontenjanı
+    // dolmuş etkinlikler (ActivityCard'daki "Dolu" durumu ile aynı hesap)
+    // geçmişe değil, ayrı bir "Yaklaşan Aktiviteler" sekmesine düşer.
     const PAST_GRACE_MS = 15 * 60 * 1000;
-    const { feedItems, pastFeedItems } = useMemo(() => {
+    const isEventFull = (item) => ((item.teamSize * 2) - 1 - (item.participants?.length || 0)) <= 0;
+    const { feedItems, upcomingFullFeedItems, pastFeedItems } = useMemo(() => {
         const merged = [
             ...items.map(item => ({ key: `event-${item.id}`, type: 'event', data: item, sortTime: feedSortTime(item.matchDate), hasDate: true })),
             ...concertItems.map(item => ({ key: `concert-${item.id}`, type: 'concert', data: item, sortTime: feedSortTime(item.date, item.time), hasDate: true })),
@@ -951,11 +954,15 @@ export default function ActivityFeedScreen({ navigation }) {
             ...courseItems.map(item => ({ key: `course-${item.id}`, type: 'course', data: item, sortTime: feedSortTime(null), hasDate: false })),
         ];
         const now = Date.now();
-        const current = merged.filter(fi => !fi.hasDate || fi.sortTime + PAST_GRACE_MS >= now);
-        const past    = merged.filter(fi =>  fi.hasDate && fi.sortTime + PAST_GRACE_MS <  now);
+        const upcoming = merged.filter(fi => !fi.hasDate || fi.sortTime + PAST_GRACE_MS >= now);
+        const past     = merged.filter(fi =>  fi.hasDate && fi.sortTime + PAST_GRACE_MS <  now);
+        const isFull   = (fi) => fi.type === 'event' && isEventFull(fi.data);
+        const current       = upcoming.filter(fi => !isFull(fi));
+        const upcomingFull  = upcoming.filter(fi =>  isFull(fi));
         current.sort((a, b) => a.sortTime - b.sortTime);
+        upcomingFull.sort((a, b) => a.sortTime - b.sortTime);
         past.sort((a, b) => b.sortTime - a.sortTime);
-        return { feedItems: current, pastFeedItems: past };
+        return { feedItems: current, upcomingFullFeedItems: upcomingFull, pastFeedItems: past };
     }, [items, concertItems, cinemaItems, theaterItems, courseItems]);
 
     return (
@@ -1036,24 +1043,29 @@ export default function ActivityFeedScreen({ navigation }) {
                     <TouchableOpacity
                         style={[s.feedTabBtn, feedTab === 'current' && s.feedTabBtnActive]}
                         onPress={() => setFeedTab('current')} activeOpacity={0.8}>
-                        <Text style={[s.feedTabText, feedTab === 'current' && s.feedTabTextActive]}>Aktivite</Text>
+                        <Text style={[s.feedTabText, feedTab === 'current' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Aktivite</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[s.feedTabBtn, feedTab === 'upcomingFull' && s.feedTabBtnActive]}
+                        onPress={() => setFeedTab('upcomingFull')} activeOpacity={0.8}>
+                        <Text style={[s.feedTabText, feedTab === 'upcomingFull' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Yaklaşan Aktiviteler{upcomingFullFeedItems.length > 0 ? ` (${upcomingFullFeedItems.length})` : ''}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[s.feedTabBtn, feedTab === 'past' && s.feedTabBtnActive]}
                         onPress={() => setFeedTab('past')} activeOpacity={0.8}>
-                        <Text style={[s.feedTabText, feedTab === 'past' && s.feedTabTextActive]}>Geçmiş Aktiviteler{pastFeedItems.length > 0 ? ` (${pastFeedItems.length})` : ''}</Text>
+                        <Text style={[s.feedTabText, feedTab === 'past' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Geçmiş Aktiviteler{pastFeedItems.length > 0 ? ` (${pastFeedItems.length})` : ''}</Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* ── Sonuçlar — tek karışık akış, yakından uzağa sıralı ── */}
                 {(() => {
-                    const list = feedTab === 'past' ? pastFeedItems : feedItems;
+                    const list = feedTab === 'past' ? pastFeedItems : feedTab === 'upcomingFull' ? upcomingFullFeedItems : feedItems;
                     if (loading) return <View style={s.center}><ActivityIndicator size="large" color={colors.purple} /></View>;
                     if (list.length === 0) return (
                         <View style={s.center}>
                             <Text style={s.emptyEmoji}>🔍</Text>
-                            <Text style={s.emptyText}>{feedTab === 'past' ? 'Geçmiş aktivite yok' : 'Aktivite bulunamadı'}</Text>
-                            <Text style={s.emptyHint}>{feedTab === 'past' ? 'Süresi geçen aktiviteler burada listelenir' : 'Filtreni değiştir veya daha sonra tekrar bak'}</Text>
+                            <Text style={s.emptyText}>{feedTab === 'past' ? 'Geçmiş aktivite yok' : feedTab === 'upcomingFull' ? 'Yaklaşan dolu aktivite yok' : 'Aktivite bulunamadı'}</Text>
+                            <Text style={s.emptyHint}>{feedTab === 'past' ? 'Süresi geçen aktiviteler burada listelenir' : feedTab === 'upcomingFull' ? 'Kontenjanı dolmuş yaklaşan aktiviteler burada listelenir' : 'Filtreni değiştir veya daha sonra tekrar bak'}</Text>
                         </View>
                     );
                     return (
