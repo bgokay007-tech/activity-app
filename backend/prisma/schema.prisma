@@ -561,6 +561,7 @@ model ActivityRequest {
   refereePayment  String?                         // fee offered or rate per match
   refereeRequested Boolean     @default(false)    // bu maç ilanı için hakem talep edildi mi (tenis/padel/voleybol)
   linkedRivalId   String?                         // hakem-arama ilanıysa (matchType PLAYER_WANTED, positions:['REFEREE']) bağlı olduğu asıl maç ilanının id'si
+  refereeFeePerPerson Int?                        // hakemle fiyatta anlaşıldığında, hakem ücretinin oyuncu sayısına eşit bölünmüş payı (asıl maç ilanında tutulur)
   minRating       Float?                          // min skill rating to join
   maxRating       Float?                          // max skill rating to join
   status          String       @default("OPEN")   // OPEN | MATCHED | CANCELLED | COMPLETED

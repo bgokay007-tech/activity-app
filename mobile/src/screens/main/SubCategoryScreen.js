@@ -791,7 +791,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </TouchableOpacity>
                             )}
                             {item.courtFeePerPerson > 0 && (
-                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10) }} numberOfLines={1}>💰 {item.courtFeePerPerson}₺/{t.perPerson}</Text>
+                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10) }} numberOfLines={1}>
+                                    💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''}/{t.perPerson}
+                                </Text>
                             )}
                             {item.level && (
                                 <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2), fontSize: moderateScale(9) }]} numberOfLines={1}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
@@ -1565,7 +1567,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     {item.isCourtReserved ? `✅ ${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
                 </Text>
                 {item.courtFeePerPerson > 0 && (
-                    <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>💰 {item.courtFeePerPerson}₺ / {t.perPerson}</Text>
+                    <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
+                    </Text>
                 )}
 
                 {item.flexibleSchedule && (
