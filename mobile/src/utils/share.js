@@ -10,6 +10,22 @@ export async function shareRival(rival, t) {
     if (place) parts.push(`📍 ${place}`);
     if (rival.matchDate) parts.push(`📅 ${new Date(rival.matchDate).toLocaleDateString('tr-TR')}${rival.matchTime ? ' ' + rival.matchTime : ''}`);
     if (rival.duration) parts.push(`⏱ ${rival.duration} ${t?.timeMinSuffix || 'dk'}`);
+
+    // Onaylanmış katılımcılar — takımlar (kim rakip 1/2) henüz kesin belli olmadığı için
+    // (bkz. RivalCard'daki aynı gerekçe) kaçıncı sırada kabul edildikleri (Katılımcı 1/2/3)
+    // olarak gösterilir, "Rakip 1"/"Rakip 2" gibi kesin bir koltuğa atanmış gibi değil.
+    const nameOf = (p) => p?.fullName || p?.username || '';
+    const label = (n) => t?.cardParticipantLabel ? t.cardParticipantLabel(n) : `Katılımcı ${n}`;
+    const confirmed = [];
+    if (rival.matchType === 'DOUBLE') {
+        const partner = Array.isArray(rival.senderTeam) ? rival.senderTeam[0] : null;
+        const slots = [partner, rival.participants?.[0], rival.participants?.[1]].filter(p => p?.id);
+        slots.forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
+    } else if (Array.isArray(rival.participants)) {
+        rival.participants.filter(p => p?.id).forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
+    }
+    if (confirmed.length > 0) parts.push(`👥 ${confirmed.join(', ')}`);
+
     parts.push(url);
     try {
         await Share.share({ message: parts.join('\n'), url });

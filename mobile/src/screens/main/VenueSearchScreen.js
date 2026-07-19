@@ -9,6 +9,7 @@ import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
 import { computeVarDurationPrice } from '../../utils/priceProration';
+import TimePickerModal from '../../components/TimePickerModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -645,6 +646,35 @@ export default function VenueSearchScreen({ navigation, route }) {
     const [loading,  setLoading]  = useState(false);
     const [searched, setSearched] = useState(false);
 
+    // Müsaitliğe göre arama (tarih + saat aralığı) — sadece Pro+ paketli tesisler görünür
+    const [availMode,   setAvailMode]   = useState(false);
+    const [availDate,   setAvailDate]   = useState(getDateStr(0));
+    const [availFrom,   setAvailFrom]   = useState('');
+    const [availTo,     setAvailTo]     = useState('');
+    const [showFromPicker, setShowFromPicker] = useState(false);
+    const [showToPicker,   setShowToPicker]   = useState(false);
+    const [availResults, setAvailResults] = useState([]);
+    const [availLoading, setAvailLoading] = useState(false);
+    const [availSearched, setAvailSearched] = useState(false);
+    const AVAIL_DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
+
+    const searchAvailability = useCallback(async () => {
+        if (!availFrom || !availTo) { Alert.alert('', t.vsAvailTimeRequired || 'Başlangıç ve bitiş saati seçin'); return; }
+        if (availFrom >= availTo) { Alert.alert('', t.vsAvailRangeInvalid || 'Bitiş saati başlangıçtan sonra olmalı'); return; }
+        setAvailLoading(true);
+        setAvailSearched(true);
+        try {
+            const params = { date: availDate, timeFrom: availFrom, timeTo: availTo };
+            if (city.trim())      params.city   = city.trim();
+            if (rawBranch)        params.branch = rawBranch;
+            if (venueName.trim()) params.name   = venueName.trim();
+            const { data } = await api.get('/venues/search-availability', { params });
+            setAvailResults(Array.isArray(data?.items) ? data.items : []);
+        } catch {
+            setAvailResults([]);
+        } finally { setAvailLoading(false); }
+    }, [availDate, availFrom, availTo, city, venueName, rawBranch]);
+
     // Tesis sayfası modalı
     const [activeVenue, setActive] = useState(null);
 
@@ -782,9 +812,54 @@ export default function VenueSearchScreen({ navigation, route }) {
                         ? <ActivityIndicator size="small" color="#fff" />
                         : <Text style={s.searchBtnText}>{t.vsSearchBtn}</Text>}
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => setAvailMode(v => !v)}
+                    style={[s.availToggle, availMode && s.availToggleActive]}
+                    activeOpacity={0.8}
+                >
+                    <Text style={[s.availToggleText, availMode && s.availToggleTextActive]}>
+                        🕐 {t.vsAvailToggle || 'Belirli saat aralığında müsait olanları bul'}
+                    </Text>
+                </TouchableOpacity>
+
+                {availMode && (
+                    <View style={s.availBox}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+                            {AVAIL_DATE_OPTIONS.map(d => (
+                                <TouchableOpacity
+                                    key={d}
+                                    onPress={() => setAvailDate(d)}
+                                    style={[s.availDateChip, availDate === d && s.availDateChipActive]}
+                                >
+                                    <Text style={[s.availDateChipText, availDate === d && s.availDateChipTextActive]}>{formatDateLabel(d, t.dateLocale)}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                            <TouchableOpacity style={s.availTimeField} onPress={() => setShowFromPicker(true)}>
+                                <Text style={[s.availTimeFieldText, availFrom && { color: colors.purpleLight || colors.purple }]}>
+                                    {availFrom || (t.vsAvailFrom || 'Başlangıç')}
+                                </Text>
+                            </TouchableOpacity>
+                            <Text style={{ color: colors.textMuted, alignSelf: 'center' }}>–</Text>
+                            <TouchableOpacity style={s.availTimeField} onPress={() => setShowToPicker(true)}>
+                                <Text style={[s.availTimeFieldText, availTo && { color: colors.purpleLight || colors.purple }]}>
+                                    {availTo || (t.vsAvailTo || 'Bitiş')}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[s.availSearchBtn, availLoading && { opacity: 0.6 }]} onPress={searchAvailability} disabled={availLoading}>
+                                {availLoading
+                                    ? <ActivityIndicator size="small" color="#fff" />
+                                    : <Text style={s.searchBtnText}>{t.vsSearchBtn}</Text>}
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={s.availHint}>{t.vsAvailHint || '📋 Yalnızca Pro ve üstü paketli tesisler bu aramada listelenir.'}</Text>
+                    </View>
+                )}
             </View>
 
-            {searched && !loading && (
+            {!availMode && searched && !loading && (
                 <FlatList
                     data={venues}
                     keyExtractor={v => v.id}
@@ -801,13 +876,45 @@ export default function VenueSearchScreen({ navigation, route }) {
                 />
             )}
 
-            {!searched && !loading && (
+            {!availMode && !searched && !loading && (
                 <View style={s.hint}>
                     <Text style={s.hintIcon}>🏓</Text>
                     <Text style={s.hintText}>
                         {t.vsHint}
                     </Text>
                 </View>
+            )}
+
+            {availMode && availSearched && !availLoading && (
+                <FlatList
+                    data={availResults}
+                    keyExtractor={r => r.venue.id}
+                    contentContainerStyle={s.list}
+                    ListEmptyComponent={
+                        <View style={s.empty}>
+                            <Text style={s.emptyIcon}>🔍</Text>
+                            <Text style={s.emptyText}>{t.vsNoResults}</Text>
+                        </View>
+                    }
+                    renderItem={({ item }) => (
+                        <TouchableOpacity style={s.availResultCard} onPress={() => setActive(item.venue)} activeOpacity={0.85}>
+                            <Text style={s.availResultName} numberOfLines={1}>{item.venue.name}</Text>
+                            <Text style={s.availResultCity}>📍 {item.venue.city}{item.venue.district ? ` / ${item.venue.district}` : ''}</Text>
+                            {item.matchingCourts.map(mc => (
+                                <View key={mc.court.id} style={{ marginTop: 6 }}>
+                                    <Text style={s.availResultCourt}>🏟️ {mc.court.name}</Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
+                                        {mc.slots.map((sl, i) => (
+                                            <View key={i} style={s.availSlotChip}>
+                                                <Text style={s.availSlotChipText}>{sl.start}–{sl.end}{sl.price != null ? ` · ${sl.price}₺` : ''}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            ))}
+                        </TouchableOpacity>
+                    )}
+                />
             )}
 
             {/* Sepet barı — sepette ürün varken her zaman görünür */}
@@ -840,6 +947,22 @@ export default function VenueSearchScreen({ navigation, route }) {
                 onClose={() => setCartOpen(false)}
                 checkingOut={checkingOut}
             />
+
+            {/* Müsaitlik aramasında saat aralığı seçimi */}
+            <TimePickerModal
+                visible={showFromPicker}
+                title={t.vsAvailFrom || 'Başlangıç Saati'}
+                value={availFrom}
+                onSelect={(v) => { setAvailFrom(v); if (availTo && v >= availTo) setAvailTo(''); }}
+                onClose={() => setShowFromPicker(false)}
+            />
+            <TimePickerModal
+                visible={showToPicker}
+                title={t.vsAvailTo || 'Bitiş Saati'}
+                value={availTo}
+                onSelect={setAvailTo}
+                onClose={() => setShowToPicker(false)}
+            />
         </View>
     );
 }
@@ -863,6 +986,27 @@ const s = StyleSheet.create({
     input:        { backgroundColor: colors.surface, borderRadius: 10, padding: 12, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: colors.border },
     searchBtn:    { backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
     searchBtnText:{ color: '#fff', fontWeight: '900', fontSize: 15 },
+
+    availToggle:      { borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    availToggleActive:{ borderColor: colors.purple, backgroundColor: colors.purple + '18' },
+    availToggleText:      { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+    availToggleTextActive:{ color: colors.purpleLight || colors.purple },
+    availBox:         { backgroundColor: colors.surface, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border, gap: 4 },
+    availDateChip:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    availDateChipActive:  { backgroundColor: colors.purple, borderColor: colors.purple },
+    availDateChipText:      { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
+    availDateChipTextActive:{ color: '#fff' },
+    availTimeField:     { flex: 1, backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    availTimeFieldText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
+    availSearchBtn:     { backgroundColor: colors.purple, borderRadius: 8, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+    availHint:          { color: colors.textMuted, fontSize: 10, marginTop: 6 },
+
+    availResultCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border },
+    availResultName: { color: '#fff', fontSize: 15, fontWeight: '900' },
+    availResultCity: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    availResultCourt:{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
+    availSlotChip:      { backgroundColor: colors.purple + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.purple + '40' },
+    availSlotChipText:  { color: colors.purpleLight || colors.purple, fontSize: 11, fontWeight: '700' },
 
     list:     { padding: 14, gap: 10 },
     card:     { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border },

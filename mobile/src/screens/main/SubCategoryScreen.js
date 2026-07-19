@@ -21,6 +21,7 @@ import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import CityAutocomplete from '../../components/CityAutocomplete';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
+import DateRangePickerModal from '../../components/DateRangePickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
 import PeerReviewModal from '../../components/PeerReviewModal';
 import { shareRival, shareTournament } from '../../utils/share';
@@ -720,84 +721,82 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{item.subCategory}</Text>
                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(12), marginTop:1 }}>{senderAlias(item.sender)}</Text>
                     </View>
-                    <ModeBadge mode={item.matchMode} />
                 </View>
 
                 {/* Scrollable content */}
                 <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-                    {/* Tarih / Saat / Süre — dikey, ortalı */}
-                    <View style={{ alignItems:'center', marginBottom:moderateScale(12) }}>
-                        {item.matchDate && (
-                            <Text style={{ color:'#fff', fontSize:moderateScale(18), fontWeight:'800' }}>
-                                📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' })}
-                            </Text>
-                        )}
-                        {item.matchTime && (
-                            <Text style={{ color: cfg.color, fontSize:moderateScale(16), fontWeight:'700', marginTop:4 }}>
-                                🕐 {item.matchTime}{item.duration ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const tot=h*60+m+parseInt(item.duration); return `–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`; })() : ''}
-                                {item.duration ? `  ·  ${item.duration} ${t.timeMinSuffix}` : ''}
-                            </Text>
-                        )}
-                        {!item.matchTime && item.duration && (
-                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(14), marginTop:4 }}>
-                                ⏱ {item.duration} {t.timeMinSuffix}
-                            </Text>
-                        )}
-                        {item.courtName && (
-                            <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
-                                <Text style={{ color:'#60a5fa', fontSize:moderateScale(13), marginTop:6, textDecorationLine:'underline' }}>🏟️ {item.courtName}</Text>
-                            </TouchableOpacity>
-                        )}
-                        {item.courtFeePerPerson > 0 && (
-                            <Text style={{ color:'#4ade80', fontSize:moderateScale(12), marginTop:3 }}>💰 {item.courtFeePerPerson}₺ / {t.perPerson}</Text>
-                        )}
-                        {item.level && (
-                            <View style={[s.levelRow, { marginTop:6, justifyContent:'center', gap: moderateScale(8) }]}>
-                                <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(3), fontSize: moderateScale(11) }]}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
-                                {item.levelDetail && <Text style={[s.levelDetail, { borderRadius: moderateScale(8), paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(3), fontSize: moderateScale(11) }]}>{item.levelDetail}</Text>}
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Gönderen */}
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:moderateScale(10), marginBottom:item.message ? 8 : 12, paddingBottom:9, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                        <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
-                        <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:3 }}>
-                            <Text style={[s.cardName, { fontSize: moderateScale(14) }]}>{senderAlias(item.sender)}</Text>
-                            {item.sender?.gender && item.sender.gender !== 'OTHER' && (
-                                <Text style={{ fontSize: moderateScale(11), fontWeight:'700', color: item.sender.gender === 'MALE' ? '#3b82f6' : '#ec4899' }}>
-                                    {item.sender.gender === 'MALE' ? '♂' : '♀'}
-                                </Text>
-                            )}
-                            {item.sender?.interests?.[0]?.assessmentCompleted && (
-                                <Text style={{ color:'#facc15', fontSize:moderateScale(12), fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
-                            )}
-                        </View>
-                        <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(3) }]}>
-                            <Text style={[s.modeBadgeText, { color:cfg.color, fontSize: moderateScale(10) }]}>
-                                {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
-                            </Text>
-                        </View>
-                        {item.genderReq && item.genderReq !== 'MIX' && (
-                            <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(3) }}>
-                                <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(10), fontWeight:'800' }}>
-                                    {item.genderReq === 'MALE' ? '👨 Erkek' : '👩 Kadın'}
-                                </Text>
-                            </View>
-                        )}
-                        {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
-                            const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                            const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
-                            const label = allSame && item.opp1GenderReq !== 'MIX'
-                                ? `${gL(item.opp1GenderReq)} ${item.opp1GenderReq === 'MALE' ? 'Erkek' : 'Kadın'}`
-                                : `${gL(item.partnerGenderReq)}+${gL(item.opp1GenderReq)}+${gL(item.opp2GenderReq)}`;
-                            return (
-                                <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(3) }}>
-                                    <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
+                    {/* Kurucu (sol) + Tarih/Saat/Kort/Fiyat (sağ, küçük) — tek satırda */}
+                    <View style={{ flexDirection:'row', alignItems:'flex-start', gap:moderateScale(8), marginBottom:item.message ? 8 : 12, paddingBottom:9, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                        {/* Sol: kurucu */}
+                        <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:moderateScale(8), minWidth:0 }}>
+                            <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
+                            <View style={{ flex:1, minWidth:0 }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap' }}>
+                                    <Text style={[s.cardName, { fontSize: moderateScale(13) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
+                                    {item.sender?.gender && item.sender.gender !== 'OTHER' && (
+                                        <Text style={{ fontSize: moderateScale(11), fontWeight:'700', color: item.sender.gender === 'MALE' ? '#3b82f6' : '#ec4899' }}>
+                                            {item.sender.gender === 'MALE' ? '♂' : '♀'}
+                                        </Text>
+                                    )}
                                 </View>
-                            );
-                        })()}
+                                {item.sender?.interests?.[0]?.assessmentCompleted && (
+                                    <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
+                                )}
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
+                                    <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2) }]}>
+                                        <Text style={[s.modeBadgeText, { color:cfg.color, fontSize: moderateScale(9) }]}>
+                                            {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                        </Text>
+                                    </View>
+                                    {item.genderReq && item.genderReq !== 'MIX' && (
+                                        <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
+                                            <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
+                                                {item.genderReq === 'MALE' ? '👨' : '👩'}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
+                                        const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                                        const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
+                                        const label = allSame && item.opp1GenderReq !== 'MIX'
+                                            ? gL(item.opp1GenderReq)
+                                            : `${gL(item.partnerGenderReq)}+${gL(item.opp1GenderReq)}+${gL(item.opp2GenderReq)}`;
+                                        return (
+                                            <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
+                                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
+                                            </View>
+                                        );
+                                    })()}
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Sağ: mod + tarih/saat/kort/fiyat — küçük, sola yaslı */}
+                        <View style={{ flex:1.1, alignItems:'flex-start', gap:3, minWidth:0 }}>
+                            <ModeBadge mode={item.matchMode} />
+                            {item.matchDate && (
+                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={2}>
+                                    📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' })}
+                                </Text>
+                            )}
+                            {(item.matchTime || item.duration) && (
+                                <Text style={{ color: cfg.color, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
+                                    {item.matchTime ? `🕐 ${item.matchTime}${item.duration ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const tot=h*60+m+parseInt(item.duration); return `–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`; })() : ''}` : `⏱ ${item.duration} ${t.timeMinSuffix}`}
+                                </Text>
+                            )}
+                            {item.courtName && (
+                                <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)} style={{ maxWidth:'100%' }}>
+                                    <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), textDecorationLine:'underline' }} numberOfLines={2}>🏟️ {item.courtName}</Text>
+                                </TouchableOpacity>
+                            )}
+                            {item.courtFeePerPerson > 0 && (
+                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10) }} numberOfLines={1}>💰 {item.courtFeePerPerson}₺/{t.perPerson}</Text>
+                            )}
+                            {item.level && (
+                                <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2), fontSize: moderateScale(9) }]} numberOfLines={1}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
+                            )}
+                        </View>
                     </View>
                     {item.message && <Text style={[s.cardMsg, { marginBottom:12, fontSize: moderateScale(13) }]}>{item.message}</Text>}
 
@@ -1442,28 +1441,28 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             {/* ── Tappable info area → opens detail modal ── */}
             <TouchableOpacity activeOpacity={0.85} onPress={() => { setDetailVisible(true); onRefresh(); }}>
 
-                {/* Avatar + isim + puan */}
-                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                {/* Avatar + isim/puan + mod/format */}
+                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:3 }}>
                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                     <View style={{ flex:1, minWidth:0 }}>
-                        <Text style={[s.cardName, { fontSize: moderateScale(13) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
-                        {item.sender?.interests?.[0]?.assessmentCompleted && (
-                            <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(10) }]}>
-                                {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
-                            </Text>
-                        )}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                            <Text style={[s.cardName, { fontSize: moderateScale(13), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
+                            {item.sender?.interests?.[0]?.assessmentCompleted && (
+                                <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(10) }]}>
+                                    {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
+                                </Text>
+                            )}
+                        </View>
+                        {/* Mod + 1v1/2v2 — fotoğrafın sağına, isimle aynı hizada */}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginTop:3, flexWrap:'wrap' }}>
+                            <ModeBadge mode={item.matchMode} />
+                            <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
+                                <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(10) }]}>
+                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
-                </View>
-
-                {/* Mod + 1v1/2v2 + katılım sayısı */}
-                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
-                    <ModeBadge mode={item.matchMode} />
-                    <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
-                        <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(10) }]}>
-                            {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
-                        </Text>
-                    </View>
-                    <Text style={[s.joinedCount, { fontSize: moderateScale(10), marginTop:0 }]}>{t.joinedCount(filled, TEAM_SPORTS.has(sub) ? item.teamSize : required)}</Text>
                 </View>
                 {Array.isArray(item.positions) && (item.positions.includes('REFEREE') || item.positions.includes('REFEREE_OFFER')) && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
@@ -1475,16 +1474,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>{item.refereePayment}</Text>}
                     </View>
                 )}
-                {(item.minRating != null || item.maxRating != null) && (
-                    <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700', marginBottom:3 }}>
-                        ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
-                    </Text>
-                )}
-
                 {/* Tarih / Saat / Süre */}
                 {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
                     <View style={{ gap:3, marginBottom:3 }}>
-                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'short',weekday:'short'})}</Text>}
+                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={2}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'long',weekday:'long'})}</Text>}
                         {(item.matchTime || item.duration) && (
                             <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {item.matchTime ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const dur=parseInt(item.duration||0); const tot=h*60+m+dur; const endT=dur>0?`–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`:''; return `🕐 ${item.matchTime}${endT}`; })() : ''}{item.matchTime && item.duration ? '  ·  ' : ''}{item.duration ? `${item.duration} ${t.timeMinSuffix}` : ''}
@@ -1492,18 +1485,20 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         )}
                     </View>
                 )}
+                {(item.minRating != null || item.maxRating != null) && (
+                    <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700', marginBottom:3 }}>
+                        ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
+                    </Text>
+                )}
 
-                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginBottom:3 }}>
-                    💬 {item.commentCount ?? 0}
-                </Text>
-                <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {item.isCourtReserved ? `✅ ${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
-                </Text>
                 {item.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
                         <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🏟️ {item.courtName}</Text>
                     </TouchableOpacity>
                 )}
+                <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    {item.isCourtReserved ? `✅ ${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
+                </Text>
                 {item.courtFeePerPerson > 0 && (
                     <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>💰 {item.courtFeePerPerson}₺ / {t.perPerson}</Text>
                 )}
@@ -1549,26 +1544,31 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </View>
                     )
                 )}
-                {/* Bekleyen istek badge */}
-                {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
-                    <View style={[s.pendingBadge, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0, marginBottom:3 }]}>
-                        <Text style={[s.pendingBadgeText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests || 'istek'}</Text>
-                    </View>
-                )}
+                {/* İstek + yorum sayısı — tek satırda */}
+                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:3 }}>
+                    {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
+                        <Text style={{ color: colors.purple, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
+                            📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests || 'istek'}
+                        </Text>
+                    )}
+                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
+                        💬 {item.commentCount ?? 0}
+                    </Text>
+                </View>
             </TouchableOpacity>
 
             {/* Aksiyon alanı */}
             <View>
                 {isOwner ? (
-                    <View style={{ flexDirection: 'row', gap: 3 }}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
                         <TouchableOpacity
-                            style={[s.cancelBtn, { flex: 1, paddingHorizontal:0, paddingVertical: moderateScale(5), borderRadius: moderateScale(10), backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
+                            style={[s.cancelBtn, { flex: 0, width: moderateScale(30), paddingHorizontal:0, paddingVertical: moderateScale(4), borderRadius: moderateScale(10), backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
                             onPress={() => setEditVisible(true)}
                         >
                             <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[s.cancelBtn, { flex: 1, paddingHorizontal:0, paddingVertical: moderateScale(5), borderRadius: moderateScale(10) }]} onPress={handleCancel}>
-                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.cancelAdBtn}</Text>
+                        <TouchableOpacity style={[s.cancelBtn, { flex: 0, paddingHorizontal: moderateScale(14), paddingVertical: moderateScale(3), borderRadius: moderateScale(10) }]} onPress={handleCancel}>
+                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.cancelAdBtn}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : myInvite ? (
@@ -1777,10 +1777,155 @@ const sc = StyleSheet.create({
     drawBtnTxt:   { color:'#facc15', fontSize:13, fontWeight:'700' },
 });
 
+// Takım koltuğu basılı tutup sürükleyerek yer değiştirme — 2.2 sn basılı tutulursa
+// "sürükleme" moduna geçer (koltuk parmağı takip eder), başka bir koltuğun üzerinde
+// bırakılırsa ikisi yer değiştirir. Kısa/az hareketli dokunuşlar eski tıkla-seç
+// akışına düşer (onTap) — böylece erişilebilirlik için iki yöntem de çalışır.
+const SLOT_HOLD_MS = 2200;
+
+function DraggableTeamSlot({ slot, player, color, disabled, isSelected, isTarget, dragActive, onTap, onHoldStart, onDragMove, onDragEnd, registerRef }) {
+    const viewRef = useRef(null);
+    const pan = useRef(new Animated.ValueXY()).current;
+    const holdTimer = useRef(null);
+    const draggingRef = useRef(false);
+    const movedRef = useRef(false);
+    const [visualDrag, setVisualDrag] = useState(false);
+
+    useEffect(() => {
+        registerRef(slot, viewRef);
+        return () => registerRef(slot, null);
+    }, [slot]);
+
+    const clearHold = () => { if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; } };
+
+    const panResponder = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => !disabled && !!player,
+        onPanResponderGrant: () => {
+            movedRef.current = false;
+            holdTimer.current = setTimeout(() => {
+                draggingRef.current = true;
+                setVisualDrag(true);
+                onHoldStart(slot);
+            }, SLOT_HOLD_MS);
+        },
+        onPanResponderMove: (evt, gesture) => {
+            if (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 4) movedRef.current = true;
+            if (!draggingRef.current) return;
+            pan.setValue({ x: gesture.dx, y: gesture.dy });
+            onDragMove(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
+        },
+        onPanResponderRelease: (evt) => {
+            clearHold();
+            const wasDragging = draggingRef.current;
+            draggingRef.current = false;
+            setVisualDrag(false);
+            Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 6 }).start();
+            if (wasDragging) onDragEnd(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
+            else if (!movedRef.current) onTap(slot);
+        },
+        onPanResponderTerminate: () => {
+            clearHold();
+            draggingRef.current = false;
+            setVisualDrag(false);
+            pan.setValue({ x: 0, y: 0 });
+        },
+    })).current;
+
+    if (!player) {
+        return (
+            <View ref={viewRef} collapsable={false}
+                style={{ borderRadius:8, marginBottom:4,
+                    backgroundColor: isTarget ? '#4ade8015' : '#1e293b', borderWidth: isTarget ? 1.5 : 1, borderColor: isTarget ? '#4ade80' : '#ffffff10' }}>
+                {isTarget ? (
+                    <TouchableOpacity onPress={() => onTap(slot)} activeOpacity={0.7} style={{ paddingHorizontal:5, paddingVertical:5, alignItems:'center' }}>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>↔ Buraya bırak</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <View style={{ paddingHorizontal:5, paddingVertical:3 }}>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                            {slot === 'partner' ? '— Partner bekleniyor —' : slot === 'opp1' ? '— Rakip 1 bekleniyor —' : '— Rakip 2 bekleniyor —'}
+                        </Text>
+                    </View>
+                )}
+            </View>
+        );
+    }
+
+    return (
+        <Animated.View
+            ref={viewRef}
+            collapsable={false}
+            {...(disabled ? {} : panResponder.panHandlers)}
+            style={{
+                marginBottom:4, borderRadius:8, paddingHorizontal:5, paddingVertical:3, borderWidth:1,
+                borderColor: isSelected || visualDrag ? '#f59e0b' : isTarget ? '#4ade80' : '#ffffff15',
+                backgroundColor: isSelected || visualDrag ? '#f59e0b18' : isTarget ? '#4ade8015' : '#1e293b',
+                transform: pan.getTranslateTransform(),
+                zIndex: visualDrag ? 10 : 0, elevation: visualDrag ? 6 : 0,
+                opacity: dragActive && !visualDrag && !isTarget ? 0.6 : 1,
+            }}
+        >
+            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                <Text style={{ color, fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    {senderAlias(player)}
+                </Text>
+                <Text style={{ color: isSelected ? '#f59e0b' : visualDrag ? '#f59e0b' : colors.textMuted, fontSize:10 }}>
+                    {visualDrag ? '✋ taşınıyor' : isSelected ? '✓ seçildi' : isTarget ? '↔ taşı' : '↕'}
+                </Text>
+            </View>
+        </Animated.View>
+    );
+}
+
 function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
     const t = useT();
     const [showScore, setShowScore] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
+
+    // Takım koltuklarını basılı tutup sürükleyerek yer değiştirme — ölçümler ve
+    // sürükleme sırasında hangi koltuğun üzerinde olunduğu burada tutulur.
+    const slotRefsMap = useRef({});
+    const slotRectsMap = useRef({});
+    const [draggingFromSlot, setDraggingFromSlot] = useState(null);
+    const [hoverSlot, setHoverSlot] = useState(null);
+
+    const registerSlotRef = useCallback((slot, ref) => {
+        if (ref) slotRefsMap.current[slot] = ref; else delete slotRefsMap.current[slot];
+    }, []);
+
+    const measureAllSlots = () => {
+        Object.entries(slotRefsMap.current).forEach(([slot, ref]) => {
+            ref?.current?.measure?.((x, y, w, h, pageX, pageY) => {
+                slotRectsMap.current[slot] = { pageX, pageY, w, h };
+            });
+        });
+    };
+
+    const findSlotAtPoint = (pageX, pageY) => {
+        for (const [slot, r] of Object.entries(slotRectsMap.current)) {
+            if (pageX >= r.pageX && pageX <= r.pageX + r.w && pageY >= r.pageY && pageY <= r.pageY + r.h) return slot;
+        }
+        return null;
+    };
+
+    const handleSlotHoldStart = (slot) => {
+        setSwapSlot(null); // eski tıkla-seç modunu iptal et, sürükleme devralsın
+        setDraggingFromSlot(slot);
+        measureAllSlots();
+    };
+
+    const handleSlotDragMove = (pageX, pageY) => {
+        const hit = findSlotAtPoint(pageX, pageY);
+        setHoverSlot(hit && hit !== draggingFromSlot ? hit : null);
+    };
+
+    const handleSlotDragEnd = (pageX, pageY) => {
+        const target = findSlotAtPoint(pageX, pageY);
+        const from = draggingFromSlot;
+        setDraggingFromSlot(null);
+        setHoverSlot(null);
+        if (target && from && target !== from) performSwap(from, target);
+    };
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
     const [submitting, setSubmitting] = useState(false);
     const [showCantScore, setShowCantScore] = useState(false);
@@ -1831,6 +1976,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [orderVenueId, setOrderVenueId] = useState(null);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
+    const isVolleyball = match.subCategory === 'volleyball';
     const opponent = isOwner ? match.participants?.[0] : match.sender;
 
     const participantsArr = (Array.isArray(match.participants) ? match.participants : []).filter(p => p?.id);
@@ -1878,17 +2024,25 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const otherRequestedMutual = mutualReqs.includes(opponent?.id);
     const iAlreadyRequestedMutual = mutualReqs.includes(myId);
 
-    // DOUBLE slot swap — herhangi bir katılımcı yapabilir
-    const handleSwapTap = async (slot) => {
+    // DOUBLE slot swap — herhangi bir katılımcı yapabilir. performSwap parametreleri
+    // doğrudan alır (basılı-tut-sürükle akışı, state güncellemesinin henüz yansımadığı
+    // aynı senkron an içinde swapSlot state'ine güvenemez) — handleSwapTap (tıkla-seç
+    // akışı) ve handleSlotDragEnd (sürükle-bırak akışı) ikisi de bunu çağırır.
+    const performSwap = async (s1, s2) => {
         if (match.teamFlexibility === 'STRICT') return;
-        if (!swapSlot) { setSwapSlot(slot); return; }
-        if (swapSlot === slot) { setSwapSlot(null); return; }
-        const s1 = swapSlot, s2 = slot;
-        setSwapSlot(null);
         try {
             await api.patch(`/rivals/${match.id}/swap-positions`, { slot1: s1, slot2: s2 });
             onRefresh();
         } catch(e) { Alert.alert('', e?.response?.data?.message || 'Yer değiştirme başarısız'); }
+    };
+
+    const handleSwapTap = (slot) => {
+        if (match.teamFlexibility === 'STRICT') return;
+        if (!swapSlot) { setSwapSlot(slot); return; }
+        if (swapSlot === slot) { setSwapSlot(null); return; }
+        const s1 = swapSlot;
+        setSwapSlot(null);
+        performSwap(s1, slot);
     };
 
     const removePlayer = (userId, name) => {
@@ -2267,7 +2421,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             </View>
             {/* Date / time */}
             <Text style={[s.cardSub, { marginTop:3 }]}>
-                {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short', weekday:'short' }) : t.unknownDate}
+                {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : t.unknownDate}
                 {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
                 {match.duration ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
             </Text>
@@ -2337,53 +2491,27 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         const partner = senderTeamArr[0] || null;
                         const opp1 = participantsArr[0] || null;
                         const opp2 = participantsArr[1] || null;
+                        const locked = match.teamFlexibility === 'STRICT';
                         const mkSlot = (slot, p, color) => {
                             const isSel = swapSlot === slot;
-                            const isTgt = !!swapSlot && swapSlot !== slot;
-                            if (!p) {
-                                // Boş slot: swap modu aktifse tıklanabilir hedef göster
-                                if (isTgt) return (
-                                    <TouchableOpacity
-                                        key={slot}
-                                        onPress={() => handleSwapTap(slot)}
-                                        activeOpacity={0.7}
-                                        style={{ borderRadius:8, paddingHorizontal:5, paddingVertical:5, marginBottom:4, backgroundColor:'#4ade8012', borderWidth:1.5, borderColor:'#4ade80', alignItems:'center' }}>
-                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>
-                                            {slot === 'partner' ? '↔ Partner olarak taşı' : '↔ Rakip olarak taşı'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                                return (
-                                    <View key={slot} style={{ borderRadius:8, paddingHorizontal:5, paddingVertical:3, marginBottom:4, backgroundColor:'#1e293b', borderWidth:1, borderColor:'#ffffff10' }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                            {slot === 'partner' ? '— Partner bekleniyor —' : slot === 'opp1' ? '— Rakip 1 bekleniyor —' : '— Rakip 2 bekleniyor —'}
-                                        </Text>
-                                    </View>
-                                );
-                            }
+                            const isTgt = (!!swapSlot && swapSlot !== slot) || (!!draggingFromSlot && hoverSlot === slot);
                             return (
-                                <View key={slot} style={{ marginBottom:4 }}>
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            if (!swapSlot) { setSwapSlot(slot); return; }
-                                            if (swapSlot === slot) { setSwapSlot(null); return; }
-                                            handleSwapTap(slot);
-                                        }}
-                                        activeOpacity={0.7}
-                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                                            borderRadius:8, paddingHorizontal:5, paddingVertical:3,
-                                            borderWidth:1,
-                                            borderColor: isSel ? '#f59e0b' : isTgt ? '#4ade80' : '#ffffff15',
-                                            backgroundColor: isSel ? '#f59e0b18' : isTgt ? '#4ade8015' : '#1e293b' }}
-                                    >
-                                        <Text style={{ color, fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                            {senderAlias(p)}
-                                        </Text>
-                                        <Text style={{ color: isSel ? '#f59e0b' : isTgt ? '#4ade80' : colors.textMuted, fontSize:10 }}>
-                                            {isSel ? '✓ seçildi' : isTgt ? '↔ taşı' : '↕'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    {!swapSlot && isOwner && (
+                                <View key={slot}>
+                                    <DraggableTeamSlot
+                                        slot={slot}
+                                        player={p}
+                                        color={color}
+                                        disabled={locked}
+                                        isSelected={isSel}
+                                        isTarget={isTgt}
+                                        dragActive={!!draggingFromSlot}
+                                        onTap={handleSwapTap}
+                                        onHoldStart={handleSlotHoldStart}
+                                        onDragMove={handleSlotDragMove}
+                                        onDragEnd={handleSlotDragEnd}
+                                        registerRef={registerSlotRef}
+                                    />
+                                    {p && !swapSlot && !draggingFromSlot && isOwner && (
                                         <TouchableOpacity
                                             onPress={() => removePlayer(p.id, senderAlias(p))}
                                             style={{ marginTop:2, paddingVertical:0, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
@@ -2415,8 +2543,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         {mkSlot('opp2', opp2, '#fca5a5')}
                                     </View>
                                 </View>
-                                {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && (
-                                    <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
+                                {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !draggingFromSlot && !locked && (
+                                    <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Dokun → seç → diğerine dokun, veya 2-3 sn basılı tutup sürükle → yer değiştir</Text>
                                 )}
                             </View>
                         );
@@ -2848,7 +2976,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     </TouchableOpacity>
                                     <TimePickerModal visible={showAbanTimePicker} title={t.selectTime} value={abanTime} onSelect={setAbanTime} onClose={() => setShowAbanTimePicker(false)} />
 
-                                    <Text style={s.fieldLabel}>{t.courtLabel}</Text>
+                                    <Text style={s.fieldLabel}>{isVolleyball ? t.volleyballHallLabel : t.courtLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                         <TextInput
                                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}
@@ -3240,7 +3368,6 @@ function CityAlertInfoModal({ visible, desc, active, onClose, onToggle, onPickCi
         </Modal>
     );
 }
-
 const ew = StyleSheet.create({
     overlay: { flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:24 },
     box:     { backgroundColor: colors.surface, borderRadius:16, padding:17, width:'100%', maxWidth:320 },
@@ -4670,7 +4797,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <>
                                     {/* Mod + Format — tek satır, içeriğe göre boyutlanır (flex:1 yok — sağa boşluk kalırsa kalsın, aralarında boşluk olmasın) */}
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                             <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.modLabel}</Text>
                                             <View style={{ flexDirection:'row', gap:3 }}>
                                                 {((sub === 'tennis' || sub === 'padel') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
@@ -4702,7 +4829,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 })}
                                             </View>
                                         </View>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                             <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.formatLabel}</Text>
                                             <View style={{ flexDirection:'row', gap:3 }}>
                                                 {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
@@ -4728,8 +4855,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </View>
 
                                     {/* Derece + Cinsiyet Kısıtlaması — tek satır, içeriğe göre boyutlanır */}
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:8 }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                             <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
                                             <TouchableOpacity
                                                 style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.minRating || f.maxRating) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:3 }}
@@ -4740,7 +4867,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </TouchableOpacity>
                                         </View>
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                                 <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderReqLabel || 'Rakip Cinsiyeti'}</Text>
                                                 <View style={{ flexDirection:'row', gap:3 }}>
                                                     {[
@@ -9471,7 +9598,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveModalTab, setArchiveModalTab] = useState('details');
 
     const [filterCity, setFilterCity] = useState('');
-    const [filterDate, setFilterDate] = useState('all');
+    const [filterDate, setFilterDate] = useState('all'); // 'all' | 'today' | 'week' | 'month' | 'custom'
+    const [filterDateFrom, setFilterDateFrom] = useState(null);
+    const [filterDateTo, setFilterDateTo] = useState(null);
     const [showCityFilter, setShowCityFilter] = useState(false);
     const [showDateFilter, setShowDateFilter] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
@@ -9535,6 +9664,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [rivalPrefill, setRivalPrefill] = useState(null);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
+    const [openRivalsExpanded, setOpenRivalsExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
     const [showTournamentPermission, setShowTournamentPermission] = useState(false);
@@ -10540,16 +10670,49 @@ export default function SubCategoryScreen({ route, navigation }) {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') { Alert.alert(t.locationPermTitle, t.locationPermMsg); return; }
-            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const servicesOn = await Location.hasServicesEnabledAsync();
+            if (!servicesOn) { Alert.alert(t.error, t.locationServicesOffMsg || 'Konum servisleri kapalı. Lütfen telefon ayarlarından konumu açın.'); return; }
+            let loc;
+            try {
+                loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            } catch {
+                loc = await Location.getLastKnownPositionAsync({});
+            }
+            if (!loc) { Alert.alert(t.error, t.locationFailedMsg); return; }
             const [geo] = await Location.reverseGeocodeAsync(loc.coords);
-            const city = geo.region || geo.subregion || geo.city || '';
+            const city = geo?.region || geo?.subregion || geo?.city || '';
             if (city) setFilterCity(city);
             else Alert.alert(t.error, t.cityNotFoundMsg);
-        } catch { Alert.alert(t.error, t.locationFailedMsg); }
+        } catch (e) {
+            console.warn('[handleNearMe]', e);
+            Alert.alert(t.error, t.locationFailedMsg);
+        }
         finally { setLocationLoading(false); }
     };
 
     const today = new Date();
+    // 'Bugün'/'Bu Hafta'/'Bu Ay' hızlı seçenekleri + takvimden seçilen özel aralık (custom)
+    // aynı fonksiyonda değerlendirilir — rivals ve turnuvalar aynı zaman filtresini paylaşıyor.
+    const matchesDateFilter = (dateVal) => {
+        if (filterDate === 'all') return true;
+        const d = new Date(dateVal);
+        if (isNaN(d)) return true;
+        if (filterDate === 'today') return d.toDateString() === today.toDateString();
+        if (filterDate === 'week') {
+            const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
+            return d >= today && d <= weekEnd;
+        }
+        if (filterDate === 'month') {
+            const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            return d >= today && d <= monthEnd;
+        }
+        if (filterDate === 'custom') {
+            if (filterDateFrom && d < filterDateFrom) return false;
+            if (filterDateTo) { const to = new Date(filterDateTo); to.setHours(23,59,59,999); if (d > to) return false; }
+            return true;
+        }
+        return true;
+    };
     const applyFilter = (item) => {
         if (filterCity.trim()) {
             const q = filterCity.trim().toLowerCase();
@@ -10560,15 +10723,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const senderCity = item.flexibleSchedule ? (item.sender?.city || '').toLowerCase() : '';
             if (!loc.includes(q) && !court.includes(q) && !addr.includes(q) && !senderCity.includes(q)) return false;
         }
-        if (filterDate !== 'all' && item.matchDate) {
-            const d = new Date(item.matchDate);
-            if (filterDate === 'today') {
-                if (d.toDateString() !== today.toDateString()) return false;
-            } else if (filterDate === 'week') {
-                const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
-                if (d < today || d > weekEnd) return false;
-            }
-        }
+        if (item.matchDate && !matchesDateFilter(item.matchDate)) return false;
         return true;
     };
     // Maçın başlama zamanına göre en yakından en uzağa sıralanır — esnek programlı
@@ -10604,12 +10759,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const inLoc = (tourn.location || '').toLowerCase().includes(q);
             if (!inCity && !inLoc) return false;
         }
-        if (filterDate !== 'all') {
-            const d = new Date(tourn.startDate || tourn.eventDate);
-            if (isNaN(d)) return true;
-            if (filterDate === 'today') { if (d.toDateString() !== today.toDateString()) return false; }
-            else if (filterDate === 'week') { const w = new Date(today); w.setDate(today.getDate() + 7); if (d < today || d > w) return false; }
-        }
+        if (!matchesDateFilter(tourn.startDate || tourn.eventDate)) return false;
         return true;
     });
 
@@ -10665,8 +10815,8 @@ export default function SubCategoryScreen({ route, navigation }) {
         );
     };
 
-    const CityAlertRow = ({ tab, children }) => (
-        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
+    const CityAlertRow = ({ tab, children, dateFilter = false }) => (
+        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8, flexWrap:'wrap' }}>
             {children}
             <CityAlertBtn tab={tab} />
             <TouchableOpacity
@@ -10683,13 +10833,33 @@ export default function SubCategoryScreen({ route, navigation }) {
                     : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
                 }
             </TouchableOpacity>
+            {dateFilter && (
+                <TouchableOpacity
+                    onPress={() => setShowDateFilter(true)}
+                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: filterDate!=='all' ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterDate!=='all' ? cfg.color : colors.border }}
+                >
+                    <Text style={{ color: filterDate!=='all' ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
+                        📅 {dateFilterLabel()}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 
     // İl filtresi ve "Yakınımdaki" artık zilin yanındaki (CityAlertRow) tek butona taşındı
     // (Yakınımdaki, il seçici modalının en başında bir seçenek olarak duruyor) — burada
     // sadece zaman filtresi kalıyor, tek bir buton olarak, açılan küçük bir modaldan seçiliyor.
-    const DATE_FILTER_OPTS = [['all',t.allFilter],['today',t.todayFilter],['week',t.weekFilter]];
+    const DATE_FILTER_OPTS = [['all',t.allFilter],['today',t.todayFilter],['week',t.weekFilter],['month',t.monthFilter]];
+    const dateFilterLabel = () => {
+        if (filterDate === 'custom') {
+            const fmt = (d) => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`;
+            if (filterDateFrom && filterDateTo) return `${fmt(filterDateFrom)}–${fmt(filterDateTo)}`;
+            if (filterDateFrom) return `${fmt(filterDateFrom)}+`;
+            return t.dateRangeTitle || t.allFilter;
+        }
+        return (DATE_FILTER_OPTS.find(([v]) => v === filterDate) || DATE_FILTER_OPTS[0])[1];
+    };
     const CompactFilter = ({ showDateChips = true }) => (
         !showDateChips ? null : (
             <TouchableOpacity
@@ -10697,7 +10867,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 style={{ flexDirection:'row', alignItems:'center', gap:3, alignSelf:'flex-start', backgroundColor: filterDate!=='all' ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterDate!=='all' ? cfg.color : colors.border, marginBottom:2 }}
             >
                 <Text style={{ color: filterDate!=='all' ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
-                    📅 {(DATE_FILTER_OPTS.find(([v]) => v === filterDate) || DATE_FILTER_OPTS[0])[1]}
+                    📅 {dateFilterLabel()}
                 </Text>
                 <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
             </TouchableOpacity>
@@ -10732,24 +10902,28 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onDismissForever={() => setCityAlertInfoDismissed(true)}
             />
 
-            {/* Zaman filtresi — Tümü/Bugün/Bu Hafta, tek butonun açtığı küçük modal */}
-            <Modal visible={showDateFilter} animationType="fade" transparent onRequestClose={() => setShowDateFilter(false)}>
-                <TouchableOpacity style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:24 }} activeOpacity={1} onPress={() => setShowDateFilter(false)}>
-                    <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:13, width:'100%', maxWidth:280 }} onStartShouldSetResponder={() => true}>
-                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800', marginBottom:10 }}>📅 {t.dateFilterTitle}</Text>
-                        {[['all',t.allFilter],['today',t.todayFilter],['week',t.weekFilter]].map(([val, label]) => (
-                            <TouchableOpacity
-                                key={val}
-                                onPress={() => { setFilterDate(val); setShowDateFilter(false); }}
-                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:10, paddingHorizontal:5, borderRadius:8, backgroundColor: filterDate===val ? cfg.color+'18' : 'transparent' }}
-                            >
-                                <Text style={{ color: filterDate===val ? cfg.color : '#fff', fontSize:13, fontWeight: filterDate===val ? '800' : '600' }}>{label}</Text>
-                                {filterDate===val && <Text style={{ color: cfg.color, fontSize:14 }}>✓</Text>}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </TouchableOpacity>
-            </Modal>
+            {/* Zaman filtresi — Tümü/Bugün/Bu Hafta/Bu Ay hızlı seçenekleri + özel tarih aralığı takvimi aynı modalda */}
+            <DateRangePickerModal
+                visible={showDateFilter}
+                dateFrom={filterDateFrom}
+                dateTo={filterDateTo}
+                quickOptions={DATE_FILTER_OPTS}
+                activeQuick={filterDate}
+                onQuickSelect={(val) => {
+                    setFilterDate(val);
+                    setFilterDateFrom(null);
+                    setFilterDateTo(null);
+                    setShowDateFilter(false);
+                }}
+                onApply={(from, to) => {
+                    if (!from && !to) { setFilterDate('all'); }
+                    else { setFilterDate('custom'); }
+                    setFilterDateFrom(from);
+                    setFilterDateTo(to);
+                    setShowDateFilter(false);
+                }}
+                onClose={() => setShowDateFilter(false)}
+            />
 
             {/* Bildirim il seçici — tüm sekmeler için ortak */}
             <Modal visible={cityPickerTab !== null} animationType="slide" transparent onRequestClose={() => setCityPickerTab(null)}>
@@ -10842,7 +11016,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'rivals' && (
                         <>
                             {/* İlan oluştur + Kort Rezervasyonu + bildirim butonu yan yana */}
-                            <CityAlertRow tab="rivals">
+                            <CityAlertRow tab="rivals" dateFilter>
                                 <TouchableOpacity style={s.courtResBtn} onPress={() => navigation.navigate('VenueSearch', { branch: sub })} activeOpacity={0.8}>
                                     <Text style={s.courtResBtnText}>🏟️ Kort Rez.</Text>
                                 </TouchableOpacity>
@@ -10851,19 +11025,26 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             </CityAlertRow>
 
-                            {/* Kompakt tek satır filtre */}
-                            <CompactFilter showDateChips={true} />
-
-                            {filteredRivals.length === 0
-                                ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
-                                : (
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
-                                        {filteredRivals.map(item => (
-                                            <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} />
-                                        ))}
-                                    </View>
-                                )
-                            }
+                            <TouchableOpacity
+                                onPress={() => setOpenRivalsExpanded(v => !v)}
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: openRivalsExpanded ? 2 : 1 }}
+                            >
+                                <Text style={[s.sectionTitle, { marginTop:0, marginBottom:0 }]}>{t.openRivalsTitle} ({filteredRivals.length})</Text>
+                                <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
+                                    {openRivalsExpanded ? '▼' : '›'}
+                                </Text>
+                            </TouchableOpacity>
+                            {openRivalsExpanded && (
+                                filteredRivals.length === 0
+                                    ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
+                                    : (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            {filteredRivals.map(item => (
+                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} />
+                                            ))}
+                                        </View>
+                                    )
+                            )}
 
                             {/* Yaklaşan Maçlar — tüm ilanların altında, filtreye tabi */}
                             {filteredMatchedUpcoming.length > 0 && (
@@ -10908,10 +11089,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── PLAYER WANTED ── */}
                     {activeTab === 'player_wanted' && (
                         <>
-                            <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color+'60' }]} onPress={() => setShowCreatePW(true)}>
-                                <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createPlayerWantedBtn}</Text>
-                            </TouchableOpacity>
-                            <CompactFilter showDateChips={true} />
+                            <CityAlertRow tab="player_wanted" dateFilter>
+                                <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color+'60', marginBottom:0 }]} onPress={() => setShowCreatePW(true)}>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createPlayerWantedBtn}</Text>
+                                </TouchableOpacity>
+                            </CityAlertRow>
                             {playerWanted.length === 0
                                 ? <EmptyState emoji="👤" text={t.emptyPlayerWanted} />
                                 : (
@@ -10954,7 +11136,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         );
                         return (
                             <>
-                                <CityAlertRow tab="tournaments">
+                                <CityAlertRow tab="tournaments" dateFilter>
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
                                         onPress={() => {
@@ -10980,8 +11162,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                     ))}
                                 </View>
-
-                                <CompactFilter showDateChips={true} />
 
                                 {(loadingTournaments && tournaments.length === 0)
                                     ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
@@ -11016,32 +11196,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                         });
                         return (
                         <View>
-                            {/* Kompakt filtre + bildirim butonu */}
-                            {/* Ekipman: İl filtresi + zil + yazı tek hizada */}
-                            {(() => {
-                                const cities = tabSubCities['equipment'] || [];
-                                const active = cities.length > 0;
-                                return (
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
-                                        <TouchableOpacity
-                                            onPress={() => setShowCityFilter(true)}
-                                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
-                                        >
-                                            <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
-                                                {filterCity ? filterCity : '📍 İl'}
-                                            </Text>
-                                            {filterCity
-                                                ? <TouchableOpacity onPress={() => setFilterCity('')} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
-                                                  </TouchableOpacity>
-                                                : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
-                                            }
-                                        </TouchableOpacity>
-                                        <CityAlertBtn tab="equipment" />
-                                        <Text numberOfLines={2} style={{ color: active ? cfg.color : '#6b7280', fontSize:10, lineHeight:14, flex:1 }}>{cityAlertDesc['equipment']}</Text>
-                                    </View>
-                                );
-                            })()}
+                            {/* Kompakt filtre + bildirim butonu — İl filtresi + zil tek hizada */}
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
+                                <TouchableOpacity
+                                    onPress={() => setShowCityFilter(true)}
+                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
+                                >
+                                    <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
+                                        {filterCity ? filterCity : '📍 İl'}
+                                    </Text>
+                                    {filterCity
+                                        ? <TouchableOpacity onPress={() => setFilterCity('')} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
+                                          </TouchableOpacity>
+                                        : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
+                                    }
+                                </TouchableOpacity>
+                                <CityAlertBtn tab="equipment" />
+                            </View>
                             {/* Durum filtresi */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                 {['ALL','NEW','USED'].map(c => (
@@ -13298,11 +13470,11 @@ export default function SubCategoryScreen({ route, navigation }) {
 
 const s = StyleSheet.create({
     container:        { flex:1, backgroundColor: colors.bg },
-    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal:17, marginBottom:14, gap:3 },
+    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal:17, marginBottom:4, gap:3 },
     back:             { fontSize:15, fontWeight:'700' },
     title:            { color:'#fff', fontSize:20, fontWeight:'900', flex:1 },
 
-    tabBar:           { flexGrow:0, marginBottom:12 },
+    tabBar:           { flexGrow:0, marginBottom:3 },
     tabBarInner:      { paddingHorizontal:13, gap:3 },
     tab:              { paddingHorizontal:11, paddingTop:4, paddingBottom:8, borderRadius:20, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
     tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700', lineHeight:20, includeFontPadding: false },

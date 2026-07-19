@@ -1491,6 +1491,107 @@ export const searchVenues = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Tarih + saat aralığı verilince o aralıkta müsait (boş) kort/slotu olan tesisleri bulur —
+// sadece Pro ve üstü paketli işletmeler bu aramada görünür (searchVenues'daki proFilter ile
+// aynı mantık). Her kort için computeSlots aynı motoru kullanır, sonuçlar istenen aralıkla
+// kesişen boş slot/pencerelere daraltılır.
+export const searchVenueAvailability = async (req, res, next) => {
+    try {
+        const { date, timeFrom, timeTo, city, branch, name } = req.query;
+        if (!date || !timeFrom || !timeTo) return res.status(400).json({ message: 'date, timeFrom ve timeTo parametreleri gerekli' });
+        const rangeFrom = toMins(timeFrom), rangeTo = toMins(timeTo);
+        if (rangeTo <= rangeFrom) return res.status(400).json({ message: 'Bitiş saati başlangıçtan sonra olmalı' });
+
+        const now = new Date();
+        const proSubs = await prisma.businessSubscription.findMany({
+            where: { status: 'ACTIVE', endDate: { gt: now }, packageType: { in: ['PRO', 'PREMIUM'] } },
+            select: { userId: true },
+        });
+        const proUserIds = proSubs.map(s => s.userId);
+        if (proUserIds.length === 0) return res.json({ items: [] });
+
+        const where = {
+            status: 'APPROVED',
+            userId: { in: proUserIds },
+            ...(branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
+            ...(city ? { OR: [
+                { city:     { contains: city, mode: 'insensitive' } },
+                { district: { contains: city, mode: 'insensitive' } },
+            ] } : {}),
+            ...(name ? { OR: [
+                { name:   { contains: name, mode: 'insensitive' } },
+                { courts: { some: { name: { contains: name, mode: 'insensitive' } } } },
+            ] } : {}),
+        };
+
+        const venues = await prisma.businessVenue.findMany({
+            where,
+            include: { courts: { orderBy: { name: 'asc' } } },
+            orderBy: { name: 'asc' },
+            take: 60, // performans için makul bir üst sınır
+        });
+
+        const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
+        const results = [];
+        for (const venue of venues) {
+            if (venue.courts.length === 0) continue;
+            const opensAt = getReservationOpensAt(venue, date);
+            if (opensAt && new Date() < opensAt) continue;
+
+            const courtIds = venue.courts.map(c => c.id);
+            const reservations = await prisma.courtReservation.findMany({
+                where: { venueId: venue.id, courtId: { in: courtIds }, date },
+            });
+            const reservationsByCourtId = {};
+            for (const r of reservations) (reservationsByCourtId[r.courtId] ??= []).push(r);
+
+            const matchingCourts = [];
+            for (const court of venue.courts) {
+                const maintDates = (Array.isArray(court.maintenanceDates) ? court.maintenanceDates : []).map(normMaint);
+                const fullDayMaint = maintDates.some(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime);
+                if (fullDayMaint) continue;
+                const maintWindows = maintDates
+                    .filter(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && m.fromTime && m.toTime)
+                    .map(m => ({ s: toMins(m.fromTime), e: toMins(m.toTime) }));
+
+                const courtSlotType = VALID_SLOT_TYPES.includes(court.slotType) ? court.slotType : null;
+                const venueSlotFallback = venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : (venue.slotType || 'FULL_HOUR');
+                const effectiveVenue = { ...venue, slotType: courtSlotType || venueSlotFallback };
+                const slotsResult = computeSlots(effectiveVenue, reservationsByCourtId[court.id] || [], date, court.id, maintWindows);
+
+                let matchingSlots = [];
+                if (slotsResult.slots) {
+                    matchingSlots = slotsResult.slots
+                        .filter(s => s.free && toMins(s.start) < rangeTo && toMins(s.end) > rangeFrom)
+                        .map(s => {
+                            const d = toMins(s.end) - toMins(s.start);
+                            const dur = d > 0 ? d : d + 1440;
+                            return { start: s.start, end: s.end, price: getSlotPrice(venue, court, s.start, dur) };
+                        });
+                } else if (slotsResult.windows) {
+                    matchingSlots = slotsResult.windows
+                        .filter(w => toMins(w.start) < rangeTo && toMins(w.end) > rangeFrom)
+                        .map(w => {
+                            const overlapStart = Math.max(toMins(w.start), rangeFrom);
+                            const overlapEnd = Math.min(toMins(w.end), rangeTo);
+                            return { start: toTime(overlapStart), end: toTime(overlapEnd), flexible: true };
+                        })
+                        .filter(w => toMins(w.end) - toMins(w.start) >= 30);
+                }
+                if (matchingSlots.length > 0) {
+                    matchingCourts.push({ court: { id: court.id, name: court.name, surface: court.surface, indoor: court.indoor }, slots: matchingSlots });
+                }
+            }
+            if (matchingCourts.length > 0) {
+                // Tam venue nesnesi (courts dahil) döner — mobil sonuca dokununca aynı
+                // VenueBookingSheet'i ekstra fetch olmadan doğrudan açabilsin diye.
+                results.push({ venue, matchingCourts });
+            }
+        }
+        res.json({ items: results });
+    } catch (error) { next(error); }
+};
+
 export const getVenueById = async (req, res, next) => {
     try {
         const venue = await prisma.businessVenue.findUnique({

@@ -6,7 +6,7 @@ import {
     getVenueSlots, makeReservation, createManualReservation, getVenueReservations, cancelReservation,
     updateReservationStatus, rescheduleReservation,
     getMyReservations, getUnlistedReservations, getOwnerSchedule, getVenueAnalytics, updateVenueSettings,
-    updateCourtSettings, searchVenues, getVenueById,
+    updateCourtSettings, searchVenues, searchVenueAvailability, getVenueById,
     getPendingVenues, approveVenue, rejectVenue,
     blockUser, unblockUser, getBlockedUsers,
     addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
@@ -47,6 +47,7 @@ router.patch('/orders/:orderId',     updateOrderStatus);
 
 // Genel (tüm kullanıcılar)
 router.get('/search',                    searchVenues);
+router.get('/search-availability',       searchVenueAvailability);
 router.get('/reservations/mine',         getMyReservations);
 router.get('/reservations/unlisted',     getUnlistedReservations);
 router.get('/orders/mine',               getUserOrders);
