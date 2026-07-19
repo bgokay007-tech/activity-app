@@ -994,7 +994,23 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
                             {item.matchType === 'DOUBLE' ? (() => {
-                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER');
+                                // Hâlâ boş olan koltukların cinsiyet gereksinimine uyan istekler
+                                // öne alınır — sahibi kotayı dolduracak adayları hemen görsün.
+                                const senderTeamNow = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+                                const openGenderReqs = [
+                                    !senderTeamNow[0]?.id && partnerGenderReq,
+                                    !participants[0]?.id && opp1GenderReq,
+                                    !participants[1]?.id && opp2GenderReq,
+                                ].filter(g => g && g !== 'MIX');
+                                const fitsOpenSlot = (jr) => {
+                                    if (openGenderReqs.length === 0) return true;
+                                    const g = jr.user?.gender;
+                                    if (!g || g === 'OTHER') return true;
+                                    return openGenderReqs.includes(g);
+                                };
+                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
+                                    .slice()
+                                    .sort((a, b) => (fitsOpenSlot(a) === fitsOpenSlot(b) ? 0 : fitsOpenSlot(a) ? -1 : 1));
                                 const { pairs, solos, byUserId } = groupDoublesPairs(incoming);
                                 const solosWithPartnerLink = solos.filter(s => s.partnerId || solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
                                 const solosIndividual = solos.filter(s => !s.partnerId && !solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
@@ -1027,7 +1043,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         ))}
                                     </View>
                                 );
-                            })() : joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
+                            })() : joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
+                                .slice()
+                                .sort((a, b) => {
+                                    const fits = (jr) => {
+                                        if (!genderReq || genderReq === 'MIX') return true;
+                                        const g = jr.user?.gender;
+                                        if (!g || g === 'OTHER') return true;
+                                        return g === genderReq;
+                                    };
+                                    return fits(a) === fits(b) ? 0 : fits(a) ? -1 : 1;
+                                })
+                                .map(jr => (
                                 <View key={jr.id} style={det.playerRow}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                     <View style={{ flex:1 }}>
@@ -1070,7 +1097,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     )}
 
                     {/* Katıl / İptal aksiyonu */}
-                    <View style={{ marginBottom:20 }}>
+                    <View style={{ marginBottom:14 }}>
                         {/* Sahibi ve maça kabul edilmiş katılımcılar başka oyuncu davet edebilir — Davet Et ve Paylaş yan yana, tek satırda */}
                         {(((isOwner || isParticipant) && !isFull) || (isOwner || isParticipant || mySentReq === 'ACCEPTED')) && (
                             <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
@@ -1095,7 +1122,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         {isOwner && !isFull && (sub === 'tennis' || sub === 'padel') && (
                             <TouchableOpacity
                                 disabled={seedingDemoRival}
-                                style={[s.joinBtn, { backgroundColor:'#7c3aed20', borderWidth:1, borderColor:'#7c3aed50', marginBottom:10, borderRadius: moderateScale(10), paddingVertical: moderateScale(9), opacity: seedingDemoRival ? 0.6 : 1 }]}
+                                style={[s.joinBtn, { backgroundColor:'#7c3aed20', borderWidth:1, borderColor:'#7c3aed50', marginBottom:6, borderRadius: moderateScale(8), paddingVertical: moderateScale(6), opacity: seedingDemoRival ? 0.6 : 1 }]}
                                 onPress={async () => {
                                     if (seedingDemoRivalRef.current) return;
                                     seedingDemoRivalRef.current = true;
@@ -1111,27 +1138,27 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     }
                                 }}
                             >
-                                <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(13) }]}>{seedingDemoRival ? '...' : '🤖 Demo Başvuru Gönder'}</Text>
+                                <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(12) }]}>{seedingDemoRival ? '...' : '🤖 Demo Başvuru Gönder'}</Text>
                             </TouchableOpacity>
                         )}
                         {item.ticketUrl && (
                             <TouchableOpacity
-                                style={{ backgroundColor: cfg.color, borderRadius: moderateScale(10), paddingVertical: moderateScale(8), marginBottom: 3, alignItems:'center' }}
+                                style={{ backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(5), marginBottom: 3, alignItems:'center' }}
                                 onPress={() => Linking.openURL(item.ticketUrl)}
                             >
-                                <Text style={{ color:'#fff', fontWeight:'800', fontSize: moderateScale(13) }}>{t.buyTicketBtn}</Text>
+                                <Text style={{ color:'#fff', fontWeight:'800', fontSize: moderateScale(12) }}>{t.buyTicketBtn}</Text>
                             </TouchableOpacity>
                         )}
                         {isOwner ? (
                             <View style={{ flexDirection: 'row', gap: 3 }}>
                                 <TouchableOpacity
-                                    style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}
+                                    style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                     onPress={() => { onClose(); setTimeout(onEdit, 300); }}
                                 >
-                                    <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(12) }]}>✏️ Düzenle</Text>
+                                    <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️ Düzenle</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
-                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.cancelAdBtn}</Text>
+                                <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
+                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.cancelAdBtn}</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : myInvite ? (
@@ -1140,30 +1167,30 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Text style={{ color:'#a78bfa', fontSize: moderateScale(11), fontWeight:'700', textAlign:'center' }}>🤝 Partner Daveti</Text>
                                 )}
                                 <View style={{ flexDirection:'row', gap:3 }}>
-                                    <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(10), paddingVertical: moderateScale(9) }]} onPress={() => handleRespondJoin(myInvite.id, 'accept')}>
-                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{myInvite.isPartnerInvite ? 'Partner Ol' : t.inviteAcceptBtn}</Text>
+                                    <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => handleRespondJoin(myInvite.id, 'accept')}>
+                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{myInvite.isPartnerInvite ? 'Partner Ol' : t.inviteAcceptBtn}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]} onPress={() => handleRespondJoin(myInvite.id, 'reject')}>
-                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.inviteRejectBtn}</Text>
+                                    <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => handleRespondJoin(myInvite.id, 'reject')}>
+                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.inviteRejectBtn}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
                         ) : mySentReq === 'PENDING' ? (
                             <View style={{ gap:3 }}>
-                                <View style={[s.waitingBox, { borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}><Text style={[s.waitingText, { fontSize: moderateScale(13) }]}>{t.waitingReq}</Text></View>
-                                <TouchableOpacity style={[s.cancelBtn, { borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]} onPress={handleWithdraw}>
-                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.withdrawReqBtn}</Text>
+                                <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.waitingReq}</Text></View>
+                                <TouchableOpacity style={[s.cancelBtn, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={handleWithdraw}>
+                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.withdrawReqBtn}</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : mySentReq === 'ACCEPTED' ? (
-                            <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40', borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}>
-                                <Text style={[s.waitingText, { color:'#4ade80', fontSize: moderateScale(13) }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
+                            <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
+                                <Text style={[s.waitingText, { color:'#4ade80', fontSize: moderateScale(12) }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
                             </View>
                         ) : isFull ? (
-                            <View style={[s.waitingBox, { borderRadius: moderateScale(10), paddingVertical: moderateScale(8) }]}><Text style={[s.waitingText, { fontSize: moderateScale(13) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
+                            <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
                         ) : (
-                            <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color, borderRadius: moderateScale(10), paddingVertical: moderateScale(9) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
-                                <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.joinBtn}</Text>
+                            <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
+                                <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{t.joinBtn}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -1465,6 +1492,25 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                                 </Text>
                             </View>
+                            {item.genderReq && item.genderReq !== 'MIX' && (
+                                <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
+                                    <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
+                                        {item.genderReq === 'MALE' ? '👨' : '👩'}
+                                    </Text>
+                                </View>
+                            )}
+                            {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
+                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                                const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
+                                const label = allSame && item.opp1GenderReq !== 'MIX'
+                                    ? gL(item.opp1GenderReq)
+                                    : `${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
+                                return (
+                                    <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
+                                        <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
+                                    </View>
+                                );
+                            })()}
                         </View>
                     </View>
                 </View>
@@ -1781,74 +1827,21 @@ const sc = StyleSheet.create({
     drawBtnTxt:   { color:'#facc15', fontSize:13, fontWeight:'700' },
 });
 
-// Takım koltuğu basılı tutup sürükleyerek yer değiştirme — 2.2 sn basılı tutulursa
-// "sürükleme" moduna geçer (koltuk parmağı takip eder), başka bir koltuğun üzerinde
-// bırakılırsa ikisi yer değiştirir. Kısa/az hareketli dokunuşlar eski tıkla-seç
-// akışına düşer (onTap) — böylece erişilebilirlik için iki yöntem de çalışır.
-const SLOT_HOLD_MS = 2200;
-
-function DraggableTeamSlot({ slot, player, color, disabled, isSelected, isTarget, dragActive, onTap, onHoldStart, onDragMove, onDragEnd, registerRef }) {
-    const viewRef = useRef(null);
-    const pan = useRef(new Animated.ValueXY()).current;
-    const holdTimer = useRef(null);
-    const draggingRef = useRef(false);
-    const movedRef = useRef(false);
-    const [visualDrag, setVisualDrag] = useState(false);
-
-    useEffect(() => {
-        registerRef(slot, viewRef);
-        return () => registerRef(slot, null);
-    }, [slot]);
-
-    const clearHold = () => { if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; } };
-
-    const panResponder = useRef(PanResponder.create({
-        onStartShouldSetPanResponder: () => !disabled && !!player,
-        onPanResponderGrant: () => {
-            movedRef.current = false;
-            holdTimer.current = setTimeout(() => {
-                draggingRef.current = true;
-                setVisualDrag(true);
-                onHoldStart(slot);
-            }, SLOT_HOLD_MS);
-        },
-        onPanResponderMove: (evt, gesture) => {
-            if (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 4) movedRef.current = true;
-            if (!draggingRef.current) return;
-            pan.setValue({ x: gesture.dx, y: gesture.dy });
-            onDragMove(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
-        },
-        onPanResponderRelease: (evt) => {
-            clearHold();
-            const wasDragging = draggingRef.current;
-            draggingRef.current = false;
-            setVisualDrag(false);
-            Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 6 }).start();
-            if (wasDragging) onDragEnd(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
-            else if (!movedRef.current) onTap(slot);
-        },
-        onPanResponderTerminate: () => {
-            clearHold();
-            draggingRef.current = false;
-            setVisualDrag(false);
-            pan.setValue({ x: 0, y: 0 });
-        },
-    })).current;
-
+// Takım koltuğu değiştirme: bir oyuncuya dokun (seçilir), sonra hedef koltuğa dokun,
+// ikisi yer değiştirir. Basit dokunma tabanlı — ScrollView/Modal içinde güvenilir
+// çalışması için özel jest (PanResponder/basılı tut) kullanılmıyor.
+function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, onTap }) {
     if (!player) {
         return (
-            <View ref={viewRef} collapsable={false}
-                style={{ borderRadius:8, marginBottom:4,
-                    backgroundColor: isTarget ? '#4ade8015' : '#1e293b', borderWidth: isTarget ? 1.5 : 1, borderColor: isTarget ? '#4ade80' : '#ffffff10' }}>
+            <View style={{ borderRadius:8, marginBottom:4,
+                backgroundColor: isTarget ? '#4ade8015' : '#1e293b', borderWidth: isTarget ? 1.5 : 1, borderColor: isTarget ? '#4ade80' : '#ffffff10' }}>
                 {isTarget ? (
                     <TouchableOpacity onPress={() => onTap(slot)} activeOpacity={0.7} style={{ paddingHorizontal:5, paddingVertical:5, alignItems:'center' }}>
-                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>↔ Buraya bırak</Text>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>↔ Buraya taşı</Text>
                     </TouchableOpacity>
                 ) : (
                     <View style={{ paddingHorizontal:5, paddingVertical:3 }}>
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                            {slot === 'partner' ? '— Partner bekleniyor —' : slot === 'opp1' ? '— Rakip 1 bekleniyor —' : '— Rakip 2 bekleniyor —'}
-                        </Text>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>— {label} bekleniyor —</Text>
                     </View>
                 )}
             </View>
@@ -1856,28 +1849,28 @@ function DraggableTeamSlot({ slot, player, color, disabled, isSelected, isTarget
     }
 
     return (
-        <Animated.View
-            ref={viewRef}
-            collapsable={false}
-            {...(disabled ? {} : panResponder.panHandlers)}
+        <TouchableOpacity
+            disabled={disabled}
+            activeOpacity={0.7}
+            onPress={() => onTap(slot)}
             style={{
                 marginBottom:4, borderRadius:8, paddingHorizontal:5, paddingVertical:3, borderWidth:1,
-                borderColor: isSelected || visualDrag ? '#f59e0b' : isTarget ? '#4ade80' : '#ffffff15',
-                backgroundColor: isSelected || visualDrag ? '#f59e0b18' : isTarget ? '#4ade8015' : '#1e293b',
-                transform: pan.getTranslateTransform(),
-                zIndex: visualDrag ? 10 : 0, elevation: visualDrag ? 6 : 0,
-                opacity: dragActive && !visualDrag && !isTarget ? 0.6 : 1,
+                borderColor: isSelected ? '#f59e0b' : isTarget ? '#4ade80' : '#ffffff15',
+                backgroundColor: isSelected ? '#f59e0b18' : isTarget ? '#4ade8015' : '#1e293b',
             }}
         >
             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                <Text style={{ color, fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {senderAlias(player)}
-                </Text>
-                <Text style={{ color: isSelected ? '#f59e0b' : visualDrag ? '#f59e0b' : colors.textMuted, fontSize:10 }}>
-                    {visualDrag ? '✋ taşınıyor' : isSelected ? '✓ seçildi' : isTarget ? '↔ taşı' : '↕'}
+                <View style={{ flex:1, minWidth:0 }}>
+                    <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700' }} numberOfLines={1}>{label}</Text>
+                    <Text style={{ color, fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        {senderAlias(player)}
+                    </Text>
+                </View>
+                <Text style={{ color: isSelected ? '#f59e0b' : colors.textMuted, fontSize:10 }}>
+                    {isSelected ? '✓ seçildi' : isTarget ? '↔ taşı' : '↕'}
                 </Text>
             </View>
-        </Animated.View>
+        </TouchableOpacity>
     );
 }
 
@@ -1885,51 +1878,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const t = useT();
     const [showScore, setShowScore] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
-
-    // Takım koltuklarını basılı tutup sürükleyerek yer değiştirme — ölçümler ve
-    // sürükleme sırasında hangi koltuğun üzerinde olunduğu burada tutulur.
-    const slotRefsMap = useRef({});
-    const slotRectsMap = useRef({});
-    const [draggingFromSlot, setDraggingFromSlot] = useState(null);
-    const [hoverSlot, setHoverSlot] = useState(null);
-
-    const registerSlotRef = useCallback((slot, ref) => {
-        if (ref) slotRefsMap.current[slot] = ref; else delete slotRefsMap.current[slot];
-    }, []);
-
-    const measureAllSlots = () => {
-        Object.entries(slotRefsMap.current).forEach(([slot, ref]) => {
-            ref?.current?.measure?.((x, y, w, h, pageX, pageY) => {
-                slotRectsMap.current[slot] = { pageX, pageY, w, h };
-            });
-        });
-    };
-
-    const findSlotAtPoint = (pageX, pageY) => {
-        for (const [slot, r] of Object.entries(slotRectsMap.current)) {
-            if (pageX >= r.pageX && pageX <= r.pageX + r.w && pageY >= r.pageY && pageY <= r.pageY + r.h) return slot;
-        }
-        return null;
-    };
-
-    const handleSlotHoldStart = (slot) => {
-        setSwapSlot(null); // eski tıkla-seç modunu iptal et, sürükleme devralsın
-        setDraggingFromSlot(slot);
-        measureAllSlots();
-    };
-
-    const handleSlotDragMove = (pageX, pageY) => {
-        const hit = findSlotAtPoint(pageX, pageY);
-        setHoverSlot(hit && hit !== draggingFromSlot ? hit : null);
-    };
-
-    const handleSlotDragEnd = (pageX, pageY) => {
-        const target = findSlotAtPoint(pageX, pageY);
-        const from = draggingFromSlot;
-        setDraggingFromSlot(null);
-        setHoverSlot(null);
-        if (target && from && target !== from) performSwap(from, target);
-    };
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
     const [submitting, setSubmitting] = useState(false);
     const [showCantScore, setShowCantScore] = useState(false);
@@ -1989,6 +1937,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // maçını görüntüleyen biri) sipariş verme gibi katılımcıya özel aksiyonları görmemeli.
     const isParticipant = isOwner || match.receiverId === myId
         || participantsArr.some(p => p.id === myId) || senderTeamArr.some(p => p.id === myId);
+    // Maç saati geçtiyse (Skor Bekleyen Maçlar listesindeki kartlar) artık tesiste
+    // sipariş vermenin bir anlamı kalmıyor — bu buton sadece maç henüz oynanmamışken gösterilir.
+    const matchEnded = (() => {
+        if (!match.matchDate || !match.matchTime) return false;
+        const [h, m] = match.matchTime.split(':').map(Number);
+        const d = new Date(match.matchDate);
+        d.setHours(h, m, 0, 0);
+        return new Date() >= new Date(d.getTime() + 60 * 1000);
+    })();
 
     // Build player list: sender → partner (DOUBLE) → opponents
     const allPlayers = [
@@ -2028,10 +1985,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const otherRequestedMutual = mutualReqs.includes(opponent?.id);
     const iAlreadyRequestedMutual = mutualReqs.includes(myId);
 
-    // DOUBLE slot swap — herhangi bir katılımcı yapabilir. performSwap parametreleri
-    // doğrudan alır (basılı-tut-sürükle akışı, state güncellemesinin henüz yansımadığı
-    // aynı senkron an içinde swapSlot state'ine güvenemez) — handleSwapTap (tıkla-seç
-    // akışı) ve handleSlotDragEnd (sürükle-bırak akışı) ikisi de bunu çağırır.
+    // DOUBLE slot swap — herhangi bir katılımcı yapabilir, maç bitmiş/skor bekleniyor
+    // olsa bile kısıtlanmaz (sadece STRICT esneklik swap'ı tamamen kapatır).
     const performSwap = async (s1, s2) => {
         if (match.teamFlexibility === 'STRICT') return;
         try {
@@ -2433,7 +2388,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             {match.courtName && (
                 <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>🏟️ {match.courtName}</Text>
             )}
-            {match.venueId && isParticipant && (
+            {match.venueId && isParticipant && !matchEnded && (
                 <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:4 }}>
                     <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                 </TouchableOpacity>
@@ -2478,7 +2433,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4, textDecorationLine:'underline' }}>🏟️ {match.courtName}</Text>
                             </TouchableOpacity>
                         )}
-                        {match.venueId && isParticipant && (
+                        {match.venueId && isParticipant && !matchEnded && (
                             <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
                                 <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                             </TouchableOpacity>
@@ -2496,26 +2451,23 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         const opp1 = participantsArr[0] || null;
                         const opp2 = participantsArr[1] || null;
                         const locked = match.teamFlexibility === 'STRICT';
+                        const SLOT_LABEL = { partner: t.cardParticipantLabel(1), opp1: t.cardParticipantLabel(2), opp2: t.cardParticipantLabel(3) };
                         const mkSlot = (slot, p, color) => {
                             const isSel = swapSlot === slot;
-                            const isTgt = (!!swapSlot && swapSlot !== slot) || (!!draggingFromSlot && hoverSlot === slot);
+                            const isTgt = !!swapSlot && swapSlot !== slot;
                             return (
                                 <View key={slot}>
-                                    <DraggableTeamSlot
+                                    <TeamSlot
                                         slot={slot}
                                         player={p}
                                         color={color}
+                                        label={SLOT_LABEL[slot]}
                                         disabled={locked}
                                         isSelected={isSel}
                                         isTarget={isTgt}
-                                        dragActive={!!draggingFromSlot}
                                         onTap={handleSwapTap}
-                                        onHoldStart={handleSlotHoldStart}
-                                        onDragMove={handleSlotDragMove}
-                                        onDragEnd={handleSlotDragEnd}
-                                        registerRef={registerSlotRef}
                                     />
-                                    {p && !swapSlot && !draggingFromSlot && isOwner && (
+                                    {p && !swapSlot && isOwner && (
                                         <TouchableOpacity
                                             onPress={() => removePlayer(p.id, senderAlias(p))}
                                             style={{ marginTop:2, paddingVertical:0, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
@@ -2535,20 +2487,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 )}
                                 <View style={{ flexDirection:'row', gap:3 }}>
                                     <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
-                                        <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>👑 Kurucu</Text>
+                                        <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>İlan Sahibi</Text>
                                         <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, marginBottom:2, backgroundColor:'#1e293b' }}>
                                             <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
                                         </View>
                                         {mkSlot('partner', partner, '#c084fc')}
                                     </View>
                                     <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
-                                        <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>⚔️ Rakip</Text>
+                                        <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>Katılımcılar</Text>
                                         {mkSlot('opp1', opp1, '#fca5a5')}
                                         {mkSlot('opp2', opp2, '#fca5a5')}
                                     </View>
                                 </View>
-                                {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !draggingFromSlot && !locked && (
-                                    <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Dokun → seç → diğerine dokun, veya 2-3 sn basılı tutup sürükle → yer değiştir</Text>
+                                {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !locked && (
+                                    <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Bir oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
                                 )}
                             </View>
                         );
