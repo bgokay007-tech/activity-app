@@ -411,7 +411,7 @@ export const updateRivalRequest = async (req, res, next) => {
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Bu ilanı düzenleme yetkiniz yok' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık ilanlar düzenlenebilir' });
 
-        const { message, matchDate, matchTime, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
+        const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson } = req.body;
 
@@ -421,6 +421,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(message !== undefined && { message }),
                 ...(matchDate !== undefined && { matchDate: matchDate ? new Date(matchDate) : null }),
                 ...(matchTime !== undefined && { matchTime }),
+                ...(duration !== undefined && { duration: duration !== null && duration !== '' ? parseInt(duration, 10) : null }),
                 ...(location !== undefined && { location }),
                 ...(ticketUrl !== undefined && { ticketUrl: ticketUrl || null }),
                 ...(courtName !== undefined && { courtName }),

@@ -1576,6 +1576,8 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
     const [saving, setSaving] = useState(false);
     const [calVisible, setCalVisible] = useState(false);
     const [timeVisible, setTimeVisible] = useState(false);
+    const [durationVisible, setDurationVisible] = useState(false);
+    const [showRatingRange, setShowRatingRange] = useState(false);
     const [searching, setSearching] = useState(false);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
     const isTennisPadel = item?.subCategory === 'tennis' || item?.subCategory === 'padel';
@@ -1610,11 +1612,12 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                 ticketUrl: item.ticketUrl || '',
                 matchDate: item.matchDate ? new Date(item.matchDate) : null,
                 matchTime: item.matchTime || '',
+                duration:  item.duration != null ? String(item.duration) : '',
                 location:  item.location  || '',
                 courtName: item.courtName || '',
                 minRating: item.minRating != null ? String(item.minRating) : '',
                 maxRating: item.maxRating != null ? String(item.maxRating) : '',
-                matchMode: item.matchMode || 'FREE',
+                matchMode: item.matchMode || 'PRACTICE',
                 genderReq: item.genderReq || 'MIX',
                 partnerGenderReq: item.partnerGenderReq || 'MIX',
                 opp1GenderReq: item.opp1GenderReq || 'MIX',
@@ -1802,6 +1805,7 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                 ...(item?.category === 'ARTS' && { ticketUrl: form.ticketUrl || null }),
                 matchDate: form.matchDate ? form.matchDate.toISOString() : null,
                 matchTime: form.matchTime || null,
+                duration:  form.duration !== '' ? form.duration : null,
                 location:  form.location  || null,
                 courtName: form.selectedCourt ? (form.selectedCourt.venueName || form.selectedCourt.name) : (form.showManualCourt ? form.manualCourtName : null) || form.courtSearchText || null,
                 courtAddress: form.manualAddress || undefined,
@@ -1845,31 +1849,27 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                 </View>
 
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 3 }} keyboardShouldPersistTaps="handled">
-                    {/* Tarih / Saat — yan yana, ikisi de ayrı modal pencerede seçiliyor */}
-                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={s.fieldLabel}>📅 Tarih</Text>
-                            <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center', paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0 }]} onPress={() => setCalVisible(true)}>
-                                <Text style={{ color: form.matchDate ? '#fff' : colors.textMuted, fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    {form.matchDate
-                                        ? form.matchDate.toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'short' })
-                                        : 'Tarih seçin...'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={s.fieldLabel}>🕐 Saat</Text>
-                            <TouchableOpacity style={[s.fieldInput, { justifyContent: 'center', paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0 }]} onPress={() => setTimeVisible(true)}>
-                                <Text style={{ color: form.matchTime ? '#fff' : colors.textMuted, fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    {form.matchTime || 'Saat seçin...'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                    {/* Tarih · Saat · Süre — oluştur ekranındaki triBtn satırıyla aynı stil */}
+                    <View style={[s.triRow, { flexGrow: 0, marginBottom: 6 }]}>
+                        <TouchableOpacity style={[s.triBtn, { flex: 0, paddingHorizontal: 6, paddingVertical: 3 }, form.matchDate && s.triBtnFilled]} onPress={() => setCalVisible(true)}>
+                            <Text style={s.triLabel}>{t.dateLabel}</Text>
+                            <Text style={[s.triValue, !form.matchDate && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                {form.matchDate ? `${String(form.matchDate.getDate()).padStart(2,'0')}/${String(form.matchDate.getMonth()+1).padStart(2,'0')}/${form.matchDate.getFullYear()}` : '—'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[s.triBtn, { flex: 0, paddingHorizontal: 6, paddingVertical: 3 }, form.matchTime && s.triBtnFilled]} onPress={() => setTimeVisible(true)}>
+                            <Text style={s.triLabel}>{t.timeLabel}</Text>
+                            <Text style={[s.triValue, !form.matchTime && s.triPlaceholder]}>{form.matchTime || '—'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[s.triBtn, { flex: 0, paddingHorizontal: 6, paddingVertical: 3 }, form.duration && s.triBtnFilled]} onPress={() => setDurationVisible(true)}>
+                            <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
+                            <Text style={[s.triValue, !form.duration && s.triPlaceholder]}>{form.duration ? `${form.duration}${t.minuteSuffix}` : '—'}</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Konum / Min-Max Puan — yan yana, konum nadiren değiştiği için küçük */}
-                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
-                        <View style={{ flex: 2 }}>
+                    {/* Konum / Derece — oluştur ekranındaki gibi tek "Derece" aralık modalı */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <View style={{ flex: 1 }}>
                             <Text style={s.fieldLabel}>📍 Konum</Text>
                             <CityAutocomplete
                                 value={form.location || ''}
@@ -1879,27 +1879,15 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                                 inputStyle={{ borderRadius: 10, paddingHorizontal: 3, paddingVertical: 3, fontSize: 13 }}
                             />
                         </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={s.fieldLabel}>⭐ Min</Text>
-                            <TextInput
-                                style={[s.fieldInput, { paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0, textAlign: 'center' }]}
-                                value={form.minRating}
-                                onChangeText={v => setForm(f => ({ ...f, minRating: v }))}
-                                placeholder="0"
-                                placeholderTextColor={colors.textMuted}
-                                keyboardType="decimal-pad"
-                            />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={s.fieldLabel}>⭐ Max</Text>
-                            <TextInput
-                                style={[s.fieldInput, { paddingHorizontal: 3, paddingVertical: 3, marginBottom: 0, textAlign: 'center' }]}
-                                value={form.maxRating}
-                                onChangeText={v => setForm(f => ({ ...f, maxRating: v }))}
-                                placeholder="5"
-                                placeholderTextColor={colors.textMuted}
-                                keyboardType="decimal-pad"
-                            />
+                        <View>
+                            <Text style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
+                            <TouchableOpacity
+                                style={{ backgroundColor: colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: (form.minRating || form.maxRating) ? colors.purple + '80' : colors.border, paddingVertical: 3, paddingHorizontal: 6 }}
+                                onPress={() => setShowRatingRange(true)}>
+                                <Text style={[s.triValue, { fontSize: 10 }, !(form.minRating || form.maxRating) && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {(!form.minRating && !form.maxRating) ? t.ratingFreeLabel : `${form.minRating || '0'}–${form.maxRating || '10'}`}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -2060,16 +2048,18 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                         </>
                     )}
 
-                    <Text style={s.fieldLabel}>💰 Maç Modu</Text>
-                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
-                        {['FREE', 'PAID'].map(mode => (
+                    <Text style={[s.fieldLabel, { marginBottom: 0 }]}>{t.modLabel}</Text>
+                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 6 }}>
+                        {['PRACTICE', 'COMPETITIVE'].map(mode => (
                             <TouchableOpacity
                                 key={mode}
-                                style={{ flex: 1, paddingVertical: 3, borderRadius: 10, alignItems: 'center', backgroundColor: form.matchMode === mode ? colors.purple : colors.surface2, borderWidth: 1, borderColor: form.matchMode === mode ? colors.purple : colors.border }}
                                 onPress={() => setForm(f => ({ ...f, matchMode: mode }))}
-                            >
-                                <Text style={{ color: form.matchMode === mode ? '#fff' : colors.textMuted, fontWeight: '700' }}>
-                                    {mode === 'FREE' ? '🆓 Ücretsiz' : '💰 Ücretli'}
+                                style={[s.chipBtn, { paddingHorizontal: 6, paddingVertical: 3 }, form.matchMode === mode && {
+                                    backgroundColor: mode === 'COMPETITIVE' ? '#dc262620' : '#2563eb20',
+                                    borderColor:     mode === 'COMPETITIVE' ? '#dc2626'   : '#2563eb',
+                                }]}>
+                                <Text style={[s.chipBtnText, form.matchMode === mode && { color: '#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {mode === 'PRACTICE' ? t.practiceMode : t.competitiveMode}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -2122,6 +2112,22 @@ function EditRivalModal({ visible, item, onClose, onSave }) {
                     step={30}
                     onSelect={(v) => { setForm(f => ({ ...f, matchTime: v })); setTimeVisible(false); }}
                     onClose={() => setTimeVisible(false)}
+                />
+                <OptionPickerModal
+                    visible={durationVisible}
+                    title={t.selectDuration}
+                    options={DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` }))}
+                    value={form.duration}
+                    onSelect={(v) => { setForm(f => ({ ...f, duration: v })); setDurationVisible(false); }}
+                    onClose={() => setDurationVisible(false)}
+                />
+                <RatingRangeModal
+                    visible={showRatingRange}
+                    minValue={form.minRating}
+                    maxValue={form.maxRating}
+                    onSelectMin={(v) => setForm(f => ({ ...f, minRating: v }))}
+                    onSelectMax={(v) => setForm(f => ({ ...f, maxRating: v }))}
+                    onClose={() => setShowRatingRange(false)}
                 />
             </View>
         </Modal>
