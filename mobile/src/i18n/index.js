@@ -407,6 +407,7 @@ const en = {
     // SubCategory — filter bar
     filterCityPh: 'Search city...',
     nearMeBtn: '📍 Near Me',
+    dateFilterTitle: 'Time Filter',
     allFilter: 'All',
     todayFilter: 'Today',
     weekFilter: 'This Week',
@@ -1466,6 +1467,7 @@ const tr = {
     // SubCategory — filter bar
     filterCityPh: 'Şehir ara...',
     nearMeBtn: '📍 Yakınımdaki',
+    dateFilterTitle: 'Zaman Filtresi',
     allFilter: 'Tümü',
     todayFilter: 'Bugün',
     weekFilter: 'Bu Hafta',

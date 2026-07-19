@@ -21,7 +21,7 @@ const TR_PROVINCES = [
 
 const LOCAL_LIST = TR_PROVINCES.map(p => ({ label: p, value: p }));
 
-export default function CityPickerModal({ visible, onClose, onSelect, currentValue }) {
+export default function CityPickerModal({ visible, onClose, onSelect, currentValue, onNearMe, nearMeLoading }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState(LOCAL_LIST);
     const [loading, setLoading] = useState(false);
@@ -82,6 +82,16 @@ export default function CityPickerModal({ visible, onClose, onSelect, currentVal
                         data={results}
                         keyExtractor={(item, i) => `${item.value}-${i}`}
                         keyboardShouldPersistTaps="handled"
+                        ListHeaderComponent={onNearMe && !query.trim() ? (
+                            <TouchableOpacity
+                                style={s.item}
+                                onPress={onNearMe}
+                                disabled={nearMeLoading}
+                            >
+                                <Text style={[s.itemText, { color: colors.purple, fontWeight: '700' }]}>📡 Yakınımdaki</Text>
+                                {nearMeLoading && <ActivityIndicator size="small" color={colors.purple} />}
+                            </TouchableOpacity>
+                        ) : null}
                         renderItem={({ item }) => {
                             const active = currentValue === item.value;
                             return (

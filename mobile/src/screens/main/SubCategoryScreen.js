@@ -9473,6 +9473,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [filterCity, setFilterCity] = useState('');
     const [filterDate, setFilterDate] = useState('all');
     const [showCityFilter, setShowCityFilter] = useState(false);
+    const [showDateFilter, setShowDateFilter] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [cityAlertCity, setCityAlertCity] = useState(null);
     // Tüm sekmeler için abone olunan il listesi
@@ -10668,14 +10669,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
             {children}
             <CityAlertBtn tab={tab} />
-        </View>
-    );
-
-    const CompactFilter = ({ showDateChips = true, showNearMe = true }) => (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 0, paddingVertical: 0 }}>
             <TouchableOpacity
                 onPress={() => setShowCityFilter(true)}
-                style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border, minWidth:70 }}
+                style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
             >
                 <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {filterCity ? filterCity : '📍 İl'}
@@ -10687,26 +10683,25 @@ export default function SubCategoryScreen({ route, navigation }) {
                     : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
                 }
             </TouchableOpacity>
-            {showNearMe && <TouchableOpacity
-                onPress={handleNearMe}
-                disabled={locationLoading}
-                style={{ backgroundColor:cfg.color+'15', borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor:cfg.color+'30' }}
+        </View>
+    );
+
+    // İl filtresi ve "Yakınımdaki" artık zilin yanındaki (CityAlertRow) tek butona taşındı
+    // (Yakınımdaki, il seçici modalının en başında bir seçenek olarak duruyor) — burada
+    // sadece zaman filtresi kalıyor, tek bir buton olarak, açılan küçük bir modaldan seçiliyor.
+    const DATE_FILTER_OPTS = [['all',t.allFilter],['today',t.todayFilter],['week',t.weekFilter]];
+    const CompactFilter = ({ showDateChips = true }) => (
+        !showDateChips ? null : (
+            <TouchableOpacity
+                onPress={() => setShowDateFilter(true)}
+                style={{ flexDirection:'row', alignItems:'center', gap:3, alignSelf:'flex-start', backgroundColor: filterDate!=='all' ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterDate!=='all' ? cfg.color : colors.border, marginBottom:2 }}
             >
-                {locationLoading
-                    ? <ActivityIndicator size="small" color={cfg.color} style={{ width:30 }} />
-                    : <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{t.nearMeBtn}</Text>
-                }
-            </TouchableOpacity>}
-            {showDateChips && [['all',t.allFilter],['today',t.todayFilter],['week',t.weekFilter]].map(([val, label]) => (
-                <TouchableOpacity
-                    key={val}
-                    onPress={() => setFilterDate(val)}
-                    style={{ backgroundColor: filterDate===val ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterDate===val ? cfg.color : colors.border }}
-                >
-                    <Text style={{ color: filterDate===val ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{label}</Text>
-                </TouchableOpacity>
-            ))}
-        </ScrollView>
+                <Text style={{ color: filterDate!=='all' ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
+                    📅 {(DATE_FILTER_OPTS.find(([v]) => v === filterDate) || DATE_FILTER_OPTS[0])[1]}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
+            </TouchableOpacity>
+        )
     );
 
     return (
@@ -10717,6 +10712,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onClose={() => setShowCityFilter(false)}
                 onSelect={setFilterCity}
                 currentValue={filterCity}
+                onNearMe={async () => { await handleNearMe(); setShowCityFilter(false); }}
+                nearMeLoading={locationLoading}
             />
 
             <PeerReviewModal
@@ -10734,6 +10731,25 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onPickCities={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); setCityPickerTab(tab); }}
                 onDismissForever={() => setCityAlertInfoDismissed(true)}
             />
+
+            {/* Zaman filtresi — Tümü/Bugün/Bu Hafta, tek butonun açtığı küçük modal */}
+            <Modal visible={showDateFilter} animationType="fade" transparent onRequestClose={() => setShowDateFilter(false)}>
+                <TouchableOpacity style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:24 }} activeOpacity={1} onPress={() => setShowDateFilter(false)}>
+                    <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:13, width:'100%', maxWidth:280 }} onStartShouldSetResponder={() => true}>
+                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800', marginBottom:10 }}>📅 {t.dateFilterTitle}</Text>
+                        {[['all',t.allFilter],['today',t.todayFilter],['week',t.weekFilter]].map(([val, label]) => (
+                            <TouchableOpacity
+                                key={val}
+                                onPress={() => { setFilterDate(val); setShowDateFilter(false); }}
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:10, paddingHorizontal:5, borderRadius:8, backgroundColor: filterDate===val ? cfg.color+'18' : 'transparent' }}
+                            >
+                                <Text style={{ color: filterDate===val ? cfg.color : '#fff', fontSize:13, fontWeight: filterDate===val ? '800' : '600' }}>{label}</Text>
+                                {filterDate===val && <Text style={{ color: cfg.color, fontSize:14 }}>✓</Text>}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
 
             {/* Bildirim il seçici — tüm sekmeler için ortak */}
             <Modal visible={cityPickerTab !== null} animationType="slide" transparent onRequestClose={() => setCityPickerTab(null)}>
