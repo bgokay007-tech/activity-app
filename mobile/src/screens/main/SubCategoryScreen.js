@@ -1372,6 +1372,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 {myInvite.isPartnerInvite && (
                                     <Text style={{ color:'#a78bfa', fontSize: moderateScale(11), fontWeight:'700', textAlign:'center' }}>🤝 Partner Daveti</Text>
                                 )}
+                                {(myInvite.offerPrice || myInvite.offerMessage) && (
+                                    <View style={{ backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', paddingHorizontal:8, paddingVertical:6 }}>
+                                        {myInvite.offerPrice && <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>💰 {myInvite.offerPrice}</Text>}
+                                        {myInvite.offerMessage && <Text style={{ color: colors.textSecondary, fontSize: moderateScale(11), marginTop:2 }}>{myInvite.offerMessage}</Text>}
+                                    </View>
+                                )}
                                 <View style={{ flexDirection:'row', gap:3 }}>
                                     <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => handleRespondJoin(myInvite.id, 'accept')}>
                                         <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{myInvite.isPartnerInvite ? 'Partner Ol' : t.inviteAcceptBtn}</Text>
@@ -4594,7 +4600,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         opp1Invite: null,
         opp2Invite: null,
         singleOppInvite: null,
-        refereeInvite: null,
+        refereeInvites: [], // [{ user, message, price }]
         genderReq: 'MIX',
         partnerGenderReq: 'MIX',
         opp1GenderReq: 'MIX',
@@ -4685,6 +4691,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // inviteTarget hangi alanı doldurduğumuzu belirler ('partner' | 'opp1' | 'opp2' | null).
     const [inviteTarget, setInviteTarget] = useState(null);
     const showPartnerSearch = inviteTarget !== null;
+    // Hakem daveti: kullanıcı seçilince liste yerine mesaj/teklif fiyatı formu gösterilir,
+    // onaylayınca f.refereeInvites listesine eklenir — birden fazla hakem davet edilebilir.
+    const [refereeInviteForm, setRefereeInviteForm] = useState(null); // { user, message, price } | null
     // İki sekme: Arkadaşlarım (önceden yüklenen liste) | Tüm Oyuncular (bu sporda ilgi kaydı
     // olan herkes, yazdıkça sunucudan "başlayanlar" filtresiyle canlı daralır).
     const [inviteTab, setInviteTab] = useState('friends');
@@ -4753,12 +4762,25 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             .finally(() => setLoadingFriends(false));
     }, [showPartnerSearch]);
 
-    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite', singleOpp: 'singleOppInvite', referee: 'refereeInvite' };
+    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite', singleOpp: 'singleOppInvite' };
     const choosePartner = (user) => {
+        if (inviteTarget === 'referee') { setRefereeInviteForm({ user, message: '', price: '' }); return; }
         if (inviteTarget) set(INVITE_FIELD[inviteTarget], user);
         setInviteTarget(null);
         setPartnerQuery('');
         setSportUsers([]);
+    };
+    const confirmRefereeInvite = () => {
+        if (!refereeInviteForm?.user) return;
+        setF(p => ({
+            ...p,
+            refereeInvites: [...p.refereeInvites.filter(r => r.user.id !== refereeInviteForm.user.id), refereeInviteForm],
+        }));
+        setRefereeInviteForm(null);
+        setPartnerQuery('');
+    };
+    const removeRefereeInvite = (userId) => {
+        setF(p => ({ ...p, refereeInvites: p.refereeInvites.filter(r => r.user.id !== userId) }));
     };
 
     const searchCourts = (text) => {
@@ -4830,7 +4852,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         }));
     };
 
-    const reset = () => { setF(INIT); pendingCourtChangeRef.current = null; };
+    const reset = () => { setF(INIT); setRefereeInviteForm(null); pendingCourtChangeRef.current = null; };
 
     const deselectCourt = () => {
         setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null, courtReserved: false }));
@@ -5060,8 +5082,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 refereeRequested: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.refereeRequested : undefined,
                 refereePayment: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereePayment !== ''
                     ? `${f.refereePayment}₺` : undefined,
-                refereeInviteId: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereeInvite
-                    ? f.refereeInvite.id : undefined,
+                refereeInvites: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
+                    ? f.refereeInvites.map(inv => ({ userId: inv.user.id, message: inv.message || undefined, price: inv.price || undefined }))
+                    : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
@@ -5654,40 +5677,53 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
-                            {/* Hakem Talep Et / Davet Et / Ücret — sadece tenis/padel/voleybol, tek satır */}
+                            {/* Hakem Talep Et / Davet Et / Ücret — sadece tenis/padel/voleybol, tek satır, aynı yükseklikte */}
                             {['tennis', 'padel', 'volleyball'].includes(sub) && (
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
-                                    <TouchableOpacity
-                                        onPress={() => set('refereeRequested', !f.refereeRequested)}
-                                        style={{ flex: f.refereeRequested ? 1 : undefined, width: f.refereeRequested ? undefined : '100%', flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingVertical:5, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
-                                    >
-                                        <Text style={{ fontSize:12 }}>🟨</Text>
-                                        <Text style={{ color: f.refereeRequested ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                            {t.requestRefereeBtn}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    {f.refereeRequested && (
+                                <>
+                                    <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeRequested && f.refereeInvites.length > 0 ? 4 : 10 }}>
                                         <TouchableOpacity
-                                            onPress={() => setInviteTarget('referee')}
-                                            style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingVertical:5, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeInvite ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeInvite ? '#f59e0b70' : colors.border }}
+                                            onPress={() => set('refereeRequested', !f.refereeRequested)}
+                                            style={{ flex: f.refereeRequested ? 1 : undefined, width: f.refereeRequested ? undefined : '100%', height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
                                         >
-                                            <Text style={{ fontSize:11 }}>➕</Text>
-                                            <Text style={{ color: f.refereeInvite ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                {f.refereeInvite ? (f.refereeInvite.fullName || f.refereeInvite.username) : t.inviteRefereeBtn}
+                                            <Text style={{ color: f.refereeRequested ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                {noEmoji(t.requestRefereeBtn)}
                                             </Text>
                                         </TouchableOpacity>
+                                        {f.refereeRequested && (
+                                            <TouchableOpacity
+                                                onPress={() => setInviteTarget('referee')}
+                                                style={{ flex:1, height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeInvites.length > 0 ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeInvites.length > 0 ? '#f59e0b70' : colors.border }}
+                                            >
+                                                <Text style={{ color: f.refereeInvites.length > 0 ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                    {f.refereeInvites.length > 0 ? `${noEmoji(t.inviteRefereeBtn)} (${f.refereeInvites.length})` : noEmoji(t.inviteRefereeBtn)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {f.refereeRequested && (
+                                            <TextInput
+                                                style={{ flex:0.7, height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center' }}
+                                                value={f.refereePayment}
+                                                onChangeText={v => set('refereePayment', v.replace(/[^0-9]/g, ''))}
+                                                placeholder={t.refereePaymentLabel}
+                                                placeholderTextColor={colors.textMuted}
+                                                keyboardType="numeric"
+                                            />
+                                        )}
+                                    </View>
+                                    {f.refereeRequested && f.refereeInvites.length > 0 && (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:10 }}>
+                                            {f.refereeInvites.map(inv => (
+                                                <TouchableOpacity key={inv.user.id} onPress={() => removeRefereeInvite(inv.user.id)}
+                                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#f59e0b15', borderRadius:10, borderWidth:1, borderColor:'#f59e0b40', paddingHorizontal:7, paddingVertical:4 }}>
+                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                        {inv.user.fullName || inv.user.username}{inv.price ? ` · ${inv.price}₺` : ''}
+                                                    </Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
                                     )}
-                                    {f.refereeRequested && (
-                                        <TextInput
-                                            style={{ flex:0.7, backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:5, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12 }}
-                                            value={f.refereePayment}
-                                            onChangeText={v => set('refereePayment', v.replace(/[^0-9]/g, ''))}
-                                            placeholder={t.refereePaymentLabel}
-                                            placeholderTextColor={colors.textMuted}
-                                            keyboardType="numeric"
-                                        />
-                                    )}
-                                </View>
+                                </>
                             )}
 
                             {/* Açıklama */}
@@ -5833,17 +5869,43 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0 }}>
                         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1 }}>
                             <TouchableOpacity style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }} activeOpacity={1}
-                                onPress={() => setInviteTarget(null)}>
+                                onPress={() => { setInviteTarget(null); setRefereeInviteForm(null); }}>
                                 <View onStartShouldSetResponder={() => true}
                                     style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>
                                             {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : inviteTarget === 'singleOpp' ? t.inviteOpponentTitle : inviteTarget === 'referee' ? (t.inviteRefereeTitle || t.inviteRefereeBtn) : t.choosePartnerBtn}
                                         </Text>
-                                        <TouchableOpacity onPress={() => setInviteTarget(null)}>
+                                        <TouchableOpacity onPress={() => { setInviteTarget(null); setRefereeInviteForm(null); }}>
                                             <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
                                         </TouchableOpacity>
                                     </View>
+                                    {inviteTarget === 'referee' && refereeInviteForm ? (
+                                        /* Hakem seçildi — mesaj + teklif fiyatı girip daveti onayla */
+                                        <View>
+                                            <TouchableOpacity onPress={() => setRefereeInviteForm(null)} style={{ marginBottom:10, alignSelf:'flex-start' }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:12, fontWeight:'700' }}>‹ {t.inviteRefereeTitle || t.inviteRefereeBtn}</Text>
+                                            </TouchableOpacity>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:14 }}>
+                                                <Avatar name={refereeInviteForm.user.username} avatar={refereeInviteForm.user.avatar} size={40} color={cfg.color} />
+                                                <Text style={{ color:'#fff', fontWeight:'700', fontSize:14 }}>{refereeInviteForm.user.fullName || refereeInviteForm.user.username}</Text>
+                                            </View>
+                                            <Text style={[s.fieldLabel, { marginTop:0 }]}>{t.refereePaymentLabel}</Text>
+                                            <TextInput style={s.fieldInput} value={refereeInviteForm.price}
+                                                onChangeText={v => setRefereeInviteForm(p => ({ ...p, price: v.replace(/[^0-9]/g, '') }))}
+                                                placeholder="500" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                            <Text style={s.fieldLabel}>{t.messageFieldLabel}</Text>
+                                            <TextInput style={[s.fieldInput, { height:70, textAlignVertical:'top' }]}
+                                                value={refereeInviteForm.message}
+                                                onChangeText={v => setRefereeInviteForm(p => ({ ...p, message: v }))}
+                                                placeholder={t.messagePh} placeholderTextColor={colors.textMuted} multiline />
+                                            <TouchableOpacity onPress={confirmRefereeInvite}
+                                                style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center', marginTop:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{t.inviteSendBtn}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : (
+                                    <>
                                     {/* Arkadaşlarım | Tüm Oyuncular sekmeleri */}
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                         {[{ id:'friends', label: t.friendsListLabel }, { id:'all', label: t.inviteTabAllPlayers }].map(tab => (
@@ -5903,6 +5965,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </>
                                         )}
                                     </ScrollView>
+                                    </>
+                                    )}
                                 </View>
                             </TouchableOpacity>
                         </KeyboardAvoidingView>
