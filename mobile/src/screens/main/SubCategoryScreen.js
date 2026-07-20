@@ -864,7 +864,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                             // Kabul edilmiş katılımcılar (kurucu hariç) — henüz Partner/Rakip 1/
                             // Rakip 2 kartlarına atanmış gibi değil, sırayla numaralı gösterilir.
-                            const acceptedOthers = [PartnerContent, participants[0], participants[1]].filter(p => p?.id);
+                            // Her slotun kendi cinsiyet gereksinimi (varsa) etiketle birlikte taşınır.
+                            const gParen = (g) => g === 'MALE' ? ' (Erkek)' : g === 'FEMALE' ? ' (Kadın)' : '';
+                            const teamSlots = [
+                                { p: PartnerContent, gReq: partnerGenderReq },
+                                { p: participants[0], gReq: opp1GenderReq },
+                                { p: participants[1], gReq: opp2GenderReq },
+                            ].filter(sl => sl.p?.id);
+                            const acceptedOthers = teamSlots.map(sl => sl.p);
 
                             if (!showTeamCards) {
                                 return (
@@ -876,15 +883,19 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                             </View>
                                         </View>
-                                        {acceptedOthers.map((p, i) => (
-                                            <View key={p.id || i} style={det.playerRow}>
-                                                <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
+                                        {teamSlots.map((sl, i) => (
+                                            <View key={sl.p.id || i} style={det.playerRow}>
+                                                <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })} />
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={det.playerName}>{playerDisplayName(p)}</Text>
-                                                    <Text style={det.playerSub}>{t.cardParticipantLabel(i + 1)} · {p.username}</Text>
+                                                    <Text style={det.playerName}>{playerDisplayName(sl.p)}</Text>
+                                                    <Text style={det.playerSub}>
+                                                        {t.cardParticipantLabel(i + 1)}
+                                                        {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
+                                                        {' · '}{sl.p.username}
+                                                    </Text>
                                                 </View>
                                                 {isOwner && (
-                                                    <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:3 }}>
+                                                    <TouchableOpacity onPress={() => removeRivalParticipant(sl.p.id, sl.p.username)} style={{ padding:3 }}>
                                                         <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>Çıkar</Text>
                                                     </TouchableOpacity>
                                                 )}
@@ -976,7 +987,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
                                         <View style={{ flex:1 }}>
                                             <Text style={det.playerName}>{playerDisplayName(p)}</Text>
-                                            <Text style={det.playerSub}>{p.username}</Text>
+                                            <Text style={det.playerSub}>
+                                                {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
+                                                {p.username}
+                                            </Text>
                                         </View>
                                         {isOwner && (
                                             <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:3 }}>
