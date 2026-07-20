@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
-import { io } from 'socket.io-client';
+import { connectSocket, onSocket } from '../services/socket';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
@@ -3521,14 +3521,14 @@ function SubCategoryPage() {
         finally { setEquipmentActionLoading(false); }
     };
 
-    // Socket.io — real-time rival updates
+    // Socket.io — real-time rival updates (paylaşılan socket servisi üzerinden — kendi
+    // io() bağlantısını açmak hem env URL'ini yok sayıyordu hem de gereksiz ikinci bir
+    // bağlantı açıyordu)
     useEffect(() => {
         if (!myId) return;
-        const socket = io('http://localhost:5000', {
-            auth: { userId: myId },
-        });
+        connectSocket(myId);
 
-        socket.on('rivalUpdate', (updatedRival) => {
+        const applyRivalUpdate = (updatedRival) => {
             const upsertCompleted = (prev) => {
                 const exists = prev.some(r => r.id === updatedRival.id);
                 return exists
@@ -3593,16 +3593,38 @@ function SubCategoryPage() {
                     setCompletedMatches(upsertCompleted);
                 }
             }
-        });
+        };
+
+        // Sadece {rivalId} taşıyan event'ler (joinAccepted/joinRejected/joinLateAccepted) —
+        // ilgili ilanı tekrar çekip aynı upsert mantığından geçiriyoruz.
+        const refetchAndApply = (rivalId) => {
+            api.get(`/rivals/${rivalId}`).then(({ data }) => applyRivalUpdate(data)).catch(() => {});
+        };
+        const removeFromAllLists = (rivalId) => {
+            setRivals(prev => prev.filter(r => r.id !== rivalId));
+            setPlayerWantedPosts(prev => prev.filter(r => r.id !== rivalId));
+            setUpcomingMatches(prev => prev.filter(r => r.id !== rivalId));
+        };
+        const bumpCommentCount = (rivalId) => {
+            const bump = (prev) => prev.map(r => r.id === rivalId ? { ...r, commentCount: (r.commentCount || 0) + 1 } : r);
+            setRivals(bump); setPlayerWantedPosts(bump); setUpcomingMatches(bump);
+        };
+
+        const offUpdate  = onSocket('rivalUpdate', applyRivalUpdate);
+        const offDeleted = onSocket('rivalDeleted', ({ rivalId }) => removeFromAllLists(rivalId));
+        const offAccepted = onSocket('joinAccepted', ({ rivalId }) => refetchAndApply(rivalId));
+        const offRejected = onSocket('joinRejected', ({ rivalId }) => refetchAndApply(rivalId));
+        const offLateAccepted = onSocket('joinLateAccepted', ({ rivalId }) => refetchAndApply(rivalId));
+        const offComment = onSocket('newComment', ({ rivalId }) => bumpCommentCount(rivalId));
 
         // Turnuva anket oyu degisince ilgili turnuvalari tazele (global broadcast, oda bazli degil)
-        socket.on('tournament:vote_updated', () => {
+        const offVote = onSocket('tournament:vote_updated', () => {
             api.get(`/tournaments?category=${categoryUpper}&subCategory=${sub}`)
                 .then(({ data }) => setTournaments(data.map(tn => ({ ...tn, _myRequest: tn.participants?.[0]?.status || null }))))
                 .catch(() => {});
         });
 
-        return () => socket.disconnect();
+        return () => { offUpdate(); offDeleted(); offAccepted(); offRejected(); offLateAccepted(); offComment(); offVote(); };
     }, [myId, categoryUpper, sub]);
 
     const handleTextPost = async (e) => {
