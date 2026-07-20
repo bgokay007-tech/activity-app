@@ -446,6 +446,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setRefereeApplySubmitting(true);
         try {
             await api.post(`/rivals/${item.id}/respond`, {
+                asReferee: true,
                 offerPrice: refereeOfferPrice ? `${refereeOfferPrice}₺` : undefined,
                 offerMessage: refereeOfferMessage || undefined,
                 offerCvUrl: refereeSendCv && myRefereeListing?.cvUrl ? myRefereeListing.cvUrl : undefined,
@@ -461,6 +462,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     const [counterInputFor, setCounterInputFor] = useState(null);
     const [counterPriceInput, setCounterPriceInput] = useState('');
+    const [counterMessageInput, setCounterMessageInput] = useState('');
 
     const reloadRefereeApplications = () => {
         if (!item?.id) return;
@@ -472,11 +474,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .catch(() => {});
     };
 
-    const respondRefereeApplication = async (jrId, action, price) => {
+    const respondRefereeApplication = async (jrId, action, price, message) => {
         try {
-            await api.patch(`/rivals/join/${jrId}`, { action, price });
+            await api.patch(`/rivals/join/${jrId}`, { action, price, message });
             setCounterInputFor(null);
             setCounterPriceInput('');
+            setCounterMessageInput('');
             reloadRefereeApplications();
             onRefresh();
         } catch (e) {
@@ -1261,6 +1264,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         )}
                                     </View>
                                     {app.offerMessage && <Text style={{ color: colors.textSecondary, fontSize:moderateScale(9), marginTop:2 }}>{app.offerMessage}</Text>}
+                                    {app.status === 'COUNTERED' && app.counterMessage && (
+                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), marginTop:2, fontStyle:'italic' }}>{app.counterMessage}</Text>
+                                    )}
                                     {app.offerCvUrl && (
                                         <TouchableOpacity onPress={() => Linking.openURL(app.offerCvUrl)} style={{ marginTop:2, alignSelf:'flex-start', backgroundColor:'#16a34a20', borderRadius:5, paddingHorizontal:6, paddingVertical:1, borderWidth:1, borderColor:'#16a34a50' }}>
                                             <Text style={{ color:'#4ade80', fontSize:moderateScale(9), fontWeight:'700' }}>CV</Text>
@@ -1286,18 +1292,25 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </View>
                                     )}
                                     {isOwner && app.initiatedBy !== 'OWNER' && counterInputFor === app.id && (
-                                        <View style={{ flexDirection:'row', gap:4, marginTop:4, alignItems:'center' }}>
+                                        <View style={{ marginTop:4, gap:4 }}>
+                                            <View style={{ flexDirection:'row', gap:4, alignItems:'center' }}>
+                                                <TextInput
+                                                    style={[s.fieldInput, { flex:1, marginBottom:0, fontSize:moderateScale(11), paddingVertical:4 }]}
+                                                    value={counterPriceInput} onChangeText={setCounterPriceInput}
+                                                    placeholder="450" placeholderTextColor={colors.textMuted} keyboardType="numeric" autoFocus
+                                                />
+                                                <TouchableOpacity style={{ backgroundColor:'#f59e0b', borderRadius:6, paddingVertical:6, paddingHorizontal:9 }} onPress={() => respondRefereeApplication(app.id, 'counter', counterPriceInput, counterMessageInput)}>
+                                                    <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }}>{t.refereeCounterSendBtn}</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => { setCounterInputFor(null); setCounterPriceInput(''); setCounterMessageInput(''); }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(14) }}>✕</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                             <TextInput
-                                                style={[s.fieldInput, { flex:1, marginBottom:0, fontSize:moderateScale(11), paddingVertical:4 }]}
-                                                value={counterPriceInput} onChangeText={setCounterPriceInput}
-                                                placeholder="450" placeholderTextColor={colors.textMuted} keyboardType="numeric" autoFocus
+                                                style={[s.fieldInput, { marginBottom:0, fontSize:moderateScale(11), paddingVertical:4 }]}
+                                                value={counterMessageInput} onChangeText={setCounterMessageInput}
+                                                placeholder={t.messageFieldLabel} placeholderTextColor={colors.textMuted}
                                             />
-                                            <TouchableOpacity style={{ backgroundColor:'#f59e0b', borderRadius:6, paddingVertical:6, paddingHorizontal:9 }} onPress={() => respondRefereeApplication(app.id, 'counter', counterPriceInput)}>
-                                                <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }}>{t.refereeCounterSendBtn}</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => { setCounterInputFor(null); setCounterPriceInput(''); }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(14) }}>✕</Text>
-                                            </TouchableOpacity>
                                         </View>
                                     )}
                                 </View>
@@ -1401,6 +1414,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <View style={{ gap:6 }}>
                                 <View style={[s.waitingBox, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
                                     <Text style={[s.waitingText, { color:'#f59e0b', fontSize: moderateScale(12) }]}>↔️ {t.refereeCounterReceivedMsg(item._myJoinCounterPrice)}</Text>
+                                    {item._myJoinCounterMessage && (
+                                        <Text style={{ color:'#f59e0b', fontSize: moderateScale(11), fontStyle:'italic', marginTop:3 }}>{item._myJoinCounterMessage}</Text>
+                                    )}
                                 </View>
                                 <View style={{ flexDirection:'row', gap:6 }}>
                                     <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center' }} onPress={() => { api.patch(`/rivals/join/${item._myJoinRequestId}`, { action: 'accept_counter' }).then(onRefresh).catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed)); }}>
@@ -1416,15 +1432,29 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <Text style={[s.waitingText, { color:'#4ade80', fontSize: moderateScale(12) }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
                             </View>
                         ) : isFull ? (
-                            <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
+                            <View style={{ gap:6 }}>
+                                <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
+                                {item.refereeRequested && !item.refereeUser && (
+                                    <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
+                                        <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
                         ) : Array.isArray(item.positions) && item.positions.includes('REFEREE') ? (
                             <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                 <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
                             </TouchableOpacity>
                         ) : (
-                            <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
-                                <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{t.joinBtn}</Text>
-                            </TouchableOpacity>
+                            <View style={{ flexDirection:'row', gap:6 }}>
+                                <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
+                                    <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{t.joinBtn}</Text>
+                                </TouchableOpacity>
+                                {item.refereeRequested && !item.refereeUser && (
+                                    <TouchableOpacity style={{ flex:1, backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
+                                        <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeApplyBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
                         )}
                     </View>
 

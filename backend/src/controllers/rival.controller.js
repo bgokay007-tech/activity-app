@@ -1054,7 +1054,7 @@ export const getRivalRequests = async (req, res, next) => {
         const [myJoinReqs, commentCounts] = await Promise.all([
             prisma.rivalJoinRequest.findMany({
                 where: { userId: req.userId, rivalId: { in: rivalIds } },
-                select: { id: true, rivalId: true, status: true, counterPrice: true },
+                select: { id: true, rivalId: true, status: true, counterPrice: true, counterMessage: true },
             }),
             prisma.matchComment.groupBy({
                 by: ['rivalId'],
@@ -1062,7 +1062,7 @@ export const getRivalRequests = async (req, res, next) => {
                 _count: { id: true },
             }),
         ]);
-        const myJoinMap = Object.fromEntries(myJoinReqs.map(j => [j.rivalId, { status: j.status, id: j.id, counterPrice: j.counterPrice }]));
+        const myJoinMap = Object.fromEntries(myJoinReqs.map(j => [j.rivalId, { status: j.status, id: j.id, counterPrice: j.counterPrice, counterMessage: j.counterMessage }]));
         const commentCountMap = Object.fromEntries(commentCounts.map(c => [c.rivalId, c._count.id]));
 
         res.json(requests.map(r => ({
@@ -1070,6 +1070,7 @@ export const getRivalRequests = async (req, res, next) => {
             _myJoinStatus: myJoinMap[r.id]?.status || null,
             _myJoinRequestId: myJoinMap[r.id]?.id || null,
             _myJoinCounterPrice: myJoinMap[r.id]?.counterPrice || null,
+            _myJoinCounterMessage: myJoinMap[r.id]?.counterMessage || null,
             commentCount: commentCountMap[r.id] ?? 0,
         })));
     } catch (error) {
@@ -1080,9 +1081,19 @@ export const getRivalRequests = async (req, res, next) => {
 // Send a join request (pending — creator must accept)
 export const sendJoinRequest = async (req, res, next) => {
     try {
-        const { id } = req.params;
-        const request = await prisma.activityRequest.findUnique({ where: { id } });
+        let { id } = req.params;
+        let request = await prisma.activityRequest.findUnique({ where: { id } });
         if (!request) return res.status(404).json({ message: 'Not found' });
+
+        // Asıl maç ilanı üzerinden "Hakemlik İçin Başvur" ile gelindiyse — asıl maça oyuncu
+        // gibi eklenmesin, bağlı "Hakem Arıyorum" ilanına yönlendirilir.
+        if (req.body.asReferee && request.refereeRequested && !(Array.isArray(request.positions) && request.positions.includes('REFEREE'))) {
+            const refAd = await prisma.activityRequest.findFirst({ where: { linkedRivalId: id, status: 'OPEN' } });
+            if (!refAd) return res.status(400).json({ message: 'Hakem ilanı bulunamadı' });
+            id = refAd.id;
+            request = refAd;
+        }
+
         if (request.status !== 'OPEN') return res.status(400).json({ message: 'This request is no longer open' });
         if (request.senderId === req.userId) return res.status(400).json({ message: 'You cannot join your own request' });
 
@@ -1667,15 +1678,17 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
         if (action === 'counter') {
             const counterPrice = price ? `${parseInt(String(price).replace(/[^0-9]/g, ''), 10)}₺` : null;
             if (!counterPrice || counterPrice === 'NaN₺') return res.status(400).json({ message: 'Geçerli bir karşı teklif fiyatı girin' });
-            const updated = await prisma.rivalJoinRequest.update({ where: { id: joinReq.id }, data: { status: 'COUNTERED', counterPrice } });
+            const { message } = req.body;
+            const counterMessage = message && String(message).trim() ? String(message).trim() : null;
+            const updated = await prisma.rivalJoinRequest.update({ where: { id: joinReq.id }, data: { status: 'COUNTERED', counterPrice, counterMessage } });
             res.json(updated);
             createNotification(
                 notifyPending, 'MATCH_INVITE',
                 '↔️ Karşı Teklif Aldınız',
-                `"${joinReq.rival.subCategory}" maçı için hakemlik teklifine karşılık ${counterPrice} karşı teklif geldi.`,
+                `"${joinReq.rival.subCategory}" maçı için hakemlik teklifine karşılık ${counterPrice} karşı teklif geldi.${counterMessage ? ` "${counterMessage}"` : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
-            postRefereeComment(joinReq.rival.linkedRivalId, req.userId, `↔️ Karşı teklif: ${counterPrice}`);
+            postRefereeComment(joinReq.rival.linkedRivalId, req.userId, `↔️ Karşı teklif: ${counterPrice}${counterMessage ? ` — ${counterMessage}` : ''}`);
             return;
         }
 

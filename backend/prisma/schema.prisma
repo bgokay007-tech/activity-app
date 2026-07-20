@@ -676,7 +676,8 @@ model RivalJoinRequest {
   offerPrice      String?                       // Hakem başvurusu: teklif edilen ücret
   offerMessage    String?                       // Hakem başvurusu: ek bilgi/mesaj
   offerCvUrl      String?                       // Hakem başvurusu: CV linki (varsa)
-  counterPrice    String?                       // Hakem başvurusu: ilan sahibinin karşı teklifi (status=COUNTERED iken dolu)
+  counterPrice    String?                       // Hakem başvurusu: karşı teklif fiyatı (status=COUNTERED iken dolu)
+  counterMessage  String?                       // Hakem başvurusu: karşı teklifle birlikte gönderilen mesaj
   createdAt   DateTime @default(now())
 
   rival      ActivityRequest @relation(fields: [rivalId],  references: [id], onDelete: Cascade)
