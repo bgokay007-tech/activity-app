@@ -360,7 +360,8 @@ model EquipmentOffer {
   fromUserId String
   price      Int
   message    String?
-  status     String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | WITHDRAWN
+  status     String   @default("PENDING") // PENDING | COUNTERED | ACCEPTED | REJECTED | WITHDRAWN
+  counterPrice Int?   // İlan sahibinin gönderdiği karşı teklif fiyatı (status=COUNTERED iken dolu)
   createdAt  DateTime @default(now())
 
   listing    EquipmentListing @relation(fields: [listingId],  references: [id], onDelete: Cascade)
@@ -669,6 +670,9 @@ model RivalJoinRequest {
   initiatedBy     String   @default("JOINER")  // JOINER (user asked to join) | OWNER (owner invited this user)
   isPartnerInvite Boolean  @default(false)      // OWNER davet: kurucu takımına partner daveti (true) vs rakip daveti (false)
   partnerId       String?                       // Çiftler (DOUBLE): tek başına başvurmuş kullanıcının istediği partnerin userId'si. Karşılıklı olunca (iki başvuru da birbirini gösterince) çift eşleşir.
+  offerPrice      String?                       // Hakem başvurusu: teklif edilen ücret
+  offerMessage    String?                       // Hakem başvurusu: ek bilgi/mesaj
+  offerCvUrl      String?                       // Hakem başvurusu: CV linki (varsa)
   createdAt   DateTime @default(now())
 
   rival      ActivityRequest @relation(fields: [rivalId],  references: [id], onDelete: Cascade)

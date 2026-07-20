@@ -36,11 +36,16 @@ export const getListings = async (req, res, next) => {
             },
             include: {
                 user: { select: USER_SELECT },
-                offers: { where: { status: 'PENDING' }, select: { id: true } },
+                offers: { where: { OR: [{ status: 'PENDING' }, { fromUserId: req.userId }] } },
             },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(listings.map(l => ({ ...l, offerCount: l.offers.length, offers: undefined })));
+        res.json(listings.map(l => ({
+            ...l,
+            offerCount: l.offers.filter(o => o.status === 'PENDING').length,
+            myOffer: l.offers.find(o => o.fromUserId === req.userId) || null,
+            offers: undefined,
+        })));
     } catch (err) { next(err); }
 };
 
@@ -52,10 +57,13 @@ export const getListing = async (req, res, next) => {
         const { id } = req.params;
         const listing = await prisma.equipmentListing.findUnique({
             where: { id },
-            include: { user: { select: USER_SELECT } },
+            include: {
+                user: { select: USER_SELECT },
+                offers: { where: { fromUserId: req.userId } },
+            },
         });
         if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
-        res.json(listing);
+        res.json({ ...listing, myOffer: listing.offers[0] || null, offers: undefined });
     } catch (err) { next(err); }
 };
 
@@ -177,20 +185,33 @@ export const getOffers = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-// İlan sahibi bir teklifi kabul/red eder. Kabul edilirse, anlaşılan alıcı için ilan
-// belirtilen tarihe kadar opsiyonlu (RESERVED) hale gelir.
+// İlan sahibi bir teklifi kabul/red eder ya da karşı teklif verir; karşı teklife de
+// alıcı kabul/red ile yanıt verir. Kabul edilirse (doğrudan ya da karşı teklif üzerinden),
+// anlaşılan alıcı için ilan belirtilen tarihe kadar opsiyonlu (RESERVED) hale gelir.
 export const respondOffer = async (req, res, next) => {
     try {
         const { offerId } = req.params;
-        const { action, reservedUntil } = req.body; // action: 'accept' | 'reject'
+        const { action, reservedUntil, price } = req.body; // action: 'accept' | 'reject' | 'counter' | 'accept_counter' | 'reject_counter'
 
         const offer = await prisma.equipmentOffer.findUnique({
             where: { id: offerId },
             include: { listing: true, fromUser: { select: USER_SELECT } },
         });
         if (!offer) return res.status(404).json({ message: 'Teklif bulunamadı' });
-        if (offer.listing.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
-        if (offer.status !== 'PENDING') return res.status(400).json({ message: 'Bu teklif artık bekleyen durumda değil' });
+
+        const isOwner = offer.listing.userId === req.userId;
+        const isBuyer = offer.fromUserId === req.userId;
+
+        // İlan sahibi aksiyonları
+        if (['accept', 'reject', 'counter'].includes(action)) {
+            if (!isOwner) return res.status(403).json({ message: 'Yetkisiz' });
+            if (offer.status !== 'PENDING') return res.status(400).json({ message: 'Bu teklif artık bekleyen durumda değil' });
+        }
+        // Alıcı aksiyonları — sadece kendi teklifine gelen karşı teklife yanıt verebilir
+        if (['accept_counter', 'reject_counter'].includes(action)) {
+            if (!isBuyer) return res.status(403).json({ message: 'Yetkisiz' });
+            if (offer.status !== 'COUNTERED') return res.status(400).json({ message: 'Bu teklif için bekleyen bir karşı teklif yok' });
+        }
 
         if (action === 'reject') {
             await prisma.equipmentOffer.update({ where: { id: offerId }, data: { status: 'REJECTED' } });
@@ -199,6 +220,50 @@ export const respondOffer = async (req, res, next) => {
                 offer.fromUserId, 'EQUIPMENT_OFFER',
                 '❌ Teklifiniz Reddedildi',
                 `"${offer.listing.title}" ilanına verdiğiniz ${offer.price}₺ teklif reddedildi.`,
+                { listingId: offer.listingId, category: offer.listing.category, subCategory: offer.listing.subCategory }
+            ).catch(() => {});
+            return;
+        }
+
+        if (action === 'counter') {
+            const counterPrice = parseInt(price);
+            if (!counterPrice || counterPrice <= 0) return res.status(400).json({ message: 'Geçerli bir karşı teklif fiyatı girin' });
+
+            const updated = await prisma.equipmentOffer.update({ where: { id: offerId }, data: { status: 'COUNTERED', counterPrice } });
+            res.json(updated);
+            createNotification(
+                offer.fromUserId, 'EQUIPMENT_OFFER',
+                '↔️ Karşı Teklif Aldınız',
+                `"${offer.listing.title}" ilanı için verdiğiniz ${offer.price}₺ teklife karşılık ${counterPrice}₺ karşı teklif geldi.`,
+                { listingId: offer.listingId, category: offer.listing.category, subCategory: offer.listing.subCategory }
+            ).catch(() => {});
+            return;
+        }
+
+        if (action === 'reject_counter') {
+            await prisma.equipmentOffer.update({ where: { id: offerId }, data: { status: 'REJECTED' } });
+            res.json({ message: 'Karşı teklif reddedildi' });
+            createNotification(
+                offer.listing.userId, 'EQUIPMENT_OFFER',
+                '❌ Karşı Teklifiniz Reddedildi',
+                `"${offer.listing.title}" ilanı için verdiğiniz ${offer.counterPrice}₺ karşı teklif reddedildi.`,
+                { listingId: offer.listingId, category: offer.listing.category, subCategory: offer.listing.subCategory }
+            ).catch(() => {});
+            return;
+        }
+
+        if (action === 'accept_counter') {
+            // Alıcı karşı teklifi kabul eder — fiyat karşı teklife güncellenir, ilan sahibinin
+            // opsiyon tarihi seçip nihai onayı vermesi için tekrar PENDING'e döner.
+            const updated = await prisma.equipmentOffer.update({
+                where: { id: offerId },
+                data: { status: 'PENDING', price: offer.counterPrice, counterPrice: null },
+            });
+            res.json(updated);
+            createNotification(
+                offer.listing.userId, 'EQUIPMENT_OFFER',
+                '✅ Karşı Teklifiniz Kabul Edildi',
+                `${offer.fromUser?.fullName || offer.fromUser?.username}, "${offer.listing.title}" ilanı için verdiğiniz ${offer.counterPrice}₺ karşı teklifi kabul etti — onaylamak için opsiyon tarihi seçin.`,
                 { listingId: offer.listingId, category: offer.listing.category, subCategory: offer.listing.subCategory }
             ).catch(() => {});
             return;

@@ -389,7 +389,7 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:moderateScale(13) },
 });
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing }) {
     const insets = useSafeAreaInsets();
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
@@ -415,6 +415,51 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [joinInviteCandidates, setJoinInviteCandidates] = useState([]);
     const [seedingDemoRival, setSeedingDemoRival] = useState(false);
     const seedingDemoRivalRef = useRef(false);
+
+    // Hakem ilanı: fiyat teklifi/mesaj/CV ile başvuru; asıl maç ilanı: ilan sahibi + katılımcıların
+    // ortak gördüğü hakem başvuruları listesi.
+    const [refereeApplyVisible, setRefereeApplyVisible] = useState(false);
+    const [refereeOfferPrice, setRefereeOfferPrice] = useState('');
+    const [refereeOfferMessage, setRefereeOfferMessage] = useState('');
+    const [refereeSendCv, setRefereeSendCv] = useState(true);
+    const [refereeApplySubmitting, setRefereeApplySubmitting] = useState(false);
+    const [refereeApplications, setRefereeApplications] = useState([]);
+
+    useEffect(() => {
+        setRefereeApplications([]);
+        if (item?.id && visible && item.refereeRequested) {
+            api.get(`/rivals/${item.id}/referee-applications`)
+                .then(({ data }) => setRefereeApplications(Array.isArray(data.applications) ? data.applications : []))
+                .catch(() => {});
+        }
+    }, [item?.id, visible, item?.refereeRequested]);
+
+    const submitRefereeApply = async () => {
+        setRefereeApplySubmitting(true);
+        try {
+            await api.post(`/rivals/${item.id}/respond`, {
+                offerPrice: refereeOfferPrice ? `${refereeOfferPrice}₺` : undefined,
+                offerMessage: refereeOfferMessage || undefined,
+                offerCvUrl: refereeSendCv && myRefereeListing?.cvUrl ? myRefereeListing.cvUrl : undefined,
+            });
+            setRefereeApplyVisible(false);
+            onRefresh();
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setRefereeApplySubmitting(false);
+        }
+    };
+
+    const respondRefereeApplication = async (jrId, action) => {
+        try {
+            await api.patch(`/rivals/join/${jrId}`, { action });
+            setRefereeApplications(prev => prev.filter(a => a.id !== jrId));
+            onRefresh();
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        }
+    };
 
     useEffect(() => {
         setLocalParticipants(null);
@@ -866,11 +911,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // Rakip 2 kartlarına atanmış gibi değil, sırayla numaralı gösterilir.
                             // Her slotun kendi cinsiyet gereksinimi (varsa) etiketle birlikte taşınır.
                             const gParen = (g) => g === 'MALE' ? ' (Erkek)' : g === 'FEMALE' ? ' (Kadın)' : '';
-                            const teamSlots = [
-                                { p: PartnerContent, gReq: partnerGenderReq },
-                                { p: participants[0], gReq: opp1GenderReq },
-                                { p: participants[1], gReq: opp2GenderReq },
-                            ].filter(sl => sl.p?.id);
+                            const allTeamSlots = [
+                                { key: 'partner', p: PartnerContent, gReq: partnerGenderReq },
+                                { key: 'opp1', p: participants[0], gReq: opp1GenderReq },
+                                { key: 'opp2', p: participants[1], gReq: opp2GenderReq },
+                            ];
+                            const teamSlots = allTeamSlots.filter(sl => sl.p?.id);
                             const acceptedOthers = teamSlots.map(sl => sl.p);
 
                             if (!showTeamCards) {
@@ -883,24 +929,43 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                             </View>
                                         </View>
-                                        {teamSlots.map((sl, i) => (
-                                            <View key={sl.p.id || i} style={det.playerRow}>
-                                                <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })} />
-                                                <View style={{ flex:1 }}>
-                                                    <Text style={det.playerName}>{playerDisplayName(sl.p)}</Text>
-                                                    <Text style={det.playerSub}>
-                                                        {t.cardParticipantLabel(i + 1)}
-                                                        {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
-                                                        {' · '}{sl.p.username}
-                                                    </Text>
+                                        {allTeamSlots.map((sl, i) => {
+                                            if (sl.p?.id) {
+                                                return (
+                                                    <View key={sl.key} style={det.playerRow}>
+                                                        <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })} />
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={det.playerName}>{playerDisplayName(sl.p)}</Text>
+                                                            <Text style={det.playerSub}>
+                                                                {t.cardParticipantLabel(i + 1)}
+                                                                {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
+                                                                {' · '}{sl.p.username}
+                                                            </Text>
+                                                        </View>
+                                                        {isOwner && (
+                                                            <TouchableOpacity onPress={() => removeRivalParticipant(sl.p.id, sl.p.username)} style={{ padding:3 }}>
+                                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>Çıkar</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
+                                                );
+                                            }
+                                            if (sl.key === 'partner' && pendingPartnerInvite) return null; // ayrıca aşağıda gösteriliyor
+                                            return (
+                                                <View key={sl.key} style={[det.playerRow, { opacity:0.55 }]}>
+                                                    <View style={{ width:moderateScale(32), height:moderateScale(32), borderRadius:moderateScale(16), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:14 }}>?</Text>
+                                                    </View>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={[det.playerSub, { color: colors.textMuted }]}>
+                                                            {t.cardParticipantLabel(i + 1)}
+                                                            {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
+                                                            {' — Bekleniyor'}
+                                                        </Text>
+                                                    </View>
                                                 </View>
-                                                {isOwner && (
-                                                    <TouchableOpacity onPress={() => removeRivalParticipant(sl.p.id, sl.p.username)} style={{ padding:3 }}>
-                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>Çıkar</Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                            </View>
-                                        ))}
+                                            );
+                                        })}
                                         {pendingPartnerInvite && (
                                             <View style={det.playerRow}>
                                                 <Avatar name={pendingPartnerInvite.user?.username} avatar={pendingPartnerInvite.user?.avatar} size={moderateScale(32)} color={cfg.color} />
@@ -999,7 +1064,19 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         )}
                                     </View>
                                 ))}
-                                {filled === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                                {Array.from({ length: Math.max(0, required - filled) }).map((_, i) => (
+                                    <View key={`empty-${i}`} style={[det.playerRow, { opacity:0.55 }]}>
+                                        <View style={{ width:moderateScale(32), height:moderateScale(32), borderRadius:moderateScale(16), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:14 }}>?</Text>
+                                        </View>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={[det.playerSub, { color: colors.textMuted }]}>
+                                                {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
+                                                Bekleniyor
+                                            </Text>
+                                        </View>
+                                    </View>
+                                ))}
                             </>
                         )}
                     </View>
@@ -1112,6 +1189,45 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </View>
                     )}
 
+                    {/* Hakem Başvuruları — ilan sahibi + katılımcılar ortak görür, sadece sahibi kabul/red edebilir */}
+                    {item.refereeRequested && (isOwner || isParticipant) && refereeApplications.length > 0 && (
+                        <View style={{ marginBottom:14, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(10), borderWidth:1, borderColor:'#f59e0b30', padding:9 }}>
+                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'800', marginBottom:6 }}>🟨 {t.refereeApplicationsTitle}</Text>
+                            {refereeApplications.map(app => (
+                                <View key={app.id} style={{ marginBottom:6, paddingBottom:6, borderBottomWidth:1, borderBottomColor:'#f59e0b20' }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                        <Avatar name={app.user?.username} avatar={app.user?.avatar} size={moderateScale(28)} color="#f59e0b" />
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>{app.user?.fullName || app.user?.username}</Text>
+                                            {app.offerPrice && <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>💰 {app.offerPrice}</Text>}
+                                        </View>
+                                        {app.status === 'ACCEPTED' && (
+                                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700' }}>✓ {t.refereeAcceptedLabel}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    {app.offerMessage && <Text style={{ color: colors.textSecondary, fontSize:moderateScale(11), marginTop:4 }}>{app.offerMessage}</Text>}
+                                    {app.offerCvUrl && (
+                                        <TouchableOpacity onPress={() => Linking.openURL(app.offerCvUrl)} style={{ marginTop:4, alignSelf:'flex-start', backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700' }}>📄 CV</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {isOwner && app.status === 'PENDING' && (
+                                        <View style={{ flexDirection:'row', gap:6, marginTop:6 }}>
+                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius:8, paddingVertical:5, alignItems:'center' }} onPress={() => respondRefereeApplication(app.id, 'accept')}>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.inviteAcceptBtn}</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius:8, paddingVertical:5 }]} onPress={() => respondRefereeApplication(app.id, 'reject')}>
+                                                <Text style={[s.cancelBtnText, { fontSize:moderateScale(11) }]}>{t.inviteRejectBtn}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
                     {/* Katıl / İptal aksiyonu */}
                     <View style={{ marginBottom:14 }}>
                         {/* Sahibi ve maça kabul edilmiş katılımcılar başka oyuncu davet edebilir — Davet Et ve Paylaş yan yana, tek satırda */}
@@ -1204,6 +1320,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </View>
                         ) : isFull ? (
                             <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
+                        ) : Array.isArray(item.positions) && item.positions.includes('REFEREE') ? (
+                            <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
+                                <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>🟨 {t.refereeApplyBtn}</Text>
+                            </TouchableOpacity>
                         ) : (
                             <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
                                 <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{t.joinBtn}</Text>
@@ -1260,6 +1380,39 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             disabled={sendingComment}
                         >
                             <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
+
+        {/* Hakemlik İçin Başvur — fiyat teklifi / mesaj / CV */}
+        <Modal visible={refereeApplyVisible} animationType="slide" transparent onRequestClose={() => setRefereeApplyVisible(false)}>
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37 }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>🟨 {t.refereeApplyBtn}</Text>
+                            <TouchableOpacity onPress={() => setRefereeApplyVisible(false)}><Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text></TouchableOpacity>
+                        </View>
+                        <Text style={s.fieldLabel}>{t.refereePaymentLabel}</Text>
+                        <TextInput style={s.fieldInput} value={refereeOfferPrice} onChangeText={setRefereeOfferPrice}
+                            placeholder="500" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                        <Text style={s.fieldLabel}>{t.messageFieldLabel}</Text>
+                        <TextInput style={[s.fieldInput, { height:70, textAlignVertical:'top' }]}
+                            value={refereeOfferMessage} onChangeText={setRefereeOfferMessage}
+                            placeholder={t.refereeApplyMsgPh} placeholderTextColor={colors.textMuted} multiline />
+                        {myRefereeListing?.cvUrl && (
+                            <TouchableOpacity onPress={() => setRefereeSendCv(v => !v)} style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:4, marginBottom:10 }}>
+                                <View style={{ width:20, height:20, borderRadius:5, borderWidth:2, borderColor: refereeSendCv ? '#f59e0b' : colors.border, backgroundColor: refereeSendCv ? '#f59e0b' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                                    {refereeSendCv && <Text style={{ color:'#fff', fontSize:12, fontWeight:'900' }}>✓</Text>}
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:moderateScale(12) }}>{t.refereeSendCvLabel}</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity style={[s.submitBtn, { backgroundColor:'#f59e0b' }, refereeApplySubmitting && { opacity:0.6 }]}
+                            onPress={submitRefereeApply} disabled={refereeApplySubmitting}>
+                            <Text style={s.submitBtnText}>{refereeApplySubmitting ? t.submittingBtn : t.refereeApplySendBtn}</Text>
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
@@ -1342,7 +1495,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
 // ─── Rival Card ────────────────────────────────────────────────────────────────
 
-function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0 }) {
+function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0, refereeListings = [] }) {
     const t = useT();
     const cfg = getConfig(sub);
     const isVolleyball = sub === 'volleyball';
@@ -1710,6 +1863,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             handleWithdraw={() => { setDetailVisible(false); setTimeout(handleWithdraw, 300); }}
             onRefresh={onRefresh}
             onEdit={() => { setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
+            myRefereeListing={refereeListings.find(r => r.userId === myId)}
         />
         {editVisible && (
             <CreateRivalModal
@@ -9573,6 +9727,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [submittingOffer, setSubmittingOffer] = useState(false);
     const [respondingOfferId, setRespondingOfferId] = useState(null);
     const [acceptDateModal, setAcceptDateModal] = useState({ visible: false, offerId: null });
+    const [counterInput, setCounterInput] = useState({ visible: false, offerId: null, price: '' });
     const [equipmentActionLoading, setEquipmentActionLoading] = useState(false);
     const [reportingListingId, setReportingListingId] = useState(null);
     const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
@@ -10641,7 +10796,8 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!parseInt(offerForm.price) || parseInt(offerForm.price) <= 0) return Alert.alert('', 'Geçerli bir teklif fiyatı girin');
         setSubmittingOffer(true);
         try {
-            await api.post(`/equipment/${selectedEquipment.id}/offers`, { price: parseInt(offerForm.price), message: offerForm.message.trim() || undefined });
+            const { data } = await api.post(`/equipment/${selectedEquipment.id}/offers`, { price: parseInt(offerForm.price), message: offerForm.message.trim() || undefined });
+            setSelectedEquipment(prev => prev ? { ...prev, myOffer: data } : prev);
             setShowOfferForm(false);
             setOfferForm({ price: '', message: '' });
             Alert.alert('', t.equipOfferSentMsg);
@@ -10649,15 +10805,29 @@ export default function SubCategoryScreen({ route, navigation }) {
         finally { setSubmittingOffer(false); }
     };
 
-    const respondEquipmentOffer = async (offerId, action, reservedUntil) => {
+    const respondEquipmentOffer = async (offerId, action, reservedUntil, price) => {
         setRespondingOfferId(offerId);
         try {
-            const { data } = await api.patch(`/equipment/offers/${offerId}`, { action, reservedUntil });
+            const { data } = await api.patch(`/equipment/offers/${offerId}`, { action, reservedUntil, price });
             if (action === 'accept' && data.listing) {
                 setSelectedEquipment(prev => prev ? { ...prev, ...data.listing } : prev);
                 setEquipmentListings(prev => prev.map(e => e.id === data.listing.id ? { ...e, ...data.listing } : e));
             }
+            if (action === 'counter') setCounterInput({ visible: false, offerId: null, price: '' });
             await loadEquipmentOffers(selectedEquipment.id);
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setRespondingOfferId(null); }
+    };
+
+    // Alıcı, ilan sahibinin gönderdiği karşı teklife kabul/red ile yanıt verir —
+    // kendi ilanına ait teklif listesini görme yetkisi olmadığı için (getOffers sahibe özel),
+    // ilanı tekrar çekip myOffer'ı tazeler.
+    const respondToMyOfferCounter = async (offerId, action) => {
+        setRespondingOfferId(offerId);
+        try {
+            await api.patch(`/equipment/offers/${offerId}`, { action });
+            const { data } = await api.get(`/equipment/${selectedEquipment.id}`);
+            setSelectedEquipment(prev => prev ? { ...prev, ...data } : prev);
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setRespondingOfferId(null); }
     };
@@ -11587,20 +11757,51 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     </View>
                                                                     {off.message ? <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:2 }}>{off.message}</Text> : null}
                                                                     {off.status === 'PENDING' ? (
-                                                                        <View style={{ flexDirection:'row', gap:6, marginTop:6 }}>
-                                                                            <TouchableOpacity
-                                                                                disabled={respondingOfferId === off.id}
-                                                                                onPress={() => setAcceptDateModal({ visible:true, offerId: off.id })}
-                                                                                style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
-                                                                                <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:12 }}>{t.equipOfferAccept}</Text>
-                                                                            </TouchableOpacity>
-                                                                            <TouchableOpacity
-                                                                                disabled={respondingOfferId === off.id}
-                                                                                onPress={() => respondEquipmentOffer(off.id, 'reject')}
-                                                                                style={{ flex:1, backgroundColor:'#ef444420', borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
-                                                                                <Text style={{ color:'#f87171', fontWeight:'800', fontSize:12 }}>{t.equipOfferReject}</Text>
-                                                                            </TouchableOpacity>
-                                                                        </View>
+                                                                        <>
+                                                                            <View style={{ flexDirection:'row', gap:6, marginTop:6 }}>
+                                                                                <TouchableOpacity
+                                                                                    disabled={respondingOfferId === off.id}
+                                                                                    onPress={() => setAcceptDateModal({ visible:true, offerId: off.id })}
+                                                                                    style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
+                                                                                    <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:12 }}>{t.equipOfferAccept}</Text>
+                                                                                </TouchableOpacity>
+                                                                                <TouchableOpacity
+                                                                                    disabled={respondingOfferId === off.id}
+                                                                                    onPress={() => setCounterInput({ visible:true, offerId: off.id, price:'' })}
+                                                                                    style={{ flex:1, backgroundColor:'#a855f720', borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#a855f750' }}>
+                                                                                    <Text style={{ color:'#c084fc', fontWeight:'800', fontSize:12 }}>{t.equipCounterBtn}</Text>
+                                                                                </TouchableOpacity>
+                                                                                <TouchableOpacity
+                                                                                    disabled={respondingOfferId === off.id}
+                                                                                    onPress={() => respondEquipmentOffer(off.id, 'reject')}
+                                                                                    style={{ flex:1, backgroundColor:'#ef444420', borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
+                                                                                    <Text style={{ color:'#f87171', fontWeight:'800', fontSize:12 }}>{t.equipOfferReject}</Text>
+                                                                                </TouchableOpacity>
+                                                                            </View>
+                                                                            {counterInput.visible && counterInput.offerId === off.id && (
+                                                                                <View style={{ flexDirection:'row', gap:6, marginTop:6 }}>
+                                                                                    <TextInput
+                                                                                        placeholder={t.equipCounterPricePh}
+                                                                                        placeholderTextColor={colors.textMuted}
+                                                                                        value={counterInput.price}
+                                                                                        onChangeText={v => setCounterInput(p => ({ ...p, price: v.replace(/[^0-9]/g,'') }))}
+                                                                                        keyboardType="numeric"
+                                                                                        style={{ flex:1, backgroundColor:colors.surface, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }}
+                                                                                    />
+                                                                                    <TouchableOpacity
+                                                                                        disabled={respondingOfferId === off.id || !parseInt(counterInput.price)}
+                                                                                        onPress={() => respondEquipmentOffer(off.id, 'counter', undefined, parseInt(counterInput.price))}
+                                                                                        style={{ backgroundColor:'#a855f7', borderRadius:8, paddingHorizontal:12, justifyContent:'center' }}>
+                                                                                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:12 }}>{t.equipCounterSendBtn}</Text>
+                                                                                    </TouchableOpacity>
+                                                                                </View>
+                                                                            )}
+                                                                        </>
+                                                                    ) : off.status === 'COUNTERED' ? (
+                                                                        <>
+                                                                            <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800', marginTop:4 }}>{t.equipCounteredBadge(off.counterPrice)}</Text>
+                                                                            <Text style={{ color:colors.textMuted, fontSize:11, marginTop:2 }}>{t.equipCounterWaitingMsg}</Text>
+                                                                        </>
                                                                     ) : (
                                                                         <Text style={{ color: off.status === 'ACCEPTED' ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'700', marginTop:4 }}>
                                                                             {off.status === 'ACCEPTED' ? t.equipOfferAcceptedBadge : t.equipOfferRejectedBadge}
@@ -11653,6 +11854,38 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             </TouchableOpacity>
                                                         )}
                                                     </View>
+                                                    {selectedEquipment?.myOffer && (
+                                                        <View style={{ backgroundColor:colors.surface2, borderRadius:10, padding:8, borderWidth:1, borderColor:colors.border, marginBottom:10 }}>
+                                                            {selectedEquipment.myOffer.status === 'PENDING' && (
+                                                                <Text style={{ color:'#facc15', fontSize:12, fontWeight:'700' }}>{t.equipMyOfferPendingMsg(selectedEquipment.myOffer.price)}</Text>
+                                                            )}
+                                                            {selectedEquipment.myOffer.status === 'COUNTERED' && (
+                                                                <>
+                                                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>{t.equipMyOfferCounteredMsg(selectedEquipment.myOffer.counterPrice)}</Text>
+                                                                    <View style={{ flexDirection:'row', gap:6, marginTop:6 }}>
+                                                                        <TouchableOpacity
+                                                                            disabled={respondingOfferId === selectedEquipment.myOffer.id}
+                                                                            onPress={() => respondToMyOfferCounter(selectedEquipment.myOffer.id, 'accept_counter')}
+                                                                            style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
+                                                                            <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:12 }}>{t.equipAcceptCounterBtn}</Text>
+                                                                        </TouchableOpacity>
+                                                                        <TouchableOpacity
+                                                                            disabled={respondingOfferId === selectedEquipment.myOffer.id}
+                                                                            onPress={() => respondToMyOfferCounter(selectedEquipment.myOffer.id, 'reject_counter')}
+                                                                            style={{ flex:1, backgroundColor:'#ef444420', borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
+                                                                            <Text style={{ color:'#f87171', fontWeight:'800', fontSize:12 }}>{t.equipRejectCounterBtn}</Text>
+                                                                        </TouchableOpacity>
+                                                                    </View>
+                                                                </>
+                                                            )}
+                                                            {selectedEquipment.myOffer.status === 'ACCEPTED' && (
+                                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.equipMyOfferAcceptedMsg}</Text>
+                                                            )}
+                                                            {selectedEquipment.myOffer.status === 'REJECTED' && (
+                                                                <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>{t.equipMyOfferRejectedMsg}</Text>
+                                                            )}
+                                                        </View>
+                                                    )}
                                                     {showOfferForm && (
                                                         <View style={{ backgroundColor:colors.surface2, borderRadius:10, padding:8, borderWidth:1, borderColor:colors.border, marginBottom:10, gap:6 }}>
                                                             <TextInput
@@ -11842,7 +12075,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         : (
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                                 {refereeMatches.map(item => (
-                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} />
+                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
                                                 ))}
                                             </View>
                                         )
