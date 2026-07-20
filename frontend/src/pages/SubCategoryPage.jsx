@@ -394,55 +394,114 @@ function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) 
 }
 
 // Rival Form Component
-function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatchType = 'SINGLE', myId, myInterest }) {
+function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatchType = 'SINGLE', myId, myInterest, editItem = null }) {
     const { t } = useTranslation();
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isVolleyball = sub === 'volleyball';
+    const isEdit = !!editItem;
 
-    const [form, setForm] = useState({
-        message: '',
-        level: 'BEGINNER',
-        levelDetail: '',
-        location: '',
-        matchDate: '',
-        matchTime: '',
-        duration: '',
-        isCourtReserved: false,
-        flexibleSchedule: false,
-        courtName: '',
-        courtNumber: '',
-        courtAddress: '',
-        courtLat: null,
-        courtLng: null,
-        matchType: defaultMatchType,
-        matchMode: 'PRACTICE',
-        // Team sport specific
-        surface: sub === 'football' ? 'HALI_SAHA' : sub === 'volleyball' ? 'BEACH' : '',
-        indoor: null,
-        teamSize: sub === 'football' ? 5 : 2,
-        minRating: '',
-        maxRating: '',
-        genderReq: 'MIX',
-        partnerGenderReq: 'MIX',
-        opp1GenderReq: 'MIX',
-        opp2GenderReq: 'MIX',
-        refereeRequested: false,
-        refereePayment: '',
-        refereeInvites: [],
-        // Tesis rezervasyonu (venue kort seçildiğinde dolar) — gerçek rezervasyon
-        // ilan submit edilirken yapılır, sadece seçim burada tutulur.
-        venueId: null,
-        venueCourtId: null,
-        venueBookingDate: '',
-        venueBookingStart: '',
-        venueBookingEnd: '',
-        venuePayMethod: 'CASH',
-        venueCourtPrice: 0,
-        venueLabel: '', // "Tesis Adı — Kort 1" özet gösterimi için
-        courtMutual: false,
-        courtFeePerPerson: '',
-        teamFlexibility: 'FLEXIBLE',
+    const [form, setForm] = useState(() => {
+        if (editItem) {
+            return {
+                message: editItem.message || '',
+                level: editItem.level || 'BEGINNER',
+                levelDetail: editItem.levelDetail || '',
+                location: editItem.location || '',
+                matchDate: editItem.matchDate ? new Date(editItem.matchDate).toISOString().slice(0, 10) : '',
+                matchTime: editItem.matchTime || '',
+                duration: editItem.duration != null ? String(editItem.duration) : '',
+                isCourtReserved: !!editItem.isCourtReserved,
+                flexibleSchedule: !!editItem.flexibleSchedule,
+                courtName: editItem.courtName || '',
+                courtNumber: '',
+                courtAddress: editItem.courtAddress || '',
+                courtLat: editItem.courtLat ?? null,
+                courtLng: editItem.courtLng ?? null,
+                matchType: editItem.matchType === 'DOUBLE' ? 'DOUBLE' : 'SINGLE',
+                matchMode: editItem.matchMode || 'PRACTICE',
+                surface: editItem.surface || (sub === 'football' ? 'HALI_SAHA' : sub === 'volleyball' ? 'BEACH' : ''),
+                indoor: editItem.indoor ?? null,
+                teamSize: editItem.teamSize || (sub === 'football' ? 5 : 2),
+                minRating: editItem.minRating != null ? String(editItem.minRating) : '',
+                maxRating: editItem.maxRating != null ? String(editItem.maxRating) : '',
+                genderReq: editItem.genderReq || 'MIX',
+                partnerGenderReq: editItem.partnerGenderReq || 'MIX',
+                opp1GenderReq: editItem.opp1GenderReq || 'MIX',
+                opp2GenderReq: editItem.opp2GenderReq || 'MIX',
+                refereeRequested: !!editItem.refereeRequested,
+                refereePayment: editItem.refereePayment || '',
+                refereeInvites: [],
+                venueId: editItem.venueId || null,
+                venueCourtId: editItem.venueCourtId || null,
+                venueBookingDate: editItem.matchDate ? new Date(editItem.matchDate).toISOString().slice(0, 10) : '',
+                venueBookingStart: editItem.matchTime || '',
+                venueBookingEnd: '',
+                venuePayMethod: 'CASH',
+                venueCourtPrice: editItem.courtFeePerPerson || 0,
+                venueLabel: editItem.courtName || '',
+                courtMutual: !!editItem.courtFeePerPerson,
+                courtFeePerPerson: editItem.courtFeePerPerson != null ? String(editItem.courtFeePerPerson) : '',
+                teamFlexibility: editItem.teamFlexibility || 'FLEXIBLE',
+            };
+        }
+        return {
+            message: '',
+            level: 'BEGINNER',
+            levelDetail: '',
+            location: '',
+            matchDate: '',
+            matchTime: '',
+            duration: '',
+            isCourtReserved: false,
+            flexibleSchedule: false,
+            courtName: '',
+            courtNumber: '',
+            courtAddress: '',
+            courtLat: null,
+            courtLng: null,
+            matchType: defaultMatchType,
+            matchMode: 'PRACTICE',
+            // Team sport specific
+            surface: sub === 'football' ? 'HALI_SAHA' : sub === 'volleyball' ? 'BEACH' : '',
+            indoor: null,
+            teamSize: sub === 'football' ? 5 : 2,
+            minRating: '',
+            maxRating: '',
+            genderReq: 'MIX',
+            partnerGenderReq: 'MIX',
+            opp1GenderReq: 'MIX',
+            opp2GenderReq: 'MIX',
+            refereeRequested: false,
+            refereePayment: '',
+            refereeInvites: [],
+            // Tesis rezervasyonu (venue kort seçildiğinde dolar) — gerçek rezervasyon
+            // ilan submit edilirken yapılır, sadece seçim burada tutulur.
+            venueId: null,
+            venueCourtId: null,
+            venueBookingDate: '',
+            venueBookingStart: '',
+            venueBookingEnd: '',
+            venuePayMethod: 'CASH',
+            venueCourtPrice: 0,
+            venueLabel: '', // "Tesis Adı — Kort 1" özet gösterimi için
+            courtMutual: false,
+            courtFeePerPerson: '',
+            teamFlexibility: 'FLEXIBLE',
+        };
     });
+    // Düzenleme modunda orijinal kort rezervasyonunu izlemek için — submit'te aynı
+    // kort/saat mi yoksa değişti mi karşılaştırılır (reschedule vs yeni rezervasyon).
+    const originalVenueRef = useRef(editItem ? {
+        venueId: editItem.venueId || null,
+        venueCourtId: editItem.venueCourtId || null,
+        reservationId: editItem.venueReservationId || null,
+    } : null);
+    // Davet edilecek partner/rakip 1/rakip 2 (tenis/padel çiftler) veya tekli rakip — fiyat
+    // pazarlığı olmadan sadece kullanıcı seçimi, referee daveti gibi ayrı bir mekanizma.
+    const [partnerInvite, setPartnerInvite] = useState(null);
+    const [opp1Invite, setOpp1Invite] = useState(null);
+    const [opp2Invite, setOpp2Invite] = useState(null);
+    const [singleOppInvite, setSingleOppInvite] = useState(null);
     const [showVenueSearch, setShowVenueSearch] = useState(false);
     const [venueSearchInitialName, setVenueSearchInitialName] = useState('');
     const [refInviteSearchQ, setRefInviteSearchQ] = useState('');
@@ -472,7 +531,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     const [isSearching, setIsSearching] = useState(false);
     const [showCourts, setShowCourts] = useState(false);
     const [courtFromDB, setCourtFromDB] = useState(false);
-    const [courtNameQuery, setCourtNameQuery] = useState('');
+    const [courtNameQuery, setCourtNameQuery] = useState(editItem?.courtName || '');
     const [showAddCourt, setShowAddCourt] = useState(false);
     const [newCourt, setNewCourt] = useState({ name: '', address: '', surface: '', indoor: false, fee: false, feeAmount: '', lights: false });
     const [isAddingCourt, setIsAddingCourt] = useState(false);
@@ -641,12 +700,91 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 return;
             }
         }
-        if (needsPartner && senderTeam.length === 0) {
-            setValidationError(t('rival.choose_partner_warn'));
+        setIsSubmitting(true);
+
+        // ── Düzenleme modu: PATCH /rivals/:id (sadece backend'in kabul ettiği alanlar) ──
+        if (isEdit) {
+            const orig = originalVenueRef.current || {};
+            let venueReservationId = orig.reservationId || null;
+            try {
+                if (form.venueId && form.venueCourtId) {
+                    const sameCourt = !!(orig.reservationId && orig.venueId === form.venueId && orig.venueCourtId === form.venueCourtId);
+                    if (sameCourt && !form.flexibleSchedule && form.matchDate && form.matchTime) {
+                        const durMins = parseInt(form.duration, 10) || 60;
+                        const [sh, sm] = form.matchTime.split(':').map(Number);
+                        const endTotal = sh * 60 + sm + durMins;
+                        const newEndTime = `${String(Math.floor(endTotal / 60) % 24).padStart(2, '0')}:${String(endTotal % 60).padStart(2, '0')}`;
+                        try {
+                            await api.patch(`/venues/reservations/${orig.reservationId}/reschedule`, {
+                                newDate: form.matchDate, newStartTime: form.matchTime, newEndTime,
+                            });
+                            venueReservationId = orig.reservationId;
+                        } catch (err) {
+                            const st = err?.response?.status;
+                            if (st === 400 || st === 404) venueReservationId = null; // eski rezervasyon geçersiz — aşağıda yeniden alınacak
+                            else throw err;
+                        }
+                    } else if (!sameCourt) {
+                        venueReservationId = null;
+                    }
+                    if (!venueReservationId) {
+                        const { data: resData } = await api.post(`/venues/${form.venueId}/courts/${form.venueCourtId}/reserve`, {
+                            date: form.matchDate, startTime: form.matchTime, endTime: form.venueBookingEnd || undefined,
+                            paymentMethod: form.venuePayMethod || 'CASH',
+                        });
+                        venueReservationId = resData?.reservation?.id || null;
+                        if (orig.reservationId && !sameCourt) {
+                            api.delete(`/venues/reservations/${orig.reservationId}`).catch(() => {});
+                        }
+                    }
+                } else if (orig.reservationId) {
+                    // Kullanıcı tesis rezervasyonunu kaldırdı
+                    api.delete(`/venues/reservations/${orig.reservationId}`).catch(() => {});
+                    venueReservationId = null;
+                }
+
+                const combinedCourtName = form.courtNumber && form.courtName
+                    ? `${form.courtName} · ${form.courtNumber}`
+                    : form.courtName || form.courtNumber || '';
+
+                const payload = {
+                    message: form.message,
+                    matchDate: form.flexibleSchedule ? null : (form.matchDate || null),
+                    matchTime: form.flexibleSchedule ? null : (form.matchTime || null),
+                    duration: form.flexibleSchedule ? null : (form.duration || null),
+                    location: form.location,
+                    courtName: combinedCourtName,
+                    courtAddress: form.courtAddress,
+                    courtLat: form.courtLat,
+                    courtLng: form.courtLng,
+                    minRating: form.minRating !== '' ? form.minRating : null,
+                    maxRating: form.maxRating !== '' ? form.maxRating : null,
+                    matchMode: form.matchMode,
+                    genderReq: form.genderReq,
+                    partnerGenderReq: form.partnerGenderReq,
+                    opp1GenderReq: form.opp1GenderReq,
+                    opp2GenderReq: form.opp2GenderReq,
+                    venueId: form.venueId || null,
+                    venueCourtId: form.venueCourtId || null,
+                    venueReservationId,
+                    isCourtReserved: form.isCourtReserved,
+                    surface: form.surface || null,
+                    courtFeePerPerson: form.courtFeePerPerson !== '' ? form.courtFeePerPerson : null,
+                    refereeRequested: form.refereeRequested,
+                    refereePayment: form.refereeRequested && form.refereePayment ? form.refereePayment : null,
+                };
+                const { data } = await api.patch(`/rivals/${editItem.id}`, payload);
+                onSubmit(data, true);
+            } catch (err) {
+                console.error(err);
+                setValidationError(err?.response?.data?.message || err?.message || 'Sunucu hatası');
+            } finally {
+                setIsSubmitting(false);
+            }
             return;
         }
 
-        setIsSubmitting(true);
+        // ── Yeni ilan oluşturma ──
         // Tesis kortu seçildiyse gerçek rezervasyon burada, ilan gönderilmeden hemen önce
         // oluşturulur (form yarım kalırsa kort boşa bloke edilmesin diye şimdiye kadar ertelendi).
         let venueReservationId = null;
@@ -673,6 +811,9 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 ...(isTeamSport && { teamSize: form.teamSize, surface: form.surface }),
                 ...(isTeamBuilder && senderTeam.length > 0 && { senderTeam }),
                 ...(venueReservationId && { venueReservationId }),
+                ...(needsPartner && partnerInvite && { partnerInviteId: partnerInvite.id }),
+                ...(needsPartner && opp1Invite && { opp1InviteId: opp1Invite.id }),
+                ...(needsPartner && opp2Invite && { opp2InviteId: opp2Invite.id }),
             };
         delete payload.courtNumber;
             delete payload.venueBookingDate; delete payload.venueBookingStart; delete payload.venueBookingEnd;
@@ -682,7 +823,12 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             if (sub === 'tennis') { delete payload.level; delete payload.levelDetail; delete payload.teamSize; }
             if (!isTeamSport && sub !== 'tennis') { delete payload.surface; delete payload.teamSize; }
             const { data } = await api.post('/rivals', payload);
-            onSubmit(data);
+            // SINGLE formatta seçilen rakip, ilan create-time davetinden ayrı olarak
+            // ilan oluşturulduktan sonra inviteToRival endpoint'i ile davet edilir.
+            if (!isTeamSport && form.matchType === 'SINGLE' && singleOppInvite && data?.id) {
+                api.post(`/rivals/${data.id}/invite`, { userId: singleOppInvite.id }).catch(() => {});
+            }
+            onSubmit(data, false);
         } catch (err) {
             console.error(err);
             if (venueReservationId) {
@@ -726,9 +872,9 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         <label className="text-gray-400 text-xs mb-2 block">{t('rival.players_per_side')}</label>
                         <div className="grid grid-cols-5 gap-1.5">
                             {(isVolleyball ? VOLLEYBALL_SIZES : FOOTBALL_SIZES).map(n => (
-                                <button key={n} type="button"
-                                    onClick={() => setForm(f => ({ ...f, teamSize: n }))}
-                                    className={`py-2.5 rounded-xl border font-black text-sm transition ${form.teamSize === n ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                                <button key={n} type="button" disabled={isEdit}
+                                    onClick={() => !isEdit && setForm(f => ({ ...f, teamSize: n }))}
+                                    className={`py-2.5 rounded-xl border font-black text-sm transition ${form.teamSize === n ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                     {n}v{n}
                                 </button>
                             ))}
@@ -744,15 +890,31 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         { value: 'SINGLE', icon: '🎾', label: t('rival.single_label'), desc: '1 vs 1' },
                         { value: 'DOUBLE', icon: '🎾🎾', label: t('rival.double_label'), desc: '2 vs 2' },
                     ].map(opt => (
-                        <button key={opt.value} type="button"
-                            onClick={() => setForm(f => ({ ...f, matchType: opt.value }))}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition ${form.matchType === opt.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                        <button key={opt.value} type="button" disabled={isEdit}
+                            onClick={() => !isEdit && setForm(f => ({ ...f, matchType: opt.value }))}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition ${form.matchType === opt.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}>
                             <span className="text-xl">{opt.icon}</span>
                             <div><p className="font-bold text-sm">{opt.label}</p><p className="text-xs opacity-70">{opt.desc}</p></div>
                         </button>
                     ))}
                 </div>
             </div>
+            )}
+
+            {/* Rakip davet et — tekli maç, henüz oluşturulmamış ilan için (fiyat/mesaj yok) */}
+            {!isEdit && !isTeamSport && form.matchType === 'SINGLE' && (
+                <div className="bg-gray-800/60 border border-purple-500/20 rounded-2xl p-3">
+                    <p className="text-white font-bold text-xs mb-2">🎯 {t('rival.invite_opponent')}</p>
+                    <InvitePickerRow
+                        value={singleOppInvite}
+                        myId={myId}
+                        excludeIds={[]}
+                        onSelect={setSingleOppInvite}
+                        onRemove={() => setSingleOppInvite(null)}
+                        placeholder={t('rival.search_user_ph')}
+                        buttonLabel={t('rival.invite_opponent')}
+                    />
+                </div>
             )}
 
             {/* Rating range restriction — individual (non-team) sports */}
@@ -830,45 +992,77 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 </div>
             </div>
 
-            {/* ── TEAM BUILDER (football, teamSize > 1, any mode) ── */}
-            {!form.flexibleSchedule && isTeamBuilder && (
+            {/* ── TEAM BUILDER (football, teamSize > 1, any mode) / PARTNER-RAKİP DAVETİ (tenis/padel çiftler) ── */}
+            {!form.flexibleSchedule && isTeamBuilder && (!isEdit || needsPartner) && (
                 <div className="bg-gray-800/60 border border-green-500/30 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                        <p className="text-white font-bold text-sm">⚽ {t('rival.build_team')}</p>
-                        <div className="text-right">
-                            <p className={`font-black text-sm bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
-                                {teamAvgRating} ★ {t('rival.avg')}
-                            </p>
-                            <p className="text-gray-500 text-[10px]">{senderTeam.length + 1}/{form.teamSize} {t('rival.players')}</p>
-                        </div>
-                    </div>
-
-                    {needsPartner && (
-                        <div className="space-y-2 border-t border-gray-700 pt-3">
-                            {[
-                                { field: 'partnerGenderReq', label: t('rival.partner_gender_label') },
-                                { field: 'opp1GenderReq', label: t('rival.opp1_gender_label') },
-                                { field: 'opp2GenderReq', label: t('rival.opp2_gender_label') },
-                            ].map(row => (
-                                <div key={row.field} className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-gray-400 text-xs flex-shrink-0">{row.label}</span>
-                                    <div className="flex gap-1.5">
-                                        {[
-                                            { id: 'MIX', label: t('rival.gender_mix') },
-                                            { id: 'MALE', label: t('rival.gender_male') },
-                                            { id: 'FEMALE', label: t('rival.gender_female') },
-                                        ].map(g => (
-                                            <button key={g.id} type="button" onClick={() => setForm(f => ({ ...f, [row.field]: g.id }))}
-                                                className={`px-2.5 py-1 rounded-lg border font-bold text-[11px] transition ${form[row.field] === g.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'}`}>
-                                                {g.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
+                    {!needsPartner && (
+                        <div className="flex items-center justify-between">
+                            <p className="text-white font-bold text-sm">⚽ {t('rival.build_team')}</p>
+                            <div className="text-right">
+                                <p className={`font-black text-sm bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
+                                    {teamAvgRating} ★ {t('rival.avg')}
+                                </p>
+                                <p className="text-gray-500 text-[10px]">{senderTeam.length + 1}/{form.teamSize} {t('rival.players')}</p>
+                            </div>
                         </div>
                     )}
 
+                    {needsPartner && (
+                        <>
+                            <p className="text-white font-bold text-sm">🤝 {t('rival.build_team')}</p>
+                            <div className="space-y-2 border-t border-gray-700 pt-3">
+                                {[
+                                    { field: 'partnerGenderReq', label: t('rival.partner_gender_label') },
+                                    { field: 'opp1GenderReq', label: t('rival.opp1_gender_label') },
+                                    { field: 'opp2GenderReq', label: t('rival.opp2_gender_label') },
+                                ].map(row => (
+                                    <div key={row.field} className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-gray-400 text-xs flex-shrink-0">{row.label}</span>
+                                        <div className="flex gap-1.5">
+                                            {[
+                                                { id: 'MIX', label: t('rival.gender_mix') },
+                                                { id: 'MALE', label: t('rival.gender_male') },
+                                                { id: 'FEMALE', label: t('rival.gender_female') },
+                                            ].map(g => (
+                                                <button key={g.id} type="button" onClick={() => setForm(f => ({ ...f, [row.field]: g.id }))}
+                                                    className={`px-2.5 py-1 rounded-lg border font-bold text-[11px] transition ${form[row.field] === g.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'}`}>
+                                                    {g.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Partner/rakip daveti — sadece yeni ilan oluştururken; düzenlemede backend
+                                partnerInviteId/opp1InviteId/opp2InviteId kabul etmiyor. */}
+                            {!isEdit && (
+                                <div className="space-y-2 border-t border-gray-700 pt-3">
+                                    <InvitePickerRow
+                                        value={partnerInvite} myId={myId}
+                                        excludeIds={[opp1Invite?.id, opp2Invite?.id].filter(Boolean)}
+                                        onSelect={setPartnerInvite} onRemove={() => setPartnerInvite(null)}
+                                        placeholder={t('rival.search_user_ph')} buttonLabel={t('rival.invite_partner')}
+                                    />
+                                    <InvitePickerRow
+                                        value={opp1Invite} myId={myId}
+                                        excludeIds={[partnerInvite?.id, opp2Invite?.id].filter(Boolean)}
+                                        onSelect={setOpp1Invite} onRemove={() => setOpp1Invite(null)}
+                                        placeholder={t('rival.search_user_ph')} buttonLabel={t('rival.invite_opp1')}
+                                    />
+                                    <InvitePickerRow
+                                        value={opp2Invite} myId={myId}
+                                        excludeIds={[partnerInvite?.id, opp1Invite?.id].filter(Boolean)}
+                                        onSelect={setOpp2Invite} onRemove={() => setOpp2Invite(null)}
+                                        placeholder={t('rival.search_user_ph')} buttonLabel={t('rival.invite_opp2')}
+                                    />
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {!needsPartner && (
+                    <>
                     {/* Team list — self + teammates */}
                     <div className="space-y-1.5">
                         {/* Self (always first) */}
@@ -950,10 +1144,12 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     {spotsLeft === 0 && (
                         <p className="text-green-400 text-xs text-center font-bold">{t('rival.team_full')}</p>
                     )}
-                    {(isCompetitiveTeam || needsPartner) && (
+                    {isCompetitiveTeam && (
                         <p className="text-yellow-400 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
                             {t('rival.team_elo_note', { avg: teamAvgRating })}
                         </p>
+                    )}
+                    </>
                     )}
                 </div>
             )}
@@ -1538,9 +1734,9 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     )}
                 </div>
             )}
-            {(isCompetitiveTeam || needsPartner) && spotsLeft > 0 && (
+            {isCompetitiveTeam && spotsLeft > 0 && (
                 <p className="text-red-400 text-xs text-center font-bold">
-                    {needsPartner ? t('rival.choose_partner_warn') : t('rival.fill_spots', { n: form.teamSize })}
+                    {t('rival.fill_spots', { n: form.teamSize })}
                 </p>
             )}
             {validationError && (
@@ -1550,12 +1746,74 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             )}
             <button
                 type="submit"
-                disabled={isSubmitting || (!form.flexibleSchedule && (isCompetitiveTeam || needsPartner) && spotsLeft > 0)}
+                disabled={isSubmitting || (!form.flexibleSchedule && isCompetitiveTeam && spotsLeft > 0)}
                 className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50 transition hover:opacity-90`}
             >
-                {isSubmitting ? t('rival.posting') : t('rival.post_request')}
+                {isSubmitting ? (isEdit ? t('rival.saving') : t('rival.posting')) : (isEdit ? t('common.save') : t('rival.post_request'))}
             </button>
         </form>
+    );
+}
+
+// Küçük kullanıcı arama + davet seçici — fiyat/mesaj pazarlığı olmadan sadece kullanıcı
+// seçimi (partner/rakip daveti, hakem davetinden farklı olarak).
+function InvitePickerRow({ value, myId, excludeIds = [], onSelect, onRemove, placeholder, buttonLabel }) {
+    const [open, setOpen] = useState(false);
+    const [q, setQ] = useState('');
+    const [results, setResults] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    const search = async (query) => {
+        if (query.length < 2) { setResults([]); return; }
+        setLoading(true);
+        try {
+            const { data } = await api.get(`/users/search?q=${encodeURIComponent(query)}`);
+            setResults(data.filter(u => u.id !== myId && !excludeIds.includes(u.id)));
+        } catch {} finally { setLoading(false); }
+    };
+
+    if (value) {
+        return (
+            <div className="flex items-center gap-2 bg-gray-700/50 rounded-lg px-3 py-1.5">
+                <span className="text-gray-400 text-[11px] flex-shrink-0">{buttonLabel}</span>
+                <span className="text-white text-xs font-bold flex-1 truncate">@{value.username}</span>
+                <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-300 text-xs flex-shrink-0">✕</button>
+            </div>
+        );
+    }
+
+    if (!open) {
+        return (
+            <button type="button" onClick={() => setOpen(true)}
+                className="w-full text-left text-purple-300 text-xs font-bold bg-purple-500/10 border border-purple-500/30 rounded-lg px-3 py-1.5 hover:bg-purple-500/20 transition">
+                + {buttonLabel}
+            </button>
+        );
+    }
+
+    return (
+        <div className="space-y-1.5">
+            <div className="flex gap-2 items-center">
+                <input autoFocus value={q}
+                    onChange={e => { setQ(e.target.value); search(e.target.value); }}
+                    placeholder={placeholder}
+                    className="flex-1 bg-gray-700 text-white rounded-xl px-3 py-2 border border-gray-600 focus:outline-none focus:border-purple-500 text-xs" />
+                {loading && <span className="text-gray-400 text-xs">...</span>}
+                <button type="button" onClick={() => { setOpen(false); setQ(''); setResults([]); }} className="text-gray-400 hover:text-white text-xs flex-shrink-0">✕</button>
+            </div>
+            {results.length > 0 && (
+                <div className="bg-gray-700 rounded-xl border border-gray-600 overflow-hidden">
+                    {results.slice(0, 5).map(u => (
+                        <button key={u.id} type="button"
+                            onClick={() => { onSelect(u); setOpen(false); setQ(''); setResults([]); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-600 transition text-left border-b border-gray-600/50 last:border-0">
+                            <span className="text-white text-xs font-bold flex-1 truncate">{u.fullName || u.username}</span>
+                            <span className="text-gray-500 text-[10px]">@{u.username}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -3238,6 +3496,7 @@ function SubCategoryPage() {
     const [newTextPost, setNewTextPost] = useState('');
     const [isPosting, setIsPosting] = useState(false);
     const [showRivalForm, setShowRivalForm] = useState(false);
+    const [editingRival, setEditingRival] = useState(null);
     const [rivalCityFilter, setRivalCityFilter] = useState('');
     const [rivalDateFilter, setRivalDateFilter] = useState('all'); // 'all' | 'today' | 'week' | 'month' | 'custom'
     const [rivalDateFrom, setRivalDateFrom] = useState('');
@@ -4470,7 +4729,7 @@ function SubCategoryPage() {
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => setShowRivalForm(!showRivalForm)}
+                                    onClick={() => { setShowRivalForm(!showRivalForm); setEditingRival(null); }}
                                     className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm`}
                                 >
                                     {showRivalForm ? `✕ ${t('common.cancel')}` : `+ ${t('rival.create_listing')}`}
@@ -4485,11 +4744,17 @@ function SubCategoryPage() {
                                     myId={myId}
                                     myInterest={myInterest}
                                     defaultMatchType={sub === 'padel' ? 'DOUBLE' : 'SINGLE'}
-                                    onSubmit={(data) => {
-                                        setRivals(prev => [data, ...prev]);
+                                    editItem={editingRival}
+                                    onSubmit={(data, isEdit) => {
+                                        if (isEdit) {
+                                            setRivals(prev => prev.map(r => r.id === data.id ? data : r));
+                                        } else {
+                                            setRivals(prev => [data, ...prev]);
+                                        }
                                         setShowRivalForm(false);
+                                        setEditingRival(null);
                                     }}
-                                    onClose={() => setShowRivalForm(false)}
+                                    onClose={() => { setShowRivalForm(false); setEditingRival(null); }}
                                 />
                             )}
 
@@ -4574,6 +4839,14 @@ function SubCategoryPage() {
                                                         <div className="bg-gray-800 border border-gray-700 text-gray-400 font-bold py-1.5 px-3 rounded-xl text-xs text-center">
                                                             📋 {filled}/{required} joined
                                                         </div>
+                                                        {(!rival.status || rival.status === 'OPEN') && (
+                                                            <button
+                                                                onClick={() => { setEditingRival(rival); setShowRivalForm(true); }}
+                                                                className="bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 font-bold px-3 py-1.5 rounded-xl text-xs transition"
+                                                            >
+                                                                ✏️ {t('rival.edit_listing')}
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => navigate(`/messages?userId=${rival.senderId}`)}
                                                             className="bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/40 text-blue-400 font-bold px-3 py-1.5 rounded-xl text-xs transition"
