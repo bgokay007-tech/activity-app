@@ -323,6 +323,37 @@ export const getRivalById = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Asıl maç ilanına bağlı "Hakem Arıyorum" ilanının başvurularını (fiyat teklifi/mesaj/CV)
+// döner — ilan sahibi VE maça kabul edilmiş katılımcılar ortak görebilir.
+export const getRefereeApplications = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const mainMatch = await prisma.activityRequest.findUnique({
+            where: { id },
+            select: { senderId: true, participants: true, senderTeam: true },
+        });
+        if (!mainMatch) return res.status(404).json({ message: 'İlan bulunamadı' });
+        const participants = Array.isArray(mainMatch.participants) ? mainMatch.participants : [];
+        const senderTeamArr = Array.isArray(mainMatch.senderTeam) ? mainMatch.senderTeam : [];
+        const isInvolved = mainMatch.senderId === req.userId
+            || participants.some(p => p?.id === req.userId)
+            || senderTeamArr.some(p => p?.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+
+        const refAd = await prisma.activityRequest.findFirst({
+            where: { linkedRivalId: id },
+            include: {
+                joinRequests: {
+                    where: { status: { in: ['PENDING', 'ACCEPTED'] } },
+                    orderBy: { createdAt: 'asc' },
+                    include: { user: { select: SENDER_SELECT } },
+                },
+            },
+        });
+        res.json({ refereeAdId: refAd?.id || null, applications: refAd?.joinRequests || [] });
+    } catch (error) { next(error); }
+};
+
 const TR_PROVINCES = [
     'Adana','Adıyaman','Afyonkarahisar','Ağrı','Aksaray','Amasya','Ankara','Antalya',
     'Ardahan','Artvin','Aydın','Balıkesir','Bartın','Batman','Bayburt','Bilecik',
@@ -970,14 +1001,16 @@ export const sendJoinRequest = async (req, res, next) => {
             if (request.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Partner seçimi sadece çiftler ilanlarında mümkün' });
             if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
         }
+        // Hakem başvurusu: fiyat teklifi / mesaj / CV — sadece positions:['REFEREE'] ilanlarında anlamlı
+        const { offerPrice, offerMessage, offerCvUrl } = req.body;
         if (existing?.status === 'REJECTED') {
             // Reddedilen isteği yeniden PENDING yap
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId: req.userId } },
-                data: { status: 'PENDING', joiningTeam, partnerId },
+                data: { status: 'PENDING', joiningTeam, partnerId, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId } });
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null } });
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
