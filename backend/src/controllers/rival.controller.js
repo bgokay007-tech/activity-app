@@ -1039,7 +1039,10 @@ export const sendJoinRequest = async (req, res, next) => {
             isRefereeAd
                 ? `${me?.fullName || me?.username || 'Biri'}, "${request.subCategory}" maçınız için hakemlik başvurusu gönderdi.`
                 : `${me?.fullName || me?.username || 'Biri'}, "${request.subCategory}" ilanınıza katılmak istiyor.`,
-            { rivalId: id, category: request.category, subCategory: request.subCategory }
+            // Hakem başvurusunda bildirim, bağlı bir maç varsa asıl maça yönlendirir — başvurular
+            // orada "Hakem Başvuruları" bölümünde görünür. Bağımsız hakem ilanıysa (eski akış)
+            // ilanın kendisine, Hakemler sekmesi üzerinden.
+            { rivalId: isRefereeAd ? (request.linkedRivalId || id) : id, category: request.category, subCategory: request.subCategory, ...(isRefereeAd && !request.linkedRivalId && { refereeAd: true }) }
         ).catch(() => {});
 
         if (partnerId) {
@@ -1210,7 +1213,7 @@ export const inviteToRival = async (req, res, next) => {
             userId, 'MATCH_INVITE',
             isRefereeAd ? '🟨 Hakemlik Daveti' : '🎾 Maç Daveti',
             isRefereeAd ? `@${me?.username} sizi maçında hakemlik yapmaya davet etti.` : `@${me?.username} sizi bir maça davet etti.`,
-            { category: rival.category, subCategory: rival.subCategory, rivalId: rival.id }
+            { category: rival.category, subCategory: rival.subCategory, rivalId: rival.id, ...(isRefereeAd && { refereeAd: true }) }
         ).catch(() => {});
 
         const updatedRival = await prisma.activityRequest.findUnique({
@@ -1554,7 +1557,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 joinReq.userId, 'MATCH_INVITE_DECLINED',
                 '❌ Hakemlik Başvurunuz Reddedildi',
                 `"${joinReq.rival.subCategory}" maçı için hakemlik başvurunuz reddedildi.`,
-                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
             return;
         }
@@ -1568,7 +1571,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 joinReq.userId, 'MATCH_INVITE',
                 '↔️ Karşı Teklif Aldınız',
                 `"${joinReq.rival.subCategory}" maçı için verdiğiniz hakemlik teklifine karşılık ${counterPrice} karşı teklif geldi.`,
-                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
             return;
         }
@@ -1580,7 +1583,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 joinReq.rival.senderId, 'MATCH_INVITE_DECLINED',
                 '❌ Karşı Teklifiniz Reddedildi',
                 `Hakem, "${joinReq.rival.subCategory}" maçı için verdiğiniz karşı teklifi reddetti.`,
-                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+                { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             return;
         }
@@ -1595,7 +1598,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 joinReq.rival.senderId, 'MATCH_INVITE',
                 '✅ Karşı Teklifiniz Kabul Edildi',
                 `Hakem, "${joinReq.rival.subCategory}" maçı için verdiğiniz ${joinReq.counterPrice} karşı teklifi kabul etti — onaylamanız bekleniyor.`,
-                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+                { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             return;
         }
@@ -1804,10 +1807,11 @@ export const getUpcomingMatches = async (req, res, next) => {
         const matches = await prisma.activityRequest.findMany({
             where: {
                 status: 'MATCHED',
+                matchType: { not: 'PLAYER_WANTED' }, // hakem/oyuncu-arıyorum ilanları gerçek maç değil, bu listeye karışmasın
                 ...catWhere,
                 ...(subCategory && { subCategory }),
             },
-            include: { sender: { select: SENDER_SELECT }, _count: { select: { matchComments: true } } },
+            include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT }, _count: { select: { matchComments: true } } },
             orderBy: { matchDate: 'asc' },
         });
 
@@ -2643,8 +2647,8 @@ export const cancelMatch = async (req, res, next) => {
 export const getMyUpcomingMatches = async (req, res, next) => {
     try {
         const all = await prisma.activityRequest.findMany({
-            where: { status: 'MATCHED' },
-            include: { sender: { select: SENDER_SELECT } },
+            where: { status: 'MATCHED', matchType: { not: 'PLAYER_WANTED' } },
+            include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT } },
             orderBy: { matchDate: 'asc' },
         });
         const myId = req.userId;
