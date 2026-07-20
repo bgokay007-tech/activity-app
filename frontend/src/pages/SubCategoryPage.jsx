@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
@@ -129,6 +129,268 @@ const COURT_NUMBERS = [
     { value: 'B', label: 'B Kortu' },
 ];
 
+// ── Tesis ara + kort rezervasyonu (ilan formu içinden) ──────────────────────
+// Gerçek rezervasyon burada oluşturulmuyor — sadece slot seçimi + doğrulaması yapılıp
+// RivalForm'a aktarılıyor; kortu fiilen bloke eden rezervasyon "İlan Oluştur"a
+// basıldığında yapılır (mobildeki VenueBookingModal ile aynı mantık).
+function vbPad(n) { return String(n).padStart(2, '0'); }
+function vbDateStr(offset = 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${vbPad(d.getMonth() + 1)}-${vbPad(d.getDate())}`;
+}
+const VB_DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => vbDateStr(i));
+function vbDateLabel(str) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function vbIsPastSlot(date, timeStr) { return new Date(`${date}T${timeStr}:00`).getTime() < Date.now(); }
+const VB_SLOT_TYPE_LABEL = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 Dakika', VAR_DURATION: 'Esnek Saat', FLEXIBLE: 'Esnek Saat' };
+
+function VenueCourtColumn({ court, data, date, selected, onPick }) {
+    const [varStart, setVarStart] = useState(null);
+    if (!data || data.loading) {
+        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-gray-500 text-xs text-center py-6">Yükleniyor...</p></div>;
+    }
+    if (data.error || !data.type) {
+        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-red-400 text-xs text-center py-6">Yüklenemedi</p></div>;
+    }
+    if (data.type === 'NOT_YET_OPEN') {
+        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || 'Henüz açılmadı'}</p></div>;
+    }
+    if (data.type === 'MAINTENANCE') {
+        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-orange-400 text-xs text-center py-6">🔧 Bakımda</p></div>;
+    }
+
+    if (data.type === 'VAR_DURATION' || data.type === 'FLEXIBLE') {
+        const windows = data.windows || [];
+        const DURATIONS = [60, 90, 120, 150, 180];
+        return (
+            <div className="w-52 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+                <p className="text-white font-bold text-sm mb-2">{court.name}</p>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">Boş pencere yok</p>}
+                    {windows.map((w, i) => {
+                        const isSel = varStart?.start === w.start;
+                        return (
+                            <div key={i} className={`rounded-lg border p-2 ${isSel ? 'border-purple-500 bg-purple-600/10' : 'border-gray-700'}`}>
+                                <button type="button" onClick={() => setVarStart(isSel ? null : w)} className="w-full text-left">
+                                    <p className="text-gray-300 text-xs font-bold">{w.start}–{w.end}</p>
+                                    <p className="text-gray-500 text-[10px]">{w.pricePerHour > 0 ? `${w.pricePerHour}₺/saat` : 'Ücretsiz'}</p>
+                                </button>
+                                {isSel && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                        {DURATIONS.filter(d => d <= w.durationMins).map(d => {
+                                            const endM = (parseInt(w.start.split(':')[0], 10) * 60 + parseInt(w.start.split(':')[1], 10)) + d;
+                                            const end = `${vbPad(Math.floor(endM / 60) % 24)}:${vbPad(endM % 60)}`;
+                                            const price = Math.round((w.pricePerHour || 0) * (d / 60));
+                                            const isPicked = selected?.courtId === court.id && selected?.startTime === w.start && selected?.endTime === end;
+                                            return (
+                                                <button key={d} type="button"
+                                                    onClick={() => onPick(court, { start: w.start, end, price, durationMins: d })}
+                                                    className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition ${isPicked ? 'bg-green-600/20 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
+                                                    {isPicked ? '✓ ' : ''}{d < 60 ? `${d}dk` : `${d / 60}s`}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
+
+    // FULL_HOUR / HALF_HOUR / NINETY_MIN
+    const slots = data.slots || [];
+    return (
+        <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+            <p className="text-white font-bold text-sm mb-1">{court.name}</p>
+            <p className="text-gray-600 text-[10px] mb-2">{VB_SLOT_TYPE_LABEL[data.type] || data.type}</p>
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">Slot yok</p>}
+                {slots.map(s => {
+                    const isPicked = selected?.courtId === court.id && selected?.startTime === s.start;
+                    const isPast = s.free && !s.maintenance && vbIsPastSlot(date, s.start);
+                    const disabled = !s.free || s.maintenance || isPast;
+                    return (
+                        <button key={s.start} type="button" disabled={disabled}
+                            onClick={() => onPick(court, { start: s.start, end: s.end, price: s.price || 0 })}
+                            className={`w-full text-left px-2 py-1.5 rounded-lg border text-xs font-bold transition ${
+                                isPicked ? 'bg-green-600/20 border-green-600 text-green-400'
+                                : disabled ? 'bg-gray-800/50 border-gray-800 text-gray-600 cursor-not-allowed'
+                                : 'bg-gray-800 border-gray-700 text-gray-200 hover:border-purple-500'
+                            }`}>
+                            <span className="block">{s.start}–{s.end}</span>
+                            <span className="block text-[10px] font-normal opacity-80">
+                                {isPicked ? '✓ Seçildi' : !s.free ? (s.status === 'PENDING' ? '⏳ Onay Bekliyor' : 'Dolu') : s.maintenance ? '🔧 Bakım' : isPast ? 'Geçmiş' : (s.price > 0 ? `${s.price}₺` : 'Ücretsiz')}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
+    const [date, setDate] = useState(VB_DATE_OPTIONS[0]);
+    const [slotsByCourt, setSlotsByCourt] = useState({});
+    const [selected, setSelected] = useState(null); // { courtId, courtName, startTime, endTime, price, surface, indoor }
+
+    const fetchAll = useCallback(() => {
+        const courts = venue.courts || [];
+        setSlotsByCourt(Object.fromEntries(courts.map(c => [c.id, { loading: true }])));
+        courts.forEach(c => {
+            api.get(`/venues/${venue.id}/courts/${c.id}/slots`, { params: { date } })
+                .then(({ data }) => setSlotsByCourt(prev => ({ ...prev, [c.id]: { ...data, loading: false } })))
+                .catch(() => setSlotsByCourt(prev => ({ ...prev, [c.id]: { error: true, loading: false } })));
+        });
+    }, [venue, date]);
+
+    useEffect(() => { fetchAll(); }, [fetchAll]);
+    useEffect(() => { setSelected(null); }, [date]);
+
+    const pick = (court, slot) => {
+        if (vbIsPastSlot(date, slot.start)) { alert('Geçmiş bir saate rezervasyon yapamazsınız.'); return; }
+        setSelected({
+            courtId: court.id, courtName: court.name, startTime: slot.start, endTime: slot.end,
+            price: slot.price || 0, surface: court.surface || null, indoor: court.indoor ?? venue.courtIndoorDefault ?? false,
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 z-[60] flex flex-col" onClick={onClose}>
+            <div className="bg-gray-950 flex-1 flex flex-col max-w-5xl w-full mx-auto my-0 sm:my-6 sm:rounded-2xl overflow-hidden border border-gray-800" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
+                    <div className="min-w-0">
+                        <h3 className="text-white font-black text-lg truncate">{venue.name}</h3>
+                        <p className="text-gray-500 text-xs truncate">📍 {venue.city}{venue.district ? ` / ${venue.district}` : ''}{venue.address ? ` — ${venue.address}` : ''}</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none shrink-0">✕</button>
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto px-5 py-3 shrink-0">
+                    {VB_DATE_OPTIONS.map(d => (
+                        <button key={d} type="button" onClick={() => setDate(d)}
+                            className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${date === d ? `bg-gradient-to-r ${config.color} border-transparent text-white` : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                            {vbDateLabel(d)}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex-1 overflow-x-auto overflow-y-hidden px-5 pb-3">
+                    <div className="flex gap-3 h-full">
+                        {(venue.courts || []).map(court => (
+                            <VenueCourtColumn key={court.id} court={court} data={slotsByCourt[court.id]} date={date} selected={selected} onPick={pick} />
+                        ))}
+                    </div>
+                </div>
+
+                <div className="px-5 py-3 border-t border-gray-800 shrink-0 flex items-center justify-between gap-3">
+                    <p className="text-gray-400 text-xs flex-1 min-w-0 truncate">
+                        {selected ? `${selected.courtName} · ${vbDateLabel(date)} · ${selected.startTime}–${selected.endTime}${selected.price > 0 ? ` · ${selected.price}₺` : ''}` : 'Bir saat seçin'}
+                    </p>
+                    <button type="button" disabled={!selected || confirming}
+                        onClick={() => onConfirm(venue, date, selected)}
+                        className={`bg-gradient-to-r ${config.color} text-white font-bold px-5 py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50 shrink-0`}>
+                        {confirming ? '...' : 'Bu Saati Seç'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) {
+    const [city, setCity] = useState('');
+    const [name, setName] = useState(initialName);
+    const [venues, setVenues] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [searched, setSearched] = useState(false);
+    const [activeVenue, setActiveVenue] = useState(null);
+    const [confirming, setConfirming] = useState(false);
+
+    const search = async () => {
+        setLoading(true);
+        setSearched(true);
+        try {
+            const { data } = await api.get('/venues/search', { params: { branch: sub, city: city.trim() || undefined, name: name.trim() || undefined } });
+            setVenues(data.items || []);
+        } catch { setVenues([]); }
+        finally { setLoading(false); }
+    };
+
+    useEffect(() => { search(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const confirmSlot = async (venue, date, slot) => {
+        setConfirming(true);
+        try {
+            await api.post(`/venues/${venue.id}/courts/${slot.courtId}/validate-slot`, {
+                date, startTime: slot.startTime, endTime: slot.endTime, paymentMethod: 'CASH',
+            });
+            onBooked({
+                venueId: venue.id, venueCourtId: slot.courtId,
+                venueLabel: `${venue.name} — ${slot.courtName}`,
+                city: venue.city, address: venue.address,
+                date, startTime: slot.startTime, endTime: slot.endTime,
+                price: slot.price, surface: slot.surface, indoor: slot.indoor,
+                payMethod: (Array.isArray(venue.acceptedPayments) && venue.acceptedPayments.includes('CASH')) ? 'CASH' : (venue.acceptedPayments?.[0] || 'CASH'),
+            });
+        } catch (e) {
+            alert(e?.response?.data?.message || 'Bu saat seçilemiyor, lütfen başka bir saat seçin.');
+        } finally { setConfirming(false); }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-white font-black text-lg">🏟️ Tesis Ara</h3>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-4">
+                    <input value={city} onChange={e => setCity(e.target.value)} placeholder="Şehir"
+                        onKeyDown={e => e.key === 'Enter' && search()}
+                        className="flex-1 min-w-[120px] bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
+                    <input value={name} onChange={e => setName(e.target.value)} placeholder="Tesis adı"
+                        onKeyDown={e => e.key === 'Enter' && search()}
+                        className="flex-1 min-w-[120px] bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
+                    <button type="button" onClick={search} disabled={loading}
+                        className={`bg-gradient-to-r ${config.color} text-white font-bold px-5 py-2.5 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
+                        {loading ? '...' : '🔍 Ara'}
+                    </button>
+                </div>
+
+                {searched && !loading && venues.length === 0 && (
+                    <p className="text-gray-500 text-center py-10 text-sm">Sonuç bulunamadı.</p>
+                )}
+                <div className="space-y-2">
+                    {venues.map(v => (
+                        <button key={v.id} type="button" onClick={() => setActiveVenue(v)}
+                            className="w-full text-left bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-xl p-3 transition">
+                            <div className="flex items-start justify-between gap-2">
+                                <p className="text-white font-bold text-sm">{v.name}</p>
+                                {v.avgRating ? <span className="text-yellow-400 text-xs font-bold shrink-0">⭐ {v.avgRating}</span> : null}
+                            </div>
+                            <p className="text-gray-500 text-xs mt-0.5">📍 {v.city}{v.district ? ` / ${v.district}` : ''}{v.address ? ` — ${v.address}` : ''}</p>
+                            <span className="inline-block mt-1.5 bg-gray-800 text-gray-400 text-[10px] font-bold px-2 py-0.5 rounded-full">🏟️ {(v.courts || []).length} kort</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {activeVenue && (
+                <VenueSlotPanel venue={activeVenue} config={config} confirming={confirming}
+                    onClose={() => setActiveVenue(null)}
+                    onConfirm={confirmSlot} />
+            )}
+        </div>
+    );
+}
+
 // Rival Form Component
 function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatchType = 'SINGLE', myId, myInterest }) {
     const { t } = useTranslation();
@@ -156,10 +418,26 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
         surface: sub === 'football' ? 'HALI_SAHA' : sub === 'volleyball' ? 'BEACH' : '',
         indoor: null,
         teamSize: sub === 'football' ? 5 : 2,
+        genderReq: 'MIX',
+        partnerGenderReq: 'MIX',
+        opp1GenderReq: 'MIX',
+        opp2GenderReq: 'MIX',
         refereeRequested: false,
         refereePayment: '',
         refereeInvites: [],
+        // Tesis rezervasyonu (venue kort seçildiğinde dolar) — gerçek rezervasyon
+        // ilan submit edilirken yapılır, sadece seçim burada tutulur.
+        venueId: null,
+        venueCourtId: null,
+        venueBookingDate: '',
+        venueBookingStart: '',
+        venueBookingEnd: '',
+        venuePayMethod: 'CASH',
+        venueCourtPrice: 0,
+        venueLabel: '', // "Tesis Adı — Kort 1" özet gösterimi için
     });
+    const [showVenueSearch, setShowVenueSearch] = useState(false);
+    const [venueSearchInitialName, setVenueSearchInitialName] = useState('');
     const [refInviteSearchQ, setRefInviteSearchQ] = useState('');
     const [refInviteSearchResults, setRefInviteSearchResults] = useState([]);
     const [refInviteSearchLoading, setRefInviteSearchLoading] = useState(false);
@@ -261,6 +539,15 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     };
 
     const selectCourt = (court) => {
+        if (court.isBusinessVenue) {
+            // Onaylı bir tesis olarak kayıtlı — düz metin kort adı yerine gerçek
+            // rezervasyon akışına (Tesis Ara) yönlendir.
+            setShowCourts(false);
+            setShowAddCourt(false);
+            setVenueSearchInitialName(court.name);
+            setShowVenueSearch(true);
+            return;
+        }
         setForm(prev => ({
             ...prev,
             courtName: court.name,
@@ -296,6 +583,38 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
         }
     };
 
+    const applyVenueBooking = (b) => {
+        const [sh, sm] = b.startTime.split(':').map(Number);
+        const [eh, em] = b.endTime.split(':').map(Number);
+        const durationMins = (eh * 60 + em) - (sh * 60 + sm);
+        setForm(f => ({
+            ...f,
+            venueId: b.venueId,
+            venueCourtId: b.venueCourtId,
+            venueBookingDate: b.date,
+            venueBookingStart: b.startTime,
+            venueBookingEnd: b.endTime,
+            venuePayMethod: b.payMethod,
+            venueCourtPrice: b.price,
+            venueLabel: b.venueLabel,
+            isCourtReserved: true,
+            matchDate: b.date,
+            matchTime: b.startTime,
+            duration: durationMins > 0 ? String(durationMins) : f.duration,
+            location: f.location || b.city || '',
+            courtName: b.venueLabel,
+            courtAddress: b.address || '',
+            ...(b.surface && { surface: b.surface }),
+            ...(b.indoor !== null && b.indoor !== undefined && { indoor: b.indoor }),
+        }));
+        setShowVenueSearch(false);
+    };
+
+    const clearVenueBooking = () => setForm(f => ({
+        ...f, venueId: null, venueCourtId: null, venueBookingDate: '', venueBookingStart: '', venueBookingEnd: '',
+        venuePayMethod: 'CASH', venueCourtPrice: 0, venueLabel: '', isCourtReserved: false,
+    }));
+
     const [validationError, setValidationError] = useState('');
 
     const handleSubmit = async (e) => {
@@ -321,7 +640,18 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
         }
 
         setIsSubmitting(true);
+        // Tesis kortu seçildiyse gerçek rezervasyon burada, ilan gönderilmeden hemen önce
+        // oluşturulur (form yarım kalırsa kort boşa bloke edilmesin diye şimdiye kadar ertelendi).
+        let venueReservationId = null;
         try {
+            if (form.venueId && form.venueCourtId) {
+                const { data: resData } = await api.post(`/venues/${form.venueId}/courts/${form.venueCourtId}/reserve`, {
+                    date: form.venueBookingDate, startTime: form.venueBookingStart, endTime: form.venueBookingEnd,
+                    paymentMethod: form.venuePayMethod || 'CASH',
+                });
+                venueReservationId = resData?.reservation?.id || null;
+            }
+
             const combinedCourtName = form.courtNumber && form.courtName
             ? `${form.courtName} · ${form.courtNumber}`
             : form.courtName || form.courtNumber || '';
@@ -335,14 +665,20 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 ...(form.duration && { duration: Number(form.duration) }),
                 ...(isTeamSport && { teamSize: form.teamSize, surface: form.surface }),
                 ...(isTeamBuilder && senderTeam.length > 0 && { senderTeam }),
+                ...(venueReservationId && { venueReservationId }),
             };
         delete payload.courtNumber;
+            delete payload.venueBookingDate; delete payload.venueBookingStart; delete payload.venueBookingEnd;
+            delete payload.venuePayMethod; delete payload.venueCourtPrice; delete payload.venueLabel;
             if (sub === 'tennis') { delete payload.level; delete payload.levelDetail; delete payload.teamSize; }
             if (!isTeamSport && sub !== 'tennis') { delete payload.surface; delete payload.teamSize; }
             const { data } = await api.post('/rivals', payload);
             onSubmit(data);
         } catch (err) {
             console.error(err);
+            if (venueReservationId) {
+                api.delete(`/venues/reservations/${venueReservationId}`).catch(() => {});
+            }
             setValidationError(err?.response?.data?.message || err?.message || 'Sunucu hatası');
         } finally {
             setIsSubmitting(false);
@@ -410,6 +746,25 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             </div>
             )}
 
+            {/* Gender restriction — tennis/padel only */}
+            {(sub === 'tennis' || sub === 'padel') && form.matchType === 'SINGLE' && (
+                <div>
+                    <label className="text-gray-400 text-xs mb-2 block">{t('rival.gender_req_label')}</label>
+                    <div className="flex gap-2">
+                        {[
+                            { id: 'MIX', label: t('rival.gender_mix') },
+                            { id: 'MALE', label: t('rival.gender_male') },
+                            { id: 'FEMALE', label: t('rival.gender_female') },
+                        ].map(g => (
+                            <button key={g.id} type="button" onClick={() => setForm(f => ({ ...f, genderReq: g.id }))}
+                                className={`flex-1 py-2 rounded-xl border font-bold text-xs transition ${form.genderReq === g.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                                {g.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Match mode: Practice / Competitive */}
             <div>
                 <label className="text-gray-400 text-xs mb-2 block">{t('rival.mode')}</label>
@@ -458,6 +813,32 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                             <p className="text-gray-500 text-[10px]">{senderTeam.length + 1}/{form.teamSize} {t('rival.players')}</p>
                         </div>
                     </div>
+
+                    {needsPartner && (
+                        <div className="space-y-2 border-t border-gray-700 pt-3">
+                            {[
+                                { field: 'partnerGenderReq', label: t('rival.partner_gender_label') },
+                                { field: 'opp1GenderReq', label: t('rival.opp1_gender_label') },
+                                { field: 'opp2GenderReq', label: t('rival.opp2_gender_label') },
+                            ].map(row => (
+                                <div key={row.field} className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-gray-400 text-xs flex-shrink-0">{row.label}</span>
+                                    <div className="flex gap-1.5">
+                                        {[
+                                            { id: 'MIX', label: t('rival.gender_mix') },
+                                            { id: 'MALE', label: t('rival.gender_male') },
+                                            { id: 'FEMALE', label: t('rival.gender_female') },
+                                        ].map(g => (
+                                            <button key={g.id} type="button" onClick={() => setForm(f => ({ ...f, [row.field]: g.id }))}
+                                                className={`px-2.5 py-1 rounded-lg border font-bold text-[11px] transition ${form[row.field] === g.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'}`}>
+                                                {g.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Team list — self + teammates */}
                     <div className="space-y-1.5">
@@ -998,6 +1379,24 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
 
 
             {!form.flexibleSchedule && (
+                form.venueId ? (
+                    <div className="flex items-center gap-3 bg-purple-500/10 border border-purple-500/30 rounded-xl px-4 py-3">
+                        <span className="text-purple-300 text-xl flex-shrink-0">🏟️</span>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm font-bold truncate">{form.venueLabel}</p>
+                            <p className="text-gray-400 text-xs">{vbDateLabel(form.venueBookingDate)} · {form.venueBookingStart}–{form.venueBookingEnd}{form.venueCourtPrice > 0 ? ` · ${form.venueCourtPrice}₺` : ''}</p>
+                        </div>
+                        <button type="button" onClick={clearVenueBooking} className="text-red-400 hover:text-red-300 text-xs font-bold flex-shrink-0">✕ {t('common.cancel')}</button>
+                    </div>
+                ) : (
+                    <button type="button" onClick={() => setShowVenueSearch(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-300 font-bold py-2.5 rounded-xl text-sm transition">
+                        🏟️ Tesis Ara ve Kort Rezerve Et
+                    </button>
+                )
+            )}
+
+            {!form.flexibleSchedule && !form.venueId && (
             <div className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-3">
                 <input
                     type="checkbox"
@@ -1010,6 +1409,11 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     {t('rival.court_reserved')}
                 </label>
             </div>
+            )}
+
+            {showVenueSearch && (
+                <VenueSearchModal sub={sub} config={config} initialName={venueSearchInitialName}
+                    onClose={() => { setShowVenueSearch(false); setVenueSearchInitialName(''); }} onBooked={applyVenueBooking} />
             )}
 
             {COACH_EXPANDED_SPORTS.has(sub) && (
@@ -4126,7 +4530,7 @@ function SubCategoryPage() {
                                             {participants.length > 0 && (
                                                 <div className="flex flex-wrap items-center gap-2 mb-3">
                                                     <span className="text-gray-500 text-xs flex-shrink-0">Joined:</span>
-                                                    {participants.map(p => (
+                                                    {participants.filter(Boolean).map(p => (
                                                         <div key={p.id} className="flex items-center gap-1.5 bg-gray-800 rounded-full pl-1 pr-2 py-1">
                                                             <div className={`w-6 h-6 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
                                                                 {p.username?.[0]?.toUpperCase()}
