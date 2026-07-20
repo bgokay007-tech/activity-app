@@ -156,7 +156,33 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
         surface: sub === 'football' ? 'HALI_SAHA' : sub === 'volleyball' ? 'BEACH' : '',
         indoor: null,
         teamSize: sub === 'football' ? 5 : 2,
+        refereeRequested: false,
+        refereePayment: '',
+        refereeInvites: [],
     });
+    const [refInviteSearchQ, setRefInviteSearchQ] = useState('');
+    const [refInviteSearchResults, setRefInviteSearchResults] = useState([]);
+    const [refInviteSearchLoading, setRefInviteSearchLoading] = useState(false);
+    const [refInviteDraft, setRefInviteDraft] = useState(null); // { id, username, fullName, price, message }
+
+    const searchRefereeInvitees = async (q) => {
+        if (q.length < 2) { setRefInviteSearchResults([]); return; }
+        setRefInviteSearchLoading(true);
+        try {
+            const { data } = await api.get(`/users/search?q=${encodeURIComponent(q)}`);
+            setRefInviteSearchResults(data.filter(u => u.id !== myId && !form.refereeInvites.some(inv => inv.userId === u.id)));
+        } catch {} finally { setRefInviteSearchLoading(false); }
+    };
+
+    const confirmRefereeInvite = () => {
+        if (!refInviteDraft) return;
+        setForm(f => ({ ...f, refereeInvites: [...f.refereeInvites, { userId: refInviteDraft.id, username: refInviteDraft.username, fullName: refInviteDraft.fullName, price: refInviteDraft.price, message: refInviteDraft.message }] }));
+        setRefInviteDraft(null);
+        setRefInviteSearchQ('');
+        setRefInviteSearchResults([]);
+    };
+
+    const removeRefereeInvite = (userId) => setForm(f => ({ ...f, refereeInvites: f.refereeInvites.filter(i => i.userId !== userId) }));
     const [courts, setCourts] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showCourts, setShowCourts] = useState(false);
@@ -986,6 +1012,73 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             </div>
             )}
 
+            {COACH_EXPANDED_SPORTS.has(sub) && (
+                <div className="bg-gray-800/60 border border-yellow-500/30 rounded-2xl p-4 space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={form.refereeRequested}
+                            onChange={e => setForm(f => ({ ...f, refereeRequested: e.target.checked, ...(!e.target.checked && { refereeInvites: [] }) }))}
+                            className="w-4 h-4 accent-yellow-500 cursor-pointer flex-shrink-0" />
+                        <span className="text-white font-bold text-sm">🟨 {t('referees.request_referee')}</span>
+                    </label>
+                    {form.refereeRequested && (
+                        <div className="space-y-3 pl-1">
+                            <input value={form.refereePayment} onChange={e => setForm(f => ({ ...f, refereePayment: e.target.value }))}
+                                placeholder={t('referees.referee_fee_ph')}
+                                className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 border border-gray-700 focus:outline-none focus:border-yellow-500 text-sm" />
+
+                            <div>
+                                <p className="text-gray-400 text-xs font-bold mb-1.5">{t('referees.invite_referee')} <span className="text-gray-600">({t('coaches.about_optional')})</span></p>
+                                {form.refereeInvites.length > 0 && (
+                                    <div className="space-y-1.5 mb-2">
+                                        {form.refereeInvites.map(inv => (
+                                            <div key={inv.userId} className="flex items-center gap-2 bg-gray-700/50 rounded-lg px-3 py-1.5">
+                                                <span className="text-white text-xs font-bold flex-1 truncate">@{inv.username}</span>
+                                                {inv.price && <span className="text-yellow-400 text-xs font-bold">{inv.price}₺</span>}
+                                                <button type="button" onClick={() => removeRefereeInvite(inv.userId)} className="text-red-400 hover:text-red-300 text-xs">✕</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {!refInviteDraft ? (
+                                    <div className="flex gap-2 items-center">
+                                        <input value={refInviteSearchQ}
+                                            onChange={e => { setRefInviteSearchQ(e.target.value); searchRefereeInvitees(e.target.value); }}
+                                            placeholder={t('referees.search_referee_ph')}
+                                            className="flex-1 bg-gray-700 text-white rounded-xl px-3 py-2 border border-gray-600 focus:outline-none focus:border-yellow-500 text-xs" />
+                                        {refInviteSearchLoading && <span className="text-gray-400 text-xs">...</span>}
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-700/60 rounded-xl p-3 space-y-2 border border-yellow-500/30">
+                                        <p className="text-white text-xs font-bold">@{refInviteDraft.username}</p>
+                                        <input value={refInviteDraft.price} onChange={e => setRefInviteDraft(d => ({ ...d, price: e.target.value.replace(/[^0-9]/g, '') }))}
+                                            placeholder={t('referees.invite_price_ph')} inputMode="numeric"
+                                            className="w-full bg-gray-800 text-white rounded-lg px-3 py-1.5 border border-gray-600 focus:outline-none text-xs" />
+                                        <input value={refInviteDraft.message} onChange={e => setRefInviteDraft(d => ({ ...d, message: e.target.value }))}
+                                            placeholder={t('referees.invite_msg_ph')}
+                                            className="w-full bg-gray-800 text-white rounded-lg px-3 py-1.5 border border-gray-600 focus:outline-none text-xs" />
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={() => setRefInviteDraft(null)} className="flex-1 bg-gray-800 text-gray-300 text-xs font-bold py-1.5 rounded-lg">{t('common.cancel')}</button>
+                                            <button type="button" onClick={confirmRefereeInvite} className={`flex-1 bg-gradient-to-r ${config.color} text-white text-xs font-bold py-1.5 rounded-lg`}>{t('common.confirm')}</button>
+                                        </div>
+                                    </div>
+                                )}
+                                {refInviteSearchResults.length > 0 && !refInviteDraft && (
+                                    <div className="bg-gray-700 rounded-xl border border-gray-600 overflow-hidden mt-1.5">
+                                        {refInviteSearchResults.slice(0, 5).map(u => (
+                                            <button key={u.id} type="button"
+                                                onClick={() => { setRefInviteDraft({ id: u.id, username: u.username, fullName: u.fullName, price: '', message: '' }); setRefInviteSearchResults([]); setRefInviteSearchQ(''); }}
+                                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-600 transition text-left border-b border-gray-600/50 last:border-0">
+                                                <span className="text-white text-xs font-bold flex-1 truncate">{u.fullName || u.username}</span>
+                                                <span className="text-gray-500 text-[10px]">@{u.username}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
             {(isCompetitiveTeam || needsPartner) && spotsLeft > 0 && (
                 <p className="text-red-400 text-xs text-center font-bold">
                     {needsPartner ? t('rival.choose_partner_warn') : t('rival.fill_spots', { n: form.teamSize })}
@@ -2601,12 +2694,32 @@ function SubCategoryPage() {
     const [equipmentFiles, setEquipmentFiles] = useState([]); // File[] not yet uploaded
     const [submittingEquipment, setSubmittingEquipment] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
+    const [equipmentViewStatus, setEquipmentViewStatus] = useState('ACTIVE'); // 'ACTIVE' | 'SOLD'
+    const [equipmentOffers, setEquipmentOffers] = useState([]);
+    const [loadingEquipmentOffers, setLoadingEquipmentOffers] = useState(false);
+    const [showOfferForm, setShowOfferForm] = useState(false);
+    const [offerForm, setOfferForm] = useState({ price: '', message: '' });
+    const [submittingOffer, setSubmittingOffer] = useState(false);
+    const [respondingOfferId, setRespondingOfferId] = useState(null);
+    const [equipmentActionLoading, setEquipmentActionLoading] = useState(false);
+    const [acceptDateModal, setAcceptDateModal] = useState({ visible: false, offerId: null, date: '' });
+    const [counterInput, setCounterInput] = useState({ visible: false, offerId: null, price: '' });
     const [showCreateReferee, setShowCreateReferee] = useState(false);
+    const [refApplyForm, setRefApplyForm] = useState({ postId: null, price: '', message: '' });
+    const [submittingRefApply, setSubmittingRefApply] = useState(false);
+    const [refCounterInput, setRefCounterInput] = useState({ requestId: null, price: '', message: '' });
+    const [respondingRefId, setRespondingRefId] = useState(null);
+    const [refAppsCache, setRefAppsCache] = useState({});
     const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
     const [branchStories, setBranchStories] = useState([]);
     const [newTextPost, setNewTextPost] = useState('');
     const [isPosting, setIsPosting] = useState(false);
     const [showRivalForm, setShowRivalForm] = useState(false);
+    const [rivalCityFilter, setRivalCityFilter] = useState('');
+    const [rivalDateFilter, setRivalDateFilter] = useState('all'); // 'all' | 'today' | 'week' | 'month' | 'custom'
+    const [rivalDateFrom, setRivalDateFrom] = useState('');
+    const [rivalDateTo, setRivalDateTo] = useState('');
+    const [showRivalDateFilter, setShowRivalDateFilter] = useState(false);
     const [news, setNews] = useState([]);
     const [sportsTickets, setSportsTickets] = useState([]);
     const [loadingTickets, setLoadingTickets] = useState(false);
@@ -2796,21 +2909,76 @@ function SubCategoryPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, coachSubTab, refereesLoaded, sub]);
 
+    const reloadPlayerWanted = async () => {
+        try {
+            const { data } = await api.get(`/rivals?category=${categoryUpper}&subCategory=${sub}&matchType=PLAYER_WANTED`);
+            setPlayerWantedPosts(data.map(r => ({ ...r, _mySentRequest: r._myJoinStatus === 'PENDING' || r._myJoinStatus === 'ACCEPTED' })));
+        } catch {}
+    };
+
+    // Hakem ilanı sahibi olduğum gölge ilanlar için başvuruları ayrıca çekiyoruz —
+    // playerWantedPosts'a gömülü joinRequests sadece PENDING/AWAITING_JOINER_CONFIRM
+    // durumundakileri içeriyor, COUNTERED (karşı teklif) aşamasındakiler kayboluyor.
+    useEffect(() => {
+        const myShadowAds = playerWantedPosts.filter(p =>
+            p.senderId === myId && Array.isArray(p.positions) && p.positions.includes('REFEREE') && p.linkedRivalId
+        );
+        myShadowAds.forEach(ad => {
+            api.get(`/rivals/${ad.linkedRivalId}/referee-applications`)
+                .then(({ data }) => setRefAppsCache(prev => ({ ...prev, [ad.id]: Array.isArray(data.applications) ? data.applications : [] })))
+                .catch(() => {});
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [playerWantedPosts, myId]);
+
+    const applyAsReferee = async (postId) => {
+        if (!parseInt(refApplyForm.price) || parseInt(refApplyForm.price) <= 0) {
+            if (!confirm(t('referees.apply_price_ph') + '?')) return;
+        }
+        setSubmittingRefApply(true);
+        try {
+            await api.post(`/rivals/${postId}/respond`, {
+                offerPrice: refApplyForm.price ? `${parseInt(refApplyForm.price, 10)}₺` : undefined,
+                offerMessage: refApplyForm.message.trim() || undefined,
+            });
+            setRefApplyForm({ postId: null, price: '', message: '' });
+            await reloadPlayerWanted();
+        } catch (e) { alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız'); }
+        finally { setSubmittingRefApply(false); }
+    };
+
+    const respondRefJoin = async (requestId, action, price, message) => {
+        setRespondingRefId(requestId);
+        try {
+            await api.patch(`/rivals/join/${requestId}`, { action, price, message });
+            if (action === 'counter') setRefCounterInput({ requestId: null, price: '', message: '' });
+            await reloadPlayerWanted();
+        } catch (e) { alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız'); }
+        finally { setRespondingRefId(null); }
+    };
+
     const loadEquipment = async () => {
         setLoadingEquipment(true);
         try {
-            const { data } = await api.get('/equipment', { params: { category: categoryUpper, subCategory: sub } });
+            const { data } = await api.get('/equipment', { params: { category: categoryUpper, subCategory: sub, status: equipmentViewStatus } });
             setEquipmentListings(Array.isArray(data) ? data : []);
         } catch { setEquipmentListings([]); }
         finally { setLoadingEquipment(false); setEquipmentLoaded(true); }
     };
 
     useEffect(() => {
+        if (EQUIPMENT_SPORTS.has(sub) && activeTab === 'equipment') {
+            setEquipmentLoaded(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, sub, equipmentViewStatus]);
+
+    useEffect(() => {
         if (EQUIPMENT_SPORTS.has(sub) && activeTab === 'equipment' && !equipmentLoaded) {
             loadEquipment();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, equipmentLoaded, sub]);
+    }, [activeTab, equipmentLoaded, sub, equipmentViewStatus]);
 
     const submitEquipment = async () => {
         if (!equipmentForm.title.trim()) return alert(t('equipment.title_required') || 'Ürün adı zorunludur');
@@ -2850,6 +3018,103 @@ function SubCategoryPage() {
         } catch (e) {
             alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız');
         }
+    };
+
+    const openChatWithSeller = async (listing, targetUserId) => {
+        const otherId = targetUserId || listing.userId;
+        const isOwnerContactingBidder = otherId !== listing.userId;
+        try {
+            const { data: conv } = await api.get(`/messages/conversation/${otherId}`);
+            try {
+                const { data: history } = await api.get(`/messages/conversation/${conv.id}/messages`);
+                const alreadyReferenced = (history || []).some(m => m.equipmentListingId === listing.id || m.equipmentListing?.id === listing.id);
+                if (!alreadyReferenced) {
+                    await api.post(`/messages/send/${otherId}`, {
+                        content: isOwnerContactingBidder
+                            ? `🎾 "${listing.title}" ilanına verdiğiniz teklif hakkında yazıyorum.`
+                            : `🎾 "${listing.title}" ilanı hakkında mesajlaşmak istiyorum.`,
+                        equipmentListingId: listing.id,
+                    });
+                }
+            } catch { /* geçmiş/otomatik mesaj başarısız olsa da sohbeti açmaya devam et */ }
+            setSelectedEquipment(null);
+            navigate(`/messages/${otherId}`);
+        } catch (e) {
+            alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız');
+        }
+    };
+
+    const loadEquipmentOffers = async (listingId) => {
+        setLoadingEquipmentOffers(true);
+        try {
+            const { data } = await api.get(`/equipment/${listingId}/offers`);
+            setEquipmentOffers(Array.isArray(data) ? data : []);
+        } catch { setEquipmentOffers([]); }
+        finally { setLoadingEquipmentOffers(false); }
+    };
+
+    useEffect(() => {
+        if (selectedEquipment && selectedEquipment.userId === myId) loadEquipmentOffers(selectedEquipment.id);
+        else setEquipmentOffers([]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedEquipment?.id]);
+
+    const sendEquipmentOffer = async () => {
+        if (!parseInt(offerForm.price) || parseInt(offerForm.price) <= 0) return alert(t('equipment.offer_price_ph') || 'Geçerli bir teklif fiyatı girin');
+        setSubmittingOffer(true);
+        try {
+            const { data } = await api.post(`/equipment/${selectedEquipment.id}/offers`, { price: parseInt(offerForm.price), message: offerForm.message.trim() || undefined });
+            setSelectedEquipment(prev => prev ? { ...prev, myOffer: data } : prev);
+            setShowOfferForm(false);
+            setOfferForm({ price: '', message: '' });
+            alert(t('equipment.offer_sent_msg') || 'Teklifiniz gönderildi');
+        } catch (e) { alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız'); }
+        finally { setSubmittingOffer(false); }
+    };
+
+    const respondEquipmentOffer = async (offerId, action, reservedUntil, price) => {
+        setRespondingOfferId(offerId);
+        try {
+            const { data } = await api.patch(`/equipment/offers/${offerId}`, { action, reservedUntil, price });
+            if (action === 'accept' && data.listing) {
+                setSelectedEquipment(prev => prev ? { ...prev, ...data.listing } : prev);
+                setEquipmentListings(prev => prev.map(e => e.id === data.listing.id ? { ...e, ...data.listing } : e));
+            }
+            if (action === 'counter') setCounterInput({ visible: false, offerId: null, price: '' });
+            await loadEquipmentOffers(selectedEquipment.id);
+        } catch (e) { alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız'); }
+        finally { setRespondingOfferId(null); }
+    };
+
+    const respondToMyOfferCounter = async (offerId, action) => {
+        setRespondingOfferId(offerId);
+        try {
+            await api.patch(`/equipment/offers/${offerId}`, { action });
+            const { data } = await api.get(`/equipment/${selectedEquipment.id}`);
+            setSelectedEquipment(prev => prev ? { ...prev, ...data } : prev);
+        } catch (e) { alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız'); }
+        finally { setRespondingOfferId(null); }
+    };
+
+    const cancelEquipmentReservation = async (id) => {
+        setEquipmentActionLoading(true);
+        try {
+            const { data } = await api.patch(`/equipment/${id}/unreserve`);
+            setSelectedEquipment(prev => prev ? { ...prev, ...data } : prev);
+            setEquipmentListings(prev => prev.map(e => e.id === data.id ? { ...e, ...data } : e));
+            loadEquipmentOffers(id);
+        } catch (e) { alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız'); }
+        finally { setEquipmentActionLoading(false); }
+    };
+
+    const markEquipmentSold = async (id) => {
+        setEquipmentActionLoading(true);
+        try {
+            await api.patch(`/equipment/${id}/sold`);
+            setEquipmentListings(prev => prev.filter(e => e.id !== id));
+            setSelectedEquipment(null);
+        } catch (e) { alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız'); }
+        finally { setEquipmentActionLoading(false); }
     };
 
     // Socket.io — real-time rival updates
@@ -3392,6 +3657,56 @@ function SubCategoryPage() {
         }
     };
 
+    // Rakip bul — il + zaman (Tümü/Bugün/Bu Hafta/Bu Ay/özel aralık) filtresi
+    const rivalDateFilterToday = new Date();
+    const matchesRivalDateFilter = (dateVal) => {
+        if (rivalDateFilter === 'all') return true;
+        const d = new Date(dateVal);
+        if (isNaN(d)) return true;
+        if (rivalDateFilter === 'today') return d.toDateString() === rivalDateFilterToday.toDateString();
+        if (rivalDateFilter === 'week') {
+            const weekEnd = new Date(rivalDateFilterToday); weekEnd.setDate(rivalDateFilterToday.getDate() + 7);
+            return d >= rivalDateFilterToday && d <= weekEnd;
+        }
+        if (rivalDateFilter === 'month') {
+            const monthEnd = new Date(rivalDateFilterToday.getFullYear(), rivalDateFilterToday.getMonth() + 1, 0);
+            return d >= rivalDateFilterToday && d <= monthEnd;
+        }
+        if (rivalDateFilter === 'custom') {
+            if (rivalDateFrom && d < new Date(rivalDateFrom)) return false;
+            if (rivalDateTo) { const to = new Date(rivalDateTo); to.setHours(23, 59, 59, 999); if (d > to) return false; }
+            return true;
+        }
+        return true;
+    };
+    const rivalDateFilterLabel = () => {
+        if (rivalDateFilter === 'custom') {
+            const fmt = (v) => { const d = new Date(v); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; };
+            if (rivalDateFrom && rivalDateTo) return `${fmt(rivalDateFrom)}–${fmt(rivalDateTo)}`;
+            if (rivalDateFrom) return `${fmt(rivalDateFrom)}+`;
+            return t('rival.date_all') || 'Tümü';
+        }
+        return {
+            all: t('rival.date_all') || 'Tümü',
+            today: t('rival.date_today') || 'Bugün',
+            week: t('rival.date_week') || 'Bu Hafta',
+            month: t('rival.date_month') || 'Bu Ay',
+        }[rivalDateFilter];
+    };
+    const applyRivalFilter = (item) => {
+        if (rivalCityFilter.trim()) {
+            const q = rivalCityFilter.trim().toLowerCase();
+            const loc = (item.location || '').toLowerCase();
+            const court = (item.courtName || '').toLowerCase();
+            const addr = (item.courtAddress || '').toLowerCase();
+            const senderCity = item.flexibleSchedule ? (item.sender?.city || '').toLowerCase() : '';
+            if (!loc.includes(q) && !court.includes(q) && !addr.includes(q) && !senderCity.includes(q)) return false;
+        }
+        if (item.matchDate && !matchesRivalDateFilter(item.matchDate)) return false;
+        return true;
+    };
+    const filteredRivals = rivals.filter(applyRivalFilter);
+
     return (
         <div className="min-h-screen bg-gray-950">
             {/* Navbar */}
@@ -3559,7 +3874,55 @@ function SubCategoryPage() {
                     {activeTab === 'rivals' && !isWellness && (
                         <div className="space-y-4">
 
-                            <div className="flex justify-end">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="flex items-center bg-gray-900 border border-gray-700 rounded-lg px-2 py-1">
+                                        <span className="text-gray-500 text-xs mr-1">📍</span>
+                                        <input
+                                            value={rivalCityFilter}
+                                            onChange={e => setRivalCityFilter(e.target.value)}
+                                            placeholder={t('rival.city_filter_ph') || 'İl'}
+                                            className="bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none w-20"
+                                        />
+                                        {rivalCityFilter && (
+                                            <button onClick={() => setRivalCityFilter('')} className="text-gray-500 hover:text-white text-xs ml-1">✕</button>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setShowRivalDateFilter(v => !v)}
+                                            className={`flex items-center gap-1 rounded-lg px-2 py-1.5 border text-xs font-bold transition ${rivalDateFilter !== 'all' ? `${config.bg} ${config.border} text-white` : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                                        >
+                                            📅 {rivalDateFilterLabel()} <span className="text-gray-500">▾</span>
+                                        </button>
+                                        {showRivalDateFilter && (
+                                            <div className="absolute z-20 mt-1 right-0 bg-gray-950 border border-gray-700 rounded-xl p-3 w-64 shadow-xl">
+                                                <div className="grid grid-cols-2 gap-1.5 mb-3">
+                                                    {[['all', t('rival.date_all') || 'Tümü'], ['today', t('rival.date_today') || 'Bugün'], ['week', t('rival.date_week') || 'Bu Hafta'], ['month', t('rival.date_month') || 'Bu Ay']].map(([v, label]) => (
+                                                        <button key={v}
+                                                            onClick={() => { setRivalDateFilter(v); setRivalDateFrom(''); setRivalDateTo(''); setShowRivalDateFilter(false); }}
+                                                            className={`py-1.5 rounded-lg text-xs font-bold border transition ${rivalDateFilter === v ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-900 border-gray-700 text-gray-400'}`}>
+                                                            {label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <p className="text-gray-500 text-[11px] font-bold mb-1.5">{t('rival.date_custom_range') || 'Özel Tarih Aralığı'}</p>
+                                                <div className="flex items-center gap-1.5 mb-2">
+                                                    <input type="date" value={rivalDateFrom} onChange={e => setRivalDateFrom(e.target.value)}
+                                                        className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+                                                    <span className="text-gray-500 text-xs">–</span>
+                                                    <input type="date" value={rivalDateTo} onChange={e => setRivalDateTo(e.target.value)}
+                                                        className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+                                                </div>
+                                                <button
+                                                    onClick={() => { setRivalDateFilter((rivalDateFrom || rivalDateTo) ? 'custom' : 'all'); setShowRivalDateFilter(false); }}
+                                                    className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-1.5 rounded-lg text-xs hover:opacity-90 transition`}>
+                                                    {t('rival.filter_apply') || 'Uygula'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                                 <button
                                     onClick={() => setShowRivalForm(!showRivalForm)}
                                     className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm`}
@@ -3586,13 +3949,13 @@ function SubCategoryPage() {
 
                             {isLoading ? (
                                 <p className="text-gray-400 text-center py-8">{t('common.loading')}</p>
-                            ) : rivals.length === 0 ? (
+                            ) : filteredRivals.length === 0 ? (
                                 <div className="text-center py-10 bg-gray-900 rounded-2xl border border-gray-800">
                                     <p className="text-4xl mb-3">⚔️</p>
-                                    <p className="text-gray-400">{t('rival.no_rivals')} {t('rival.be_first')}</p>
+                                    <p className="text-gray-400">{rivals.length === 0 ? `${t('rival.no_rivals')} ${t('rival.be_first')}` : (t('rival.no_filter_match') || 'Filtreyle eşleşen ilan bulunamadı')}</p>
                                 </div>
                             ) : (
-                                rivals.map(rival => {
+                                filteredRivals.map(rival => {
                                     const participants = Array.isArray(rival.participants) ? rival.participants : [];
                                     // Partner sistemi öncesi oluşturulmuş eski ilanlarda kurucunun senderTeam'i
                                     // boştur — onlar hâlâ eski modele göre (3 bireysel katılımcı) tamamlanır.
@@ -6245,6 +6608,7 @@ function SubCategoryPage() {
                                                 <div className="space-y-3">
                                                     {refereeMatches.map(post => {
                                                         const isOffer = Array.isArray(post.positions) && post.positions.includes('REFEREE_OFFER');
+                                                        const myApps = refAppsCache[post.id] || post.joinRequests || [];
                                                         return (
                                                             <div key={post.id} className={`bg-gray-900 border rounded-2xl p-4 ${isOffer ? 'border-green-500/30' : 'border-yellow-500/30'}`}>
                                                                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -6267,14 +6631,156 @@ function SubCategoryPage() {
                                                                     {post.refereePayment && <p className="text-green-400 font-bold">💰 {post.refereePayment}</p>}
                                                                     {post.message && <p className="text-gray-300 italic">"{post.message}"</p>}
                                                                 </div>
-                                                                {post.senderId !== myId && (
+
+                                                                {post.senderId === myId ? (
+                                                                    /* İlan sahibi — gelen hakemlik başvurularını/davete verilen yanıtları görür */
+                                                                    <div className="space-y-2 border-t border-gray-800 pt-2">
+                                                                        <p className="text-white text-xs font-bold">🟨 {t('referees.applications_title')}{myApps.length > 0 ? ` (${myApps.length})` : ''}</p>
+                                                                        {myApps.length === 0 ? (
+                                                                            <p className="text-gray-600 text-xs">{t('referees.no_applications')}</p>
+                                                                        ) : myApps.map(app => {
+                                                                            const theyInitiated = app.initiatedBy !== 'OWNER'; // JOINER = applied to me
+                                                                            return (
+                                                                                <div key={app.id} className="bg-gray-800/60 border border-gray-700 rounded-lg p-2.5">
+                                                                                    <button onClick={() => navigate(`/profile/${app.user?.id}`)} className="flex items-center gap-1.5 mb-1 text-left">
+                                                                                        <div className={`w-6 h-6 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
+                                                                                            {app.user?.username?.[0]?.toUpperCase()}
+                                                                                        </div>
+                                                                                        <span className="text-white text-xs font-bold truncate">{app.user?.fullName || app.user?.username}</span>
+                                                                                        {app.offerPrice && <span className="text-yellow-400 text-xs font-black ml-auto">{app.offerPrice}</span>}
+                                                                                    </button>
+                                                                                    {app.offerMessage && <p className="text-gray-400 text-xs mb-1">{app.offerMessage}</p>}
+                                                                                    {app.status === 'PENDING' && theyInitiated ? (
+                                                                                        <>
+                                                                                            <div className="flex gap-1.5">
+                                                                                                <button disabled={respondingRefId === app.id}
+                                                                                                    onClick={() => respondRefJoin(app.id, 'accept')}
+                                                                                                    className="flex-1 bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                                    {t('referees.accept_btn')}
+                                                                                                </button>
+                                                                                                <button disabled={respondingRefId === app.id}
+                                                                                                    onClick={() => setRefCounterInput({ requestId: app.id, price: '', message: '' })}
+                                                                                                    className="flex-1 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                                    {t('referees.counter_btn')}
+                                                                                                </button>
+                                                                                                <button disabled={respondingRefId === app.id}
+                                                                                                    onClick={() => respondRefJoin(app.id, 'reject')}
+                                                                                                    className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                                    {t('referees.reject_btn')}
+                                                                                                </button>
+                                                                                            </div>
+                                                                                            {refCounterInput.requestId === app.id && (
+                                                                                                <div className="flex gap-1.5 mt-1.5">
+                                                                                                    <input value={refCounterInput.price} onChange={e => setRefCounterInput(p => ({ ...p, price: e.target.value.replace(/[^0-9]/g, '') }))}
+                                                                                                        placeholder={t('referees.counter_price_ph')} inputMode="numeric"
+                                                                                                        className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+                                                                                                    <button disabled={respondingRefId === app.id || !parseInt(refCounterInput.price)}
+                                                                                                        onClick={() => respondRefJoin(app.id, 'counter', refCounterInput.price, refCounterInput.message)}
+                                                                                                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3 rounded-lg transition disabled:opacity-50">
+                                                                                                        {t('referees.counter_send_btn')}
+                                                                                                    </button>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </>
+                                                                                    ) : app.status === 'PENDING' ? (
+                                                                                        <p className="text-gray-500 text-[11px]">{t('referees.counter_waiting')}</p>
+                                                                                    ) : app.status === 'COUNTERED' && !theyInitiated ? (
+                                                                                        <div>
+                                                                                            <p className="text-purple-300 text-xs font-bold mb-1.5">{t('referees.countered_badge', { price: app.counterPrice })}</p>
+                                                                                            <div className="flex gap-1.5">
+                                                                                                <button disabled={respondingRefId === app.id}
+                                                                                                    onClick={() => respondRefJoin(app.id, 'accept_counter')}
+                                                                                                    className="flex-1 bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                                    {t('referees.accept_counter_btn')}
+                                                                                                </button>
+                                                                                                <button disabled={respondingRefId === app.id}
+                                                                                                    onClick={() => respondRefJoin(app.id, 'reject_counter')}
+                                                                                                    className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                                    {t('referees.reject_counter_btn')}
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <p className="text-gray-500 text-[11px]">{t('referees.counter_waiting')}</p>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                ) : post._myJoinStatus === 'PENDING' && post._myJoinInitiatedBy === 'OWNER' ? (
+                                                                    /* Davet edildim — kabul/red/karşı teklif sırası bende */
+                                                                    <div className="border-t border-gray-800 pt-2 space-y-1.5">
+                                                                        <p className="text-yellow-400 text-xs font-bold">{t('referees.invited_msg', { price: post._myJoinOfferPrice ? ` — ${post._myJoinOfferPrice}` : '' })}</p>
+                                                                        <div className="flex gap-1.5">
+                                                                            <button disabled={respondingRefId === post._myJoinRequestId}
+                                                                                onClick={() => respondRefJoin(post._myJoinRequestId, 'accept')}
+                                                                                className="flex-1 bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                {t('referees.accept_btn')}
+                                                                            </button>
+                                                                            <button disabled={respondingRefId === post._myJoinRequestId}
+                                                                                onClick={() => setRefCounterInput({ requestId: post._myJoinRequestId, price: '', message: '' })}
+                                                                                className="flex-1 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                {t('referees.counter_btn')}
+                                                                            </button>
+                                                                            <button disabled={respondingRefId === post._myJoinRequestId}
+                                                                                onClick={() => respondRefJoin(post._myJoinRequestId, 'reject')}
+                                                                                className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                {t('referees.reject_btn')}
+                                                                            </button>
+                                                                        </div>
+                                                                        {refCounterInput.requestId === post._myJoinRequestId && (
+                                                                            <div className="flex gap-1.5">
+                                                                                <input value={refCounterInput.price} onChange={e => setRefCounterInput(p => ({ ...p, price: e.target.value.replace(/[^0-9]/g, '') }))}
+                                                                                    placeholder={t('referees.counter_price_ph')} inputMode="numeric"
+                                                                                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+                                                                                <button disabled={respondingRefId === post._myJoinRequestId || !parseInt(refCounterInput.price)}
+                                                                                    onClick={() => respondRefJoin(post._myJoinRequestId, 'counter', refCounterInput.price, refCounterInput.message)}
+                                                                                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3 rounded-lg transition disabled:opacity-50">
+                                                                                    {t('referees.counter_send_btn')}
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : post._myJoinStatus === 'COUNTERED' && post._myJoinInitiatedBy === 'JOINER' ? (
+                                                                    /* Başvurdum, sahip karşı teklif verdi — kabul/red sırası bende */
+                                                                    <div className="border-t border-gray-800 pt-2 space-y-1.5">
+                                                                        <p className="text-purple-300 text-xs font-bold">{t('referees.countered_badge', { price: post._myJoinCounterPrice })}</p>
+                                                                        <div className="flex gap-1.5">
+                                                                            <button disabled={respondingRefId === post._myJoinRequestId}
+                                                                                onClick={() => respondRefJoin(post._myJoinRequestId, 'accept_counter')}
+                                                                                className="flex-1 bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                {t('referees.accept_counter_btn')}
+                                                                            </button>
+                                                                            <button disabled={respondingRefId === post._myJoinRequestId}
+                                                                                onClick={() => respondRefJoin(post._myJoinRequestId, 'reject_counter')}
+                                                                                className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                                {t('referees.reject_counter_btn')}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : post._myJoinStatus === 'PENDING' || post._myJoinStatus === 'COUNTERED' ? (
+                                                                    <p className="text-gray-500 text-xs border-t border-gray-800 pt-2">
+                                                                        {t('referees.my_application_pending', { price: post._myJoinOfferPrice ? ` (${post._myJoinOfferPrice})` : '' })}
+                                                                    </p>
+                                                                ) : post._myJoinStatus === 'ACCEPTED' ? (
+                                                                    <p className="text-green-400 text-xs font-bold border-t border-gray-800 pt-2">✅ {t('referees.accepted_badge')}</p>
+                                                                ) : refApplyForm.postId === post.id ? (
+                                                                    <div className="border-t border-gray-800 pt-2 space-y-1.5">
+                                                                        <input value={refApplyForm.price} onChange={e => setRefApplyForm(f => ({ ...f, price: e.target.value.replace(/[^0-9]/g, '') }))}
+                                                                            placeholder={t('referees.apply_price_ph')} inputMode="numeric"
+                                                                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+                                                                        <input value={refApplyForm.message} onChange={e => setRefApplyForm(f => ({ ...f, message: e.target.value }))}
+                                                                            placeholder={t('referees.apply_msg_ph')}
+                                                                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+                                                                        <button disabled={submittingRefApply}
+                                                                            onClick={() => applyAsReferee(post.id)}
+                                                                            className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
+                                                                            {submittingRefApply ? '...' : t('referees.apply_btn')}
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
                                                                     <button
-                                                                        onClick={async () => {
-                                                                            try {
-                                                                                await api.post(`/rivals/${post.id}/respond`, {});
-                                                                                alert('✅ ' + t('common.confirm'));
-                                                                            } catch (e) { alert(e?.response?.data?.message || 'Error'); }
-                                                                        }}
+                                                                        onClick={() => setRefApplyForm({ postId: post.id, price: '', message: '' })}
                                                                         className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-xl text-sm hover:opacity-90 transition`}>
                                                                         🟨 {t('referees.apply')}
                                                                     </button>
@@ -6796,12 +7302,23 @@ function SubCategoryPage() {
                     {/* EQUIPMENT TAB — tennis/padel ikinci el / sıfır ekipman ilanları */}
                     {activeTab === 'equipment' && EQUIPMENT_SPORTS.has(sub) && (
                         <div className="space-y-3">
-                            <button
-                                onClick={() => setShowEquipmentForm(true)}
-                                className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}
-                            >
-                                + {t('equipment.new_listing') || 'Yeni İlan Ver'}
-                            </button>
+                            <div className="flex gap-2">
+                                {['ACTIVE', 'SOLD'].map(v => (
+                                    <button key={v} onClick={() => setEquipmentViewStatus(v)}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${equipmentViewStatus === v ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-900 border-gray-700 text-gray-400'}`}>
+                                        {v === 'ACTIVE' ? (t('equipment.active_tab') || 'Aktif') : (t('equipment.sold_tab') || 'Satılanlar')}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {equipmentViewStatus === 'ACTIVE' && (
+                                <button
+                                    onClick={() => setShowEquipmentForm(true)}
+                                    className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}
+                                >
+                                    + {t('equipment.new_listing') || 'Yeni İlan Ver'}
+                                </button>
+                            )}
 
                             {loadingEquipment ? (
                                 <p className="text-gray-500 text-sm text-center py-8">{t('common.loading')}</p>
@@ -6809,24 +7326,39 @@ function SubCategoryPage() {
                                 equipmentLoaded && (
                                     <div className="text-center py-14 bg-gray-900 rounded-2xl border border-gray-800">
                                         <p className="text-4xl mb-2">🎾</p>
-                                        <p className="text-white font-bold mb-1">{t('equipment.empty') || 'Henüz ekipman ilanı yok'}</p>
+                                        <p className="text-white font-bold mb-1">
+                                            {equipmentViewStatus === 'SOLD' ? (t('equipment.no_sold') || 'Satılan ürün yok') : (t('equipment.empty') || 'Henüz ekipman ilanı yok')}
+                                        </p>
                                     </div>
                                 )
                             ) : (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {equipmentListings.map(eq => (
                                         <button key={eq.id} onClick={() => setSelectedEquipment(eq)}
-                                            className="text-left bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-600 transition">
+                                            className="text-left bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-600 transition relative">
                                             {eq.images?.[0] ? (
                                                 <img src={eq.images[0]} alt="" className="w-full h-28 object-cover" />
                                             ) : (
                                                 <div className="w-full h-28 bg-gray-800 flex items-center justify-center text-3xl">🎾</div>
+                                            )}
+                                            {eq.status === 'SOLD' && (
+                                                <div className="absolute top-1.5 right-1.5 bg-gray-700 text-gray-200 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                                    {t('equipment.sold_badge') || 'Satıldı'}
+                                                </div>
+                                            )}
+                                            {eq.status === 'RESERVED' && (
+                                                <div className="absolute top-1.5 right-1.5 bg-amber-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                                    {t('equipment.reserved_short_badge') || 'Rezerve'}
+                                                </div>
                                             )}
                                             <div className="p-2.5">
                                                 <div className="flex items-center gap-1.5 mb-1">
                                                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${eq.condition === 'NEW' ? 'bg-green-600 text-white' : 'bg-yellow-600 text-black'}`}>
                                                         {eq.condition === 'NEW' ? (t('equipment.new') || 'Sıfır') : (t('equipment.used') || 'İkinci El')}
                                                     </span>
+                                                    {eq.offerCount > 0 && (
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-600/30 text-purple-300">💰 {eq.offerCount}</span>
+                                                    )}
                                                 </div>
                                                 <p className="text-white text-xs font-bold truncate">{eq.title}</p>
                                                 <p className={`text-sm font-black mt-0.5`} style={{ color: undefined }}>
@@ -6897,13 +7429,13 @@ function SubCategoryPage() {
 
                     {/* Ekipman ilanı detay modalı */}
                     {selectedEquipment && (
-                        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setSelectedEquipment(null)}>
+                        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => { setSelectedEquipment(null); setShowOfferForm(false); }}>
                             <div className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
                                 <div className="flex items-center justify-between mb-3">
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${selectedEquipment.condition === 'NEW' ? 'bg-green-600 text-white' : 'bg-yellow-600 text-black'}`}>
                                         {selectedEquipment.condition === 'NEW' ? (t('equipment.new') || 'Sıfır') : (t('equipment.used') || 'İkinci El')}
                                     </span>
-                                    <button onClick={() => setSelectedEquipment(null)} className="text-gray-400 hover:text-white text-xl">✕</button>
+                                    <button onClick={() => { setSelectedEquipment(null); setShowOfferForm(false); }} className="text-gray-400 hover:text-white text-xl">✕</button>
                                 </div>
                                 {selectedEquipment.images?.length > 0 && (
                                     <div className="flex gap-2 overflow-x-auto mb-3">
@@ -6916,23 +7448,205 @@ function SubCategoryPage() {
                                 <p className="text-purple-300 text-xl font-black mb-2">{selectedEquipment.price > 0 ? `${selectedEquipment.price} ₺` : (t('equipment.ask_price') || 'Fiyat sor')}</p>
                                 {selectedEquipment.description && <p className="text-gray-300 text-sm mb-2">{selectedEquipment.description}</p>}
                                 {selectedEquipment.location && <p className="text-gray-500 text-xs mb-3">📍 {selectedEquipment.location}</p>}
-                                <div className="flex items-center gap-2 mb-4 pt-3 border-t border-gray-800">
+                                <div className="flex items-center gap-2 mb-3 pt-3 border-t border-gray-800">
                                     <div className={`w-8 h-8 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
                                         {selectedEquipment.user?.username?.[0]?.toUpperCase()}
                                     </div>
                                     <p className="text-white text-sm font-bold">{selectedEquipment.user?.fullName || selectedEquipment.user?.username}</p>
                                 </div>
-                                {selectedEquipment.userId === myId ? (
-                                    <button onClick={() => deleteEquipment(selectedEquipment.id)}
-                                        className="w-full bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold py-2.5 rounded-xl text-sm transition">
-                                        🗑 {t('equipment.delete') || 'İlanı Sil'}
-                                    </button>
-                                ) : (
-                                    <button onClick={() => navigate(`/messages/${selectedEquipment.userId}`)}
-                                        className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}>
-                                        💬 {t('equipment.message_seller') || 'Satıcıya Mesaj Gönder'}
-                                    </button>
+
+                                {selectedEquipment.status === 'SOLD' && (
+                                    <div className="bg-gray-700/20 rounded-lg py-1.5 text-center mb-3">
+                                        <p className="text-gray-400 font-bold text-sm">{t('equipment.sold_badge') || 'Satıldı'}</p>
+                                    </div>
                                 )}
+                                {selectedEquipment.status === 'RESERVED' && selectedEquipment.reservedUntil && (
+                                    <div className="bg-amber-500/20 rounded-lg py-1.5 text-center mb-3">
+                                        <p className="text-amber-400 font-bold text-sm">
+                                            {t(selectedEquipment.reservedForUserId === myId ? 'equipment.reserved_for_you_badge' : 'equipment.reserved_badge',
+                                                { date: new Date(selectedEquipment.reservedUntil).toLocaleDateString('tr-TR') })}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {selectedEquipment.userId === myId ? (
+                                    <>
+                                        <p className="text-white text-sm font-bold mb-2">💰 {t('equipment.offers_title') || 'Gelen Teklifler'}{equipmentOffers.length > 0 ? ` (${equipmentOffers.length})` : ''}</p>
+                                        {loadingEquipmentOffers ? (
+                                            <p className="text-gray-500 text-xs mb-3">{t('common.loading')}</p>
+                                        ) : equipmentOffers.length === 0 ? (
+                                            <p className="text-gray-500 text-xs mb-3">{t('equipment.no_offers') || 'Henüz teklif yok'}</p>
+                                        ) : (
+                                            <div className="space-y-2 mb-3">
+                                                {equipmentOffers.map(off => (
+                                                    <div key={off.id} className="bg-gray-900 border border-gray-800 rounded-lg p-2.5">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <button onClick={() => navigate(`/profile/${off.fromUser?.id}`)} className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
+                                                                <div className={`w-6 h-6 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
+                                                                    {off.fromUser?.username?.[0]?.toUpperCase()}
+                                                                </div>
+                                                                <span className="text-white text-xs font-bold truncate">{off.fromUser?.fullName || off.fromUser?.username}</span>
+                                                            </button>
+                                                            <button onClick={() => openChatWithSeller(selectedEquipment, off.fromUser?.id)} className="text-sm px-1">💬</button>
+                                                            <span className="text-purple-300 text-sm font-black flex-shrink-0">{off.price}₺</span>
+                                                        </div>
+                                                        {off.message && <p className="text-gray-400 text-xs mt-1">{off.message}</p>}
+                                                        {off.status === 'PENDING' ? (
+                                                            <>
+                                                                <div className="flex gap-1.5 mt-2">
+                                                                    <button disabled={respondingOfferId === off.id}
+                                                                        onClick={() => setAcceptDateModal({ visible: true, offerId: off.id, date: '' })}
+                                                                        className="flex-1 bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                        {t('equipment.offer_accept') || 'Kabul Et'}
+                                                                    </button>
+                                                                    <button disabled={respondingOfferId === off.id}
+                                                                        onClick={() => setCounterInput({ visible: true, offerId: off.id, price: '' })}
+                                                                        className="flex-1 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                        {t('equipment.counter_btn') || 'Karşı Teklif'}
+                                                                    </button>
+                                                                    <button disabled={respondingOfferId === off.id}
+                                                                        onClick={() => respondEquipmentOffer(off.id, 'reject')}
+                                                                        className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                        {t('equipment.offer_reject') || 'Reddet'}
+                                                                    </button>
+                                                                </div>
+                                                                {counterInput.visible && counterInput.offerId === off.id && (
+                                                                    <div className="flex gap-1.5 mt-2">
+                                                                        <input value={counterInput.price} onChange={e => setCounterInput(p => ({ ...p, price: e.target.value.replace(/[^0-9]/g, '') }))}
+                                                                            placeholder={t('equipment.counter_price_ph') || 'Karşı teklif (₺)'} inputMode="numeric"
+                                                                            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+                                                                        <button disabled={respondingOfferId === off.id || !parseInt(counterInput.price)}
+                                                                            onClick={() => respondEquipmentOffer(off.id, 'counter', undefined, parseInt(counterInput.price))}
+                                                                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3 rounded-lg transition disabled:opacity-50">
+                                                                            {t('equipment.counter_send_btn') || 'Gönder'}
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : off.status === 'COUNTERED' ? (
+                                                            <>
+                                                                <p className="text-purple-300 text-xs font-bold mt-1.5">{t('equipment.countered_badge', { price: off.counterPrice })}</p>
+                                                                <p className="text-gray-500 text-[11px] mt-0.5">{t('equipment.counter_waiting_msg') || 'Karşı tarafın yanıtı bekleniyor'}</p>
+                                                            </>
+                                                        ) : (
+                                                            <p className={`text-[11px] font-bold mt-1.5 ${off.status === 'ACCEPTED' ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {off.status === 'ACCEPTED' ? (t('equipment.offer_accepted_badge') || 'Kabul edildi') : (t('equipment.offer_rejected_badge') || 'Reddedildi')}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {selectedEquipment.status === 'RESERVED' && (
+                                            <button disabled={equipmentActionLoading}
+                                                onClick={() => cancelEquipmentReservation(selectedEquipment.id)}
+                                                className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-bold py-2 rounded-xl text-sm transition mb-2 disabled:opacity-50">
+                                                {t('equipment.cancel_reserve_btn') || 'Rezervasyonu İptal Et'}
+                                            </button>
+                                        )}
+                                        {selectedEquipment.status !== 'SOLD' && (
+                                            <button disabled={equipmentActionLoading}
+                                                onClick={() => { if (confirm(t('equipment.mark_sold_confirm_msg') || 'Bu ilanı satıldı olarak işaretlemek istiyor musunuz?')) markEquipmentSold(selectedEquipment.id); }}
+                                                className="w-full bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold py-2 rounded-xl text-sm transition mb-2 disabled:opacity-50">
+                                                {t('equipment.mark_sold_btn') || 'Satıldı Olarak İşaretle'}
+                                            </button>
+                                        )}
+                                        <button onClick={() => deleteEquipment(selectedEquipment.id)}
+                                            className="w-full bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold py-2.5 rounded-xl text-sm transition">
+                                            🗑 {t('equipment.delete') || 'İlanı Sil'}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex gap-2 mb-2">
+                                            <button onClick={() => openChatWithSeller(selectedEquipment)}
+                                                className={`flex-1 bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-xl text-sm hover:opacity-90 transition`}>
+                                                💬 {t('equipment.chat_btn') || 'Sohbet Aç'}
+                                            </button>
+                                            {selectedEquipment.status !== 'SOLD' && (
+                                                <button onClick={() => setShowOfferForm(v => !v)}
+                                                    className="flex-1 bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold py-2 rounded-xl text-sm transition">
+                                                    {t('equipment.send_offer_btn') || 'Teklif Gönder'}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {selectedEquipment.myOffer && (
+                                            <div className="bg-gray-900 border border-gray-800 rounded-lg p-2.5 mb-3">
+                                                {selectedEquipment.myOffer.status === 'PENDING' && (
+                                                    <p className="text-yellow-400 text-xs font-bold">{t('equipment.my_offer_pending_msg', { price: selectedEquipment.myOffer.price })}</p>
+                                                )}
+                                                {selectedEquipment.myOffer.status === 'COUNTERED' && (
+                                                    <>
+                                                        <p className="text-purple-300 text-sm font-bold">{t('equipment.my_offer_countered_msg', { price: selectedEquipment.myOffer.counterPrice })}</p>
+                                                        <div className="flex gap-1.5 mt-2">
+                                                            <button disabled={respondingOfferId === selectedEquipment.myOffer.id}
+                                                                onClick={() => respondToMyOfferCounter(selectedEquipment.myOffer.id, 'accept_counter')}
+                                                                className="flex-1 bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                {t('equipment.accept_counter_btn') || 'Kabul Et'}
+                                                            </button>
+                                                            <button disabled={respondingOfferId === selectedEquipment.myOffer.id}
+                                                                onClick={() => respondToMyOfferCounter(selectedEquipment.myOffer.id, 'reject_counter')}
+                                                                className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold text-xs py-1.5 rounded-lg transition disabled:opacity-50">
+                                                                {t('equipment.reject_counter_btn') || 'Reddet'}
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                                {selectedEquipment.myOffer.status === 'ACCEPTED' && (
+                                                    <p className="text-green-400 text-xs font-bold">{t('equipment.my_offer_accepted_msg') || 'Teklifiniz kabul edildi!'}</p>
+                                                )}
+                                                {selectedEquipment.myOffer.status === 'REJECTED' && (
+                                                    <p className="text-red-400 text-xs font-bold">{t('equipment.my_offer_rejected_msg') || 'Teklifiniz reddedildi'}</p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {showOfferForm && (
+                                            <div className="bg-gray-900 border border-gray-800 rounded-lg p-2.5 mb-3 space-y-2">
+                                                <input value={offerForm.price} onChange={e => setOfferForm(f => ({ ...f, price: e.target.value.replace(/[^0-9]/g, '') }))}
+                                                    placeholder={t('equipment.offer_price_ph') || 'Teklif fiyatı (₺)'} inputMode="numeric"
+                                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500" />
+                                                <input value={offerForm.message} onChange={e => setOfferForm(f => ({ ...f, message: e.target.value }))}
+                                                    placeholder={t('equipment.offer_msg_ph') || 'Mesaj (opsiyonel)'}
+                                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500" />
+                                                <button onClick={sendEquipmentOffer} disabled={submittingOffer}
+                                                    className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-lg text-sm hover:opacity-90 transition disabled:opacity-50`}>
+                                                    {submittingOffer ? '...' : (t('equipment.offer_send_btn') || 'Teklifi Gönder')}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Teklif kabul — opsiyon tarihi seçimi */}
+                    {acceptDateModal.visible && (
+                        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => setAcceptDateModal({ visible: false, offerId: null, date: '' })}>
+                            <div className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-xs p-5" onClick={e => e.stopPropagation()}>
+                                <p className="text-white font-bold text-sm mb-3">{t('equipment.reserve_until_title') || 'Opsiyon tarihi seçin'}</p>
+                                <input type="date" value={acceptDateModal.date} min={new Date().toISOString().slice(0, 10)}
+                                    onChange={e => setAcceptDateModal(p => ({ ...p, date: e.target.value }))}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:border-purple-500" />
+                                <div className="flex gap-2">
+                                    <button onClick={() => setAcceptDateModal({ visible: false, offerId: null, date: '' })}
+                                        className="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-bold py-2 rounded-xl text-sm transition">
+                                        {t('common.cancel') || 'İptal'}
+                                    </button>
+                                    <button disabled={!acceptDateModal.date}
+                                        onClick={() => {
+                                            const offerId = acceptDateModal.offerId;
+                                            const date = acceptDateModal.date;
+                                            setAcceptDateModal({ visible: false, offerId: null, date: '' });
+                                            respondEquipmentOffer(offerId, 'accept', new Date(date).toISOString());
+                                        }}
+                                        className={`flex-1 bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
+                                        {t('equipment.offer_accept') || 'Kabul Et'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}

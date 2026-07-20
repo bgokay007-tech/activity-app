@@ -1054,7 +1054,7 @@ export const getRivalRequests = async (req, res, next) => {
         const [myJoinReqs, commentCounts] = await Promise.all([
             prisma.rivalJoinRequest.findMany({
                 where: { userId: req.userId, rivalId: { in: rivalIds } },
-                select: { id: true, rivalId: true, status: true, counterPrice: true, counterMessage: true },
+                select: { id: true, rivalId: true, status: true, counterPrice: true, counterMessage: true, initiatedBy: true, offerPrice: true, offerMessage: true },
             }),
             prisma.matchComment.groupBy({
                 by: ['rivalId'],
@@ -1062,7 +1062,7 @@ export const getRivalRequests = async (req, res, next) => {
                 _count: { id: true },
             }),
         ]);
-        const myJoinMap = Object.fromEntries(myJoinReqs.map(j => [j.rivalId, { status: j.status, id: j.id, counterPrice: j.counterPrice, counterMessage: j.counterMessage }]));
+        const myJoinMap = Object.fromEntries(myJoinReqs.map(j => [j.rivalId, { status: j.status, id: j.id, counterPrice: j.counterPrice, counterMessage: j.counterMessage, initiatedBy: j.initiatedBy, offerPrice: j.offerPrice, offerMessage: j.offerMessage }]));
         const commentCountMap = Object.fromEntries(commentCounts.map(c => [c.rivalId, c._count.id]));
 
         res.json(requests.map(r => ({
@@ -1071,6 +1071,9 @@ export const getRivalRequests = async (req, res, next) => {
             _myJoinRequestId: myJoinMap[r.id]?.id || null,
             _myJoinCounterPrice: myJoinMap[r.id]?.counterPrice || null,
             _myJoinCounterMessage: myJoinMap[r.id]?.counterMessage || null,
+            _myJoinInitiatedBy: myJoinMap[r.id]?.initiatedBy || null,
+            _myJoinOfferPrice: myJoinMap[r.id]?.offerPrice || null,
+            _myJoinOfferMessage: myJoinMap[r.id]?.offerMessage || null,
             commentCount: commentCountMap[r.id] ?? 0,
         })));
     } catch (error) {
