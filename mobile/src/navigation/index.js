@@ -6,7 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setCredentials, setUser } from '../store/slices/authSlice';
 import { setLang } from '../store/slices/langSlice';
-import { setUnreadCount, incrementUnread } from '../store/slices/notificationSlice';
+import { setUnreadCount, incrementUnread, clearUnread } from '../store/slices/notificationSlice';
 import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform } from 'react-native';
 import RainbowLogo from '../components/RainbowLogo';
@@ -345,7 +345,7 @@ function AppTabs() {
                 component={NotificationsStackNav}
                 listeners={({ navigation }) => ({
                     tabPress: (e) => {
-                        setUnreadNotifs(0);
+                        dispatch(clearUnread());
                         e.preventDefault();
                         navigation.navigate('NotificationsTab', { screen: 'NotificationsList' });
                     },
