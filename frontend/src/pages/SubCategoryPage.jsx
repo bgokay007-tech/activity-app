@@ -89,6 +89,8 @@ const VOLLEYBALL_SURFACES = [
 ];
 const VOLLEYBALL_SIZES = [1, 2, 3, 4, 5, 6];
 
+const RATING_OPTIONS = ['0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0','9.5','10.0'];
+
 const DURATION_OPTIONS = [
     { value: '30',  label: '30 min'  },
     { value: '60',  label: '1 hour'  },
@@ -418,6 +420,8 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
         surface: sub === 'football' ? 'HALI_SAHA' : sub === 'volleyball' ? 'BEACH' : '',
         indoor: null,
         teamSize: sub === 'football' ? 5 : 2,
+        minRating: '',
+        maxRating: '',
         genderReq: 'MIX',
         partnerGenderReq: 'MIX',
         opp1GenderReq: 'MIX',
@@ -744,6 +748,26 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     ))}
                 </div>
             </div>
+            )}
+
+            {/* Rating range restriction — individual (non-team) sports */}
+            {!isTeamSport && (
+                <div>
+                    <label className="text-gray-400 text-xs mb-2 block">{t('rival.rating_limit_label')}</label>
+                    <div className="flex items-center gap-2">
+                        <select value={form.minRating} onChange={e => setForm(f => ({ ...f, minRating: e.target.value }))}
+                            className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm">
+                            <option value="">{t('rival.rating_free')}</option>
+                            {RATING_OPTIONS.map(r => <option key={r} value={r}>{r}★</option>)}
+                        </select>
+                        <span className="text-gray-500 text-xs">–</span>
+                        <select value={form.maxRating} onChange={e => setForm(f => ({ ...f, maxRating: e.target.value }))}
+                            className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm">
+                            <option value="">{t('rival.rating_free')}</option>
+                            {RATING_OPTIONS.map(r => <option key={r} value={r}>{r}★</option>)}
+                        </select>
+                    </div>
+                </div>
             )}
 
             {/* Gender restriction — tennis/padel only */}
@@ -4490,6 +4514,9 @@ function SubCategoryPage() {
                                                         </span>
                                                     )}
                                                     <span className="text-gray-400 text-xs">{filled}/{required} joined</span>
+                                                    {(rival.minRating != null || rival.maxRating != null) && (
+                                                        <span className="text-purple-300 text-[10px] font-bold">⭐ {rival.minRating ?? '0'}–{rival.maxRating ?? '10'}</span>
+                                                    )}
                                                 </div>
 
                                                 {/* Sağ üst: aksiyon butonları (sadece ilanı açan için) */}

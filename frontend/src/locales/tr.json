@@ -276,6 +276,8 @@
     "be_first": "İlk ilanı sen oluştur →",
     "no_filter_match": "Filtreyle eşleşen ilan bulunamadı",
     "city_filter_ph": "İl",
+    "rating_limit_label": "Derece Limiti",
+    "rating_free": "Serbest",
     "gender_req_label": "Rakip Cinsiyeti",
     "gender_mix": "Mix",
     "gender_male": "Erkek",

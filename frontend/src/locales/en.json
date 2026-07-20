@@ -276,6 +276,8 @@
     "be_first": "Be the first to post a listing →",
     "no_filter_match": "No listings match your filter",
     "city_filter_ph": "City",
+    "rating_limit_label": "Rating Limit",
+    "rating_free": "Free",
     "gender_req_label": "Opponent Gender",
     "gender_mix": "Mix",
     "gender_male": "Men",
