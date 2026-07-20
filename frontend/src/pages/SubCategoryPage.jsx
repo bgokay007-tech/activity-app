@@ -1188,7 +1188,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 </div>
             </label>
 
-            {!form.flexibleSchedule && sub !== 'tennis' && (
+            {!form.flexibleSchedule && sub !== 'tennis' && !isEdit && (
             <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className="text-gray-400 text-xs mb-1 block">{t('rival.level')} *</label>
@@ -1653,7 +1653,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 </div>
             )}
 
-            {needsPartner && (
+            {needsPartner && !isEdit && (
                 <label className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-3 cursor-pointer">
                     <input type="checkbox" checked={form.teamFlexibility === 'STRICT'}
                         onChange={e => setForm(f => ({ ...f, teamFlexibility: e.target.checked ? 'STRICT' : 'FLEXIBLE' }))}
