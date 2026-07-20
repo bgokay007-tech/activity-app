@@ -95,6 +95,7 @@ model User {
   assessmentVotesCast AssessmentVote[]
   coachListings       CoachListing[]
   refereeListings     RefereeListing[]
+  refereedMatches     ActivityRequest[] @relation("MatchRefereeUser")
   equipmentListings   EquipmentListing[]
   equipmentOffers     EquipmentOffer[]
   listingReports      ListingReport[]
@@ -564,6 +565,7 @@ model ActivityRequest {
   refereeRequested Boolean     @default(false)    // bu maç ilanı için hakem talep edildi mi (tenis/padel/voleybol)
   linkedRivalId   String?                         // hakem-arama ilanıysa (matchType PLAYER_WANTED, positions:['REFEREE']) bağlı olduğu asıl maç ilanının id'si
   refereeFeePerPerson Int?                        // hakemle fiyatta anlaşıldığında, hakem ücretinin oyuncu sayısına eşit bölünmüş payı (asıl maç ilanında tutulur)
+  refereeId       String?                         // asıl maç ilanında: onaylanmış hakemin userId'si (hakem slotu)
   minRating       Float?                          // min skill rating to join
   maxRating       Float?                          // max skill rating to join
   status          String       @default("OPEN")   // OPEN | MATCHED | CANCELLED | COMPLETED
@@ -593,6 +595,7 @@ model ActivityRequest {
   matchPeerReviews MatchPeerReview[]
   linkedRival     ActivityRequest?  @relation("RefereeLink", fields: [linkedRivalId], references: [id], onDelete: Cascade)
   refereeAds      ActivityRequest[] @relation("RefereeLink")
+  refereeUser     User?  @relation("MatchRefereeUser", fields: [refereeId], references: [id], onDelete: SetNull)
 }
 
 model MatchComment {
@@ -673,6 +676,7 @@ model RivalJoinRequest {
   offerPrice      String?                       // Hakem başvurusu: teklif edilen ücret
   offerMessage    String?                       // Hakem başvurusu: ek bilgi/mesaj
   offerCvUrl      String?                       // Hakem başvurusu: CV linki (varsa)
+  counterPrice    String?                       // Hakem başvurusu: ilan sahibinin karşı teklifi (status=COUNTERED iken dolu)
   createdAt   DateTime @default(now())
 
   rival      ActivityRequest @relation(fields: [rivalId],  references: [id], onDelete: Cascade)
