@@ -1227,8 +1227,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     {isOwner && refereeAdId && (
                                         <TouchableOpacity
                                             onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
-                                            style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', paddingHorizontal:8, paddingVertical:4 }}>
-                                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
+                                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', paddingHorizontal:8, paddingVertical:4 }}>
+                                            <Text style={{ fontSize:11 }}>➕</Text>
+                                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{t.inviteRefereeBtn}</Text>
                                         </TouchableOpacity>
                                     )}
                                 </>
@@ -1517,7 +1518,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? noEmojiStr(t.inviteRefereeBtn) : t.inviteBtn}</Text>
+                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? t.inviteRefereeBtn : t.inviteBtn}</Text>
                         <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); setInviteForReferee(false); }}>
                             <Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text>
                         </TouchableOpacity>
