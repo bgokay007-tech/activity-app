@@ -408,6 +408,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [inviteResults, setInviteResults] = useState([]);
     const [inviteSearching, setInviteSearching] = useState(false);
     const [invitingUserId, setInvitingUserId] = useState(null);
+    const [invitedUserIds, setInvitedUserIds] = useState(() => new Set()); // davet gönderilenler — anında "Davet Gönderildi" göstermek için
     const [inviteForReferee, setInviteForReferee] = useState(false); // true iken davet paneli hakem ilanına gönderir
 
     // Çiftler: bireysel başvurmuşlar arası partner davet/kabul/geri çek
@@ -594,8 +595,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         try {
             const targetRivalId = inviteForReferee && refereeAdId ? refereeAdId : item.id;
             await api.post(`/rivals/${targetRivalId}/invite`, { userId: targetUser.id });
-            Alert.alert('', t.inviteSentMsg(targetUser.fullName || targetUser.username));
-            setInviteResults(prev => prev.filter(u => u.id !== targetUser.id));
+            setInvitedUserIds(prev => new Set(prev).add(targetUser.id));
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally { setInvitingUserId(null); }
@@ -1215,7 +1215,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {/* Hakem Slotu — ilan sahibi + katılımcılar için özet, kimin hakem olduğunu gösterir */}
                     {item.refereeRequested && (isOwner || isParticipant) && (
                         <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', paddingHorizontal:9, paddingVertical:6 }}>
-                            <Text style={{ fontSize:16 }}>🟨</Text>
                             {item.refereeUser ? (
                                 <>
                                     <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(24)} color="#f59e0b" />
@@ -1223,7 +1222,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </>
                             ) : (
                                 <>
-                                    <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }}>{t.refereeSlotLabel}: {t.refereeSlotSearching}</Text>
+                                    <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }}>
+                                        {t.refereeSlotLabel}: {t.refereeSlotSearching}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}
+                                    </Text>
                                     {isOwner && refereeAdId && (
                                         <TouchableOpacity
                                             onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
@@ -1238,61 +1239,64 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                     {/* Hakem Başvuruları — ilan sahibi + katılımcılar ortak görür; sahibi kabul/red/karşı teklif verebilir */}
                     {item.refereeRequested && (isOwner || isParticipant) && refereeApplications.length > 0 && (
-                        <View style={{ marginBottom:14, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(10), borderWidth:1, borderColor:'#f59e0b30', padding:9 }}>
-                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'800', marginBottom:6 }}>🟨 {t.refereeApplicationsTitle}</Text>
+                        <View style={{ marginBottom:10, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', padding:6 }}>
+                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'800', marginBottom:4 }}>{t.refereeApplicationsTitle}</Text>
                             {refereeApplications.map(app => (
-                                <View key={app.id} style={{ marginBottom:6, paddingBottom:6, borderBottomWidth:1, borderBottomColor:'#f59e0b20' }}>
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                        <Avatar name={app.user?.username} avatar={app.user?.avatar} size={moderateScale(28)} color="#f59e0b" />
+                                <View key={app.id} style={{ marginBottom:4, paddingBottom:4, borderBottomWidth:1, borderBottomColor:'#f59e0b20' }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                        <Avatar name={app.user?.username} avatar={app.user?.avatar} size={moderateScale(20)} color="#f59e0b" />
                                         <View style={{ flex:1 }}>
-                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>{app.user?.fullName || app.user?.username}</Text>
-                                            {app.offerPrice && <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>💰 {app.offerPrice}</Text>}
+                                            <Text style={{ color:'#fff', fontSize:moderateScale(10), fontWeight:'700' }}>{app.user?.fullName || app.user?.username}</Text>
+                                            {app.offerPrice && <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), fontWeight:'700' }}>{app.offerPrice}</Text>}
                                         </View>
                                         {app.status === 'ACCEPTED' && (
-                                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700' }}>✓ {t.refereeAcceptedLabel}</Text>
+                                            <View style={{ backgroundColor:'#16a34a20', borderRadius:5, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                <Text style={{ color:'#4ade80', fontSize:moderateScale(9), fontWeight:'700' }}>✓ {t.refereeAcceptedLabel}</Text>
                                             </View>
                                         )}
                                         {app.status === 'COUNTERED' && (
-                                            <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>↔️ {app.counterPrice}</Text>
+                                            <View style={{ backgroundColor:'#f59e0b20', borderRadius:5, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), fontWeight:'700' }}>↔ {app.counterPrice}</Text>
                                             </View>
                                         )}
                                     </View>
-                                    {app.offerMessage && <Text style={{ color: colors.textSecondary, fontSize:moderateScale(11), marginTop:4 }}>{app.offerMessage}</Text>}
+                                    {app.offerMessage && <Text style={{ color: colors.textSecondary, fontSize:moderateScale(9), marginTop:2 }}>{app.offerMessage}</Text>}
                                     {app.offerCvUrl && (
-                                        <TouchableOpacity onPress={() => Linking.openURL(app.offerCvUrl)} style={{ marginTop:4, alignSelf:'flex-start', backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:2, borderWidth:1, borderColor:'#16a34a50' }}>
-                                            <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700' }}>📄 CV</Text>
+                                        <TouchableOpacity onPress={() => Linking.openURL(app.offerCvUrl)} style={{ marginTop:2, alignSelf:'flex-start', backgroundColor:'#16a34a20', borderRadius:5, paddingHorizontal:6, paddingVertical:1, borderWidth:1, borderColor:'#16a34a50' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:moderateScale(9), fontWeight:'700' }}>CV</Text>
                                         </TouchableOpacity>
                                     )}
                                     {isOwner && app.status === 'COUNTERED' && (
-                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:4, fontStyle:'italic' }}>{t.refereeCounterPendingMsg}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(9), marginTop:2, fontStyle:'italic' }}>{t.refereeCounterPendingMsg}</Text>
                                     )}
-                                    {isOwner && app.status === 'PENDING' && counterInputFor !== app.id && (
-                                        <View style={{ flexDirection:'row', gap:6, marginTop:6 }}>
-                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius:8, paddingVertical:5, alignItems:'center' }} onPress={() => respondRefereeApplication(app.id, 'accept')}>
-                                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.inviteAcceptBtn}</Text>
+                                    {app.initiatedBy === 'OWNER' && app.status === 'PENDING' && (
+                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(9), marginTop:2, fontStyle:'italic' }}>Davet gönderildi — onay bekleniyor</Text>
+                                    )}
+                                    {isOwner && app.initiatedBy !== 'OWNER' && app.status === 'PENDING' && counterInputFor !== app.id && (
+                                        <View style={{ flexDirection:'row', gap:4, marginTop:4 }}>
+                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius:6, paddingVertical:3, alignItems:'center' }} onPress={() => respondRefereeApplication(app.id, 'accept')}>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }}>{t.inviteAcceptBtn}</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:5, alignItems:'center', borderWidth:1, borderColor:'#f59e0b60' }} onPress={() => { setCounterInputFor(app.id); setCounterPriceInput(''); }}>
-                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{t.refereeCounterBtn}</Text>
+                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#f59e0b20', borderRadius:6, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#f59e0b60' }} onPress={() => { setCounterInputFor(app.id); setCounterPriceInput(''); }}>
+                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), fontWeight:'700' }}>{t.refereeCounterBtn}</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius:8, paddingVertical:5 }]} onPress={() => respondRefereeApplication(app.id, 'reject')}>
-                                                <Text style={[s.cancelBtnText, { fontSize:moderateScale(11) }]}>{t.inviteRejectBtn}</Text>
+                                            <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius:6, paddingVertical:3 }]} onPress={() => respondRefereeApplication(app.id, 'reject')}>
+                                                <Text style={[s.cancelBtnText, { fontSize:moderateScale(9) }]}>{t.inviteRejectBtn}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
-                                    {isOwner && counterInputFor === app.id && (
-                                        <View style={{ flexDirection:'row', gap:6, marginTop:6, alignItems:'center' }}>
+                                    {isOwner && app.initiatedBy !== 'OWNER' && counterInputFor === app.id && (
+                                        <View style={{ flexDirection:'row', gap:4, marginTop:4, alignItems:'center' }}>
                                             <TextInput
-                                                style={[s.fieldInput, { flex:1, marginBottom:0 }]}
+                                                style={[s.fieldInput, { flex:1, marginBottom:0, fontSize:moderateScale(11), paddingVertical:4 }]}
                                                 value={counterPriceInput} onChangeText={setCounterPriceInput}
                                                 placeholder="450" placeholderTextColor={colors.textMuted} keyboardType="numeric" autoFocus
                                             />
-                                            <TouchableOpacity style={{ backgroundColor:'#f59e0b', borderRadius:8, paddingVertical:9, paddingHorizontal:12 }} onPress={() => respondRefereeApplication(app.id, 'counter', counterPriceInput)}>
-                                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.refereeCounterSendBtn}</Text>
+                                            <TouchableOpacity style={{ backgroundColor:'#f59e0b', borderRadius:6, paddingVertical:6, paddingHorizontal:9 }} onPress={() => respondRefereeApplication(app.id, 'counter', counterPriceInput)}>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }}>{t.refereeCounterSendBtn}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => { setCounterInputFor(null); setCounterPriceInput(''); }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(18) }}>✕</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(14) }}>✕</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
@@ -1415,7 +1419,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
                         ) : Array.isArray(item.positions) && item.positions.includes('REFEREE') ? (
                             <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
-                                <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>🟨 {t.refereeApplyBtn}</Text>
+                                <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
                             </TouchableOpacity>
                         ) : (
                             <TouchableOpacity style={[s.joinBtn, { backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
@@ -1485,7 +1489,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>🟨 {t.refereeApplyBtn}</Text>
+                            <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{t.refereeApplyBtn}</Text>
                             <TouchableOpacity onPress={() => setRefereeApplyVisible(false)}><Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text></TouchableOpacity>
                         </View>
                         <Text style={s.fieldLabel}>{t.refereePaymentLabel}</Text>
@@ -1541,13 +1545,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
                                     </Text>
                                 </View>
-                                <TouchableOpacity
-                                    style={[s.joinBtn, { paddingHorizontal:moderateScale(14), paddingVertical:moderateScale(7), borderRadius: moderateScale(10) }, invitingUserId === u.id && { opacity:0.6 }]}
-                                    onPress={() => handleInvite(u)}
-                                    disabled={invitingUserId === u.id}
-                                >
-                                    <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{invitingUserId === u.id ? '...' : t.inviteSendBtn}</Text>
-                                </TouchableOpacity>
+                                {invitedUserIds.has(u.id) ? (
+                                    <Text style={{ color:'#4ade80', fontSize:moderateScale(12), fontWeight:'700' }}>✓ Davet Gönderildi</Text>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={[s.joinBtn, { paddingHorizontal:moderateScale(14), paddingVertical:moderateScale(7), borderRadius: moderateScale(10) }, invitingUserId === u.id && { opacity:0.6 }]}
+                                        onPress={() => handleInvite(u)}
+                                        disabled={invitingUserId === u.id}
+                                    >
+                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{invitingUserId === u.id ? '...' : t.inviteSendBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         ))}
                         {!inviteSearching && inviteQuery.trim().length >= 2 && inviteResults.length === 0 && (
@@ -1761,7 +1769,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
                         <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
                             <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>
-                                🟨 {item.positions.includes('REFEREE_OFFER') ? t.refereeOfferingLabel : t.refereeSeekingLabel}
+                                {item.positions.includes('REFEREE_OFFER') ? t.refereeOfferingLabel : t.refereeSeekingLabel}
                             </Text>
                         </View>
                         {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>{item.refereePayment}</Text>}
@@ -1771,9 +1779,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
                         <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
                             <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                🟨 {t.refereeSlotLabel}: {item.refereeUser ? (item.refereeUser.fullName || item.refereeUser.username) : t.refereeSlotSearching}
+                                {t.refereeSlotLabel}: {item.refereeUser ? (item.refereeUser.fullName || item.refereeUser.username) : t.refereeSlotSearching}
                             </Text>
                         </View>
+                        {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>{item.refereePayment}</Text>}
                     </View>
                 )}
                 {item.linkedRivalId && (
@@ -1939,6 +1948,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', textAlign:'center' }}>✓ Kabul</Text>
                 ) : isFull ? (
                     <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>{t.ilanFull || 'Dolu'}</Text>
+                ) : Array.isArray(item.positions) && item.positions.includes('REFEREE') ? (
+                    <TouchableOpacity
+                        style={{ backgroundColor:'#f59e0b20', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }}
+                        onPress={() => setDetailVisible(true)}
+                    >
+                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeApplyBtn}</Text>
+                    </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
                         style={{ backgroundColor:cfg.color, borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
@@ -2684,7 +2700,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             )}
             {match.refereeRequested && (
                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }}>
-                    🟨 {t.refereeSlotLabel}: {match.refereeUser ? (match.refereeUser.fullName || match.refereeUser.username) + ' ✓' : t.refereeSlotSearching}
+                    {t.refereeSlotLabel}: {match.refereeUser ? (match.refereeUser.fullName || match.refereeUser.username) + ' ✓' : t.refereeSlotSearching}
                 </Text>
             )}
             {/* Comment count */}
@@ -2775,7 +2791,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.refereeRequested && (
                             <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', marginTop:6 }}>
-                                🟨 {t.refereeSlotLabel}: {match.refereeUser ? (match.refereeUser.fullName || match.refereeUser.username) + ' ✓' : t.refereeSlotSearching}
+                                {t.refereeSlotLabel}: {match.refereeUser ? (match.refereeUser.fullName || match.refereeUser.username) + ' ✓' : t.refereeSlotSearching}
                             </Text>
                         )}
                         {match.level && (
