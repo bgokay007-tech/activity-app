@@ -4126,7 +4126,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         const isWindow = cData && (cData.type === 'FLEXIBLE' || cData.type === 'VAR_DURATION');
         const typeInfo = cData ? slotTypeLabel(cData.type) : null;
 
-        const colWidth = isWindow ? 160 : isStructured ? 110 : 130;
+        const colWidth = isWindow ? 140 : isStructured ? 110 : 130;
         return (
             <View key={court.id} style={[vb.courtCol, { width: colWidth, height: '100%' }]}>
                 <Text style={vb.courtColTitle}>{court.name}</Text>
@@ -4262,7 +4262,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                     return (
                                                         <TouchableOpacity key={st}
                                                             onPress={() => { setVarStartMap(p => ({ ...p, [court.id]: { ...p[court.id], customStart: st } })); setSelSlot(null); }}
-                                                            style={{ minWidth:42, paddingVertical:4, paddingHorizontal:3, borderRadius:8, backgroundColor: isSt ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSt ? '#9333ea' : '#ffffff20' }}>
+                                                            style={{ width:'48%', paddingVertical:4, paddingHorizontal:3, borderRadius:8, backgroundColor: isSt ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSt ? '#9333ea' : '#ffffff20' }}>
                                                             <Text style={{ color: isSt ? '#fff' : '#aaa', fontSize:10, fontWeight:'700' }}>{st}</Text>
                                                         </TouchableOpacity>
                                                     );
@@ -4279,7 +4279,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                     return (
                                                         <TouchableOpacity key={d}
                                                             onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setSelSlot(null); }}
-                                                            style={{ flex:1, minWidth:36, paddingVertical:3, borderRadius:8, backgroundColor: isSd ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSd ? '#9333ea' : '#ffffff20' }}>
+                                                            style={{ width:'48%', paddingVertical:3, borderRadius:8, backgroundColor: isSd ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSd ? '#9333ea' : '#ffffff20' }}>
                                                             <Text style={{ color: isSd ? '#fff' : '#aaa', fontSize:10, fontWeight:'700' }}>{d<60?`${d}dk`:`${d/60}sa`}</Text>
                                                             {dPrice != null && dPrice > 0 && (
                                                                 <Text style={{ color: isSd ? '#bbf7d0' : '#6b7280', fontSize:9, fontWeight:'700', marginTop:1 }}>{dPrice}₺</Text>
