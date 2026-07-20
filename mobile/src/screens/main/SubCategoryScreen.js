@@ -10753,19 +10753,25 @@ export default function SubCategoryScreen({ route, navigation }) {
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
     };
 
-    const openChatWithSeller = async (listing) => {
+    // targetUserId verilmezse ilan sahibiyle (satıcıyla) sohbet açılır — alıcı akışı.
+    // İlan sahibi kendi ilanına teklif veren birine yazmak isterse targetUserId o kişinin id'sidir.
+    const openChatWithSeller = async (listing, targetUserId) => {
+        const otherId = targetUserId || listing.userId;
+        const isOwnerContactingBidder = otherId !== listing.userId;
         try {
-            const { data: conv } = await api.get(`/messages/conversation/${listing.userId}`);
+            const { data: conv } = await api.get(`/messages/conversation/${otherId}`);
             const enriched = { ...conv, other: conv.user1Id === myId ? conv.user2 : conv.user1 };
 
-            // Bu ilan bu sohbette daha önce hiç referans verilmemişse, alıcının hangi ürün
-            // hakkında yazdığı karşı tarafa da net olsun diye otomatik bir ilk mesaj gönderilir.
+            // Bu ilan bu sohbette daha önce hiç referans verilmemişse, hangi ürün hakkında
+            // yazıldığı karşı tarafa da net olsun diye otomatik bir ilk mesaj gönderilir.
             try {
                 const { data: history } = await api.get(`/messages/conversation/${conv.id}/messages`);
                 const alreadyReferenced = (history || []).some(m => m.equipmentListingId === listing.id || m.equipmentListing?.id === listing.id);
                 if (!alreadyReferenced) {
-                    await api.post(`/messages/send/${listing.userId}`, {
-                        content: `🎾 "${listing.title}" ilanı hakkında mesajlaşmak istiyorum.`,
+                    await api.post(`/messages/send/${otherId}`, {
+                        content: isOwnerContactingBidder
+                            ? `🎾 "${listing.title}" ilanına verdiğiniz teklif hakkında yazıyorum.`
+                            : `🎾 "${listing.title}" ilanı hakkında mesajlaşmak istiyorum.`,
                         equipmentListingId: listing.id,
                     });
                 }
@@ -11752,7 +11758,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {equipmentOffers.map(off => (
                                                                 <View key={off.id} style={{ backgroundColor:colors.surface2, borderRadius:10, padding:8, borderWidth:1, borderColor:colors.border }}>
                                                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{off.fromUser?.fullName || off.fromUser?.username}</Text>
+                                                                        <TouchableOpacity
+                                                                            style={{ flexDirection:'row', alignItems:'center', gap:6, flex:1 }}
+                                                                            onPress={() => off.fromUser?.id && navigation.push('Profile', { userId: off.fromUser.id })}
+                                                                        >
+                                                                            <Avatar name={off.fromUser?.username} avatar={off.fromUser?.avatar} size={24} color={cfg.color} />
+                                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1}>{off.fromUser?.fullName || off.fromUser?.username}</Text>
+                                                                        </TouchableOpacity>
+                                                                        <TouchableOpacity onPress={() => openChatWithSeller(selectedEquipment, off.fromUser?.id)} style={{ paddingHorizontal:6 }}>
+                                                                            <Text style={{ fontSize:16 }}>💬</Text>
+                                                                        </TouchableOpacity>
                                                                         <Text style={{ color: cfg.color, fontSize:14, fontWeight:'900' }}>{off.price}₺</Text>
                                                                     </View>
                                                                     {off.message ? <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:2 }}>{off.message}</Text> : null}
