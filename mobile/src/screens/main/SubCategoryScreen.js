@@ -11330,12 +11330,21 @@ export default function SubCategoryScreen({ route, navigation }) {
             setPlayerWanted(prev => prev.filter(r => r.id !== rivalId));
             setMatchedUpcoming(prev => prev.filter(r => r.id !== rivalId));
         });
+        // Yorum sayacı sayfa yenilenmeden anlık artsın — kart listelerindeki commentCount'u
+        // yeni yorum geldikçe (kendi yorumumuz dahil, backend artık bize de gönderiyor) günceller.
+        const offNewComment = onSocket('newComment', ({ rivalId }) => {
+            const bump = list => list.map(r => r.id === rivalId ? { ...r, commentCount: (r.commentCount ?? 0) + 1 } : r);
+            setRivals(bump);
+            setMatchedUpcoming(bump);
+            setPlayerWanted(bump);
+            setRefereeMatches(bump);
+        });
         const offReconnect = onSocketReconnect(() => load());
         // Fallback: socket missed event → periyodik yenileme (30s)
         const pollInterval = setInterval(() => load(), 30000);
         // Dakikada bir tick → maç saati geçince yaklaşan→skor bekleniyor geçişini anlık yansıt
         const tickInterval = setInterval(() => setTimeTick(n => n + 1), 60000);
-        return () => { offUpdate(); offDeleted(); offReconnect(); clearInterval(pollInterval); clearInterval(tickInterval); };
+        return () => { offUpdate(); offDeleted(); offNewComment(); offReconnect(); clearInterval(pollInterval); clearInterval(tickInterval); };
     }, [category, sub]);
 
     const handleNearMe = async () => {

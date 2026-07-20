@@ -2060,6 +2060,10 @@ export const addMatchComment = async (req, res, next) => {
         });
         res.status(201).json(comment);
 
+        // Yorum sayacı sayfa yenilenmeden anlık artsın diye yorumu atan kullanıcıya da
+        // 'newComment' gönderilir (bildirim değil, sadece canlı sayaç güncellemesi için).
+        emitToUser(req.userId, 'newComment', { rivalId: id, comment });
+
         // Notify owner + participants (except commenter)
         const parts = Array.isArray(match.participants) ? match.participants : [];
         const allIds = [...new Set([match.senderId, ...parts.map(p => p.id)])].filter(uid => uid !== req.userId);
