@@ -3114,6 +3114,52 @@ function SubCategoryPage() {
     const [refCounterInput, setRefCounterInput] = useState({ requestId: null, price: '', message: '' });
     const [respondingRefId, setRespondingRefId] = useState(null);
     const [refAppsCache, setRefAppsCache] = useState({});
+    const [cityAlertStatus, setCityAlertStatus] = useState({}); // { [tab]: { subscribed, city, loading } }
+
+    const loadCityAlertStatus = async (tab) => {
+        try {
+            const { data } = await api.get(`/city-alerts/${sub}`, { params: { tab } });
+            setCityAlertStatus(prev => ({ ...prev, [tab]: { subscribed: data.subscribed, city: data.city, loading: false } }));
+        } catch { setCityAlertStatus(prev => ({ ...prev, [tab]: { subscribed: false, city: null, loading: false } })); }
+    };
+
+    useEffect(() => {
+        const tab = activeTab === 'coaches' ? (coachSubTab === 'referees' ? 'referees' : 'coaches') : activeTab;
+        if (['rivals', 'tournaments', 'equipment', 'coaches', 'referees'].includes(tab) && !cityAlertStatus[tab]) {
+            loadCityAlertStatus(tab);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, coachSubTab, sub]);
+
+    const toggleCityAlert = async (tab) => {
+        setCityAlertStatus(prev => ({ ...prev, [tab]: { ...prev[tab], loading: true } }));
+        try {
+            const { data } = await api.post('/city-alerts', { subCategory: sub, tab });
+            setCityAlertStatus(prev => ({ ...prev, [tab]: { subscribed: data.subscribed, city: data.city, loading: false } }));
+        } catch (e) {
+            alert(e?.response?.data?.message || t('common.action_failed') || 'İşlem başarısız');
+            setCityAlertStatus(prev => ({ ...prev, [tab]: { ...prev[tab], loading: false } }));
+        }
+    };
+
+    // Not: CityAlertBtn kasıtlı olarak hook kullanmayan saf bir render fonksiyonu —
+    // her render'da yeniden tanımlansa da kendi state'i olmadığı için sorun yaratmıyor.
+    // Durumu yüklemek için aşağıdaki tab-bazlı useEffect kullanılıyor.
+    const CityAlertBtn = ({ tab, desc }) => {
+        const st = cityAlertStatus[tab];
+        return (
+            <button type="button"
+                title={desc}
+                onClick={() => {
+                    if (st?.loading) return;
+                    if (!st?.subscribed && !confirm('Profilinizdeki şehirde bu kategoride yeni ilan açıldığında bildirim almak istiyor musunuz?')) return;
+                    toggleCityAlert(tab);
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-bold transition flex-shrink-0 ${st?.subscribed ? `bg-gradient-to-r ${config.color} border-transparent text-white` : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                {st?.loading ? '...' : st?.subscribed ? '🔔' : '🔕'} {st?.subscribed ? (st?.city || '') : ''}
+            </button>
+        );
+    };
     const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
     const [branchStories, setBranchStories] = useState([]);
     const [newTextPost, setNewTextPost] = useState('');
@@ -4302,6 +4348,7 @@ function SubCategoryPage() {
 
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div className="flex items-center gap-2 flex-wrap">
+                                    <CityAlertBtn tab="rivals" desc="Şehrinde yeni rakip ilanı açılınca bildirim al" />
                                     <div className="flex items-center bg-gray-900 border border-gray-700 rounded-lg px-2 py-1">
                                         <span className="text-gray-500 text-xs mr-1">📍</span>
                                         <input
@@ -5266,7 +5313,10 @@ function SubCategoryPage() {
                         if (tournamentView === null) return (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center">
-                                    <h3 className="text-white font-bold">🏆 {t('tournament.title')}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-white font-bold">🏆 {t('tournament.title')}</h3>
+                                        <CityAlertBtn tab="tournaments" desc="Şehrinde yeni turnuva açılınca bildirim al" />
+                                    </div>
                                     <button onClick={() => setTournamentView('pick')}
                                         className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
                                         + {t('tournament.create')}
@@ -6938,7 +6988,11 @@ function SubCategoryPage() {
                         return (
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-white font-bold">🎓 {isCoachExpanded ? t('coaches.support_title') : t('coaches.title')}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-white font-bold">🎓 {isCoachExpanded ? t('coaches.support_title') : t('coaches.title')}</h3>
+                                        <CityAlertBtn tab={coachSubTab === 'referees' ? 'referees' : 'coaches'}
+                                            desc={coachSubTab === 'referees' ? 'Şehrinde yeni hakem ilanı açılınca bildirim al' : 'Şehrinde yeni antrenör ilanı açılınca bildirim al'} />
+                                    </div>
                                     {coachSubTab === 'referees' ? (
                                         <button onClick={() => setShowCreateReferee(v => !v)}
                                             className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
@@ -7728,6 +7782,9 @@ function SubCategoryPage() {
                     {/* EQUIPMENT TAB — tennis/padel ikinci el / sıfır ekipman ilanları */}
                     {activeTab === 'equipment' && EQUIPMENT_SPORTS.has(sub) && (
                         <div className="space-y-3">
+                            <div className="flex justify-end">
+                                <CityAlertBtn tab="equipment" desc="Şehrinde yeni ekipman ilanı açılınca bildirim al" />
+                            </div>
                             <div className="flex gap-2">
                                 {['ACTIVE', 'SOLD'].map(v => (
                                     <button key={v} onClick={() => setEquipmentViewStatus(v)}
