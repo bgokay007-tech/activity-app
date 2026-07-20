@@ -4251,15 +4251,24 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     )}
                                     {isWinSel && (<>
                                         <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Başlangıç</Text>
-                                        <TextInput
-                                            value={sel?.customStart ?? roundedNowIfPast(selDate, w)}
-                                            onChangeText={v => { setVarStartMap(p => ({ ...p, [court.id]: { ...p[court.id], customStart: v } })); setSelSlot(null); }}
-                                            placeholder={w.start}
-                                            placeholderTextColor="#555"
-                                            keyboardType="numbers-and-punctuation"
-                                            maxLength={5}
-                                            style={{ backgroundColor:'#ffffff10', borderRadius:6, paddingHorizontal:3, paddingVertical:3, color:'#fff', fontSize:12, fontWeight:'800', borderWidth:1, borderColor: validStart ? '#9333ea' : '#ffffff20', textAlign:'center', marginBottom:3 }}
-                                        />
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
+                                            {(() => {
+                                                const nowM = toM(roundedNowIfPast(selDate, w));
+                                                const startFrom = Math.ceil(Math.max(winStartM, nowM) / 30) * 30;
+                                                const boxes = [];
+                                                for (let mm = startFrom; mm + 60 <= winEndM; mm += 30) boxes.push(toT(mm % 1440));
+                                                return boxes.map(st => {
+                                                    const isSt = customStart === st;
+                                                    return (
+                                                        <TouchableOpacity key={st}
+                                                            onPress={() => { setVarStartMap(p => ({ ...p, [court.id]: { ...p[court.id], customStart: st } })); setSelSlot(null); }}
+                                                            style={{ minWidth:42, paddingVertical:4, paddingHorizontal:3, borderRadius:8, backgroundColor: isSt ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSt ? '#9333ea' : '#ffffff20' }}>
+                                                            <Text style={{ color: isSt ? '#fff' : '#aaa', fontSize:10, fontWeight:'700' }}>{st}</Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                });
+                                            })()}
+                                        </View>
                                         {validStart && (<>
                                             <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Süre</Text>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
