@@ -146,14 +146,36 @@ function ChatView({ conversation, myId, onBack, onBlocked, isBlocked = false }) 
                 ) : (
                     messages.map(msg => {
                         const isMe = msg.senderId === myId;
+                        const listing = msg.equipmentListing;
                         return (
                             <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                 {!isMe && <Avatar user={msg.sender} size="sm" />}
-                                <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-br-sm' : 'bg-gray-800 text-gray-100 rounded-bl-sm'}`}>
-                                    {msg.content}
-                                    <p className={`text-xs mt-1 ${isMe ? 'text-purple-200' : 'text-gray-500'}`}>
-                                        {new Date(msg.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                                    </p>
+                                <div className={`flex flex-col gap-1 max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
+                                    <div className={`px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-br-sm' : 'bg-gray-800 text-gray-100 rounded-bl-sm'}`}>
+                                        {msg.content}
+                                        <p className={`text-xs mt-1 ${isMe ? 'text-purple-200' : 'text-gray-500'}`}>
+                                            {new Date(msg.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                    {listing && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(`/category/${listing.category?.toLowerCase()}/${listing.subCategory}?tab=equipment&openEquipmentId=${listing.id}`)}
+                                            className="flex items-center gap-2.5 bg-gray-800/80 hover:bg-gray-800 border border-gray-700 rounded-xl px-2.5 py-2 w-full transition text-left"
+                                        >
+                                            {listing.images?.[0] ? (
+                                                <img src={listing.images[0]} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center text-lg flex-shrink-0">🎾</div>
+                                            )}
+                                            <div className="min-w-0">
+                                                <p className="text-white text-xs font-bold truncate">{listing.title}</p>
+                                                <p className="text-green-400 text-xs font-bold">
+                                                    {listing.price}₺{listing.status === 'SOLD' ? ' · Sold' : ''}
+                                                </p>
+                                            </div>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         );
