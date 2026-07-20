@@ -4789,9 +4789,17 @@ function SubCategoryPage() {
                             {(() => {
                                 const EXTEND_OPTIONS = [24, 48, 72, 96, 120];
 
-                                const ExtendOrScore = ({ match, config, onScore, onExtended }) => {
+                                const ExtendOrScore = ({ match, config, onScore, onExtended, onChanged }) => {
                                     const [showExtend, setShowExtend] = useState(false);
                                     const [extending, setExtending] = useState(false);
+                                    const [showAbandon, setShowAbandon] = useState(false);
+                                    const [abandonReason, setAbandonReason] = useState(null); // 'abandoned' | 'other'
+                                    const [abanDate, setAbanDate] = useState('');
+                                    const [abanTime, setAbanTime] = useState('');
+                                    const [abandoning, setAbandoning] = useState(false);
+                                    const [showNoShow, setShowNoShow] = useState(false);
+                                    const [absentIds, setAbsentIds] = useState([]);
+                                    const [reportingNoShow, setReportingNoShow] = useState(false);
 
                                     const handleExtend = async (hours) => {
                                         setExtending(true);
@@ -4805,6 +4813,41 @@ function SubCategoryPage() {
                                         } finally { setExtending(false); }
                                     };
 
+                                    const submitAbandon = async () => {
+                                        setAbandoning(true);
+                                        try {
+                                            const body = { reason: abandonReason };
+                                            if (abandonReason === 'abandoned') {
+                                                if (abanDate) body.newDate = abanDate;
+                                                if (abanTime) body.newTime = abanTime;
+                                            }
+                                            const { data } = await api.patch(`/rivals/${match.id}/abandon`, body);
+                                            alert(`✓ ${data.message}`);
+                                            setShowAbandon(false); setAbandonReason(null); setAbanDate(''); setAbanTime('');
+                                            onChanged?.();
+                                        } catch (err) {
+                                            alert(err.response?.data?.message || 'Hata');
+                                        } finally { setAbandoning(false); }
+                                    };
+
+                                    const noShowCandidates = [
+                                        ...(match.senderId !== myId ? [{ id: match.senderId, username: match.sender?.username }] : []),
+                                        ...(Array.isArray(match.participants) ? match.participants : []).filter(p => p?.id && p.id !== myId),
+                                        ...(Array.isArray(match.senderTeam) ? match.senderTeam : []).filter(p => p?.id && p.id !== myId),
+                                    ];
+
+                                    const submitNoShow = async () => {
+                                        if (absentIds.length === 0) return;
+                                        setReportingNoShow(true);
+                                        try {
+                                            await api.post(`/rivals/${match.id}/no-show`, { absentUserIds: absentIds });
+                                            alert('✓ Bildirim gönderildi, admin inceleyecek.');
+                                            setShowNoShow(false); setAbsentIds([]);
+                                        } catch (err) {
+                                            alert(err.response?.data?.message || 'Hata');
+                                        } finally { setReportingNoShow(false); }
+                                    };
+
                                     return (
                                         <div className="mt-1 space-y-2">
                                             <div className="flex gap-2">
@@ -4813,10 +4856,22 @@ function SubCategoryPage() {
                                                     {match.matchMode === 'COMPETITIVE' ? '⚔️ Enter Score (Required)' : '📊 Log Score (Optional)'}
                                                 </button>
                                                 <button
-                                                    onClick={() => setShowExtend(v => !v)}
+                                                    onClick={() => { setShowExtend(v => !v); setShowAbandon(false); setShowNoShow(false); }}
                                                     title="Match postponed? Request more time"
                                                     className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showExtend ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
                                                     ⏱️
+                                                </button>
+                                                <button
+                                                    onClick={() => { setShowAbandon(v => !v); setShowExtend(false); setShowNoShow(false); }}
+                                                    title="Maç oynanamadı / iptal"
+                                                    className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showAbandon ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
+                                                    🚫
+                                                </button>
+                                                <button
+                                                    onClick={() => { setShowNoShow(v => !v); setShowExtend(false); setShowAbandon(false); }}
+                                                    title="Rakip gelmedi"
+                                                    className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showNoShow ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
+                                                    🙅
                                                 </button>
                                             </div>
 
@@ -4832,6 +4887,73 @@ function SubCategoryPage() {
                                                         ))}
                                                     </div>
                                                     <p className="text-gray-600 text-[10px] mt-2">Score window will be extended. All participants will be notified.</p>
+                                                </div>
+                                            )}
+
+                                            {showAbandon && (
+                                                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3 space-y-2">
+                                                    {!abandonReason ? (
+                                                        <>
+                                                            <p className="text-gray-400 text-xs font-bold mb-1">🚫 Bu maç ne oldu?</p>
+                                                            <button onClick={() => setAbandonReason('abandoned')}
+                                                                className="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-200 font-bold py-2 rounded-xl text-xs transition text-left px-3">
+                                                                📅 Maç oynanamadı, tekrar planlanacak
+                                                            </button>
+                                                            <button onClick={() => setAbandonReason('other')}
+                                                                className="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-200 font-bold py-2 rounded-xl text-xs transition text-left px-3">
+                                                                🤝 Diğer — berabere say ve kapat
+                                                            </button>
+                                                        </>
+                                                    ) : abandonReason === 'abandoned' ? (
+                                                        <>
+                                                            <p className="text-gray-400 text-xs font-bold">📅 Yeni tarih/saat (opsiyonel)</p>
+                                                            <div className="flex gap-2">
+                                                                <input type="date" value={abanDate} onChange={e => setAbanDate(e.target.value)}
+                                                                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" />
+                                                                <input type="time" value={abanTime} onChange={e => setAbanTime(e.target.value)}
+                                                                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" />
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <button onClick={() => setAbandonReason(null)} className="flex-1 bg-gray-900 text-gray-400 text-xs font-bold py-2 rounded-lg">Geri</button>
+                                                                <button onClick={submitAbandon} disabled={abandoning}
+                                                                    className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50">
+                                                                    {abandoning ? '...' : 'Onayla'}
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => setAbandonReason(null)} className="flex-1 bg-gray-900 text-gray-400 text-xs font-bold py-2 rounded-lg">Geri</button>
+                                                            <button onClick={submitAbandon} disabled={abandoning}
+                                                                className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50">
+                                                                {abandoning ? '...' : 'Berabere Say ve Kapat'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {showNoShow && (
+                                                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3 space-y-2">
+                                                    <p className="text-gray-400 text-xs font-bold">🙅 Gelmeyen oyuncu(lar)ı seçin:</p>
+                                                    {noShowCandidates.length === 0 ? (
+                                                        <p className="text-gray-600 text-xs">Bildirebileceğiniz bir katılımcı yok.</p>
+                                                    ) : (
+                                                        <div className="space-y-1">
+                                                            {noShowCandidates.map(p => (
+                                                                <label key={p.id} className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                                                                    <input type="checkbox" checked={absentIds.includes(p.id)}
+                                                                        onChange={e => setAbsentIds(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id))}
+                                                                        className="accent-yellow-500" />
+                                                                    {p.username}
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <button onClick={submitNoShow} disabled={reportingNoShow || absentIds.length === 0}
+                                                        className="w-full bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50">
+                                                        {reportingNoShow ? '...' : 'Bildir'}
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
@@ -5010,6 +5132,10 @@ function SubCategoryPage() {
                                                     config={config}
                                                     onScore={() => setScoringMatch(m)}
                                                     onExtended={(updated) => setUpcomingMatches(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r))}
+                                                    onChanged={() => {
+                                                        api.get('/rivals/upcoming').then(({ data }) => setUpcomingMatches(data.filter(r => r.category === categoryUpper && r.subCategory === sub))).catch(() => {});
+                                                        api.get(`/rivals/completed?category=${categoryUpper}&subCategory=${sub}`).then(({ data }) => setCompletedMatches(data)).catch(() => {});
+                                                    }}
                                                 />
                                             )}
                                             {!isPastCard && m.senderId === myId && (
@@ -5103,6 +5229,10 @@ function SubCategoryPage() {
                                                                         config={config}
                                                                         onScore={() => setScoringMatch(match)}
                                                                         onExtended={(updated) => setCompletedMatches(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r))}
+                                                                        onChanged={() => {
+                                                                            api.get('/rivals/upcoming').then(({ data }) => setUpcomingMatches(data.filter(r => r.category === categoryUpper && r.subCategory === sub))).catch(() => {});
+                                                                            api.get(`/rivals/completed?category=${categoryUpper}&subCategory=${sub}`).then(({ data }) => setCompletedMatches(data)).catch(() => {});
+                                                                        }}
                                                                     />
                                                                 )}
                                                                 {score && match.scoreStatus === 'PENDING' && mySideScored && (
@@ -8423,6 +8553,26 @@ function SubCategoryPage() {
                                                             className="text-purple-400 hover:text-purple-300 text-xs font-bold transition">
                                                             ⭐ {t('peerReview.rate_teammates')}
                                                         </button>
+                                                    </div>
+                                                )}
+                                                {match.scoreStatus === 'CONFIRMED' && !match.scoreAppeal && rosterIds.includes(myId) && (
+                                                    <div className="px-4 py-2 border-t border-gray-800">
+                                                        <button onClick={async () => {
+                                                            const reason = prompt('İtiraz sebebinizi yazın (opsiyonel):');
+                                                            if (reason === null) return;
+                                                            try {
+                                                                await api.patch(`/rivals/${match.id}/appeal-score`, { reason: reason.trim() || undefined });
+                                                                alert('✓ İtirazınız admin\'e iletildi.');
+                                                                setArchivedMatches(prev => prev.map(m => m.id === match.id ? { ...m, scoreAppeal: true, scoreAppealReason: reason } : m));
+                                                            } catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+                                                        }} className="text-red-400 hover:text-red-300 text-xs font-bold transition">
+                                                            ⚠️ Skora İtiraz Et
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {match.scoreAppeal && (
+                                                    <div className="px-4 py-2 border-t border-gray-800">
+                                                        <span className="text-orange-400 text-xs font-bold">⚠️ İtiraz edildi{match.scoreAppealReason ? `: "${match.scoreAppealReason}"` : ''}</span>
                                                     </div>
                                                 )}
                                             </div>
