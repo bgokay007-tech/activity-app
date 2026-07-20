@@ -2677,7 +2677,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         >
             {/* Players + ratings */}
             {allPlayers.map((p, idx) => (
-                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
+                <View key={`player-${idx}-${p.id || 'x'}`} style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
                     {p._emptySlot ? (
                         <Text style={{ color: colors.textMuted, fontSize:13, fontStyle:'italic' }}>— ortak slot boş —</Text>
                     ) : (
@@ -14017,7 +14017,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     })() : (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                             {allP2.map((p, idx) => (
-                                                <View key={p.id || idx} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                <View key={`player2-${idx}-${p.id || 'x'}`} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                                     {idx > 0 && <Text style={{ color: colors.textMuted }}>·</Text>}
                                                     <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>{senderAlias(p)}</Text>
                                                     {p.skillRating != null && (
