@@ -577,6 +577,7 @@ export const createRivalRequest = async (req, res, next) => {
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
             refereePayment,
             refereeRequested, // bu maç ilanı için ayrıca hakem talep ediliyor mu (tenis/padel/voleybol)
+            refereeInviteId, // hakem talebi belirli bir kullanıcıya doğrudan davet olarak gönderilecekse
             minRating, maxRating,
             genderReq = 'MIX',
             partnerGenderReq = 'MIX',
@@ -695,7 +696,33 @@ export const createRivalRequest = async (req, res, next) => {
                     status: 'OPEN',
                 },
                 include: { sender: { select: SENDER_SELECT } },
-            }).then(refAd => broadcast('rivalUpdate', refAd)).catch(() => {});
+            }).then(async refAd => {
+                broadcast('rivalUpdate', refAd);
+                // Hakem belirli bir kullanıcıya davet edildiyse ("Hakem Davet Et"), bağlı
+                // "Hakem Arıyorum" ilanına doğrudan davet gönderilir — inviteToRival ile aynı mantık.
+                if (refereeInviteId) {
+                    await prisma.rivalJoinRequest.create({
+                        data: { rivalId: refAd.id, userId: refereeInviteId, initiatedBy: 'OWNER' },
+                    }).catch(() => {});
+                    const updatedRefAd = await prisma.activityRequest.findUnique({
+                        where: { id: refAd.id },
+                        include: {
+                            sender: { select: SENDER_SELECT },
+                            joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
+                        },
+                    });
+                    if (updatedRefAd) {
+                        emitToUser(creatorId, 'rivalUpdate', updatedRefAd);
+                        emitToUser(refereeInviteId, 'rivalUpdate', updatedRefAd);
+                    }
+                    createNotification(
+                        refereeInviteId, 'MATCH_INVITE',
+                        '🟨 Hakem Daveti',
+                        `@${request.sender?.username || 'Biri'} sizi bir maçta hakemlik yapmaya davet etti.`,
+                        { category, subCategory, rivalId: refAd.id, refereeAd: true }
+                    ).catch(() => {});
+                }
+            }).catch(() => {});
         }
 
         // DOUBLE partner daveti: ilan oluştuktan sonra join request yarat ve bildirim gönder

@@ -2679,6 +2679,40 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:9, paddingBottom:21 }}
                     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
+                    {/* Format / mod / esnek program rozetleri */}
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom:8 }}>
+                        <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
+                            <Text style={[s.modeBadgeText, { color: cfg.color }]}>
+                                {TEAM_SPORTS.has(match.subCategory) ? `${match.teamSize||1}v${match.teamSize||1}` : (match.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                            </Text>
+                        </View>
+                        <ModeBadge mode={match.matchMode} />
+                        {match.flexibleSchedule && (
+                            <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
+                                <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>📅 Esnek</Text>
+                            </View>
+                        )}
+                        {match.genderReq && match.genderReq !== 'MIX' && (
+                            <View style={{ backgroundColor: match.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: match.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius:8, paddingHorizontal:6, paddingVertical:2 }}>
+                                <Text style={{ color: match.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize:11, fontWeight:'800' }}>
+                                    {match.genderReq === 'MALE' ? '👨' : '👩'}
+                                </Text>
+                            </View>
+                        )}
+                        {match.matchType === 'DOUBLE' && (match.partnerGenderReq !== 'MIX' || match.opp1GenderReq !== 'MIX' || match.opp2GenderReq !== 'MIX') && (() => {
+                            const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                            const allSame = match.opp1GenderReq === match.opp2GenderReq && match.opp2GenderReq === match.partnerGenderReq;
+                            const label = allSame && match.opp1GenderReq !== 'MIX'
+                                ? gL(match.opp1GenderReq)
+                                : `${gL(match.partnerGenderReq)}+${gL(match.opp1GenderReq)}+${gL(match.opp2GenderReq)}`;
+                            return (
+                                <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius:8, paddingHorizontal:6, paddingVertical:2 }}>
+                                    <Text style={{ color:'#a855f7', fontSize:11, fontWeight:'800' }}>{label}</Text>
+                                </View>
+                            );
+                        })()}
+                    </View>
+
                     {/* Match info box */}
                     <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:11, marginBottom:12, borderWidth:1, borderColor: colors.border }}>
                         <Text style={{ color: colors.textMuted, fontSize:13 }}>
@@ -2691,6 +2725,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
                                 <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4, textDecorationLine:'underline' }}>🏟️ {match.courtName}</Text>
                             </TouchableOpacity>
+                        )}
+                        {match.courtFeePerPerson > 0 && (
+                            <Text style={{ color:'#4ade80', fontSize:13, marginTop:4 }}>
+                                💰 {match.courtFeePerPerson}{match.refereeFeePerPerson > 0 ? `+${match.refereeFeePerPerson}` : ''}₺{match.refereeRequested && !match.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
+                            </Text>
                         )}
                         {match.venueId && isParticipant && !matchEnded && (
                             <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
@@ -2705,6 +2744,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         {match.level && (
                             <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
                                 {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
+                            </Text>
+                        )}
+                        {(match.minRating != null || match.maxRating != null) && (
+                            <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
+                                ★ {match.minRating != null ? `${match.minRating}` : '0'} – {match.maxRating != null ? `${match.maxRating}` : '∞'}
                             </Text>
                         )}
                     </View>
@@ -4520,6 +4564,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         opp1Invite: null,
         opp2Invite: null,
         singleOppInvite: null,
+        refereeInvite: null,
         genderReq: 'MIX',
         partnerGenderReq: 'MIX',
         opp1GenderReq: 'MIX',
@@ -4678,7 +4723,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             .finally(() => setLoadingFriends(false));
     }, [showPartnerSearch]);
 
-    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite', singleOpp: 'singleOppInvite' };
+    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite', singleOpp: 'singleOppInvite', referee: 'refereeInvite' };
     const choosePartner = (user) => {
         if (inviteTarget) set(INVITE_FIELD[inviteTarget], user);
         setInviteTarget(null);
@@ -4968,6 +5013,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 refereeRequested: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.refereeRequested : undefined,
                 refereePayment: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereePayment !== ''
                     ? `${f.refereePayment}₺` : undefined,
+                refereeInviteId: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereeInvite
+                    ? f.refereeInvite.id : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
@@ -5510,25 +5557,40 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
-                            {/* Hakem Talep Et — sadece tenis/padel/voleybol */}
+                            {/* Hakem Talep Et / Davet Et / Ücret — sadece tenis/padel/voleybol, tek satır */}
                             {['tennis', 'padel', 'volleyball'].includes(sub) && (
-                                <TouchableOpacity
-                                    onPress={() => set('refereeRequested', !f.refereeRequested)}
-                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:5, marginBottom:10, paddingVertical:9, borderRadius: moderateScale(10), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
-                                >
-                                    <Text style={{ fontSize:15 }}>🟨</Text>
-                                    <Text style={{ color: f.refereeRequested ? '#f59e0b' : colors.textMuted, fontSize:13, fontWeight:'800' }}>
-                                        {t.requestRefereeBtn}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
-                            {['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && (
-                                <>
-                                    <Text style={[s.fieldLabel, { marginTop:0 }]}>{t.refereePaymentLabel}</Text>
-                                    <TextInput style={s.fieldInput} value={f.refereePayment}
-                                        onChangeText={v => set('refereePayment', v.replace(/[^0-9]/g, ''))}
-                                        placeholder="500" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-                                </>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
+                                    <TouchableOpacity
+                                        onPress={() => set('refereeRequested', !f.refereeRequested)}
+                                        style={{ flex: f.refereeRequested ? 1 : undefined, width: f.refereeRequested ? undefined : '100%', flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingVertical:5, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
+                                    >
+                                        <Text style={{ fontSize:12 }}>🟨</Text>
+                                        <Text style={{ color: f.refereeRequested ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                            {t.requestRefereeBtn}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {f.refereeRequested && (
+                                        <TouchableOpacity
+                                            onPress={() => setInviteTarget('referee')}
+                                            style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingVertical:5, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeInvite ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeInvite ? '#f59e0b70' : colors.border }}
+                                        >
+                                            <Text style={{ fontSize:11 }}>➕</Text>
+                                            <Text style={{ color: f.refereeInvite ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                {f.refereeInvite ? (f.refereeInvite.fullName || f.refereeInvite.username) : t.inviteRefereeBtn}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {f.refereeRequested && (
+                                        <TextInput
+                                            style={{ flex:0.7, backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:5, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12 }}
+                                            value={f.refereePayment}
+                                            onChangeText={v => set('refereePayment', v.replace(/[^0-9]/g, ''))}
+                                            placeholder={t.refereePaymentLabel}
+                                            placeholderTextColor={colors.textMuted}
+                                            keyboardType="numeric"
+                                        />
+                                    )}
+                                </View>
                             )}
 
                             {/* Açıklama */}
@@ -5679,7 +5741,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>
-                                            {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : inviteTarget === 'singleOpp' ? t.inviteOpponentTitle : t.choosePartnerBtn}
+                                            {inviteTarget === 'opp1' ? t.inviteOpp1Title : inviteTarget === 'opp2' ? t.inviteOpp2Title : inviteTarget === 'singleOpp' ? t.inviteOpponentTitle : inviteTarget === 'referee' ? (t.inviteRefereeTitle || t.inviteRefereeBtn) : t.choosePartnerBtn}
                                         </Text>
                                         <TouchableOpacity onPress={() => setInviteTarget(null)}>
                                             <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
