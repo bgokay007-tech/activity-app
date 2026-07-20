@@ -655,6 +655,37 @@ async function validateReservationSlot(venue, courtId, date, startTime, endTime,
     return null;
 }
 
+// Gerçek rezervasyon oluşturmadan aynı doğrulamaları (geçmiş tarih, açılış penceresi,
+// çakışma, <dakikalık kullanılamaz boşluk) çalıştırır — kort/saat seçimi sırasında hemen
+// hata gösterip kullanıcının ilanın geri kalanını doldurmadan önce fark etmesini sağlar.
+export const validateSlot = async (req, res, next) => {
+    try {
+        const { id, courtId } = req.params;
+        const { date, startTime, endTime, paymentMethod } = req.body;
+
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
+
+        const isBlocked = await prisma.venueBlock.findUnique({
+            where: { venueId_userId: { venueId: id, userId: req.userId } },
+        });
+        if (isBlocked) return res.status(403).json({ message: 'Bu tesiste rezervasyon yapamazsınız' });
+
+        if (!date || !startTime || !endTime) return res.status(400).json({ message: 'Tarih, başlangıç ve bitiş saati zorunludur' });
+        if (isPastDateTime(date, startTime)) return res.status(400).json({ message: 'Geçmiş bir tarih/saate rezervasyon yapılamaz' });
+
+        const opensAt = getReservationOpensAt(venue, date);
+        if (opensAt && new Date() < opensAt) {
+            return res.status(403).json({ message: `Bu tarih için rezervasyonlar henüz açılmadı. Açılış: ${opensAt.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}` });
+        }
+
+        const slotErr = await validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod);
+        if (slotErr) return res.status(slotErr.status).json({ message: slotErr.message });
+
+        res.json({ ok: true });
+    } catch (error) { next(error); }
+};
+
 export const makeReservation = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;

@@ -1227,9 +1227,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     {isOwner && refereeAdId && (
                                         <TouchableOpacity
                                             onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
-                                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', paddingHorizontal:8, paddingVertical:4 }}>
-                                            <Text style={{ fontSize:11 }}>➕</Text>
-                                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{t.inviteRefereeBtn}</Text>
+                                            style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', paddingHorizontal:8, paddingVertical:4 }}>
+                                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
                                         </TouchableOpacity>
                                     )}
                                 </>
@@ -1518,7 +1517,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? t.inviteRefereeBtn : t.inviteBtn}</Text>
+                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? noEmojiStr(t.inviteRefereeBtn) : t.inviteBtn}</Text>
                         <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); setInviteForReferee(false); }}>
                             <Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text>
                         </TouchableOpacity>
@@ -3886,6 +3885,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     const [selSlot,     setSelSlot]     = useState(null);
     const [payMethod,   setPayMethod]   = useState('CASH');
     const [booked,      setBooked]      = useState(false);
+    const [validatingSlot, setValidatingSlot] = useState(false);
     const [varStartMap, setVarStartMap] = useState({});
     const [varDurMap,   setVarDurMap]   = useState({});
 
@@ -4006,8 +4006,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         return applyPayDelta(base);
     };
 
-    const confirmBooking = () => {
-        if (!selSlot) return;
+    const confirmBooking = async () => {
+        if (!selSlot || validatingSlot) return;
         const { courtId, slot, rangeEnd, flexDur } = selSlot;
         const activeCourt = venue?.courts?.find(c => c.id === courtId);
         const courtData = courtsSlots[courtId]?.data;
@@ -4019,6 +4019,22 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         const endTime = isFlexible
             ? addMins(slot.start, flexDur)
             : (isVarDur ? slot.end : (rangeSlots ? rangeSlots[rangeSlots.length - 1].end : slot.end));
+
+        // İlanın geri kalanını doldurduktan sonra "kullanılamaz boşluk" gibi hatalarla
+        // karşılaşmasın diye, kort/saat seçilir seçilmez aynı doğrulama burada (gerçek
+        // rezervasyon oluşturmadan) çalıştırılır — sorun varsa hemen burada söylenir.
+        setValidatingSlot(true);
+        try {
+            await api.post(`/venues/${venueId}/courts/${courtId}/validate-slot`, {
+                date: selDate, startTime: slot.start, endTime, paymentMethod: payMethod,
+            });
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Bu saat seçilemiyor, lütfen başka bir saat seçin.');
+            setValidatingSlot(false);
+            return;
+        }
+        setValidatingSlot(false);
+
         const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
         const courtTotalPrice = isStructured
             ? (rangeSlots || [slot]).reduce((sum, s) => sum + priceForSlot(s), 0)
@@ -4461,8 +4477,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 )}
                                             </View>
                                         )}
-                                        <TouchableOpacity style={vb.bookBtn} onPress={confirmBooking}>
-                                            <Text style={vb.bookBtnTxt}>Bu Saati Seç</Text>
+                                        <TouchableOpacity style={[vb.bookBtn, validatingSlot && { opacity:0.6 }]} onPress={confirmBooking} disabled={validatingSlot}>
+                                            {validatingSlot
+                                                ? <ActivityIndicator color="#fff" />
+                                                : <Text style={vb.bookBtnTxt}>Bu Saati Seç</Text>}
                                         </TouchableOpacity>
                                         <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
                                             Kort, ilanı oluşturduğunuzda rezerve edilir.
