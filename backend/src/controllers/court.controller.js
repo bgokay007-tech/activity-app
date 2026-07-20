@@ -157,6 +157,7 @@ export const searchCourts = async (req, res, next) => {
             isBusinessVenue: true,
             venueId: v.id,
             user: v.user,
+            pricePerSlot: v.pricePerSlot || 0,
             avgRating:   venueRatingMap[v.id]?.avg   ?? null,
             reviewCount: venueRatingMap[v.id]?.count  ?? 0,
         }));

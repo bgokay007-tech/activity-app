@@ -408,6 +408,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [inviteResults, setInviteResults] = useState([]);
     const [inviteSearching, setInviteSearching] = useState(false);
     const [invitingUserId, setInvitingUserId] = useState(null);
+    const [inviteForReferee, setInviteForReferee] = useState(false); // true iken davet paneli hakem ilanına gönderir
 
     // Çiftler: bireysel başvurmuşlar arası partner davet/kabul/geri çek
     const [partnerActionLoading, setPartnerActionLoading] = useState(false);
@@ -424,12 +425,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [refereeSendCv, setRefereeSendCv] = useState(true);
     const [refereeApplySubmitting, setRefereeApplySubmitting] = useState(false);
     const [refereeApplications, setRefereeApplications] = useState([]);
+    const [refereeAdId, setRefereeAdId] = useState(null);
 
     useEffect(() => {
         setRefereeApplications([]);
+        setRefereeAdId(null);
+        setInviteForReferee(false);
         if (item?.id && visible && item.refereeRequested) {
             api.get(`/rivals/${item.id}/referee-applications`)
-                .then(({ data }) => setRefereeApplications(Array.isArray(data.applications) ? data.applications : []))
+                .then(({ data }) => {
+                    setRefereeApplications(Array.isArray(data.applications) ? data.applications : []);
+                    setRefereeAdId(data.refereeAdId || null);
+                })
                 .catch(() => {});
         }
     }, [item?.id, visible, item?.refereeRequested]);
@@ -457,7 +464,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const reloadRefereeApplications = () => {
         if (!item?.id) return;
         api.get(`/rivals/${item.id}/referee-applications`)
-            .then(({ data }) => setRefereeApplications(Array.isArray(data.applications) ? data.applications : []))
+            .then(({ data }) => {
+                setRefereeApplications(Array.isArray(data.applications) ? data.applications : []);
+                setRefereeAdId(data.refereeAdId || null);
+            })
             .catch(() => {});
     };
 
@@ -582,7 +592,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const handleInvite = async (targetUser) => {
         setInvitingUserId(targetUser.id);
         try {
-            await api.post(`/rivals/${item.id}/invite`, { userId: targetUser.id });
+            const targetRivalId = inviteForReferee && refereeAdId ? refereeAdId : item.id;
+            await api.post(`/rivals/${targetRivalId}/invite`, { userId: targetUser.id });
             Alert.alert('', t.inviteSentMsg(targetUser.fullName || targetUser.username));
             setInviteResults(prev => prev.filter(u => u.id !== targetUser.id));
         } catch (e) {
@@ -1211,7 +1222,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700' }}>{t.refereeSlotLabel}: {item.refereeUser.fullName || item.refereeUser.username} ✓</Text>
                                 </>
                             ) : (
-                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700' }}>{t.refereeSlotLabel}: {t.refereeSlotSearching}</Text>
+                                <>
+                                    <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }}>{t.refereeSlotLabel}: {t.refereeSlotSearching}</Text>
+                                    {isOwner && refereeAdId && (
+                                        <TouchableOpacity
+                                            onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
+                                            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', paddingHorizontal:8, paddingVertical:4 }}>
+                                            <Text style={{ fontSize:11 }}>➕</Text>
+                                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{t.inviteRefereeBtn}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </>
                             )}
                         </View>
                     )}
@@ -1491,8 +1512,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{t.inviteBtn}</Text>
-                        <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); }}>
+                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? t.inviteRefereeBtn : t.inviteBtn}</Text>
+                        <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); setInviteForReferee(false); }}>
                             <Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text>
                         </TouchableOpacity>
                     </View>
@@ -1739,6 +1760,15 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             </Text>
                         </View>
                         {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>{item.refereePayment}</Text>}
+                    </View>
+                )}
+                {item.refereeRequested && (
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
+                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                🟨 {t.refereeSlotLabel}: {item.refereeUser ? (item.refereeUser.fullName || item.refereeUser.username) : t.refereeSlotSearching}
+                            </Text>
+                        </View>
                     </View>
                 )}
                 {item.linkedRivalId && (
@@ -2728,7 +2758,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.courtFeePerPerson > 0 && (
                             <Text style={{ color:'#4ade80', fontSize:13, marginTop:4 }}>
-                                💰 {match.courtFeePerPerson}{match.refereeFeePerPerson > 0 ? `+${match.refereeFeePerPerson}` : ''}₺{match.refereeRequested && !match.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
+                                💰 {match.courtFeePerPerson}₺{match.refereeFeePerPerson > 0 ? ` (${t.refereeFeeParenLabel(match.refereeFeePerPerson)})` : match.refereeRequested ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
                             </Text>
                         )}
                         {match.venueId && isParticipant && !matchEnded && (
@@ -4767,6 +4797,23 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     const selectCourt = (court) => {
         if (court.isBusinessVenue) {
+            if (f.flexibleSchedule) {
+                // Esnek programda kesin bir saat dilimi rezerve edilmiyor — tesisin taban
+                // ücretinden (pricePerSlot) kişi başı tahmini ücret otomatik dolduruluyor.
+                setF(p => ({
+                    ...p,
+                    selectedCourt: { id: court.id, name: '', venueName: court.name, venueId: court.venueId, city: court.city },
+                    courtSearchText: court.name,
+                    courtResults: [],
+                    manualCity: court.city || '',
+                    venueId: court.venueId || null,
+                    venueCourtId: null,
+                    courtFeePerPerson: court.pricePerSlot > 0
+                        ? String(Math.round(court.pricePerSlot / (p.matchType === 'DOUBLE' ? 4 : 2)))
+                        : p.courtFeePerPerson,
+                }));
+                return;
+            }
             setVenueBooking({ visible: true, venueId: court.venueId, initialCourtId: court.courtId });
             set('courtResults', []);
             return;
@@ -5298,6 +5345,56 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </View>
                                 }
                             />
+
+                            {/* Esnek programda kesin tarih/saat yok ama tesis/kort yine de seçilip
+                                kişi başı ücret otomatik doldurulabilsin — sadece isim aranır,
+                                belirli bir saat dilimi rezerve edilmez. */}
+                            {f.flexibleSchedule && (
+                                <View style={{ marginBottom:10 }}>
+                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{isVolleyball ? t.volleyballHallLabel : t.courtLabel}</Text>
+                                    {f.selectedCourt ? (
+                                        <TouchableOpacity
+                                            style={[s.fieldInput, { marginBottom:6, paddingVertical:5, justifyContent:'center' }]}
+                                            onPress={() => setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtFeePerPerson: '' }))}>
+                                            <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                ✅ {f.selectedCourt.venueName || f.selectedCourt.name}  ✕
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ) : (
+                                        <TextInput
+                                            style={[s.fieldInput, { marginBottom:6 }]}
+                                            value={f.courtSearchText}
+                                            onChangeText={searchCourts}
+                                            placeholder={t.courtSearchPlaceholder}
+                                            placeholderTextColor={colors.textMuted}
+                                        />
+                                    )}
+                                    {!f.selectedCourt && f.courtResults.length > 0 && (
+                                        <View style={{ marginBottom:6 }}>
+                                            {f.courtResults.map(c => (
+                                                <TouchableOpacity key={c.id} onPress={() => selectCourt(c)}
+                                                    style={{ paddingVertical:8, paddingHorizontal:10, backgroundColor:'#ffffff08', borderRadius:8, marginBottom:4 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{c.name}</Text>
+                                                    {c.city && <Text style={{ color: colors.textMuted, fontSize:11 }}>{c.city}</Text>}
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
+                                    {f.selectedCourt && (
+                                        <View style={[s.triBtn, { flex:0, alignSelf:'flex-start', paddingHorizontal:6, paddingVertical:3 }]}>
+                                            <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.courtFeeShortLabel}</Text>
+                                            <TextInput
+                                                style={[s.triValue, { padding:0, minWidth:34, textAlign:'center' }]}
+                                                value={f.courtFeePerPerson}
+                                                onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
+                                                placeholder={t.courtFeePh}
+                                                placeholderTextColor={colors.textMuted}
+                                                keyboardType="numeric"
+                                            />
+                                        </View>
+                                    )}
+                                </View>
+                            )}
 
                             {/* 4 - Geri kalanlar sadece esnek program KAPALI ise */}
                             {!f.flexibleSchedule && (
