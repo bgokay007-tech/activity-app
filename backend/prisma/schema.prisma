@@ -96,6 +96,9 @@ model User {
   coachListings       CoachListing[]
   refereeListings     RefereeListing[]
   refereedMatches     ActivityRequest[] @relation("MatchRefereeUser")
+  coachLessonRequests CoachLessonRequest[] @relation("CoachLessonStudent")
+  coachReviewsGiven   CoachReview[] @relation("CoachReviewer")
+  refereeReviewsGiven RefereeReview[] @relation("RefereeReviewer")
   equipmentListings   EquipmentListing[]
   equipmentOffers     EquipmentOffer[]
   listingReports      ListingReport[]
@@ -291,6 +294,39 @@ model CoachListing {
   updatedAt       DateTime @updatedAt
 
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonRequests  CoachLessonRequest[]
+  reviews         CoachReview[]
+}
+
+// Öğrencinin antrenörle "ders aldım" ilişkisini kurması — antrenör kabul edince
+// öğrenci o antrenöre yorum/yıldız verebilir hale gelir (bkz. CoachReview).
+model CoachLessonRequest {
+  id             String   @id @default(uuid())
+  coachListingId String
+  studentId      String
+  status         String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  message        String?
+  createdAt      DateTime @default(now())
+
+  coachListing   CoachListing @relation(fields: [coachListingId], references: [id], onDelete: Cascade)
+  student        User         @relation("CoachLessonStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([coachListingId, studentId])
+}
+
+model CoachReview {
+  id             String   @id @default(uuid())
+  coachListingId String
+  reviewerId     String
+  rating         Int      // 1-5
+  comment        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  coachListing   CoachListing @relation(fields: [coachListingId], references: [id], onDelete: Cascade)
+  reviewer       User         @relation("CoachReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([coachListingId, reviewerId])
 }
 
 // HAKEM İLANI — CoachListing'in küçültülmüş hali, bireysel/grup ayrımı yok,
@@ -324,6 +360,24 @@ model RefereeListing {
   updatedAt       DateTime @updatedAt
 
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews         RefereeReview[]
+}
+
+// Hakem yorum/puanı — yalnızca o hakemin fiilen hakemlik yaptığı bir maçta
+// katılımcı/sahip olanlar verebilir (ActivityRequest.refereeId üzerinden doğrulanır).
+model RefereeReview {
+  id               String   @id @default(uuid())
+  refereeListingId String
+  reviewerId       String
+  rating           Int      // 1-5
+  comment          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  refereeListing   RefereeListing @relation(fields: [refereeListingId], references: [id], onDelete: Cascade)
+  reviewer         User           @relation("RefereeReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([refereeListingId, reviewerId])
 }
 
 model EquipmentListing {

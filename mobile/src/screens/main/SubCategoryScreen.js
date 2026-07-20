@@ -10211,8 +10211,91 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [coachAchievementImages, setCoachAchievementImages] = useState([]);
     const [showCvUploadModal, setShowCvUploadModal] = useState(false);
     const [cvUploadListingId, setCvUploadListingId] = useState(null);
+    const [cvUploadType, setCvUploadType] = useState(null); // 'coach' | 'referee' — seçilene kadar modal seçim ekranını gösterir
     const [standaloneCvImage, setStandaloneCvImage] = useState(null);
     const [uploadingStandaloneCv, setUploadingStandaloneCv] = useState(false);
+
+    // Antrenör/hakem yorum + yıldız puanlama
+    const [reviewModal, setReviewModal] = useState({ visible:false, type:null, listingId:null, targetLabel:'' });
+    const [reviewList, setReviewList] = useState([]);
+    const [reviewAvg, setReviewAvg] = useState(null);
+    const [reviewCanReview, setReviewCanReview] = useState(false);
+    const [reviewMyLessonStatus, setReviewMyLessonStatus] = useState(null);
+    const [reviewLoading, setReviewLoading] = useState(false);
+    const [reviewStars, setReviewStars] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const [lessonRequesting, setLessonRequesting] = useState(false);
+
+    const loadListingReviews = async (type, listingId) => {
+        setReviewLoading(true);
+        try {
+            const { data } = await api.get(`/${type === 'referee' ? 'referees' : 'coaches'}/${listingId}/reviews`);
+            setReviewList(Array.isArray(data.reviews) ? data.reviews : []);
+            setReviewAvg(data.avgRating);
+            setReviewCanReview(!!data.canReview);
+            setReviewMyLessonStatus(data.myLessonStatus || null);
+        } catch {
+            setReviewList([]); setReviewAvg(null); setReviewCanReview(false); setReviewMyLessonStatus(null);
+        } finally { setReviewLoading(false); }
+    };
+
+    const openReviewModal = (type, listingId, targetLabel) => {
+        setReviewModal({ visible:true, type, listingId, targetLabel });
+        setReviewStars(0);
+        setReviewComment('');
+        loadListingReviews(type, listingId);
+    };
+
+    const sendLessonRequest = async () => {
+        setLessonRequesting(true);
+        try {
+            await api.post(`/coaches/${reviewModal.listingId}/lesson-request`, {});
+            setReviewMyLessonStatus('PENDING');
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setLessonRequesting(false); }
+    };
+
+    const submitListingReview = async () => {
+        if (!reviewStars) { Alert.alert('', 'Lütfen yıldız seçin.'); return; }
+        setReviewSubmitting(true);
+        try {
+            await api.post(`/${reviewModal.type === 'referee' ? 'referees' : 'coaches'}/${reviewModal.listingId}/reviews`, {
+                rating: reviewStars, comment: reviewComment || undefined,
+            });
+            setReviewComment('');
+            setReviewStars(0);
+            loadListingReviews(reviewModal.type, reviewModal.listingId);
+            if (reviewModal.type === 'coach') loadCoaches(); else loadReferees();
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setReviewSubmitting(false); }
+    };
+
+    // Antrenörün kendi ilanına gelen "ders istekleri" — kabul edince istekte bulunan
+    // öğrenci o antrenöre yorum/yıldız verebilir hale gelir (bkz. reviewCanReview).
+    const [lessonRequestsModal, setLessonRequestsModal] = useState({ visible:false, listingId:null });
+    const [lessonRequestsList, setLessonRequestsList] = useState([]);
+    const [loadingLessonRequests, setLoadingLessonRequests] = useState(false);
+    const [respondingLessonReqId, setRespondingLessonReqId] = useState(null);
+
+    const openLessonRequests = async (listingId) => {
+        setLessonRequestsModal({ visible:true, listingId });
+        setLoadingLessonRequests(true);
+        try {
+            const { data } = await api.get(`/coaches/${listingId}/lesson-requests`);
+            setLessonRequestsList(Array.isArray(data) ? data : []);
+        } catch { setLessonRequestsList([]); }
+        finally { setLoadingLessonRequests(false); }
+    };
+
+    const respondToLessonReq = async (reqId, action) => {
+        setRespondingLessonReqId(reqId);
+        try {
+            await api.patch(`/coaches/lesson-requests/${reqId}`, { action });
+            setLessonRequestsList(prev => prev.filter(r => r.id !== reqId));
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setRespondingLessonReqId(null); }
+    };
 
     // Referees data — sadece tennis/padel/volleyball'da Antrenörler sekmesinin
     // 'referees' alt-sekmesinde kullanılır (bkz. coachSubTab)
@@ -10692,15 +10775,16 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const submitStandaloneCv = async () => {
-        if (!standaloneCvImage || !cvUploadListingId) return;
+        if (!standaloneCvImage || !cvUploadListingId || !cvUploadType) return;
         setUploadingStandaloneCv(true);
         try {
             const cvUrl = await uploadCoachImage(standaloneCvImage, 'cv.jpg');
-            await api.patch(`/coaches/${cvUploadListingId}`, { cvUrl });
+            await api.patch(`/${cvUploadType === 'referee' ? 'referees' : 'coaches'}/${cvUploadListingId}`, { cvUrl });
             setShowCvUploadModal(false);
             setStandaloneCvImage(null);
             setCvUploadListingId(null);
-            loadCoaches();
+            setCvUploadType(null);
+            if (cvUploadType === 'referee') loadReferees(); else loadCoaches();
             Alert.alert('', 'CV yüklendi.');
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setUploadingStandaloneCv(false); }
@@ -12397,6 +12481,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         onPress={() => setShowCreateRefereeMatch(true)}>
                                         <Text style={[s.createBtnText, { color:'#f59e0b' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.createRefereeMatchBtn}</Text>
                                     </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
+                                        onPress={() => setShowCvUploadModal(true)}>
+                                        <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.uploadCvBtn}</Text>
+                                    </TouchableOpacity>
                                 </CityAlertRow>
                             ) : (
                                 <CityAlertRow tab="coaches">
@@ -12410,12 +12499,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
-                                        onPress={() => {
-                                            const myListing = coachListings.find(c => c.userId === myId);
-                                            if (!myListing) return Alert.alert('', category === 'ARTS' ? 'Önce "Kurs Oluştur" ile bir kurs ilanı açmanız gerekiyor.' : 'Önce "İlan Oluştur" ile bir destek ilanı açmanız gerekiyor.');
-                                            setCvUploadListingId(myListing.id);
-                                            setShowCvUploadModal(true);
-                                        }}>
+                                        onPress={() => setShowCvUploadModal(true)}>
                                         <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.uploadCvBtn}</Text>
                                     </TouchableOpacity>
                                 </CityAlertRow>
@@ -12447,6 +12531,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <View style={{ flex:1 }}>
                                                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{r.credentialLevel}</Text>
                                                             {r.certName && <Text style={{ color:colors.textMuted, fontSize:11 }}>{r.certName}</Text>}
+                                                            {r.reviewCount > 0 && (
+                                                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>★ {r.avgRating.toFixed(1)} ({r.reviewCount})</Text>
+                                                            )}
                                                         </View>
                                                         <TouchableOpacity onPress={() => setProfileUserId(r.userId)}>
                                                             <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{r.user?.username}</Text>
@@ -12468,25 +12555,26 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>🚩 Bildir</Text>
                                                         </TouchableOpacity>
                                                     )}
-                                                    {(r.certificateUrl || r.cvUrl || (r.achievementUrls || []).length > 0) && (
-                                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
-                                                            {r.certificateUrl && (
-                                                                <TouchableOpacity onPress={() => Linking.openURL(r.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                                    <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
-                                                                </TouchableOpacity>
-                                                            )}
-                                                            {(r.achievementUrls || []).length > 0 && (
-                                                                <TouchableOpacity onPress={() => Linking.openURL(r.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({r.achievementUrls.length})</Text>
-                                                                </TouchableOpacity>
-                                                            )}
-                                                            {r.cvUrl && (
-                                                                <TouchableOpacity onPress={() => Linking.openURL(r.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                                    <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
-                                                                </TouchableOpacity>
-                                                            )}
-                                                        </View>
-                                                    )}
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
+                                                        {r.certificateUrl && (
+                                                            <TouchableOpacity onPress={() => Linking.openURL(r.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                        {(r.achievementUrls || []).length > 0 && (
+                                                            <TouchableOpacity onPress={() => Linking.openURL(r.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({r.achievementUrls.length})</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                        {r.cvUrl && (
+                                                            <TouchableOpacity onPress={() => Linking.openURL(r.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                        <TouchableOpacity onPress={() => openReviewModal('referee', r.id, r.user?.fullName || r.user?.username)} style={{ backgroundColor:'#facc1520', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#facc1550' }}>
+                                                            <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>★ Yorumlar</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
                                                 </View>
                                             ))
                                     }
@@ -12526,6 +12614,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{c.credentialLevel}</Text>
                                                     {c.certName && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.certName}</Text>}
+                                                    {c.reviewCount > 0 && (
+                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>★ {c.avgRating.toFixed(1)} ({c.reviewCount})</Text>
+                                                    )}
                                                 </View>
                                                 <TouchableOpacity onPress={() => setProfileUserId(c.userId)}>
                                                     <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{c.user?.username}</Text>
@@ -12540,33 +12631,40 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {c.city && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements}</Text>}
-                                            {c.userId !== myId && (
+                                            {c.userId !== myId ? (
                                                 <TouchableOpacity
                                                     onPress={() => reportListing('coaches', c.id)}
                                                     disabled={reportingListingId === c.id}
                                                     style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
                                                     <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>🚩 Bildir</Text>
                                                 </TouchableOpacity>
+                                            ) : (
+                                                <TouchableOpacity
+                                                    onPress={() => openLessonRequests(c.id)}
+                                                    style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor: cfg.color+'15', borderWidth:1, borderColor: cfg.color+'40' }}>
+                                                    <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>Ders İstekleri</Text>
+                                                </TouchableOpacity>
                                             )}
-                                            {(c.certificateUrl || c.cvUrl || (c.achievementUrls || []).length > 0) && (
-                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
-                                                    {c.certificateUrl && (
-                                                        <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                            <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                    {(c.achievementUrls || []).length > 0 && (
-                                                        <TouchableOpacity onPress={() => Linking.openURL(c.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({c.achievementUrls.length})</Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                    {c.cvUrl && (
-                                                        <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                </View>
-                                            )}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
+                                                {c.certificateUrl && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                {(c.achievementUrls || []).length > 0 && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(c.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({c.achievementUrls.length})</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                {c.cvUrl && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                        <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                <TouchableOpacity onPress={() => openReviewModal('coach', c.id, c.user?.fullName || c.user?.username)} style={{ backgroundColor:'#facc1520', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#facc1550' }}>
+                                                    <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>★ Yorumlar</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                     ))
                             }
@@ -12701,28 +12799,173 @@ export default function SubCategoryScreen({ route, navigation }) {
                         </View>
                     </Modal>
 
-                    {/* ── Antrenör CV Yükle (tekil hızlı yükleme) ── */}
+                    {/* ── CV Yükle (antrenörlük / hakemlik ayrımıyla) ── */}
                     <Modal visible={showCvUploadModal} animationType="fade" transparent onRequestClose={() => setShowCvUploadModal(false)}>
                         <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', padding:21 }}>
-                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:17 }}>
-                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:10 }}>📄 CV Yükle</Text>
-                                <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:14 }}>İlanınıza eklenecek CV fotoğrafını seçin.</Text>
-                                {standaloneCvImage ? (
-                                    <Image source={{ uri: standaloneCvImage }} style={{ width:'100%', height:160, borderRadius:10, marginBottom:10 }} resizeMode="cover" />
-                                ) : null}
-                                <TouchableOpacity onPress={() => pickCoachSingleImage(setStandaloneCvImage)}
-                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
-                                    <Text style={{ fontSize:14 }}>📷</Text>
-                                    <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{standaloneCvImage ? 'Fotoğrafı Değiştir' : 'CV Fotoğrafı Seç'}</Text>
-                                </TouchableOpacity>
-                                <View style={{ flexDirection:'row', gap:3 }}>
-                                    <TouchableOpacity onPress={() => { setShowCvUploadModal(false); setStandaloneCvImage(null); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                        <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={submitStandaloneCv} disabled={!standaloneCvImage || uploadingStandaloneCv} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: standaloneCvImage ? '#16a34a' : colors.surface2 }}>
-                                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{uploadingStandaloneCv ? 'Yükleniyor...' : 'CV\'yi Kaydet'}</Text>
+                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:17, maxHeight:'80%' }}>
+                                {!cvUploadType ? (() => {
+                                    const myCoachListings = coachListings.filter(c => c.userId === myId);
+                                    const myRefereeListingsOwn = refereeListings.filter(r => r.userId === myId);
+                                    const pickRow = (l, type) => (
+                                        <TouchableOpacity key={l.id}
+                                            onPress={() => { setCvUploadListingId(l.id); setCvUploadType(type); }}
+                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:9, paddingHorizontal:10, backgroundColor:colors.surface2, borderRadius:8, borderWidth:1, borderColor:colors.border, marginBottom:6 }}>
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{l.subCategory}{l.cvUrl ? '  ✓' : ''}</Text>
+                                            <Text style={{ color: l.cvUrl ? '#4ade80' : cfg.color, fontSize:11, fontWeight:'700' }}>{l.cvUrl ? 'Değiştir' : 'CV Yükle'}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                    return (
+                                        <ScrollView showsVerticalScrollIndicator={false}>
+                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>CV Yükle</Text>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800', marginBottom:6 }}>Antrenörlükler</Text>
+                                            {myCoachListings.length === 0 ? (
+                                                <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:14 }}>Henüz bir antrenörlük ilanınız yok.</Text>
+                                            ) : (
+                                                <View style={{ marginBottom:14 }}>{myCoachListings.map(l => pickRow(l, 'coach'))}</View>
+                                            )}
+                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'800', marginBottom:6 }}>Hakemlikler</Text>
+                                            {myRefereeListingsOwn.length === 0 ? (
+                                                <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:14 }}>Henüz bir hakemlik ilanınız yok.</Text>
+                                            ) : (
+                                                <View style={{ marginBottom:14 }}>{myRefereeListingsOwn.map(l => pickRow(l, 'referee'))}</View>
+                                            )}
+                                            <TouchableOpacity onPress={() => setShowCvUploadModal(false)} style={{ paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>Kapat</Text>
+                                            </TouchableOpacity>
+                                        </ScrollView>
+                                    );
+                                })() : (
+                                    <>
+                                        <TouchableOpacity onPress={() => { setCvUploadType(null); setCvUploadListingId(null); setStandaloneCvImage(null); }} style={{ marginBottom:10, alignSelf:'flex-start' }}>
+                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>‹ Geri</Text>
+                                        </TouchableOpacity>
+                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:10 }}>{cvUploadType === 'referee' ? 'Hakemlik' : 'Antrenörlük'} CV'si</Text>
+                                        <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:14 }}>İlanınıza eklenecek CV fotoğrafını seçin.</Text>
+                                        {standaloneCvImage ? (
+                                            <Image source={{ uri: standaloneCvImage }} style={{ width:'100%', height:160, borderRadius:10, marginBottom:10 }} resizeMode="cover" />
+                                        ) : null}
+                                        <TouchableOpacity onPress={() => pickCoachSingleImage(setStandaloneCvImage)}
+                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                            <Text style={{ fontSize:14 }}>📷</Text>
+                                            <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{standaloneCvImage ? 'Fotoğrafı Değiştir' : 'CV Fotoğrafı Seç'}</Text>
+                                        </TouchableOpacity>
+                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                            <TouchableOpacity onPress={() => { setShowCvUploadModal(false); setStandaloneCvImage(null); setCvUploadType(null); setCvUploadListingId(null); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={submitStandaloneCv} disabled={!standaloneCvImage || uploadingStandaloneCv} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: standaloneCvImage ? '#16a34a' : colors.surface2 }}>
+                                                <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{uploadingStandaloneCv ? 'Yükleniyor...' : 'CV\'yi Kaydet'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </>
+                                )}
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {/* ── Antrenör/Hakem Yorum + Yıldız Puanlama ── */}
+                    <Modal visible={reviewModal.visible} animationType="slide" transparent onRequestClose={() => setReviewModal(p => ({ ...p, visible:false }))}>
+                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:17, maxHeight:'85%' }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', marginBottom:10 }}>
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>Yorumlar</Text>
+                                        {reviewModal.targetLabel ? <Text style={{ color:colors.textMuted, fontSize:11 }}>{reviewModal.targetLabel}</Text> : null}
+                                    </View>
+                                    {reviewAvg != null && (
+                                        <Text style={{ color:'#facc15', fontSize:14, fontWeight:'800' }}>★ {reviewAvg.toFixed(1)}</Text>
+                                    )}
+                                    <TouchableOpacity onPress={() => setReviewModal(p => ({ ...p, visible:false }))} style={{ marginLeft:10 }}>
+                                        <Text style={{ color:colors.textMuted, fontSize:20 }}>✕</Text>
                                     </TouchableOpacity>
                                 </View>
+                                <ScrollView style={{ marginBottom:10 }} keyboardShouldPersistTaps="handled">
+                                    {reviewLoading ? (
+                                        <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
+                                    ) : reviewList.length === 0 ? (
+                                        <Text style={{ color:colors.textMuted, fontSize:12, textAlign:'center', marginVertical:14 }}>Henüz yorum yok.</Text>
+                                    ) : reviewList.map(rv => (
+                                        <View key={rv.id} style={{ marginBottom:10, paddingBottom:10, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                <Avatar name={rv.reviewer?.username} avatar={rv.reviewer?.avatar} size={26} color={cfg.color} />
+                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>{rv.reviewer?.fullName || rv.reviewer?.username}</Text>
+                                                <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{'★'.repeat(rv.rating)}{'☆'.repeat(5 - rv.rating)}</Text>
+                                            </View>
+                                            {rv.comment && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }}>{rv.comment}</Text>}
+                                        </View>
+                                    ))}
+                                </ScrollView>
+                                {!reviewCanReview ? (
+                                    reviewModal.type === 'coach' ? (
+                                        reviewMyLessonStatus === 'PENDING' ? (
+                                            <View style={{ backgroundColor:'#f59e0b18', borderRadius:10, padding:10, alignItems:'center' }}>
+                                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700', textAlign:'center' }}>Ders isteğiniz gönderildi, antrenörün onayı bekleniyor.</Text>
+                                            </View>
+                                        ) : (
+                                            <TouchableOpacity onPress={sendLessonRequest} disabled={lessonRequesting} style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:10, alignItems:'center', opacity: lessonRequesting ? 0.6 : 1 }}>
+                                                <Text style={{ color:'#fff', fontWeight:'800' }}>{lessonRequesting ? 'Gönderiliyor...' : 'Ders İste'}</Text>
+                                            </TouchableOpacity>
+                                        )
+                                    ) : (
+                                        <View style={{ backgroundColor:'#dc262618', borderRadius:10, padding:10, alignItems:'center' }}>
+                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700', textAlign:'center' }}>Bu hakemin yönettiği bir maçta yer almadığınız için yorum/puan veremezsiniz.</Text>
+                                        </View>
+                                    )
+                                ) : (
+                                    <View>
+                                        <View style={{ flexDirection:'row', gap:6, marginBottom:8, justifyContent:'center' }}>
+                                            {[1,2,3,4,5].map(n => (
+                                                <TouchableOpacity key={n} onPress={() => setReviewStars(n)}>
+                                                    <Text style={{ fontSize:28, color: n <= reviewStars ? '#facc15' : colors.textMuted }}>★</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                        <TextInput
+                                            style={[s.fieldInput, { marginBottom:8, minHeight:60, textAlignVertical:'top' }]}
+                                            value={reviewComment} onChangeText={setReviewComment}
+                                            placeholder="Yorumunuz (opsiyonel)" placeholderTextColor={colors.textMuted}
+                                            multiline
+                                        />
+                                        <TouchableOpacity onPress={submitListingReview} disabled={reviewSubmitting} style={{ backgroundColor:'#16a34a', borderRadius:10, paddingVertical:10, alignItems:'center', opacity: reviewSubmitting ? 0.6 : 1 }}>
+                                            <Text style={{ color:'#fff', fontWeight:'800' }}>{reviewSubmitting ? 'Gönderiliyor...' : 'Yorumu Gönder'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {/* ── Antrenör: Bekleyen Ders İstekleri (kabul/red) ── */}
+                    <Modal visible={lessonRequestsModal.visible} animationType="slide" transparent onRequestClose={() => setLessonRequestsModal({ visible:false, listingId:null })}>
+                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:17, maxHeight:'75%' }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', marginBottom:10 }}>
+                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', flex:1 }}>Ders İstekleri</Text>
+                                    <TouchableOpacity onPress={() => setLessonRequestsModal({ visible:false, listingId:null })}>
+                                        <Text style={{ color:colors.textMuted, fontSize:20 }}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <ScrollView>
+                                    {loadingLessonRequests ? (
+                                        <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
+                                    ) : lessonRequestsList.length === 0 ? (
+                                        <Text style={{ color:colors.textMuted, fontSize:12, textAlign:'center', marginVertical:14 }}>Bekleyen istek yok.</Text>
+                                    ) : lessonRequestsList.map(lr => (
+                                        <View key={lr.id} style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:8, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                                            <Avatar name={lr.student?.username} avatar={lr.student?.avatar} size={30} color={cfg.color} />
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{lr.student?.fullName || lr.student?.username}</Text>
+                                                {lr.message && <Text style={{ color:colors.textMuted, fontSize:11 }} numberOfLines={2}>{lr.message}</Text>}
+                                            </View>
+                                            <TouchableOpacity onPress={() => respondToLessonReq(lr.id, 'accept')} disabled={respondingLessonReqId === lr.id} style={{ backgroundColor:'#16a34a', borderRadius:8, paddingHorizontal:10, paddingVertical:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => respondToLessonReq(lr.id, 'reject')} disabled={respondingLessonReqId === lr.id} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:colors.border }}>
+                                                <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700' }}>Red</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </ScrollView>
                             </View>
                         </View>
                     </Modal>

@@ -16,7 +16,127 @@ export const getListings = async (req, res, next) => {
             include: { user: { select: USER_SELECT } },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(listings);
+        const listingIds = listings.map(l => l.id);
+        const ratings = listingIds.length ? await prisma.coachReview.groupBy({
+            by: ['coachListingId'],
+            where: { coachListingId: { in: listingIds } },
+            _avg: { rating: true },
+            _count: { id: true },
+        }) : [];
+        const ratingMap = Object.fromEntries(ratings.map(r => [r.coachListingId, { avg: r._avg.rating, count: r._count.id }]));
+        res.json(listings.map(l => ({
+            ...l,
+            avgRating: ratingMap[l.id]?.avg ?? null,
+            reviewCount: ratingMap[l.id]?.count ?? 0,
+        })));
+    } catch (err) { next(err); }
+};
+
+// Öğrenci bir antrenöre "ders aldım" ilişkisi kurmak için istek gönderir —
+// antrenör kabul edince öğrenci o antrenöre yorum/yıldız verebilir hale gelir.
+export const requestLesson = async (req, res, next) => {
+    try {
+        const { id } = req.params; // coachListingId
+        const { message } = req.body;
+        const listing = await prisma.coachListing.findUnique({ where: { id } });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (listing.userId === req.userId) return res.status(400).json({ message: 'Kendi ilanınıza ders isteği gönderemezsiniz' });
+
+        const existing = await prisma.coachLessonRequest.findUnique({
+            where: { coachListingId_studentId: { coachListingId: id, studentId: req.userId } },
+        });
+        if (existing && existing.status !== 'REJECTED') {
+            return res.status(400).json({ message: 'Bu antrenöre zaten bir istek gönderdiniz', status: existing.status });
+        }
+
+        if (existing) {
+            await prisma.coachLessonRequest.update({
+                where: { coachListingId_studentId: { coachListingId: id, studentId: req.userId } },
+                data: { status: 'PENDING', message: message || null },
+            });
+        } else {
+            await prisma.coachLessonRequest.create({
+                data: { coachListingId: id, studentId: req.userId, message: message || null },
+            });
+        }
+        res.status(201).json({ message: 'Ders isteği gönderildi' });
+    } catch (err) { next(err); }
+};
+
+// Antrenör kendi ilanına gelen ders isteklerini görür
+export const getLessonRequests = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const listing = await prisma.coachListing.findUnique({ where: { id } });
+        if (!listing || listing.userId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        const requests = await prisma.coachLessonRequest.findMany({
+            where: { coachListingId: id, status: 'PENDING' },
+            include: { student: { select: USER_SELECT } },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json(requests);
+    } catch (err) { next(err); }
+};
+
+export const respondLessonRequest = async (req, res, next) => {
+    try {
+        const { reqId } = req.params;
+        const { action } = req.body; // 'accept' | 'reject'
+        const lessonReq = await prisma.coachLessonRequest.findUnique({
+            where: { id: reqId },
+            include: { coachListing: true },
+        });
+        if (!lessonReq) return res.status(404).json({ message: 'İstek bulunamadı' });
+        if (lessonReq.coachListing.userId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        if (lessonReq.status !== 'PENDING') return res.status(400).json({ message: 'Bu istek artık bekleyen durumda değil' });
+
+        await prisma.coachLessonRequest.update({
+            where: { id: reqId },
+            data: { status: action === 'accept' ? 'ACCEPTED' : 'REJECTED' },
+        });
+        res.json({ message: action === 'accept' ? 'Kabul edildi' : 'Reddedildi' });
+    } catch (err) { next(err); }
+};
+
+export const getReviews = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const reviews = await prisma.coachReview.findMany({
+            where: { coachListingId: id },
+            include: { reviewer: { select: USER_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        const myLessonReq = req.userId ? await prisma.coachLessonRequest.findUnique({
+            where: { coachListingId_studentId: { coachListingId: id, studentId: req.userId } },
+        }) : null;
+        res.json({
+            reviews,
+            avgRating: reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null,
+            canReview: myLessonReq?.status === 'ACCEPTED',
+            myLessonStatus: myLessonReq?.status || null,
+        });
+    } catch (err) { next(err); }
+};
+
+export const submitReview = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { rating, comment } = req.body;
+        const r = parseInt(rating, 10);
+        if (!r || r < 1 || r > 5) return res.status(400).json({ message: 'Geçerli bir yıldız puanı girin (1-5)' });
+
+        const accepted = await prisma.coachLessonRequest.findFirst({
+            where: { coachListingId: id, studentId: req.userId, status: 'ACCEPTED' },
+        });
+        if (!accepted) return res.status(403).json({ message: 'Bu antrenörden ders almadığınız için yorum/puan veremezsiniz' });
+
+        const review = await prisma.coachReview.upsert({
+            where: { coachListingId_reviewerId: { coachListingId: id, reviewerId: req.userId } },
+            update: { rating: r, comment: comment || null },
+            create: { coachListingId: id, reviewerId: req.userId, rating: r, comment: comment || null },
+            include: { reviewer: { select: USER_SELECT } },
+        });
+        res.status(201).json(review);
     } catch (err) { next(err); }
 };
 
