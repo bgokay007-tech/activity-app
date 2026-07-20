@@ -5001,6 +5001,41 @@ function SubCategoryPage() {
                                     </div>
                                 );
 
+                                const SwapPositionsRow = ({ match, onSwapped }) => {
+                                    const [swapping, setSwapping] = useState(null); // 'partner-opp1' | ...
+                                    const sTeam = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+                                    const parts = Array.isArray(match.participants) ? match.participants : [];
+                                    const slots = {
+                                        partner: sTeam[0] || null,
+                                        opp1: parts[0] || null,
+                                        opp2: parts[1] || null,
+                                    };
+                                    const label = { partner: 'Partner', opp1: 'Rakip 1', opp2: 'Rakip 2' };
+                                    const doSwap = async (slot1, slot2) => {
+                                        setSwapping(`${slot1}-${slot2}`);
+                                        try {
+                                            const { data } = await api.patch(`/rivals/${match.id}/swap-positions`, { slot1, slot2 });
+                                            onSwapped(data);
+                                        } catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+                                        finally { setSwapping(null); }
+                                    };
+                                    const pairs = [['partner', 'opp1'], ['opp1', 'opp2'], ['partner', 'opp2']];
+                                    return (
+                                        <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-2.5 mb-2">
+                                            <p className="text-gray-500 text-[10px] font-bold mb-1.5">🔀 Pozisyon Değiştir</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {pairs.map(([a, b]) => (
+                                                    <button key={`${a}-${b}`} disabled={swapping === `${a}-${b}` || (!slots[a] && !slots[b])}
+                                                        onClick={() => doSwap(a, b)}
+                                                        className="flex items-center gap-1 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-lg px-2 py-1 text-[10px] text-gray-300 font-bold transition disabled:opacity-40">
+                                                        {slots[a]?.username || label[a]} ⇄ {slots[b]?.username || label[b]}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                };
+
                                 const UpcomingCard = ({ m, isPastCard = false }) => {
                                     const [showComments, setShowComments] = useState(false);
                                     const [matchComments, setMatchComments] = useState([]);
@@ -5123,6 +5158,12 @@ function SubCategoryPage() {
                                             {/* Message */}
                                             {m.message && (
                                                 <p className="text-gray-500 text-xs italic mb-2 line-clamp-2">"{m.message}"</p>
+                                            )}
+
+                                            {/* Slot swap — çiftler maçında oyuncu pozisyonu değiştirme */}
+                                            {m.matchType === 'DOUBLE' && !isPastCard && involved && m.teamFlexibility !== 'STRICT' && (
+                                                <SwapPositionsRow match={m}
+                                                    onSwapped={(updated) => setUpcomingMatches(prev => prev.map(r => r.id === updated.id ? updated : r))} />
                                             )}
 
                                             {/* Actions */}
