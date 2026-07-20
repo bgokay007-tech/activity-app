@@ -146,6 +146,22 @@ export const searchCourts = async (req, res, next) => {
             reviewCount: courtRatingMap[c.id]?.count  ?? 0,
         }));
 
+        // Esnek programlı ilanlarda kesin bir saat dilimi seçilmediği için tesisin
+        // taban ücreti (pricePerSlot) çoğunlukla 0 kalıyor — çoğu PRO tesis fiyatını
+        // saat aralıklarına (pricingWindows) veya kort bazında ayrı ücrete göre
+        // ayarlıyor. Bu yüzden en düşük olası fiyatı "başlangıç fiyatı" olarak alıyoruz.
+        const estimateVenueBasePrice = (v) => {
+            const prices = [];
+            if (v.pricePerSlot > 0) prices.push(v.pricePerSlot);
+            if (Array.isArray(v.pricingWindows)) {
+                v.pricingWindows.forEach(w => { if (w?.price > 0) prices.push(w.price); });
+            }
+            if (Array.isArray(v.courts)) {
+                v.courts.forEach(c => { if (c?.pricePerSlot > 0) prices.push(c.pricePerSlot); });
+            }
+            return prices.length > 0 ? Math.min(...prices) : 0;
+        };
+
         // Her BusinessVenue tek satır olarak döner (kort bazlı değil tesis bazlı)
         const venueAsCourts = venues.map(v => ({
             id: `venue_${v.id}`,
@@ -157,7 +173,7 @@ export const searchCourts = async (req, res, next) => {
             isBusinessVenue: true,
             venueId: v.id,
             user: v.user,
-            pricePerSlot: v.pricePerSlot || 0,
+            pricePerSlot: estimateVenueBasePrice(v),
             avgRating:   venueRatingMap[v.id]?.avg   ?? null,
             reviewCount: venueRatingMap[v.id]?.count  ?? 0,
         }));
