@@ -439,6 +439,9 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
         venuePayMethod: 'CASH',
         venueCourtPrice: 0,
         venueLabel: '', // "Tesis Adı — Kort 1" özet gösterimi için
+        courtMutual: false,
+        courtFeePerPerson: '',
+        teamFlexibility: 'FLEXIBLE',
     });
     const [showVenueSearch, setShowVenueSearch] = useState(false);
     const [venueSearchInitialName, setVenueSearchInitialName] = useState('');
@@ -674,6 +677,8 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
         delete payload.courtNumber;
             delete payload.venueBookingDate; delete payload.venueBookingStart; delete payload.venueBookingEnd;
             delete payload.venuePayMethod; delete payload.venueCourtPrice; delete payload.venueLabel;
+            delete payload.courtMutual;
+            if (!payload.courtFeePerPerson) delete payload.courtFeePerPerson;
             if (sub === 'tennis') { delete payload.level; delete payload.levelDetail; delete payload.teamSize; }
             if (!isTeamSport && sub !== 'tennis') { delete payload.surface; delete payload.teamSize; }
             const { data } = await api.post('/rivals', payload);
@@ -1433,6 +1438,32 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     {t('rival.court_reserved')}
                 </label>
             </div>
+            )}
+
+            {!form.flexibleSchedule && (
+                <div className="space-y-2">
+                    <label className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-3 cursor-pointer">
+                        <input type="checkbox" checked={form.courtMutual}
+                            onChange={e => setForm(f => ({ ...f, courtMutual: e.target.checked, ...(!e.target.checked && { courtFeePerPerson: '' }) }))}
+                            className="w-4 h-4 accent-purple-500 cursor-pointer" />
+                        <span className="text-gray-300 text-sm select-none">Kort ücreti oyuncular arasında paylaşılsın</span>
+                    </label>
+                    {form.courtMutual && (
+                        <input value={form.courtFeePerPerson}
+                            onChange={e => setForm(f => ({ ...f, courtFeePerPerson: e.target.value.replace(/[^0-9]/g, '') }))}
+                            placeholder="Kişi başı ücret (₺)" inputMode="numeric"
+                            className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm" />
+                    )}
+                </div>
+            )}
+
+            {needsPartner && (
+                <label className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-3 cursor-pointer">
+                    <input type="checkbox" checked={form.teamFlexibility === 'STRICT'}
+                        onChange={e => setForm(f => ({ ...f, teamFlexibility: e.target.checked ? 'STRICT' : 'FLEXIBLE' }))}
+                        className="w-4 h-4 accent-purple-500 cursor-pointer" />
+                    <span className="text-gray-300 text-sm select-none">Oyuncu pozisyonları sabit kalsın (maç sonrası değiştirilemesin)</span>
+                </label>
             )}
 
             {showVenueSearch && (
