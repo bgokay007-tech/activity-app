@@ -75,25 +75,65 @@ function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
         'APPEAL_RESOLVED', 'VENUE_REVIEW_APPROVED', 'VENUE_REVIEW_REJECTED', 'HOLIDAY_REMINDER',
     ]);
 
-    const handleClick = (n) => {
+    const REFEREE_TYPES = new Set(['MATCH_INVITE', 'MATCH_INVITE_DECLINED', 'RIVAL_JOIN_REQUEST']);
+
+    const buildCatPath = (data) => {
+        if (!data.category || !data.subCategory) return null;
+        let path = `/category/${data.category.toLowerCase()}/${data.subCategory}`;
+        const params = new URLSearchParams();
+        if (data.tab) params.set('tab', data.tab);
+        else if (data.refereeAd || (data.rivalId && REFEREE_TYPES.has(data.type))) { params.set('tab', 'coaches'); params.set('coachSubTab', 'referees'); }
+        else if (data.equipmentOffer || data.listingId) params.set('tab', 'equipment');
+        if (data.listingId) params.set('openEquipmentId', data.listingId);
+        const qs = params.toString();
+        return qs ? `${path}?${qs}` : path;
+    };
+
+    const handleClick = async (n) => {
         onMarkOne(n.id);
         onClose();
         const { type, data = {} } = n;
-        const catPath = data.category && data.subCategory ? `/category/${data.category.toLowerCase()}/${data.subCategory}` : null;
 
         if (type === 'MESSAGE') {
+            // Ekipman ilanı bağlamlı mesaj — sohbete değil, ilgili ilana git
+            if (data.listingId && data.category && data.subCategory) {
+                navigate(buildCatPath({ ...data, type }));
+                return;
+            }
             navigate(data.senderId ? `/messages/${data.senderId}` : '/messages');
-        } else if (['FRIEND_REQUEST', 'FRIEND_ACCEPTED', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPTED'].includes(type)) {
+            return;
+        }
+        if (['FRIEND_REQUEST', 'FRIEND_ACCEPTED', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPTED'].includes(type)) {
             navigate(data.senderId ? `/profile/${data.senderId}` : '/profile');
-        } else if (ADMIN_TAB_BY_TYPE[type]) {
+            return;
+        }
+        if (ADMIN_TAB_BY_TYPE[type]) {
             navigate(`/admin?tab=${ADMIN_TAB_BY_TYPE[type]}`);
-        } else if (type?.startsWith('TOURNAMENT') && data.tournamentId && catPath) {
-            navigate(`${catPath}?manageTournament=${data.tournamentId}`);
-        } else if (catPath) {
-            navigate(catPath);
-        } else if (data.rivalId) {
-            navigate('/category/sports/football');
-        } else if (OUTCOME_TYPES.has(type)) {
+            return;
+        }
+        if (type === 'EQUIPMENT_OFFER') {
+            navigate(buildCatPath({ ...data, type, equipmentOffer: true }));
+            return;
+        }
+        if (type?.startsWith('TOURNAMENT') && data.tournamentId && data.category && data.subCategory) {
+            navigate(`/category/${data.category.toLowerCase()}/${data.subCategory}?tab=tournaments&manageTournament=${data.tournamentId}`);
+            return;
+        }
+        const catPath = buildCatPath({ ...data, type });
+        if (catPath) { navigate(catPath); return; }
+        if (data.rivalId) {
+            // category/subCategory bilgisi bu bildirimde yoktu — ilanı çekip gerçek
+            // spora yönlendir (eskiden hep futbola gidiyordu, yanlıştı).
+            try {
+                const { data: rival } = await api.get(`/rivals/${data.rivalId}`);
+                if (rival?.category && rival?.subCategory) {
+                    navigate(buildCatPath({ ...data, type, category: rival.category, subCategory: rival.subCategory }));
+                    return;
+                }
+            } catch { /* ilan artık yoksa sessizce vazgeç */ }
+            return;
+        }
+        if (OUTCOME_TYPES.has(type)) {
             navigate('/profile');
         }
     };

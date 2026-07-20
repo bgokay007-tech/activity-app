@@ -3046,7 +3046,7 @@ function SubCategoryPage() {
             return JSON.parse(atob(token.split('.')[1])).userId || myIdFromRedux;
         } catch { return myIdFromRedux || null; }
     })();
-    const [activeTab, setActiveTab] = useState(sub === 'football' ? 'player_wanted' : 'rivals');
+    const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || (sub === 'football' ? 'player_wanted' : 'rivals'));
     const [tournamentView, setTournamentView] = useState(null); // null | 'pick' | 'mix_double' | 'singles' | 'team' | 'bracket' | 'manage'
     const [tournaments, setTournaments] = useState([]);
     const [tournamentsLoading, setTournamentsLoading] = useState(false);
@@ -3110,7 +3110,7 @@ function SubCategoryPage() {
     const [mediaPosts, setMediaPosts] = useState([]);
     const [coachListings, setCoachListings] = useState([]);
     const [coachForm, setCoachForm] = useState(false);
-    const [coachSubTab, setCoachSubTab] = useState('listings'); // 'listings' | 'courses' | 'referees' | 'cvs'
+    const [coachSubTab, setCoachSubTab] = useState(() => searchParams.get('coachSubTab') || 'listings'); // 'listings' | 'courses' | 'referees' | 'cvs'
     const [refereeListings, setRefereeListings] = useState([]);
     const [loadingReferees, setLoadingReferees] = useState(false);
     const [refereesLoaded, setRefereesLoaded] = useState(false);
@@ -3122,6 +3122,24 @@ function SubCategoryPage() {
     const [equipmentFiles, setEquipmentFiles] = useState([]); // File[] not yet uploaded
     const [submittingEquipment, setSubmittingEquipment] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
+    // Bildirimden gelen ?openEquipmentId= varsa ilgili ilanı çekip detay modalını aç
+    // (mobildeki openEquipmentId route param'ının web karşılığı).
+    useEffect(() => {
+        const openId = searchParams.get('openEquipmentId');
+        if (!openId) return;
+        api.get(`/equipment/${openId}`)
+            .then(({ data }) => {
+                setEquipmentViewStatus(data.status === 'SOLD' ? 'SOLD' : 'ACTIVE');
+                setSelectedEquipment(data);
+            })
+            .catch(() => {})
+            .finally(() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('openEquipmentId'); next.delete('tab'); next.delete('coachSubTab');
+                setSearchParams(next, { replace: true });
+            });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [equipmentViewStatus, setEquipmentViewStatus] = useState('ACTIVE'); // 'ACTIVE' | 'SOLD'
     const [equipmentOffers, setEquipmentOffers] = useState([]);
     const [loadingEquipmentOffers, setLoadingEquipmentOffers] = useState(false);
