@@ -2647,6 +2647,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                 </TouchableOpacity>
             )}
+            {match.refereeRequested && (
+                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }}>
+                    🟨 {t.refereeSlotLabel}: {match.refereeUser ? (match.refereeUser.fullName || match.refereeUser.username) + ' ✓' : t.refereeSlotSearching}
+                </Text>
+            )}
             {/* Comment count */}
             <Text style={{ color: colors.textMuted, fontSize:11, marginTop:3 }}>
                 💬 {t.matchCommentsBtn} {match.commentCount ?? 0}
@@ -2691,6 +2696,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
                                 <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                             </TouchableOpacity>
+                        )}
+                        {match.refereeRequested && (
+                            <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', marginTop:6 }}>
+                                🟨 {t.refereeSlotLabel}: {match.refereeUser ? (match.refereeUser.fullName || match.refereeUser.username) + ' ✓' : t.refereeSlotSearching}
+                            </Text>
                         )}
                         {match.level && (
                             <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
@@ -9686,7 +9696,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
-            openEquipmentId } = route.params;
+            openEquipmentId, initialCoachSubTab } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -9874,7 +9884,11 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Coaches data
     const [coachListings, setCoachListings] = useState([]);
     const [loadingCoaches, setLoadingCoaches] = useState(false);
-    const [coachSubTab, setCoachSubTab] = useState('listings'); // 'listings' | 'cvs'
+    const [coachSubTab, setCoachSubTab] = useState(initialCoachSubTab || 'listings'); // 'listings' | 'courses' | 'referees' | 'cvs'
+
+    useEffect(() => {
+        if (route.params?.initialCoachSubTab) setCoachSubTab(route.params.initialCoachSubTab);
+    }, [route.params?.initialCoachSubTab]);
     const [showCreateCoach, setShowCreateCoach] = useState(false);
     const [submittingCoach, setSubmittingCoach] = useState(false);
     const [uploadingCoachMedia, setUploadingCoachMedia] = useState(false);
@@ -10077,6 +10091,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                     || upcomingList.find(r => r.id === highlightRivalId);
                 if (found) {
                     autoOpenHandledRef.current = highlightRivalId;
+                    setAutoOpenId(highlightRivalId);
+                } else if (pwRes.data.some(r => r.id === highlightRivalId)) {
+                    // Hakem ilanı (PLAYER_WANTED) — Hakemler alt-sekmesinde yaşıyor
+                    autoOpenHandledRef.current = highlightRivalId;
+                    setCoachSubTab('referees');
+                    setActiveTab('coaches');
                     setAutoOpenId(highlightRivalId);
                 }
             }
@@ -10995,6 +11015,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     useEffect(() => {
         const offUpdate = onSocket('rivalUpdate', (updated) => {
             if (updated.category?.toUpperCase() !== category?.toUpperCase() || updated.subCategory !== sub) return;
+            // Hakem/oyuncu-arıyorum ilanları (matchType PLAYER_WANTED) ayrı bir akışa ait —
+            // Açık İlanlar/Bekleyen Maçlar listelerine (rivals/matchedUpcoming) karışmasın.
+            if (updated.matchType === 'PLAYER_WANTED') return;
             setRivals(prev => {
                 const exists = prev.some(r => r.id === updated.id);
                 if (updated.status === 'MATCHED' || updated.status === 'CANCELLED') {
@@ -12157,7 +12180,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         : (
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                                 {refereeMatches.map(item => (
-                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
+                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} />
                                                 ))}
                                             </View>
                                         )

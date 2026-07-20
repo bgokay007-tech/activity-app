@@ -111,6 +111,12 @@ export default function NotificationsScreen({ navigation }) {
         const type = item.type;
         const goToSub = (tab = 'rivals', tournSubTab = null, openChatTournamentId = null) => {
             if (!data.category || !data.subCategory) return;
+            // Hakem ilanına (bağımsız veya bir maça bağlı "Hakem Arıyorum" ilanı) işaret eden
+            // bildirimler İlanlar sekmesinde değil, Antrenörler → Hakemler alt-sekmesinde yaşar.
+            if (data.refereeAd) {
+                navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: 'coaches', initialCoachSubTab: 'referees', highlightRivalId: data.rivalId || null });
+                return;
+            }
             navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab, openChatTournamentId });
         };
         const goToEquipmentListing = () => {
