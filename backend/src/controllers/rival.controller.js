@@ -425,7 +425,9 @@ export const getActiveSubCategories = async (req, res, next) => {
         const now = new Date();
         const rows = await prisma.activityRequest.groupBy({
             by: ['subCategory', 'category'],
-            where: { status: 'OPEN', OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+            // linkedRivalId dolu olanlar bir asıl maça bağlı "Hakem Arıyorum" gölge ilanlarıdır —
+            // zaten Hakemler sekmesinde ayrıca sayılıyor, genel ilan sayımına dahil edilmemeli.
+            where: { status: 'OPEN', linkedRivalId: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
             _count: { id: true },
         });
         // Return distinct [{ subCategory, category }] sorted by count desc
@@ -444,6 +446,7 @@ export const getCountsBySubCategory = async (req, res, next) => {
         const now = new Date();
         const where = {
             status: 'OPEN',
+            linkedRivalId: null, // asıl maça bağlı "Hakem Arıyorum" gölge ilanları Hakemler sekmesinde ayrıca sayılıyor
             ...catWhere,
             OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         };
@@ -1379,26 +1382,16 @@ export const respondToJoin = async (req, res, next) => {
             return res.json({ message: 'Partner daveti kabul edildi.', request: updatedRival });
         }
 
-        // 1 saatten geç kabul: joiner'a tekrar onay iste
-        const ONE_HOUR_MS = 60 * 60 * 1000;
-        const lateAccept = Date.now() - new Date(joinReq.createdAt).getTime() > ONE_HOUR_MS;
-        if (lateAccept) {
-            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'AWAITING_JOINER_CONFIRM' } });
-            emitToUser(joinReq.userId, 'joinLateAccepted', { rivalId: joinReq.rivalId, requestId });
-            createNotification(
-                joinReq.userId,
-                'JOIN_LATE_ACCEPT',
-                '⏰ Geç Kabul — Onayınız Bekleniyor',
-                `"${joinReq.rival.sender?.username || 'Maç sahibi'}" katılım isteğinizi 1 saat sonra kabul etti. Maça katılmak istiyor musunuz? Onaylayın veya iptal edin.`,
-                { rivalId: joinReq.rivalId, requestId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
-            ).catch(() => {});
-            return res.json({ lateAccept: true, message: 'Joiner re-confirmation required.' });
-        }
-
         // Build participants: when the joiner submitted a full team (football competitive team
         // matches, or tennis/padel doubles partner pairing), use the full joining team;
         // otherwise fall back to single-player addition. Independent of matchMode — a doubles
         // pairing is a structural fact about who's joining, not about practice vs competitive.
+        //
+        // NOT: Bu blok (cinsiyet/slot doğrulaması dahil) kasıtlı olarak "1 saatten geç kabul"
+        // kontrolünden ÖNCE çalışır — aksi halde sahibi, artık uymayan bir istek için (ör. son
+        // kalan slot kadın gerektirirken erkek başvurusu) doğrulama atlanıp doğrudan karşı
+        // tarafa "onayınız bekleniyor" bildirimi gitmiş oluyordu; hiç kabul edilemeyecek bir
+        // istek geç-kabul akışına sızmış oluyordu.
         const rival = joinReq.rival;
         let joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
         let partnerJoinReqToAccept = null;
@@ -1508,6 +1501,23 @@ export const respondToJoin = async (req, res, next) => {
                 return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var. Takım eşleşmesini kabul etmeden önce onları çıkarın.' });
             }
             updatedParticipants = isTeamJoin ? joiningTeam : [...participants, joinerEntry];
+        }
+
+        // 1 saatten geç kabul: yukarıdaki doğrulama geçti (bu istek gerçekten kabul edilebilir),
+        // şimdi joiner'a tekrar onay isteriz — henüz hiçbir şey DB'ye yazılmadı.
+        const ONE_HOUR_MS = 60 * 60 * 1000;
+        const lateAccept = Date.now() - new Date(joinReq.createdAt).getTime() > ONE_HOUR_MS;
+        if (lateAccept) {
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'AWAITING_JOINER_CONFIRM' } });
+            emitToUser(joinReq.userId, 'joinLateAccepted', { rivalId: joinReq.rivalId, requestId });
+            createNotification(
+                joinReq.userId,
+                'JOIN_LATE_ACCEPT',
+                '⏰ Geç Kabul — Onayınız Bekleniyor',
+                `"${joinReq.rival.sender?.username || 'Maç sahibi'}" katılım isteğinizi 1 saat sonra kabul etti. Maça katılmak istiyor musunuz? Onaylayın veya iptal edin.`,
+                { rivalId: joinReq.rivalId, requestId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+            ).catch(() => {});
+            return res.json({ lateAccept: true, message: 'Joiner re-confirmation required.' });
         }
 
         // Partner az önce atandıysa artık required=2'ye düşer (senderTeam DB'de henüz
