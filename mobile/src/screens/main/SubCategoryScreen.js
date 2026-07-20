@@ -10216,7 +10216,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [uploadingStandaloneCv, setUploadingStandaloneCv] = useState(false);
 
     // Antrenör/hakem yorum + yıldız puanlama
-    const [reviewModal, setReviewModal] = useState({ visible:false, type:null, listingId:null, targetLabel:'' });
+    const [reviewModal, setReviewModal] = useState({ visible:false, type:null, listingId:null, targetLabel:'', isOwn:false });
     const [reviewList, setReviewList] = useState([]);
     const [reviewAvg, setReviewAvg] = useState(null);
     const [reviewCanReview, setReviewCanReview] = useState(false);
@@ -10240,8 +10240,8 @@ export default function SubCategoryScreen({ route, navigation }) {
         } finally { setReviewLoading(false); }
     };
 
-    const openReviewModal = (type, listingId, targetLabel) => {
-        setReviewModal({ visible:true, type, listingId, targetLabel });
+    const openReviewModal = (type, listingId, targetLabel, isOwn) => {
+        setReviewModal({ visible:true, type, listingId, targetLabel, isOwn: !!isOwn });
         setReviewStars(0);
         setReviewComment('');
         loadListingReviews(type, listingId);
@@ -12571,7 +12571,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
                                                             </TouchableOpacity>
                                                         )}
-                                                        <TouchableOpacity onPress={() => openReviewModal('referee', r.id, r.user?.fullName || r.user?.username)} style={{ backgroundColor:'#facc1520', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#facc1550' }}>
+                                                        <TouchableOpacity onPress={() => openReviewModal('referee', r.id, r.user?.fullName || r.user?.username, r.userId === myId)} style={{ backgroundColor:'#facc1520', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#facc1550' }}>
                                                             <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>★ Yorumlar</Text>
                                                         </TouchableOpacity>
                                                     </View>
@@ -12661,7 +12661,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>📄 CV</Text>
                                                     </TouchableOpacity>
                                                 )}
-                                                <TouchableOpacity onPress={() => openReviewModal('coach', c.id, c.user?.fullName || c.user?.username)} style={{ backgroundColor:'#facc1520', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#facc1550' }}>
+                                                <TouchableOpacity onPress={() => openReviewModal('coach', c.id, c.user?.fullName || c.user?.username, c.userId === myId)} style={{ backgroundColor:'#facc1520', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#facc1550' }}>
                                                     <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>★ Yorumlar</Text>
                                                 </TouchableOpacity>
                                             </View>
@@ -12895,7 +12895,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </View>
                                     ))}
                                 </ScrollView>
-                                {!reviewCanReview ? (
+                                {reviewModal.isOwn ? (
+                                    <View style={{ backgroundColor:colors.surface2, borderRadius:10, padding:10, alignItems:'center' }}>
+                                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', textAlign:'center' }}>Bu sizin ilanınız — kendinize yorum/puan veremezsiniz.</Text>
+                                    </View>
+                                ) : !reviewCanReview ? (
                                     reviewModal.type === 'coach' ? (
                                         reviewMyLessonStatus === 'PENDING' ? (
                                             <View style={{ backgroundColor:'#f59e0b18', borderRadius:10, padding:10, alignItems:'center' }}>
