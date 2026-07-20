@@ -6,7 +6,7 @@ export async function cleanupExpiredRivals() {
     try {
         const now = new Date();
 
-        // Find OPEN requests whose match time has passed by 30+ minutes
+        // Find OPEN requests whose match time has passed by 5+ minutes
         const openRequests = await prisma.activityRequest.findMany({
             where: {
                 status: 'OPEN',
@@ -23,8 +23,8 @@ export async function cleanupExpiredRivals() {
             } else {
                 d.setHours(23, 59, 0, 0);
             }
-            // Expired = match time + 30 minutes < now
-            return d.getTime() + 30 * 60 * 1000 < now.getTime();
+            // Expired = match time + 5 minutes < now
+            return d.getTime() + 5 * 60 * 1000 < now.getTime();
         });
 
         if (expired.length > 0) {
