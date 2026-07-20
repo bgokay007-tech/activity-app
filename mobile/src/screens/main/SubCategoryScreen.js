@@ -2846,18 +2846,36 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
                                     </View>
                                 )}
-                                <View style={{ flexDirection:'row', gap:3 }}>
-                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
-                                        <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>İlan Sahibi</Text>
-                                        <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, marginBottom:2, backgroundColor:'#1e293b' }}>
-                                            <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
+                                {/* İlan sahibi/partner sol sütunda dip dibe, her biri kendi karşısındaki
+                                    rakiple aynı satırda hizalanır (kurucu ↔ rakip1, partner ↔ rakip2). */}
+                                <View style={{ gap:3 }}>
+                                    <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
+                                        <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
+                                            <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>İlan Sahibi</Text>
+                                            <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, backgroundColor:'#1e293b' }}>
+                                                <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
+                                            </View>
                                         </View>
-                                        {mkSlot('partner', partner, '#c084fc')}
+                                        <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
+                                        </View>
+                                        <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
+                                            <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>{SLOT_LABEL.opp1}</Text>
+                                            {mkSlot('opp1', opp1, '#fca5a5')}
+                                        </View>
                                     </View>
-                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
-                                        <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>Katılımcılar</Text>
-                                        {mkSlot('opp1', opp1, '#fca5a5')}
-                                        {mkSlot('opp2', opp2, '#fca5a5')}
+                                    <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
+                                        <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
+                                            <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>{SLOT_LABEL.partner}</Text>
+                                            {mkSlot('partner', partner, '#c084fc')}
+                                        </View>
+                                        <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
+                                        </View>
+                                        <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
+                                            <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>{SLOT_LABEL.opp2}</Text>
+                                            {mkSlot('opp2', opp2, '#fca5a5')}
+                                        </View>
                                     </View>
                                 </View>
                                 {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !locked && (
