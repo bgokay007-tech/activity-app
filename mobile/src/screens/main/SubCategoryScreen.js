@@ -4885,6 +4885,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // önceki kort bilgisi geri yüklenir; yeni seçim onaylanıp ilan başarıyla
     // oluşturulduktan SONRA eski rezervasyon iptal edilir (bkz. submit()).
     const pendingCourtChangeRef = useRef(null);
+    // "Ortaklaşa Kararlaştırılır" yanlışlıkla açılıp kapatılırsa seçili kort bilgisi
+    // kaybolmasın diye açılırken saklanır, kapatılınca (yeniden bir şey seçilmediyse) geri yüklenir.
+    const courtMutualSnapshotRef = useRef(null);
 
     useEffect(() => {
         AsyncStorage.getItem(ELO_WARNING_DISMISSED_KEY).then(v => { if (v) setEloWarningDismissed(true); });
@@ -5021,6 +5024,28 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const reset = () => { setF(INIT); setRefereeInviteForm(null); pendingCourtChangeRef.current = null; };
+
+    const toggleCourtMutual = () => {
+        setF(p => {
+            if (!p.courtMutual) {
+                // Açılıyor — yanlışlıkla tıklanıp geri kapatılırsa diye mevcut kort
+                // seçimini sakla.
+                courtMutualSnapshotRef.current = {
+                    selectedCourt: p.selectedCourt, courtSearchText: p.courtSearchText,
+                    courtResults: p.courtResults, reservationId: p.reservationId,
+                    venueReservationId: p.venueReservationId, venueId: p.venueId,
+                    venueCourtId: p.venueCourtId, courtReserved: p.courtReserved,
+                    courtFeePerPerson: p.courtFeePerPerson, manualCourtName: p.manualCourtName,
+                    showManualCourt: p.showManualCourt,
+                };
+                return { ...p, courtMutual: true, courtReserved: false };
+            }
+            // Kapatılıyor — saklanan kort bilgisi varsa geri yükle.
+            const snap = courtMutualSnapshotRef.current;
+            courtMutualSnapshotRef.current = null;
+            return snap ? { ...p, courtMutual: false, ...snap } : { ...p, courtMutual: false };
+        });
+    };
 
     const deselectCourt = () => {
         setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null, courtReserved: false }));
@@ -5667,12 +5692,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         ) : <View />}
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                             {f.courtMutual && (
-                                                <TouchableOpacity onPress={() => set('courtMutual', false)}>
+                                                <TouchableOpacity onPress={toggleCourtMutual}>
                                                     <Text style={{ color:'#aaa', fontSize:11, fontWeight:'700' }}>↩</Text>
                                                 </TouchableOpacity>
                                             )}
                                             <TouchableOpacity
-                                                onPress={() => setF(p => ({ ...p, courtMutual: !p.courtMutual, courtReserved: p.courtMutual ? p.courtReserved : false }))}
+                                                onPress={toggleCourtMutual}
                                                 style={{ flexDirection:'row', alignItems:'center', gap:2 }}
                                             >
                                                 <View style={{ width:13, height:13, borderRadius:7, borderWidth:2, borderColor: f.courtMutual ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
@@ -5697,7 +5722,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 style={[s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5, justifyContent:'center' }]}
                                                 onPress={() => {
                                                     Alert.alert(
-                                                        f.selectedCourt.venueName || f.selectedCourt.name,
+                                                        [f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' '),
                                                         null,
                                                         [
                                                             { text: '↩ Vazgeç', style: 'cancel' },
@@ -5707,7 +5732,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     );
                                                 }}>
                                                 <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                    ✅ {f.selectedCourt.venueName || f.selectedCourt.name}
+                                                    ✅ {[f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ')}
                                                 </Text>
                                             </TouchableOpacity>
                                         ) : (
