@@ -722,22 +722,23 @@ export const makeReservation = async (req, res, next) => {
 
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
         const court = await prisma.venueCourt.findUnique({ where: { id: courtId } });
+        const pmLabel = { CASH: 'Kortta Öde', EFT: 'EFT/Havale', CREDIT_CARD: 'Kortta Kredi Kartı', ONLINE: 'Online' }[pm] || pm;
 
         if (initialStatus === 'CONFIRMED') {
             // İşletmeye bilgi bildirimi
             createNotification(venue.userId, 'RESERVATION', '✅ Otomatik Onaylı Rezervasyon',
-                `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı. (Otomatik onaylandı)`,
+                `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı. Ödeme yöntemi: ${pmLabel}. (Otomatik onaylandı)`,
                 { reservationId: reservation.id }
             ).catch(() => {});
             // Müşteriye onay bildirimi
             createNotification(req.userId, 'RESERVATION', '✅ Rezervasyonunuz Onaylandı',
-                `${venue.name} — ${court?.name || 'Kort'} için ${date} ${startTime}–${endTime} rezervasyonunuz onaylandı.`,
+                `${venue.name} — ${court?.name || 'Kort'} için ${date} ${startTime}–${endTime} rezervasyonunuz onaylandı. Ödeme yöntemi: ${pmLabel}.`,
                 { reservationId: reservation.id }
             ).catch(() => {});
             emitToUser(req.userId, 'reservationUpdate', { reservationId: reservation.id, status: 'CONFIRMED' });
         } else {
             await createNotification(venue.userId, 'RESERVATION', '📅 Yeni Rezervasyon',
-                `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı.`,
+                `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı. Ödeme yöntemi: ${pmLabel}.`,
                 { reservationId: reservation.id }
             );
         }

@@ -4185,7 +4185,9 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         }
         const timer = setTimeout(() => { confirmBooking(); }, 600);
         return () => clearTimeout(timer);
-    }, [selSlot?.courtId, selSlot?.slot?.start, selSlot?.rangeEnd?.start, selSlot?.flexDur, booked]);
+        // payMethod değişince de (ör. EFT'ye geçince) sayaç sıfırlanır — kullanıcı ödeme
+        // yöntemini seçerken erkenden yanlış (varsayılan) yöntemle onaylanmasın.
+    }, [selSlot?.courtId, selSlot?.slot?.start, selSlot?.rangeEnd?.start, selSlot?.flexDur, booked, payMethod]);
 
     const slotTypeLabel = (type) => {
         if (type === 'FULL_HOUR')   return { label: 'Tam Saat',   color: '#22d3ee', bg: '#083344' };
@@ -4351,9 +4353,9 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
                                                 {[60,90,120,150,180,240,300,360].filter(d => {
                                                     if (startM + d > winEndM) return false;
-                                                    // Kapanışa/pencere sonuna <60dk kullanılamaz boşluk bırakan süreleri
-                                                    // listeden çıkar (VAR_DURATION'da bu kural uygulanmıyor).
-                                                    if (cData.type !== 'FLEXIBLE') return true;
+                                                    // Pencere sonuna (bir sonraki mevcut rezervasyona kadar) <60dk
+                                                    // kullanılamaz boşluk bırakan süreleri listeden çıkar — backend
+                                                    // hem FLEXIBLE hem VAR_DURATION için aynı minGap=60 kuralını uyguluyor.
                                                     const remaining = winEndM - (startM + d);
                                                     return remaining === 0 || remaining >= 60;
                                                 }).map(d => {
@@ -4586,6 +4588,37 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 <Text style={{ color:'#888', fontSize:18 }}>↩</Text>
                                             </TouchableOpacity>
                                         </View>
+                                        <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
+                                        <View style={vb.payRow}>
+                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['CREDIT_CARD','💳 Kortta Kredi Kartı'],['ONLINE','🌐 Online (Bakımda)']].filter(([m]) => {
+                                                if (m === 'CREDIT_CARD') {
+                                                    const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : [];
+                                                    return acc.includes(m);
+                                                }
+                                                return true; // CASH, EFT ve ONLINE (bakımda) her zaman göster
+                                            }).map(([m, label]) => (
+                                                <TouchableOpacity key={m}
+                                                    disabled={m === 'ONLINE'}
+                                                    style={[vb.payBtn, payMethod===m && vb.payBtnSel, m === 'ONLINE' && { opacity:0.5 }]}
+                                                    onPress={() => m !== 'ONLINE' && setPayMethod(m)}>
+                                                    <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                        {payMethod === 'EFT' && (
+                                            <View style={vb.ibanBox}>
+                                                {(venue?.businessIban || venue?.user?.businessIban) ? (
+                                                    <>
+                                                        {(venue.businessIbanHolder || venue.user?.businessIbanHolder) && (
+                                                            <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.businessIbanHolder || venue.user?.businessIbanHolder}</Text></Text>
+                                                        )}
+                                                        <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.businessIban || venue.user?.businessIban}</Text></Text>
+                                                    </>
+                                                ) : (
+                                                    <Text style={[vb.ibanRow, { color:'#f59e0b' }]}>📞 EFT bilgisi için lütfen tesis ile iletişime geçin.</Text>
+                                                )}
+                                            </View>
+                                        )}
                                         {validatingSlot && (
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:6, justifyContent:'center', marginTop:6 }}>
                                                 <ActivityIndicator color="#22c55e" size="small" />
@@ -4593,7 +4626,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                             </View>
                                         )}
                                         <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
-                                            Ödeme yöntemi varsayılan olarak "Kortta Öde" — kort, ilanı oluşturduğunuzda rezerve edilir.
+                                            Kort, ilanı oluşturduğunuzda rezerve edilir.
                                         </Text>
                                         <View style={{ height: 24 }} />
                                     </ScrollView>

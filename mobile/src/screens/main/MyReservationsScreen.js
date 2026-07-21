@@ -175,7 +175,12 @@ function ReservationCard({ item, onCancel, onCancelRequested, navigation }) {
             )}
             {item.paymentMethod && (
                 <Text style={s.payText}>
-                    {item.paymentMethod === 'CASH' ? t.resPayCash : t.resPayOnline}
+                    {{
+                        CASH: t.resPayCash,
+                        EFT: t.resPayEft,
+                        CREDIT_CARD: t.resPayCard,
+                        ONLINE: t.resPayOnline,
+                    }[item.paymentMethod] || t.resPayCash}
                 </Text>
             )}
 
