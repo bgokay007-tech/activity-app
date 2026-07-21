@@ -277,17 +277,26 @@ function OkeyLobby({ myName, onMatched }) {
 function OkeyPage() {
     const navigate = useNavigate();
     const user = useSelector(s => s.auth.user);
+    // Sayfa yenilenince redux'taki user null kalıyor (login akışı dışında hiçbir yer
+    // rehydrate etmiyor) — token'dan doğrudan userId çözülüyor, sayfa yenilense de çalışsın diye.
+    const myId = (() => {
+        try {
+            const token = localStorage.getItem('activity_token');
+            if (!token) return user?.id || null;
+            return JSON.parse(atob(token.split('.')[1])).userId || user?.id || null;
+        } catch { return user?.id || null; }
+    })();
     const [tableId, setTableId] = useState(null);
 
-    useEffect(() => { if (user?.id) connectSocket(user.id); }, [user]);
+    useEffect(() => { if (myId) connectSocket(myId); }, [myId]);
 
     return (
         <div className="min-h-screen bg-gray-950">
             <Navbar onBack={() => navigate(-1)} title="Okey" />
             <div className="px-4 py-6">
                 {tableId
-                    ? <OkeyBoard tableId={tableId} myId={user?.id} onExit={() => setTableId(null)} />
-                    : <OkeyLobby myName={user?.fullName || user?.username} onMatched={setTableId} />}
+                    ? <OkeyBoard tableId={tableId} myId={myId} onExit={() => setTableId(null)} />
+                    : <OkeyLobby myName={user?.fullName || user?.username || 'Oyuncu'} onMatched={setTableId} />}
             </div>
         </div>
     );
