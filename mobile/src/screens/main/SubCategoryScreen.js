@@ -1112,7 +1112,39 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (isOwner || item.matchType === 'DOUBLE') && (
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
-                            {item.matchType === 'DOUBLE' ? (() => {
+                            {item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
+                                // STRICT çiftler maçında başvuran, hangi slota (Kurucu Takımı /
+                                // Rakip 1 / Rakip 2) başvurduğunu request sırasında zaten seçmişti
+                                // (requestedSlot) — burada eşleştirme/partner mantığına gerek yok,
+                                // sadece hangi slotu istediği açıkça gösterilir.
+                                const slotLabel = (slot) => slot === 'partner' ? t.founderTeamLabel : slot === 'opp1' ? t.opp1Label : slot === 'opp2' ? t.opp2Label : t.opp1Label;
+                                return joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
+                                    <View key={jr.id} style={det.playerRow}>
+                                        <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                            <Text style={det.playerSub}>
+                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}
+                                            </Text>
+                                            <Text style={{ color: cfg.color, fontSize:moderateScale(10), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
+                                                → {slotLabel(jr.requestedSlot)}
+                                            </Text>
+                                        </View>
+                                        {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
+                                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
+                                        ) : (
+                                            <View style={{ flexDirection:'row', gap:3 }}>
+                                                <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
+                                                    <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
+                                                    <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                ));
+                            })() : item.matchType === 'DOUBLE' ? (() => {
                                 // Hâlâ boş olan koltukların cinsiyet gereksinimine uyan istekler
                                 // öne alınır — sahibi kotayı dolduracak adayları hemen görsün.
                                 const senderTeamNow = Array.isArray(item.senderTeam) ? item.senderTeam : [];
@@ -4356,7 +4388,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         {validStart && (<>
                                             <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Süre</Text>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
-                                                {[60,90,120,150,180,240,300,360].filter(d => {
+                                                {Array.from({ length: 23 }, (_, i) => 60 + i * 30).filter(d => {
                                                     if (startM + d > winEndM) return false;
                                                     // Pencere sonuna (bir sonraki mevcut rezervasyona kadar) <60dk
                                                     // kullanılamaz boşluk bırakan süreleri listeden çıkar — backend

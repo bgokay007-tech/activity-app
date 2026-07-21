@@ -1095,6 +1095,41 @@ export const getRivalRequests = async (req, res, next) => {
     }
 };
 
+// Kullanıcının aynı gün, çakışan saatte (hakem olsun oyuncu olsun, spor farketmeksizin)
+// zaten kesinleşmiş (MATCHED) bir maçı/hakemliği var mı — varsa çakışma bilgisini döner.
+async function findSchedulingConflict(userId, matchDate, matchTime, duration, excludeId) {
+    if (!matchDate || !matchTime) return null; // esnek programda saat belli olmadığından kontrol edilemez
+    const dateStr = new Date(matchDate).toISOString().slice(0, 10);
+    const [h, m] = matchTime.split(':').map(Number);
+    const newStart = h * 60 + m;
+    const newEnd = newStart + (parseInt(duration, 10) || 60);
+
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
+
+    const sameDay = await prisma.activityRequest.findMany({
+        where: {
+            id: { not: excludeId },
+            status: 'MATCHED',
+            matchDate: { gte: dayStart, lte: dayEnd },
+            matchTime: { not: null },
+        },
+        select: { subCategory: true, matchTime: true, duration: true, participants: true, senderTeam: true, senderId: true, refereeId: true },
+    });
+
+    for (const cand of sameDay) {
+        const isMine = cand.senderId === userId || cand.refereeId === userId
+            || (Array.isArray(cand.participants) && cand.participants.some(p => p?.id === userId))
+            || (Array.isArray(cand.senderTeam) && cand.senderTeam.some(p => p?.id === userId));
+        if (!isMine) continue;
+        const [ch, cm] = cand.matchTime.split(':').map(Number);
+        const cStart = ch * 60 + cm;
+        const cEnd = cStart + (parseInt(cand.duration, 10) || 60);
+        if (newStart < cEnd && newEnd > cStart) return cand;
+    }
+    return null;
+}
+
 // Send a join request (pending — creator must accept)
 export const sendJoinRequest = async (req, res, next) => {
     try {
@@ -1113,6 +1148,30 @@ export const sendJoinRequest = async (req, res, next) => {
 
         if (request.status !== 'OPEN') return res.status(400).json({ message: 'This request is no longer open' });
         if (request.senderId === req.userId) return res.status(400).json({ message: 'You cannot join your own request' });
+
+        // Hakem ilanına başvuru: bağlı olduğu asıl maça zaten oyuncu olarak katılmış biri
+        // (kurucu/rakip/partner fark etmez) aynı maça hakemlik başvurusu yapamaz.
+        if (request.linkedRivalId) {
+            const mainMatch = await prisma.activityRequest.findUnique({
+                where: { id: request.linkedRivalId },
+                select: { senderId: true, participants: true, senderTeam: true },
+            });
+            if (mainMatch) {
+                const isPlayerInMatch = mainMatch.senderId === req.userId
+                    || (Array.isArray(mainMatch.participants) && mainMatch.participants.some(p => p?.id === req.userId))
+                    || (Array.isArray(mainMatch.senderTeam) && mainMatch.senderTeam.some(p => p?.id === req.userId));
+                if (isPlayerInMatch) {
+                    return res.status(400).json({ message: 'Bu maça oyuncu olarak katıldığınız için aynı maça hakemlik başvurusu yapamazsınız.' });
+                }
+            }
+        }
+
+        // Aynı gün/saatte (hangi spor olursa olsun) zaten kesinleşmiş başka bir maçı/hakemliği
+        // varsa — aynı anda iki yerde olamaz, başvuru/katılım isteği engellenir.
+        const conflict = await findSchedulingConflict(req.userId, request.matchDate, request.matchTime, request.duration, id);
+        if (conflict) {
+            return res.status(400).json({ message: `${conflict.matchTime} saatinde "${conflict.subCategory}" için zaten bir aktiviteniz var — aynı anda başka bir maça/hakemliğe başvuramazsınız.` });
+        }
 
         const existing = await prisma.rivalJoinRequest.findUnique({
             where: { rivalId_userId: { rivalId: id, userId: req.userId } },
