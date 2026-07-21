@@ -1458,16 +1458,36 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                 <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
                             </TouchableOpacity>
-                        ) : item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (
-                            <View style={{ flexDirection:'row', gap:6 }}>
-                                <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(() => handleJoin('partner'), 300); }}>
-                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.joinAsPartnerBtn}</Text>
+                        ) : item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
+                            const senderTeamArrStrict = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+                            const partnerStrict = senderTeamArrStrict[0] || null;
+                            const opp1Strict = participants[0] || null;
+                            const opp2Strict = participants[1] || null;
+                            const gParenStrict = (g) => g === 'MALE' ? ' (Erkek)' : g === 'FEMALE' ? ' (Kadın)' : '';
+                            const SlotPick = ({ slotKey, p, gReq, label }) => (
+                                <TouchableOpacity
+                                    disabled={!!p?.id}
+                                    onPress={() => { onClose(); setTimeout(() => handleJoin(slotKey), 300); }}
+                                    activeOpacity={p?.id ? 1 : 0.7}
+                                    style={{ flex:1, backgroundColor: p?.id ? colors.surface2 : cfg.color+'12', borderRadius: moderateScale(8), padding: moderateScale(6), borderWidth:1, borderColor: p?.id ? colors.border : cfg.color+'60', borderStyle: p?.id ? 'solid' : 'dashed', alignItems:'center', minHeight: moderateScale(44), justifyContent:'center' }}>
+                                    <Text style={{ color: colors.textMuted, fontSize: moderateScale(9), fontWeight:'700' }} numberOfLines={1}>{label}{gReq && gReq !== 'MIX' ? gParenStrict(gReq) : ''}</Text>
+                                    {p?.id ? (
+                                        <Text style={{ color:'#fff', fontSize: moderateScale(11), fontWeight:'700', marginTop:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
+                                    ) : (
+                                        <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight:'800', marginTop:2 }}>+ {t.joinBtn}</Text>
+                                    )}
                                 </TouchableOpacity>
-                                <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(() => handleJoin('opponent'), 300); }}>
-                                    <Text style={[s.joinBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.joinAsOpponentBtn}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
+                            );
+                            return (
+                                <View style={{ gap:6 }}>
+                                    <SlotPick slotKey="partner" p={partnerStrict} gReq={partnerGenderReq} label={t.founderTeamLabel} />
+                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                        <SlotPick slotKey="opp1" p={opp1Strict} gReq={opp1GenderReq} label={t.opp1Label} />
+                                        <SlotPick slotKey="opp2" p={opp2Strict} gReq={opp2GenderReq} label={t.opp2Label} />
+                                    </View>
+                                </View>
+                            );
+                        })() : (
                             <View style={{ flexDirection:'row', gap:6 }}>
                                 <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
                                     <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{t.joinBtn}</Text>
