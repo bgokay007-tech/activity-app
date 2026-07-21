@@ -12,13 +12,13 @@ function isJokerTile(t) { return t === 'J1' || t === 'J2'; }
 function tileColorCode(t) { return t[0]; }
 function tileNumLabel(t) { return t.slice(1); }
 
-function OkeyTile({ tile, small, disabled, highlighted, onPress, onLongPress }) {
+function OkeyTile({ tile, small, disabled, highlighted, rejected, onPress, onLongPress }) {
     const joker = isJokerTile(tile);
     const colorHex = joker ? '#b45309' : COLOR_HEX[tileColorCode(tile)];
     const Wrap = (onPress || onLongPress) ? TouchableOpacity : View;
     return (
         <Wrap
-            style={[s.tile, small && s.tileSmall, highlighted && s.tileHighlight, disabled && s.tileDisabled]}
+            style={[s.tile, small && s.tileSmall, highlighted && s.tileHighlight, disabled && s.tileDisabled, rejected && s.tileRejected]}
             onPress={onPress ? () => onPress(tile) : undefined}
             onLongPress={onLongPress ? () => onLongPress(tile) : undefined}
             delayLongPress={400}
@@ -50,9 +50,19 @@ export default function OkeyTableScreen({ route, navigation }) {
     const showHint = useCallback((msg) => {
         setHint(msg);
         if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
-        hintTimerRef.current = setTimeout(() => setHint(''), 1600);
+        hintTimerRef.current = setTimeout(() => setHint(''), 2400);
     }, []);
     useEffect(() => () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current); }, []);
+    // Geçersiz bir dokunuşta taşın kendisini de kısaca kırmızı çerçeveyle işaretliyoruz —
+    // küçük bir metin uyarısı tek başına çoğu zaman fark edilmiyordu.
+    const [rejectedTile, setRejectedTile] = useState(null);
+    const rejectedTimerRef = useRef(null);
+    const flashRejected = useCallback((tile) => {
+        setRejectedTile(tile);
+        if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current);
+        rejectedTimerRef.current = setTimeout(() => setRejectedTile(null), 500);
+    }, []);
+    useEffect(() => () => { if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current); }, []);
 
     useFocusEffect(useCallback(() => {
         const socket = getSocket();
@@ -109,11 +119,11 @@ export default function OkeyTableScreen({ route, navigation }) {
         getSocket()?.emit('okey:drawTile', { tableId, source: 'discard' });
     };
     const discardTile = (tile) => {
-        if (!canAct) return showHint(notYourTurnMsg());
+        if (!canAct) { flashRejected(tile); return showHint(notYourTurnMsg()); }
         getSocket()?.emit('okey:discardTile', { tableId, tile });
     };
     const declareWin = (tile) => {
-        if (!canAct) return showHint(notYourTurnMsg());
+        if (!canAct) { flashRejected(tile); return showHint(notYourTurnMsg()); }
         Alert.alert(
             t.okeyDeclareWinConfirmTitle || 'Elini Aç',
             t.okeyDeclareWinConfirmMsg || 'Bu taşı atarak elini açmak istediğine emin misin?',
@@ -209,6 +219,7 @@ export default function OkeyTableScreen({ route, navigation }) {
                             tile={tile}
                             highlighted={isHighlighted(tile)}
                             disabled={!canAct}
+                            rejected={rejectedTile === tile}
                             onPress={discardTile}
                             onLongPress={declareWin}
                         />
@@ -301,7 +312,7 @@ const s = StyleSheet.create({
     statusRowActive: { backgroundColor: '#fbbf2422', borderRadius: 12, marginHorizontal: 12, paddingVertical: 8 },
     statusText: { color: '#fde68a', fontSize: 12, fontWeight: '700', textAlign: 'center' },
     statusTextActive: { fontSize: 16, color: '#fde047', fontWeight: '900' },
-    hintText: { color: '#fca5a5', fontSize: 12, fontWeight: '800', textAlign: 'center', marginTop: 4 },
+    hintText: { color: '#fca5a5', fontSize: 14, fontWeight: '900', textAlign: 'center', marginTop: 6, backgroundColor: '#ef444422', borderRadius: 8, paddingVertical: 4, marginHorizontal: 12 },
 
     myHandWrap: { paddingHorizontal: 10, paddingBottom: 14, paddingTop: 4, alignItems: 'center' },
     myHandRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' },
@@ -310,7 +321,8 @@ const s = StyleSheet.create({
     tile: { width: 40, height: 56, backgroundColor: '#fdf6e3', borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#00000022', marginHorizontal: 1.5, marginVertical: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.25, shadowRadius: 2, elevation: 2 },
     tileSmall: { width: 26, height: 36, marginHorizontal: 1 },
     tileHighlight: { borderWidth: 2, borderColor: '#f59e0b', backgroundColor: '#fff7e0' },
-    tileDisabled: { opacity: 0.5 },
+    tileDisabled: { opacity: 0.45 },
+    tileRejected: { borderWidth: 2, borderColor: '#ef4444' },
     tileNum: { fontSize: 18, fontWeight: '900' },
     tileNumSmall: { fontSize: 11 },
     tileJoker: { fontSize: 18 },

@@ -16,12 +16,12 @@ function rankLabel(card) {
 }
 function cardSuit(card) { return card.slice(-1); }
 
-function PlayingCard({ card, small, disabled, onPress }) {
+function PlayingCard({ card, small, disabled, rejected, onPress }) {
     const suit = cardSuit(card);
     const Wrap = onPress ? TouchableOpacity : View;
     return (
         <Wrap
-            style={[s.card, small && s.cardSmall, disabled && s.cardDisabled]}
+            style={[s.card, small && s.cardSmall, disabled && s.cardDisabled, rejected && s.cardRejected]}
             onPress={onPress ? () => onPress(card) : undefined}
             activeOpacity={0.7}
         >
@@ -49,9 +49,19 @@ export default function BatakTableScreen({ route, navigation }) {
     const showHint = useCallback((msg) => {
         setHint(msg);
         if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
-        hintTimerRef.current = setTimeout(() => setHint(''), 1600);
+        hintTimerRef.current = setTimeout(() => setHint(''), 2400);
     }, []);
     useEffect(() => () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current); }, []);
+    // Geçersiz bir kart dokunulduğunda o kartın kendisini de kısaca kırmızı çerçeveyle
+    // işaretliyoruz — küçük bir metin uyarısı tek başına çoğu zaman fark edilmiyordu.
+    const [rejectedCard, setRejectedCard] = useState(null);
+    const rejectedTimerRef = useRef(null);
+    const flashRejected = useCallback((card) => {
+        setRejectedCard(card);
+        if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current);
+        rejectedTimerRef.current = setTimeout(() => setRejectedCard(null), 500);
+    }, []);
+    useEffect(() => () => { if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current); }, []);
 
     useFocusEffect(useCallback(() => {
         const socket = getSocket();
@@ -110,9 +120,9 @@ export default function BatakTableScreen({ route, navigation }) {
     const placeBid = (bid) => getSocket()?.emit('batak:placeBid', { tableId, bid });
     const chooseTrump = (suit) => getSocket()?.emit('batak:chooseTrump', { tableId, suit });
     const playCard = (card) => {
-        if (state.phase !== 'playing') return showHint(t.batakNotPlayingPhase || 'Henüz kart oynama sırası değil');
-        if (!isMyTurn) return showHint(t.batakNotYourTurn || 'Sıra sende değil');
-        if (!legalCards.includes(card)) return showHint(t.batakMustFollowSuit || 'Renge uymak zorundasın.');
+        if (state.phase !== 'playing') { flashRejected(card); return showHint(t.batakNotPlayingPhase || 'Henüz kart oynama sırası değil'); }
+        if (!isMyTurn) { flashRejected(card); return showHint(t.batakNotYourTurn || 'Sıra sende değil'); }
+        if (!legalCards.includes(card)) { flashRejected(card); return showHint(t.batakMustFollowSuit || 'Renge uymak zorundasın.'); }
         getSocket()?.emit('batak:playCard', { tableId, card });
     };
 
@@ -231,6 +241,7 @@ export default function BatakTableScreen({ route, navigation }) {
                         key={card}
                         card={card}
                         disabled={!(state.phase === 'playing' && isMyTurn && legalCards.includes(card))}
+                        rejected={rejectedCard === card}
                         onPress={playCard}
                     />
                 ))}
@@ -312,7 +323,7 @@ const s = StyleSheet.create({
     statusRowActive: { backgroundColor: '#fbbf2422', borderRadius: 12, marginHorizontal: 12, paddingVertical: 8 },
     statusText: { color: '#fde68a', fontSize: 12, fontWeight: '700', textAlign: 'center' },
     statusTextActive: { fontSize: 16, color: '#fde047', fontWeight: '900' },
-    hintText: { color: '#fca5a5', fontSize: 12, fontWeight: '800', textAlign: 'center', marginTop: 4 },
+    hintText: { color: '#fca5a5', fontSize: 14, fontWeight: '900', textAlign: 'center', marginTop: 6, backgroundColor: '#ef444422', borderRadius: 8, paddingVertical: 4, marginHorizontal: 12 },
 
     bidRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8, gap: 8 },
     bidChip: { backgroundColor: '#ffffffdd', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
@@ -328,7 +339,8 @@ const s = StyleSheet.create({
 
     card: { width: 46, height: 64, backgroundColor: '#fff', borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#00000022', marginHorizontal: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.25, shadowRadius: 2, elevation: 2 },
     cardSmall: { width: 30, height: 42, marginHorizontal: 1 },
-    cardDisabled: { opacity: 0.4 },
+    cardDisabled: { opacity: 0.35 },
+    cardRejected: { borderWidth: 2, borderColor: '#ef4444' },
     cardRank: { fontSize: 15, fontWeight: '900' },
     cardRankSmall: { fontSize: 10 },
     cardSuit: { fontSize: 18, fontWeight: '900' },

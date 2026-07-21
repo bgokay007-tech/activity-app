@@ -11,13 +11,13 @@ const RANK_LABEL = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
 function rankLabel(card) { const rank = parseInt(card.slice(0, -1), 10); return RANK_LABEL[rank] || String(rank); }
 function cardSuit(card) { return card.slice(-1); }
 
-function PlayingCard({ card, small, disabled, onClick }) {
+function PlayingCard({ card, small, disabled, rejected, onClick }) {
     const suit = cardSuit(card);
     const sizeCls = small ? 'w-8 h-11' : 'w-12 h-16';
     return (
         <button onClick={onClick ? () => onClick(card) : undefined}
-            className={`${sizeCls} bg-white rounded-md flex flex-col items-center justify-center border flex-shrink-0 transition shadow-sm`}
-            style={{ borderColor: '#00000022', opacity: disabled ? 0.4 : 1, cursor: onClick ? 'pointer' : 'default' }}>
+            className={`${sizeCls} bg-white rounded-md flex flex-col items-center justify-center border-2 flex-shrink-0 transition shadow-sm ${rejected ? 'animate-[batakShake_0.4s_ease-in-out]' : ''}`}
+            style={{ borderColor: rejected ? '#ef4444' : '#00000022', opacity: disabled ? 0.35 : 1, cursor: onClick ? 'pointer' : 'default' }}>
             <span className={`font-black leading-none ${small ? 'text-[10px]' : 'text-sm'}`} style={{ color: SUIT_COLOR[suit] }}>{rankLabel(card)}</span>
             <span className={`font-black leading-none ${small ? 'text-xs' : 'text-lg'}`} style={{ color: SUIT_COLOR[suit] }}>{SUIT_SYMBOL[suit]}</span>
         </button>
@@ -38,9 +38,20 @@ function BatakBoard({ tableId, myId, onExit }) {
     const showHint = (msg) => {
         setHint(msg);
         if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
-        hintTimerRef.current = setTimeout(() => setHint(''), 1600);
+        hintTimerRef.current = setTimeout(() => setHint(''), 2400);
     };
     useEffect(() => () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current); }, []);
+    // Geçersiz bir kart tıklandığında o kartın kendisini de kısaca kırmızı çerçeveyle
+    // titretiyoruz — sadece küçük bir metin uyarısı çoğu zaman fark edilmiyordu,
+    // "kartı oynadım ama elimde kaldı" hissi tam olarak bu yüzden oluşuyordu.
+    const [rejectedCard, setRejectedCard] = useState(null);
+    const rejectedTimerRef = useRef(null);
+    const flashRejected = (card) => {
+        setRejectedCard(card);
+        if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current);
+        rejectedTimerRef.current = setTimeout(() => setRejectedCard(null), 450);
+    };
+    useEffect(() => () => { if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current); }, []);
 
     useEffect(() => {
         getSocket()?.emit('batak:getState', { tableId });
@@ -81,9 +92,9 @@ function BatakBoard({ tableId, myId, onExit }) {
     const placeBid = (bid) => getSocket()?.emit('batak:placeBid', { tableId, bid });
     const chooseTrump = (suit) => getSocket()?.emit('batak:chooseTrump', { tableId, suit });
     const playCard = (card) => {
-        if (state.phase !== 'playing') return showHint('Henüz kart oynama sırası değil');
-        if (!isMyTurn) return showHint('Sıra sende değil');
-        if (!legalCards.includes(card)) return showHint('Renge uymak zorundasın.');
+        if (state.phase !== 'playing') { flashRejected(card); return showHint('Henüz kart oynama sırası değil'); }
+        if (!isMyTurn) { flashRejected(card); return showHint('Sıra sende değil'); }
+        if (!legalCards.includes(card)) { flashRejected(card); return showHint(`Renge uymak zorundasın — elindeki ${SUIT_SYMBOL[leadSuit]} kartlarından birini oyna.`); }
         getSocket()?.emit('batak:playCard', { tableId, card });
     };
     const goBack = () => { getSocket()?.emit('batak:leaveTable', { tableId }); onExit(); };
@@ -91,6 +102,7 @@ function BatakBoard({ tableId, myId, onExit }) {
 
     return (
         <div className="max-w-3xl mx-auto">
+            <style>{`@keyframes batakShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }`}</style>
             <div className="flex items-center justify-between mb-2">
                 <button onClick={goBack} className="text-white text-sm">‹ Ayrıl</button>
                 <p className="text-white text-sm font-bold">El {state.roundNumber}/{state.totalRounds}</p>
@@ -149,7 +161,7 @@ function BatakBoard({ tableId, myId, onExit }) {
                     )}
                     {state.phase === 'playing' && (isMyTurn ? 'Sıra sende' : `${seatByIdx(state.turn).username} oynuyor...`)}
                 </p>
-                {hint && <p className="text-red-300 text-xs font-bold mt-1">{hint}</p>}
+                {hint && <p className="text-red-400 text-sm font-black mt-1 bg-red-500/10 rounded-lg py-1 mx-3">⚠️ {hint}</p>}
             </div>
 
             {state.phase === 'bidding' && isMyTurn && (
@@ -175,6 +187,7 @@ function BatakBoard({ tableId, myId, onExit }) {
                 {hand.map(card => (
                     <PlayingCard key={card} card={card}
                         disabled={!(state.phase === 'playing' && isMyTurn && legalCards.includes(card))}
+                        rejected={rejectedCard === card}
                         onClick={playCard} />
                 ))}
             </div>

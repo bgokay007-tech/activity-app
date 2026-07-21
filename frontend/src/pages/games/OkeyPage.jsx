@@ -9,14 +9,14 @@ function isJokerTile(t) { return t === 'J1' || t === 'J2'; }
 function tileColorCode(t) { return t[0]; }
 function tileNumLabel(t) { return t.slice(1); }
 
-function OkeyTile({ tile, small, disabled, highlighted, onClick }) {
+function OkeyTile({ tile, small, disabled, highlighted, rejected, onClick }) {
     const joker = isJokerTile(tile);
     const colorHex = joker ? '#b45309' : COLOR_HEX[tileColorCode(tile)];
     const sizeCls = small ? 'w-6 h-9' : 'w-10 h-14';
     return (
         <button onClick={onClick ? () => onClick(tile) : undefined}
-            className={`${sizeCls} rounded-md flex items-center justify-center border flex-shrink-0 transition shadow-sm`}
-            style={{ backgroundColor: highlighted ? '#fff7e0' : '#fdf6e3', borderColor: highlighted ? '#f59e0b' : '#00000022', borderWidth: highlighted ? 2 : 1, opacity: disabled ? 0.5 : 1, cursor: onClick ? 'pointer' : 'default' }}>
+            className={`${sizeCls} rounded-md flex items-center justify-center border-2 flex-shrink-0 transition shadow-sm ${rejected ? 'animate-[okeyShake_0.4s_ease-in-out]' : ''}`}
+            style={{ backgroundColor: highlighted ? '#fff7e0' : '#fdf6e3', borderColor: rejected ? '#ef4444' : (highlighted ? '#f59e0b' : '#00000022'), opacity: disabled ? 0.45 : 1, cursor: onClick ? 'pointer' : 'default' }}>
             {joker ? <span className={small ? 'text-xs' : 'text-lg'}>🃏</span> : <span className={`font-black ${small ? 'text-[11px]' : 'text-lg'}`} style={{ color: colorHex }}>{tileNumLabel(tile)}</span>}
         </button>
     );
@@ -37,9 +37,19 @@ function OkeyBoard({ tableId, myId, onExit }) {
     const showHint = (msg) => {
         setHint(msg);
         if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
-        hintTimerRef.current = setTimeout(() => setHint(''), 1600);
+        hintTimerRef.current = setTimeout(() => setHint(''), 2400);
     };
     useEffect(() => () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current); }, []);
+    // Geçersiz bir tıklamada taşın kendisini de kısaca kırmızı çerçeveyle titretiyoruz —
+    // küçük bir metin uyarısı tek başına çoğu zaman fark edilmiyordu.
+    const [rejectedTile, setRejectedTile] = useState(null);
+    const rejectedTimerRef = useRef(null);
+    const flashRejected = (tile) => {
+        setRejectedTile(tile);
+        if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current);
+        rejectedTimerRef.current = setTimeout(() => setRejectedTile(null), 450);
+    };
+    useEffect(() => () => { if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current); }, []);
 
     useEffect(() => {
         getSocket()?.emit('okey:getState', { tableId });
@@ -79,7 +89,7 @@ function OkeyBoard({ tableId, myId, onExit }) {
         getSocket()?.emit('okey:drawTile', { tableId, source: 'discard' });
     };
     const onTileClick = (tile) => {
-        if (!canAct) return showHint(notYourTurnMsg());
+        if (!canAct) { flashRejected(tile); return showHint(notYourTurnMsg()); }
         if (declareMode) {
             if (confirm('Bu taşı atarak elini açmak istediğine emin misin?')) getSocket()?.emit('okey:declareWin', { tableId, tile });
             setDeclareMode(false);
@@ -91,6 +101,7 @@ function OkeyBoard({ tableId, myId, onExit }) {
 
     return (
         <div className="max-w-3xl mx-auto">
+            <style>{`@keyframes okeyShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }`}</style>
             <div className="flex items-center justify-between mb-2">
                 <button onClick={goBack} className="text-white text-sm">‹ Ayrıl</button>
                 <p className="text-white text-sm font-bold">El {state.roundNumber}/{state.totalRounds}</p>
@@ -133,9 +144,11 @@ function OkeyBoard({ tableId, myId, onExit }) {
                             <span className="text-3xl">🀫</span>
                             <span className="text-white text-[11px] font-bold mt-0.5">{state.deckCount}</span>
                         </button>
-                        <button onClick={drawFromDiscard} style={{ opacity: canDraw && state.discardTop ? 1 : 0.5, cursor: 'pointer' }}>
-                            {state.discardTop ? <OkeyTile tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} /> : <span className="text-white/30 text-2xl">—</span>}
-                        </button>
+                        <div style={{ opacity: canDraw && state.discardTop ? 1 : 0.5 }}>
+                            {state.discardTop
+                                ? <OkeyTile tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} onClick={drawFromDiscard} />
+                                : <button onClick={drawFromDiscard} className="text-white/30 text-2xl" style={{ cursor: 'pointer' }}>—</button>}
+                        </div>
                     </div>
                     <div className="flex flex-col items-center gap-1 w-20">
                         <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: rightSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(rightSeat).username}</p>
@@ -150,13 +163,13 @@ function OkeyBoard({ tableId, myId, onExit }) {
                 <p className={isMyTurn ? 'text-amber-300 font-black' : 'text-amber-300/80 text-xs font-bold'} style={isMyTurn ? { fontSize: '1rem' } : undefined}>
                     {isMyTurn ? (canDraw ? 'Sıra sende — bir taş çek' : 'Sıra sende — bir taş at ya da elini aç') : `${seatByIdx(state.turn).username || ''} oynuyor...`}
                 </p>
-                {hint && <p className="text-red-300 text-xs font-bold mt-1">{hint}</p>}
+                {hint && <p className="text-red-400 text-sm font-black mt-1 bg-red-500/10 rounded-lg py-1 mx-3">⚠️ {hint}</p>}
             </div>
 
             <div className="flex flex-col items-center mt-3">
                 <div className="flex flex-wrap justify-center gap-2 max-w-2xl">
                     {hand.map((tile, i) => (
-                        <OkeyTile key={`${tile}_${i}`} tile={tile} highlighted={isHighlighted(tile)} disabled={!canAct} onClick={onTileClick} />
+                        <OkeyTile key={`${tile}_${i}`} tile={tile} highlighted={isHighlighted(tile)} disabled={!canAct} rejected={rejectedTile === tile} onClick={onTileClick} />
                     ))}
                 </div>
                 {canAct && (
