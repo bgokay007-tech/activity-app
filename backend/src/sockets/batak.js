@@ -469,6 +469,9 @@ export function registerBatakHandlers(io, socket) {
         const seat = table?.seats.find(s => s.userId === verifiedUserId);
         if (!table || !seat) return;
         seat.connected = false;
+        // Kullanıcı bilerek masadan ayrıldı — eşleşme kilidini hemen serbest bırak ki
+        // yeni bir oyuna girebilsin (aksi halde masa bitene kadar kilitli kalırdı).
+        userTableMap.delete(verifiedUserId);
         broadcastState(io, table);
         scheduleBotIfNeeded(io, table);
     });
@@ -482,6 +485,12 @@ export function registerBatakHandlers(io, socket) {
         const seat = table?.seats.find(s => s.userId === verifiedUserId);
         if (seat && seat.socketId === socket.id) {
             seat.connected = false;
+            // Kod tabanında bağlantı kopunca yeniden bağlanmak için ayrı bir bekleme
+            // süresi (grace period) yok — batak:getState çağrısı tableId ile doğrudan
+            // masaya geri döner ve userTableMap'ten bağımsız çalışır. Bu yüzden kilidi
+            // hemen serbest bırakmak güvenli: kullanıcı isterse aynı masaya geri döner,
+            // isterse yeni bir eşleşme/bot masası başlatabilir.
+            userTableMap.delete(verifiedUserId);
             broadcastState(io, table);
             scheduleBotIfNeeded(io, table);
         }
