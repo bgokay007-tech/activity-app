@@ -274,11 +274,22 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
     const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
     const partnerFilled = senderTeamArr.length > 0 && !!senderTeamArr[0]?.id;
 
-    const openSlots = [
+    let openSlots = [
         { key: 'partner', filled: partnerFilled, req: rival.partnerGenderReq || 'MIX', label: 'Takım Arkadaşı' },
         { key: 'opp1', filled: opp1Filled, req: opp1Req, label: 'Rakip 1' },
         { key: 'opp2', filled: opp2Filled, req: opp2Req, label: 'Rakip 2' },
     ].filter(s => !s.filled);
+
+    // Takım Değiştirilemez (STRICT): başvuru sırasında seçilen tarafla sınırlı kalır —
+    // owner, başvuranı seçtiği tarafın dışına atayamaz (takas özelliği zaten kapalı).
+    if (rival.teamFlexibility === 'STRICT' && joinReq.requestedSlot) {
+        openSlots = joinReq.requestedSlot === 'partner'
+            ? openSlots.filter(s => s.key === 'partner')
+            : openSlots.filter(s => s.key === 'opp1' || s.key === 'opp2');
+        if (openSlots.length === 0) {
+            return { error: joinReq.requestedSlot === 'partner' ? 'Kurucu takımı slotu artık dolu.' : 'Rakip takımında artık boş slot yok.' };
+        }
+    }
 
     if (openSlots.length === 0) return { error: 'Tüm slotlar dolu.' };
     const target = openSlots.find(s => fits(s.req));
@@ -1153,16 +1164,44 @@ export const sendJoinRequest = async (req, res, next) => {
             if (request.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Partner seçimi sadece çiftler ilanlarında mümkün' });
             if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
         }
+
+        // Çiftler + Takım Değiştirilemez (STRICT): takas özelliği kapalı olduğu için başvuran
+        // en baştan hangi tarafa (kurucu takımı / rakip takımı) katılmak istediğini seçmek
+        // zorunda — sonradan "Takımları Düzenle" ile düzeltilemez.
+        let requestedSlot = null;
+        if (request.matchType === 'DOUBLE' && request.teamFlexibility === 'STRICT' && !partnerId) {
+            requestedSlot = req.body.requestedSlot;
+            if (requestedSlot !== 'partner' && requestedSlot !== 'opponent') {
+                return res.status(400).json({ message: 'Bu maçta takım değiştirilemiyor — lütfen kurucu takımına mı rakip takımına mı katılmak istediğinizi seçin.' });
+            }
+            const joinerU = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
+            const jg = joinerU?.gender;
+            const fits = (gReq) => !jg || jg === 'OTHER' || !gReq || gReq === 'MIX' || jg === gReq;
+            const parts = Array.isArray(request.participants) ? request.participants : [];
+            const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
+            if (requestedSlot === 'partner') {
+                const partnerFilled = senderTeamArr.length > 0 && !!senderTeamArr[0]?.id;
+                if (partnerFilled) return res.status(400).json({ message: 'Kurucu takımı slotu zaten dolu.' });
+                if (!fits(request.partnerGenderReq)) return res.status(400).json({ message: 'Kurucu takımı slotu için cinsiyet uygunluğu sağlamıyorsunuz.' });
+            } else {
+                const opp1Filled = !!(parts[0] && parts[0].id);
+                const opp2Filled = !!(parts[1] && parts[1].id);
+                const canOpp1 = !opp1Filled && fits(request.opp1GenderReq);
+                const canOpp2 = !opp2Filled && fits(request.opp2GenderReq);
+                if (!canOpp1 && !canOpp2) return res.status(400).json({ message: 'Rakip takımında uygun boş slot yok.' });
+            }
+        }
+
         // Hakem başvurusu: fiyat teklifi / mesaj / CV — sadece positions:['REFEREE'] ilanlarında anlamlı
         const { offerPrice, offerMessage, offerCvUrl } = req.body;
         if (existing?.status === 'REJECTED') {
             // Reddedilen isteği yeniden PENDING yap
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId: req.userId } },
-                data: { status: 'PENDING', joiningTeam, partnerId, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null },
+                data: { status: 'PENDING', joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null } });
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null } });
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
