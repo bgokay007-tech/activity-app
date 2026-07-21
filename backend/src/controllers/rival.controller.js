@@ -259,9 +259,12 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
         };
     }
 
-    // Bireysel kabul: sırayla ilk boş adlandırılmış slota (Rakip1 → Rakip2 → Takım Arkadaşı)
-    // cinsiyet uyumuna göre atanır. Uyan slot yoksa kabul reddedilir (400) — geç kabul akışına
-    // bile hiç girmeden, çünkü katılımcı zaten kabul edilemeyecek durumda.
+    // Bireysel kabul: sırayla ilk boş adlandırılmış slota (Takım Arkadaşı → Rakip1 → Rakip2)
+    // cinsiyet uyumuna göre atanır. Bu sıra, ekranda "Katılımcı 1/2/3" olarak gösterilen
+    // numaralandırmayla (partner=1, opp1=2, opp2=3) birebir eşleşir — böylece kabul edilen
+    // ilk kişi Katılımcı 1, ikinci kişi Katılımcı 2 olarak görünür (katılım sırasını yansıtır).
+    // Uyan slot yoksa kabul reddedilir (400) — geç kabul akışına bile hiç girmeden, çünkü
+    // katılımcı zaten kabul edilemeyecek durumda.
     const gUser = await prisma.user.findUnique({ where: { id: joinReq.userId }, select: { gender: true } });
     const pg = gUser?.gender;
     const fits = (gReq) => !pg || pg === 'OTHER' || !gReq || gReq === 'MIX' || pg === gReq;
@@ -272,9 +275,9 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
     const partnerFilled = senderTeamArr.length > 0 && !!senderTeamArr[0]?.id;
 
     const openSlots = [
+        { key: 'partner', filled: partnerFilled, req: rival.partnerGenderReq || 'MIX', label: 'Takım Arkadaşı' },
         { key: 'opp1', filled: opp1Filled, req: opp1Req, label: 'Rakip 1' },
         { key: 'opp2', filled: opp2Filled, req: opp2Req, label: 'Rakip 2' },
-        { key: 'partner', filled: partnerFilled, req: rival.partnerGenderReq || 'MIX', label: 'Takım Arkadaşı' },
     ].filter(s => !s.filled);
 
     if (openSlots.length === 0) return { error: 'Tüm slotlar dolu.' };
