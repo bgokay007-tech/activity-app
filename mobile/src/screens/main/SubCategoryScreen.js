@@ -1701,14 +1701,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     };
 
     const handleJoin = async () => {
-        if (item.minRating != null && myRating < item.minRating) {
-            Alert.alert('⚠️ Puan Limiti', `Bu ilan için en az ${item.minRating}★ puan gerekiyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
-            return;
-        }
-        if (item.maxRating != null && myRating > item.maxRating) {
-            Alert.alert('⚠️ Puan Limiti', `Bu ilan için en fazla ${item.maxRating}★ puan kabul ediliyor.\nSizin puanınız: ${Number(myRating).toFixed(2)}★`);
-            return;
-        }
+        // Puan limiti kontrolü artık burada değil, sadece sunucuda yapılıyor — myRating
+        // (Redux'taki auth.user.interests'ten) maç sonrası puan güncellemelerinde bayatlayabiliyordu,
+        // bu da güncel puanı yeterli olan kullanıcıları yanlışlıkla "puanınız 0" diye engelliyordu.
         try {
             setLocalJoinStatus('PENDING'); // anlık göster
             await api.post(`/rivals/${item.id}/respond`, {});
