@@ -90,11 +90,21 @@ export default function NotificationsScreen({ navigation }) {
 
     const markRead = async (id) => {
         const wasUnread = notifications.find(n => n.id === id)?.read === false;
-        try {
-            await api.patch(`/notifications/${id}/read`);
-            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-            if (wasUnread) dispatch(decrementUnread());
-        } catch (e) { console.warn(e?.message); }
+        // Önce yerel state'i güncelle — kullanıcı bildirime dokunduktan hemen sonra
+        // uygulamayı arka plana atıp kapatırsa PATCH isteği yarıda kesilebiliyordu,
+        // sunucu hiç haberdar olmuyordu ve bildirim bir sonraki açılışta yine
+        // okunmamış görünüyordu. İstek başarısız olsa bile en az bu oturumda doğru görünür.
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        if (wasUnread) dispatch(decrementUnread());
+        // Ağ isteği anlık kesintiye (arka plana alma vb.) karşı bir kez tekrar denenir.
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                await api.patch(`/notifications/${id}/read`);
+                return;
+            } catch (e) {
+                if (attempt === 1) console.warn(e?.message);
+            }
+        }
     };
 
     const markAllRead = async () => {
