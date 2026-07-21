@@ -14,9 +14,9 @@ function OkeyTile({ tile, small, disabled, highlighted, onClick }) {
     const colorHex = joker ? '#b45309' : COLOR_HEX[tileColorCode(tile)];
     const sizeCls = small ? 'w-6 h-9' : 'w-10 h-14';
     return (
-        <button onClick={onClick ? () => onClick(tile) : undefined} disabled={disabled || !onClick}
-            className={`${sizeCls} rounded-md flex items-center justify-center border flex-shrink-0 transition`}
-            style={{ backgroundColor: highlighted ? '#fff7e0' : '#fdf6e3', borderColor: highlighted ? '#f59e0b' : '#00000022', borderWidth: highlighted ? 2 : 1, opacity: disabled ? 0.5 : 1 }}>
+        <button onClick={onClick ? () => onClick(tile) : undefined}
+            className={`${sizeCls} rounded-md flex items-center justify-center border flex-shrink-0 transition shadow-sm`}
+            style={{ backgroundColor: highlighted ? '#fff7e0' : '#fdf6e3', borderColor: highlighted ? '#f59e0b' : '#00000022', borderWidth: highlighted ? 2 : 1, opacity: disabled ? 0.5 : 1, cursor: onClick ? 'pointer' : 'default' }}>
             {joker ? <span className={small ? 'text-xs' : 'text-lg'}>🃏</span> : <span className={`font-black ${small ? 'text-[11px]' : 'text-lg'}`} style={{ color: colorHex }}>{tileNumLabel(tile)}</span>}
         </button>
     );
@@ -32,6 +32,14 @@ function OkeyBoard({ tableId, myId, onExit }) {
     const [roundEnd, setRoundEnd] = useState(null);
     const [gameEnd, setGameEnd] = useState(null);
     const [declareMode, setDeclareMode] = useState(false);
+    const [hint, setHint] = useState('');
+    const hintTimerRef = useRef(null);
+    const showHint = (msg) => {
+        setHint(msg);
+        if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = setTimeout(() => setHint(''), 1600);
+    };
+    useEffect(() => () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current); }, []);
 
     useEffect(() => {
         getSocket()?.emit('okey:getState', { tableId });
@@ -60,10 +68,18 @@ function OkeyBoard({ tableId, myId, onExit }) {
     const canAct = state.phase === 'playing' && isMyTurn && state.awaitingDiscard;
     const isHighlighted = (tile) => isJokerTile(tile) || (tileColorCode(tile) === state.okeyColor && Number(tileNumLabel(tile)) === state.okeyNumber);
 
-    const drawFromDeck = () => canDraw && getSocket()?.emit('okey:drawTile', { tableId, source: 'deck' });
-    const drawFromDiscard = () => canDraw && state.discardTop && getSocket()?.emit('okey:drawTile', { tableId, source: 'discard' });
+    const notYourTurnMsg = () => (!isMyTurn ? 'Sıra sende değil' : (state.awaitingDiscard ? 'Önce taşını atmalısın' : 'Önce taş çekmelisin'));
+    const drawFromDeck = () => {
+        if (!canDraw) return showHint(notYourTurnMsg());
+        getSocket()?.emit('okey:drawTile', { tableId, source: 'deck' });
+    };
+    const drawFromDiscard = () => {
+        if (!canDraw) return showHint(notYourTurnMsg());
+        if (!state.discardTop) return showHint('Atım yığını boş');
+        getSocket()?.emit('okey:drawTile', { tableId, source: 'discard' });
+    };
     const onTileClick = (tile) => {
-        if (!canAct) return;
+        if (!canAct) return showHint(notYourTurnMsg());
         if (declareMode) {
             if (confirm('Bu taşı atarak elini açmak istediğine emin misin?')) getSocket()?.emit('okey:declareWin', { tableId, tile });
             setDeclareMode(false);
@@ -88,8 +104,9 @@ function OkeyBoard({ tableId, myId, onExit }) {
 
             <div className="flex gap-1.5 mb-3">
                 {state.seats.map(seat => (
-                    <div key={seat.seat} className="flex-1 bg-white/10 rounded-lg py-1 text-center">
-                        <p className="text-white text-[10px] font-bold truncate">
+                    <div key={seat.seat} className="flex-1 rounded-lg py-1 text-center border transition"
+                        style={seat.seat === state.turn ? { backgroundColor: '#fbbf2433', borderColor: '#fbbf24' } : { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'transparent' }}>
+                        <p className="text-[10px] font-bold truncate" style={{ color: seat.seat === state.turn ? '#fde047' : '#fff' }}>
                             {seat.userId === myId ? 'Sen' : seat.username}{seat.seat === state.dealerIndex ? ' 🎯' : ''}{!seat.connected ? ' 🤖' : ''}
                         </p>
                         <p className="text-green-400 text-sm font-black" style={{ color: state.scores[seat.seat] < 0 ? '#f87171' : '#4ade80' }}>{state.scores[seat.seat]}</p>
@@ -99,29 +116,29 @@ function OkeyBoard({ tableId, myId, onExit }) {
 
             <div className="rounded-2xl p-3" style={{ backgroundColor: '#0b3d1f', minHeight: 320 }}>
                 <div className="flex flex-col items-center gap-1 mb-2">
-                    <p className="text-white text-xs font-bold truncate max-w-[140px]">{seatByIdx(topSeat).username}</p>
+                    <p className="text-xs font-bold truncate max-w-[140px]" style={{ color: topSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(topSeat).username}</p>
                     <div className="flex flex-wrap justify-center gap-0.5 max-w-xs">
                         {Array.from({ length: Math.min(seatByIdx(topSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
                     </div>
                 </div>
                 <div className="flex items-center justify-between" style={{ minHeight: 100 }}>
                     <div className="flex flex-col items-center gap-1 w-20">
-                        <p className="text-white text-[11px] font-bold truncate max-w-[70px]">{seatByIdx(leftSeat).username}</p>
+                        <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: leftSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(leftSeat).username}</p>
                         <div className="flex flex-wrap justify-center gap-0.5">
                             {Array.from({ length: Math.min(seatByIdx(leftSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        <button onClick={drawFromDeck} disabled={!canDraw} className="flex flex-col items-center transition" style={{ opacity: canDraw ? 1 : 0.5 }}>
+                        <button onClick={drawFromDeck} className="flex flex-col items-center transition" style={{ opacity: canDraw ? 1 : 0.5, cursor: 'pointer' }}>
                             <span className="text-3xl">🀫</span>
                             <span className="text-white text-[11px] font-bold mt-0.5">{state.deckCount}</span>
                         </button>
-                        <button onClick={drawFromDiscard} disabled={!(canDraw && state.discardTop)} style={{ opacity: canDraw && state.discardTop ? 1 : 0.5 }}>
+                        <button onClick={drawFromDiscard} style={{ opacity: canDraw && state.discardTop ? 1 : 0.5, cursor: 'pointer' }}>
                             {state.discardTop ? <OkeyTile tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} /> : <span className="text-white/30 text-2xl">—</span>}
                         </button>
                     </div>
                     <div className="flex flex-col items-center gap-1 w-20">
-                        <p className="text-white text-[11px] font-bold truncate max-w-[70px]">{seatByIdx(rightSeat).username}</p>
+                        <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: rightSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(rightSeat).username}</p>
                         <div className="flex flex-wrap justify-center gap-0.5">
                             {Array.from({ length: Math.min(seatByIdx(rightSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
                         </div>
@@ -129,14 +146,17 @@ function OkeyBoard({ tableId, myId, onExit }) {
                 </div>
             </div>
 
-            <p className="text-amber-300 text-xs font-bold text-center mt-2">
-                {isMyTurn ? (canDraw ? 'Sıra sende — bir taş çek' : 'Sıra sende — bir taş at ya da elini aç') : `${seatByIdx(state.turn).username || ''} oynuyor...`}
-            </p>
+            <div className={`text-center mt-2 rounded-xl py-2 transition ${isMyTurn ? 'bg-amber-500/20' : ''}`}>
+                <p className={isMyTurn ? 'text-amber-300 font-black' : 'text-amber-300/80 text-xs font-bold'} style={isMyTurn ? { fontSize: '1rem' } : undefined}>
+                    {isMyTurn ? (canDraw ? 'Sıra sende — bir taş çek' : 'Sıra sende — bir taş at ya da elini aç') : `${seatByIdx(state.turn).username || ''} oynuyor...`}
+                </p>
+                {hint && <p className="text-red-300 text-xs font-bold mt-1">{hint}</p>}
+            </div>
 
             <div className="flex flex-col items-center mt-3">
-                <div className="flex flex-wrap justify-center gap-1 max-w-2xl">
+                <div className="flex flex-wrap justify-center gap-2 max-w-2xl">
                     {hand.map((tile, i) => (
-                        <OkeyTile key={`${tile}_${i}`} tile={tile} highlighted={isHighlighted(tile)} disabled={!canAct} onClick={canAct ? onTileClick : undefined} />
+                        <OkeyTile key={`${tile}_${i}`} tile={tile} highlighted={isHighlighted(tile)} disabled={!canAct} onClick={onTileClick} />
                     ))}
                 </div>
                 {canAct && (

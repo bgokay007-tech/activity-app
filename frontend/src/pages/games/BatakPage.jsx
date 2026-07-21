@@ -15,9 +15,9 @@ function PlayingCard({ card, small, disabled, onClick }) {
     const suit = cardSuit(card);
     const sizeCls = small ? 'w-8 h-11' : 'w-12 h-16';
     return (
-        <button onClick={onClick ? () => onClick(card) : undefined} disabled={disabled || !onClick}
-            className={`${sizeCls} bg-white rounded-md flex flex-col items-center justify-center border flex-shrink-0 transition`}
-            style={{ borderColor: '#00000022', opacity: disabled ? 0.4 : 1 }}>
+        <button onClick={onClick ? () => onClick(card) : undefined}
+            className={`${sizeCls} bg-white rounded-md flex flex-col items-center justify-center border flex-shrink-0 transition shadow-sm`}
+            style={{ borderColor: '#00000022', opacity: disabled ? 0.4 : 1, cursor: onClick ? 'pointer' : 'default' }}>
             <span className={`font-black leading-none ${small ? 'text-[10px]' : 'text-sm'}`} style={{ color: SUIT_COLOR[suit] }}>{rankLabel(card)}</span>
             <span className={`font-black leading-none ${small ? 'text-xs' : 'text-lg'}`} style={{ color: SUIT_COLOR[suit] }}>{SUIT_SYMBOL[suit]}</span>
         </button>
@@ -33,6 +33,14 @@ function BatakBoard({ tableId, myId, onExit }) {
     const [hand, setHand] = useState([]);
     const [roundEnd, setRoundEnd] = useState(null);
     const [gameEnd, setGameEnd] = useState(null);
+    const [hint, setHint] = useState('');
+    const hintTimerRef = useRef(null);
+    const showHint = (msg) => {
+        setHint(msg);
+        if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = setTimeout(() => setHint(''), 1600);
+    };
+    useEffect(() => () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current); }, []);
 
     useEffect(() => {
         getSocket()?.emit('batak:getState', { tableId });
@@ -64,13 +72,18 @@ function BatakBoard({ tableId, myId, onExit }) {
     const [bottomSeat, leftSeat, topSeat, rightSeat] = order;
     const seatByIdx = (seat) => state.seats.find(x => x.seat === seat) || {};
     const isMyTurn = state.turn === mySeat;
+    // publicState yalnızca 'bidding'/'playing' fazlarında `turn` alanını dolduruyor;
+    // 'choosingTrump' fazında sırası gelen highestBidder'dır — koltuk vurgusu için
+    // üç fazı da kapsayan ayrı bir "aktif koltuk" hesaplanıyor.
+    const activeSeat = state.phase === 'choosingTrump' ? state.highestBidder : state.turn;
     const trickCardFor = (seat) => (state.trick || []).find(x => x.seat === seat)?.card || null;
 
     const placeBid = (bid) => getSocket()?.emit('batak:placeBid', { tableId, bid });
     const chooseTrump = (suit) => getSocket()?.emit('batak:chooseTrump', { tableId, suit });
     const playCard = (card) => {
-        if (state.phase !== 'playing' || !isMyTurn) return;
-        if (!legalCards.includes(card)) return alert('Renge uymak zorundasın.');
+        if (state.phase !== 'playing') return showHint('Henüz kart oynama sırası değil');
+        if (!isMyTurn) return showHint('Sıra sende değil');
+        if (!legalCards.includes(card)) return showHint('Renge uymak zorundasın.');
         getSocket()?.emit('batak:playCard', { tableId, card });
     };
     const goBack = () => { getSocket()?.emit('batak:leaveTable', { tableId }); onExit(); };
@@ -90,8 +103,9 @@ function BatakBoard({ tableId, myId, onExit }) {
 
             <div className="flex gap-1.5 mb-3">
                 {state.seats.map(seat => (
-                    <div key={seat.seat} className="flex-1 bg-white/10 rounded-lg py-1 text-center">
-                        <p className="text-white text-[10px] font-bold truncate">
+                    <div key={seat.seat} className="flex-1 rounded-lg py-1 text-center border transition"
+                        style={seat.seat === activeSeat ? { backgroundColor: '#fbbf2433', borderColor: '#fbbf24' } : { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'transparent' }}>
+                        <p className="text-[10px] font-bold truncate" style={{ color: seat.seat === activeSeat ? '#fde047' : '#fff' }}>
                             {seat.userId === myId ? 'Sen' : seat.username}{seat.seat === state.dealerIndex ? ' 🎯' : ''}{!seat.connected ? ' 🤖' : ''}
                         </p>
                         <p className="text-sm font-black" style={{ color: state.scores[seat.seat] < 0 ? '#f87171' : '#4ade80' }}>{state.scores[seat.seat]}</p>
@@ -101,13 +115,13 @@ function BatakBoard({ tableId, myId, onExit }) {
 
             <div className="rounded-2xl p-3" style={{ backgroundColor: '#0b3d1f', minHeight: 320 }}>
                 <div className="flex flex-col items-center gap-1 mb-2">
-                    <p className="text-white text-xs font-bold truncate max-w-[140px]">{seatByIdx(topSeat).username}</p>
+                    <p className="text-xs font-bold truncate max-w-[140px]" style={{ color: topSeat === activeSeat ? '#fde047' : '#fff' }}>{seatByIdx(topSeat).username}</p>
                     <div className="flex gap-0.5">{Array.from({ length: Math.min(seatByIdx(topSeat).handCount || 0, 5) }).map((_, i) => <CardBack key={i} small />)}</div>
                     {trickCardFor(topSeat) && <PlayingCard card={trickCardFor(topSeat)} small />}
                 </div>
                 <div className="flex items-center justify-between" style={{ minHeight: 100 }}>
                     <div className="flex flex-col items-center gap-1 w-20">
-                        <p className="text-white text-[11px] font-bold truncate max-w-[70px]">{seatByIdx(leftSeat).username}</p>
+                        <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: leftSeat === activeSeat ? '#fde047' : '#fff' }}>{seatByIdx(leftSeat).username}</p>
                         <div className="flex flex-wrap justify-center gap-0.5">{Array.from({ length: Math.min(seatByIdx(leftSeat).handCount || 0, 5) }).map((_, i) => <CardBack key={i} small />)}</div>
                     </div>
                     <div className="flex items-center gap-1.5" style={{ minHeight: 90 }}>
@@ -117,22 +131,26 @@ function BatakBoard({ tableId, myId, onExit }) {
                         {(!state.trick || state.trick.length === 0) && <span className="text-3xl opacity-30">🎴</span>}
                     </div>
                     <div className="flex flex-col items-center gap-1 w-20">
-                        <p className="text-white text-[11px] font-bold truncate max-w-[70px]">{seatByIdx(rightSeat).username}</p>
+                        <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: rightSeat === activeSeat ? '#fde047' : '#fff' }}>{seatByIdx(rightSeat).username}</p>
                         <div className="flex flex-wrap justify-center gap-0.5">{Array.from({ length: Math.min(seatByIdx(rightSeat).handCount || 0, 5) }).map((_, i) => <CardBack key={i} small />)}</div>
                     </div>
                 </div>
             </div>
 
-            <p className="text-amber-300 text-xs font-bold text-center mt-2">
-                {state.phase === 'bidding' && (
-                    <>{isMyTurn ? 'Sıra sende — ihale ver veya pas geç' : `${seatByIdx(state.turn).username} ihale veriyor...`}
-                        {state.highestBid > 0 ? `  ·  En yüksek: ${state.highestBid} (${seatByIdx(state.highestBidder).username})` : ''}</>
-                )}
-                {state.phase === 'choosingTrump' && (
-                    state.highestBidder === mySeat ? 'Koz seç' : `${seatByIdx(state.highestBidder).username} koz seçiyor...`
-                )}
-                {state.phase === 'playing' && (isMyTurn ? 'Sıra sende' : `${seatByIdx(state.turn).username} oynuyor...`)}
-            </p>
+            <div className={`text-center mt-2 rounded-xl py-2 transition ${(isMyTurn || (state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? 'bg-amber-500/20' : ''}`}>
+                <p className={(isMyTurn || (state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? 'text-amber-300 font-black' : 'text-amber-300/80 text-xs font-bold'}
+                    style={(isMyTurn || (state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? { fontSize: '1rem' } : undefined}>
+                    {state.phase === 'bidding' && (
+                        <>{isMyTurn ? 'Sıra sende — ihale ver veya pas geç' : `${seatByIdx(state.turn).username} ihale veriyor...`}
+                            {state.highestBid > 0 ? `  ·  En yüksek: ${state.highestBid} (${seatByIdx(state.highestBidder).username})` : ''}</>
+                    )}
+                    {state.phase === 'choosingTrump' && (
+                        state.highestBidder === mySeat ? 'Koz seç' : `${seatByIdx(state.highestBidder).username} koz seçiyor...`
+                    )}
+                    {state.phase === 'playing' && (isMyTurn ? 'Sıra sende' : `${seatByIdx(state.turn).username} oynuyor...`)}
+                </p>
+                {hint && <p className="text-red-300 text-xs font-bold mt-1">{hint}</p>}
+            </div>
 
             {state.phase === 'bidding' && isMyTurn && (
                 <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-1">
@@ -153,11 +171,11 @@ function BatakBoard({ tableId, myId, onExit }) {
                 </div>
             )}
 
-            <div className="flex justify-center gap-1 mt-4 overflow-x-auto pb-2">
+            <div className="flex justify-center gap-2 mt-4 overflow-x-auto pb-2">
                 {hand.map(card => (
                     <PlayingCard key={card} card={card}
                         disabled={!(state.phase === 'playing' && isMyTurn && legalCards.includes(card))}
-                        onClick={state.phase === 'playing' && isMyTurn ? playCard : undefined} />
+                        onClick={playCard} />
                 ))}
             </div>
 
