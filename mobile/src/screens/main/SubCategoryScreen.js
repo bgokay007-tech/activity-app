@@ -4169,6 +4169,20 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     // saat ekleme gibi ardışık dokunuşlara zaman tanımak için kısa bir gecikme var.
     useEffect(() => {
         if (!selSlot || booked || validatingSlot) return;
+        const courtData = courtsSlots[selSlot.courtId]?.data;
+        const isFlexible = courtData?.type === 'FLEXIBLE';
+        const isVarDur = courtData?.type === 'VAR_DURATION';
+        // Yapılandırılmış (FULL_HOUR/HALF_HOUR/NINETY_MIN) gridde minimum rezervasyon
+        // süresi 60 dk — HALF_HOUR gibi tiplerde tek bir kutucuk (30 dk) tek başına
+        // geçersiz, kullanıcı bitişik ikinci bir kutucuğa dokunana kadar otomatik
+        // onaylamayı bekletmemiz gerekiyor (aksi halde backend "min 60 dk" hatası verir).
+        if (!isFlexible && !isVarDur) {
+            const rangeSlots = getSlotRange(courtData, selSlot.slot.start, (selSlot.rangeEnd || selSlot.slot).start);
+            const totalMins = rangeSlots
+                ? toM(rangeSlots[rangeSlots.length - 1].end) - toM(rangeSlots[0].start)
+                : 0;
+            if (totalMins < 60) return;
+        }
         const timer = setTimeout(() => { confirmBooking(); }, 600);
         return () => clearTimeout(timer);
     }, [selSlot?.courtId, selSlot?.slot?.start, selSlot?.rangeEnd?.start, selSlot?.flexDur, booked]);
@@ -4574,7 +4588,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         </View>
                                         {validatingSlot && (
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:6, justifyContent:'center', marginTop:6 }}>
-                                                <ActivityIndicator color={cfg.color} size="small" />
+                                                <ActivityIndicator color="#22c55e" size="small" />
                                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>Seçiliyor...</Text>
                                             </View>
                                         )}
