@@ -4050,7 +4050,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         setSelSlot(prev =>
             prev?.courtId === cId && prev?.slot?.start === slot.start
                 ? null
-                : { courtId: cId, slot, rangeEnd: slot, flexDur: 60 }
+                // Süre pencere içinde zaten seçilip slot.durationMins'e yazıldı (bkz. "Rezerve
+                // Et" çağrısı) — burada sabit 60dk'ya düşürmek confirmBooking'in yanlış bitiş
+                // saati hesaplamasına yol açıyordu.
+                : { courtId: cId, slot, rangeEnd: slot, flexDur: slot.durationMins || 60 }
         );
     };
 
@@ -4159,6 +4162,16 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         onBooked?.(courtObj, selDate, slot.start, endTime, payMethod);
         setBooked(true);
     };
+
+    // Slot seçimi (yapılandırılmış gridde dokunma, esnek/özel süre penceresinde "Rezerve
+    // Et") zaten kullanıcının kesin kararıdır — ayrıca "Bu Saati Seç" gibi bir onay
+    // butonuna gerek yok. Seçim bir süre değişmeden durursa otomatik onaylanır; art arda
+    // saat ekleme gibi ardışık dokunuşlara zaman tanımak için kısa bir gecikme var.
+    useEffect(() => {
+        if (!selSlot || booked || validatingSlot) return;
+        const timer = setTimeout(() => { confirmBooking(); }, 600);
+        return () => clearTimeout(timer);
+    }, [selSlot?.courtId, selSlot?.slot?.start, selSlot?.rangeEnd?.start, selSlot?.flexDur, booked]);
 
     const slotTypeLabel = (type) => {
         if (type === 'FULL_HOUR')   return { label: 'Tam Saat',   color: '#22d3ee', bg: '#083344' };
@@ -4322,7 +4335,14 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         {validStart && (<>
                                             <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Süre</Text>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
-                                                {[60,90,120,150,180,240,300,360].filter(d => startM + d <= winEndM).map(d => {
+                                                {[60,90,120,150,180,240,300,360].filter(d => {
+                                                    if (startM + d > winEndM) return false;
+                                                    // Kapanışa/pencere sonuna <60dk kullanılamaz boşluk bırakan süreleri
+                                                    // listeden çıkar (VAR_DURATION'da bu kural uygulanmıyor).
+                                                    if (cData.type !== 'FLEXIBLE') return true;
+                                                    const remaining = winEndM - (startM + d);
+                                                    return remaining === 0 || remaining >= 60;
+                                                }).map(d => {
                                                     const isSd = varDurMap[court.id] === d;
                                                     const durQuote = computeVarDurationPrice(w, customStart, d);
                                                     const dPrice = durQuote.priceByMethod?.CASH ?? durQuote.price;
@@ -4518,7 +4538,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             )}
                             {selSlot && (() => {
                                 const courtData = courtsSlots[selSlot.courtId]?.data;
-                                const needsDur = courtData?.type === 'FLEXIBLE';
                                 const isStructured = courtData?.type === 'FULL_HOUR' || courtData?.type === 'HALF_HOUR' || courtData?.type === 'NINETY_MIN';
                                 const selCourt = venue.courts?.find(c => c.id === selSlot.courtId);
                                 // Arka arkaya dokunularak genişletilmiş aralık (bkz. tapGridSlot).
@@ -4553,60 +4572,14 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 <Text style={{ color:'#888', fontSize:18 }}>↩</Text>
                                             </TouchableOpacity>
                                         </View>
-                                        {needsDur && (
-                                            <>
-                                                <Text style={vb.sectionLabel}>Süre Seçin</Text>
-                                                <View style={vb.durRow}>
-                                                    {[60,90,120,150,180,240,300,360].filter(m => m <= selSlot.slot.durationMins).map(m => (
-                                                        <TouchableOpacity key={m}
-                                                            style={[vb.durBtn, selSlot.flexDur===m && vb.durBtnSel]}
-                                                            onPress={() => setSelSlot(p => ({ ...p, flexDur: m }))}>
-                                                            <Text style={[vb.durTxt, selSlot.flexDur===m && vb.durTxtSel]}>
-                                                                {m < 60 ? `${m}dk` : (m % 60 === 0 ? `${m / 60}s` : `${(m / 60).toFixed(1)}s`)}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
-                                            </>
-                                        )}
-                                        <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
-                                        <View style={vb.payRow}>
-                                            {[['CASH','💵 Kortta Öde'],['EFT','🏦 EFT / Havale'],['CREDIT_CARD','💳 Kortta Kredi Kartı'],['ONLINE','🌐 Online (Bakımda)']].filter(([m]) => {
-                                                if (m === 'CREDIT_CARD') {
-                                                    const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : [];
-                                                    return acc.includes(m);
-                                                }
-                                                return true; // CASH, EFT ve ONLINE (bakımda) her zaman göster
-                                            }).map(([m, label]) => (
-                                                <TouchableOpacity key={m}
-                                                    disabled={m === 'ONLINE'}
-                                                    style={[vb.payBtn, payMethod===m && vb.payBtnSel, m === 'ONLINE' && { opacity:0.5 }]}
-                                                    onPress={() => m !== 'ONLINE' && setPayMethod(m)}>
-                                                    <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                        {payMethod === 'EFT' && (
-                                            <View style={vb.ibanBox}>
-                                                {(venue?.businessIban || venue?.user?.businessIban) ? (
-                                                    <>
-                                                        {(venue.businessIbanHolder || venue.user?.businessIbanHolder) && (
-                                                            <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.businessIbanHolder || venue.user?.businessIbanHolder}</Text></Text>
-                                                        )}
-                                                        <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.businessIban || venue.user?.businessIban}</Text></Text>
-                                                    </>
-                                                ) : (
-                                                    <Text style={[vb.ibanRow, { color:'#f59e0b' }]}>📞 EFT bilgisi için lütfen tesis ile iletişime geçin.</Text>
-                                                )}
+                                        {validatingSlot && (
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, justifyContent:'center', marginTop:6 }}>
+                                                <ActivityIndicator color={cfg.color} size="small" />
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>Seçiliyor...</Text>
                                             </View>
                                         )}
-                                        <TouchableOpacity style={[vb.bookBtn, validatingSlot && { opacity:0.6 }]} onPress={confirmBooking} disabled={validatingSlot}>
-                                            {validatingSlot
-                                                ? <ActivityIndicator color="#fff" />
-                                                : <Text style={vb.bookBtnTxt}>Bu Saati Seç</Text>}
-                                        </TouchableOpacity>
                                         <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
-                                            Kort, ilanı oluşturduğunuzda rezerve edilir.
+                                            Ödeme yöntemi varsayılan olarak "Kortta Öde" — kort, ilanı oluşturduğunuzda rezerve edilir.
                                         </Text>
                                         <View style={{ height: 24 }} />
                                     </ScrollView>
