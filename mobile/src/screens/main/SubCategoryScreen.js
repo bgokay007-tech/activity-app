@@ -389,7 +389,7 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:moderateScale(13) },
 });
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin }) {
     const insets = useSafeAreaInsets();
     const [localParticipants, setLocalParticipants] = useState(null);
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
@@ -1403,6 +1403,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </TouchableOpacity>
                                 </View>
                             </View>
+                        ) : mySentReq === 'AWAITING_JOINER_CONFIRM' ? (
+                            <View style={{ gap:6 }}>
+                                <View style={[s.waitingBox, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
+                                    <Text style={[s.waitingText, { color:'#f59e0b', fontSize: moderateScale(12) }]}>⏰ {t.awaitingYourConfirm}</Text>
+                                </View>
+                                <View style={{ flexDirection:'row', gap:6 }}>
+                                    <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center' }} onPress={() => onConfirmLateJoin?.('confirm')}>
+                                        <Text style={{ color:'#fff', fontSize: moderateScale(12), fontWeight:'700' }}>{t.confirmJoinBtn}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => onConfirmLateJoin?.('cancel')}>
+                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(12) }]}>{t.cancelJoinBtn}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
                         ) : mySentReq === 'PENDING' ? (
                             <View style={{ gap:3 }}>
                                 <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.waitingReq}</Text></View>
@@ -2007,6 +2021,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             onRefresh={onRefresh}
             onEdit={() => { setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
             myRefereeListing={refereeListings.find(r => r.userId === myId)}
+            onConfirmLateJoin={handleConfirmLateJoin}
         />
         {editVisible && (
             <CreateRivalModal
