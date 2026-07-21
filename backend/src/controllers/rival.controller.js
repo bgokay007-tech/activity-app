@@ -280,14 +280,14 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
         { key: 'opp2', filled: opp2Filled, req: opp2Req, label: 'Rakip 2' },
     ].filter(s => !s.filled);
 
-    // Takım Değiştirilemez (STRICT): başvuru sırasında seçilen tarafla sınırlı kalır —
-    // owner, başvuranı seçtiği tarafın dışına atayamaz (takas özelliği zaten kapalı).
+    // Takım Değiştirilemez (STRICT): başvuru sırasında seçilen slotla (veya taraf) sınırlı
+    // kalır — owner, başvuranı seçtiğinin dışına atayamaz (takas özelliği zaten kapalı).
     if (rival.teamFlexibility === 'STRICT' && joinReq.requestedSlot) {
-        openSlots = joinReq.requestedSlot === 'partner'
-            ? openSlots.filter(s => s.key === 'partner')
-            : openSlots.filter(s => s.key === 'opp1' || s.key === 'opp2');
+        openSlots = joinReq.requestedSlot === 'opponent'
+            ? openSlots.filter(s => s.key === 'opp1' || s.key === 'opp2')
+            : openSlots.filter(s => s.key === joinReq.requestedSlot);
         if (openSlots.length === 0) {
-            return { error: joinReq.requestedSlot === 'partner' ? 'Kurucu takımı slotu artık dolu.' : 'Rakip takımında artık boş slot yok.' };
+            return { error: joinReq.requestedSlot === 'partner' ? 'Kurucu takımı slotu artık dolu.' : 'Seçilen slot artık dolu.' };
         }
     }
 
@@ -1171,21 +1171,27 @@ export const sendJoinRequest = async (req, res, next) => {
         let requestedSlot = null;
         if (request.matchType === 'DOUBLE' && request.teamFlexibility === 'STRICT' && !partnerId) {
             requestedSlot = req.body.requestedSlot;
-            if (requestedSlot !== 'partner' && requestedSlot !== 'opponent') {
-                return res.status(400).json({ message: 'Bu maçta takım değiştirilemiyor — lütfen kurucu takımına mı rakip takımına mı katılmak istediğinizi seçin.' });
+            if (!['partner', 'opp1', 'opp2', 'opponent'].includes(requestedSlot)) {
+                return res.status(400).json({ message: 'Bu maçta takım değiştirilemiyor — lütfen hangi slota katılmak istediğinizi seçin.' });
             }
             const joinerU = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
             const jg = joinerU?.gender;
             const fits = (gReq) => !jg || jg === 'OTHER' || !gReq || gReq === 'MIX' || jg === gReq;
             const parts = Array.isArray(request.participants) ? request.participants : [];
             const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
+            const opp1Filled = !!(parts[0] && parts[0].id);
+            const opp2Filled = !!(parts[1] && parts[1].id);
             if (requestedSlot === 'partner') {
                 const partnerFilled = senderTeamArr.length > 0 && !!senderTeamArr[0]?.id;
                 if (partnerFilled) return res.status(400).json({ message: 'Kurucu takımı slotu zaten dolu.' });
                 if (!fits(request.partnerGenderReq)) return res.status(400).json({ message: 'Kurucu takımı slotu için cinsiyet uygunluğu sağlamıyorsunuz.' });
+            } else if (requestedSlot === 'opp1' || requestedSlot === 'opp2') {
+                const filled = requestedSlot === 'opp1' ? opp1Filled : opp2Filled;
+                const gReq = requestedSlot === 'opp1' ? request.opp1GenderReq : request.opp2GenderReq;
+                const label = requestedSlot === 'opp1' ? 'Rakip 1' : 'Rakip 2';
+                if (filled) return res.status(400).json({ message: `${label} slotu zaten dolu.` });
+                if (!fits(gReq)) return res.status(400).json({ message: `${label} slotu için cinsiyet uygunluğu sağlamıyorsunuz.` });
             } else {
-                const opp1Filled = !!(parts[0] && parts[0].id);
-                const opp2Filled = !!(parts[1] && parts[1].id);
                 const canOpp1 = !opp1Filled && fits(request.opp1GenderReq);
                 const canOpp2 = !opp2Filled && fits(request.opp2GenderReq);
                 if (!canOpp1 && !canOpp2) return res.status(400).json({ message: 'Rakip takımında uygun boş slot yok.' });
