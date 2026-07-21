@@ -1458,6 +1458,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                 <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
                             </TouchableOpacity>
+                        ) : item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (
+                            <View style={{ flexDirection:'row', gap:6 }}>
+                                <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(() => handleJoin('partner'), 300); }}>
+                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.joinAsPartnerBtn}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(() => handleJoin('opponent'), 300); }}>
+                                    <Text style={[s.joinBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.joinAsOpponentBtn}</Text>
+                                </TouchableOpacity>
+                            </View>
                         ) : (
                             <View style={{ flexDirection:'row', gap:6 }}>
                                 <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
@@ -1714,13 +1723,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         ]);
     };
 
-    const handleJoin = async () => {
+    const handleJoin = async (requestedSlot) => {
         // Puan limiti kontrolü artık burada değil, sadece sunucuda yapılıyor — myRating
         // (Redux'taki auth.user.interests'ten) maç sonrası puan güncellemelerinde bayatlayabiliyordu,
         // bu da güncel puanı yeterli olan kullanıcıları yanlışlıkla "puanınız 0" diye engelliyordu.
         try {
             setLocalJoinStatus('PENDING'); // anlık göster
-            await api.post(`/rivals/${item.id}/respond`, {});
+            await api.post(`/rivals/${item.id}/respond`, requestedSlot ? { requestedSlot } : {});
             onRefresh();
         } catch (e) {
             if (!e?.response) { onRefresh(); return; } // network drop — sunucu aldı, yenile
@@ -1737,8 +1746,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
 
     // Çiftlerde de doğrudan bireysel başvuru gönderilir — partner eşleştirme, başvuru
     // gönderildikten sonra İstekler bölümündeki takım kartlarından (davet et/kabul et) yapılır.
-    const handleJoinPress = () => {
-        handleJoin();
+    // Takım Değiştirilemez (STRICT) çiftler maçında ise başvuran hangi tarafa katılacağını
+    // (kurucu takımı / rakip takımı) en baştan seçmek zorunda — bkz. ilgili buton grupları.
+    const handleJoinPress = (requestedSlot) => {
+        handleJoin(requestedSlot);
     };
 
 
@@ -1994,10 +2005,19 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     >
                         <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeApplyBtn}</Text>
                     </TouchableOpacity>
+                ) : item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (
+                    <View style={{ flexDirection:'row', gap:3 }}>
+                        <TouchableOpacity style={{ flex:1, backgroundColor:cfg.color+'20', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center', borderWidth:1, borderColor:cfg.color+'50' }} onPress={() => handleJoinPress('partner')}>
+                            <Text style={{ color:cfg.color, fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.joinAsPartnerBtn}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={{ flex:1, backgroundColor:cfg.color, borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }} onPress={() => handleJoinPress('opponent')}>
+                            <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.joinAsOpponentBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
                 ) : (
                     <TouchableOpacity
                         style={{ backgroundColor:cfg.color, borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
-                        onPress={handleJoinPress}
+                        onPress={() => handleJoinPress()}
                     >
                         <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.joinBtn}</Text>
                     </TouchableOpacity>
@@ -2014,7 +2034,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             t={t}
             onClose={() => setDetailVisible(false)}
             navigation={navigation}
-            handleJoin={() => { setDetailVisible(false); setTimeout(handleJoinPress, 300); }}
+            handleJoin={(slot) => { setDetailVisible(false); setTimeout(() => handleJoinPress(slot), 300); }}
             handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
             handleRespondJoin={handleRespondJoin}
             handleWithdraw={() => { setDetailVisible(false); setTimeout(handleWithdraw, 300); }}
