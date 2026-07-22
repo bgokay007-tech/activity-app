@@ -214,6 +214,25 @@ export default function OkeyTableScreen({ route, navigation }) {
 
     useEffect(() => () => leaveTable(), [leaveTable]);
 
+    // Bahisli bir el aktif oynanırken (bekleme odası/oyun bitmiş değilken) geri
+    // gidilmeye/başka ekrana geçilmeye çalışılırsa uyarı gösterilir.
+    useEffect(() => {
+        const isActiveWager = !!(state && state.betAmount > 0 && state.phase !== 'waiting' && state.phase !== 'finished');
+        if (!isActiveWager) return;
+        const unsub = navigation.addListener('beforeRemove', (e) => {
+            e.preventDefault();
+            Alert.alert(
+                'Oyundan Çıkılsın mı?',
+                'Çıkarsan otomatik kaybetmiş sayılacaksın, puanın iade edilmeyecek.',
+                [
+                    { text: 'Vazgeç', style: 'cancel' },
+                    { text: 'Çık', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) },
+                ],
+            );
+        });
+        return unsub;
+    }, [navigation, state?.betAmount, state?.phase]);
+
     if (!state) {
         return (
             <View style={[s.root, { alignItems: 'center', justifyContent: 'center' }]}>

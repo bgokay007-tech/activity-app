@@ -130,7 +130,7 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
     );
 }
 
-function OkeyBoard({ tableId, myId, onExit }) {
+function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     const [state, setState] = useState(null);
     const [hand, setHand] = useState([]);
     const [roundEnd, setRoundEnd] = useState(null);
@@ -195,6 +195,14 @@ function OkeyBoard({ tableId, myId, onExit }) {
         return leave;
     }, [tableId]);
 
+    // Bahisli bir el aktif oynanırken (bekleme odası/oyun bitmiş değilken) üst bileşene
+    // haber veriliyor ki sekme kapatma/geri gitmede uyarı gösterilebilsin.
+    useEffect(() => {
+        const active = !!(state && state.betAmount > 0 && state.phase !== 'waiting' && state.phase !== 'finished');
+        onActiveWagerChange?.(active);
+    }, [state?.betAmount, state?.phase, onActiveWagerChange]);
+    useEffect(() => () => onActiveWagerChange?.(false), [onActiveWagerChange]);
+
     if (!state) return <p className="text-gray-500 text-sm text-center py-16">Masaya bağlanılıyor...</p>;
 
     if (state.phase === 'waiting') {
@@ -230,7 +238,12 @@ function OkeyBoard({ tableId, myId, onExit }) {
             getSocket()?.emit('okey:discardTile', { tableId, tile });
         }
     };
-    const goBack = () => { getSocket()?.emit('okey:leaveTable', { tableId }); onExit(); };
+    const goBack = () => {
+        const isActiveWager = state.betAmount > 0 && state.phase !== 'finished';
+        if (isActiveWager && !confirm(LEAVE_WARNING)) return;
+        getSocket()?.emit('okey:leaveTable', { tableId });
+        onExit();
+    };
 
     return (
         <div className="max-w-3xl mx-auto">
@@ -523,6 +536,8 @@ function OkeyLobby({ myName, onMatched }) {
     );
 }
 
+const LEAVE_WARNING = 'Oyundan çıkarsan otomatik kaybetmiş sayılacaksın, puanın iade edilmeyecek. Emin misin?';
+
 function OkeyPage() {
     const navigate = useNavigate();
     const user = useSelector(s => s.auth.user);
@@ -536,15 +551,31 @@ function OkeyPage() {
         } catch { return user?.id || null; }
     })();
     const [tableId, setTableId] = useState(null);
+    // Bahisli bir oyun aktif oynanırken (bekleme odasında/oyun bitmişken değil) sekme
+    // kapatma/tarayıcı geri tuşuna karşı uyarı gösterilir — 1. mesaj: "geri giderken/
+    // sekme değiştirirken kaybetmiş sayılacaksın" uyarısı.
+    const [activeWager, setActiveWager] = useState(false);
 
     useEffect(() => { if (myId) connectSocket(myId); }, [myId]);
 
+    useEffect(() => {
+        if (!activeWager) return;
+        const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [activeWager]);
+
+    const handleBack = () => {
+        if (activeWager && !confirm(LEAVE_WARNING)) return;
+        navigate(-1);
+    };
+
     return (
         <div className="min-h-screen bg-gray-950">
-            <Navbar onBack={() => navigate(-1)} title="Okey" />
+            <Navbar onBack={handleBack} title="Okey" />
             <div className="px-4 py-6">
                 {tableId
-                    ? <OkeyBoard tableId={tableId} myId={myId} onExit={() => setTableId(null)} />
+                    ? <OkeyBoard tableId={tableId} myId={myId} onExit={() => setTableId(null)} onActiveWagerChange={setActiveWager} />
                     : <OkeyLobby myName={user?.fullName || user?.username || 'Oyuncu'} onMatched={setTableId} />}
             </div>
         </div>

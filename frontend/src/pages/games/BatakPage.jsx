@@ -133,7 +133,7 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
     );
 }
 
-function BatakBoard({ tableId, myId, onExit }) {
+function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     const [state, setState] = useState(null);
     const [hand, setHand] = useState([]);
     const [roundEnd, setRoundEnd] = useState(null);
@@ -173,6 +173,14 @@ function BatakBoard({ tableId, myId, onExit }) {
         return leave;
     }, [tableId]);
 
+    // Bahisli bir el aktif oynanırken (bekleme odası/oyun bitmiş değilken) üst bileşene
+    // haber veriliyor ki sekme kapatma/geri gitmede uyarı gösterilebilsin.
+    useEffect(() => {
+        const active = !!(state && state.betAmount > 0 && state.phase !== 'waiting' && state.phase !== 'finished');
+        onActiveWagerChange?.(active);
+    }, [state?.betAmount, state?.phase, onActiveWagerChange]);
+    useEffect(() => () => onActiveWagerChange?.(false), [onActiveWagerChange]);
+
     const leadSuit = state?.leadSuit;
     const legalCards = useMemo(() => {
         if (!leadSuit) return hand;
@@ -206,7 +214,12 @@ function BatakBoard({ tableId, myId, onExit }) {
         if (!legalCards.includes(card)) { flashRejected(card); return showHint(`Renge uymak zorundasın — elindeki ${SUIT_SYMBOL[leadSuit]} kartlarından birini oyna.`); }
         getSocket()?.emit('batak:playCard', { tableId, card });
     };
-    const goBack = () => { getSocket()?.emit('batak:leaveTable', { tableId }); onExit(); };
+    const goBack = () => {
+        const isActiveWager = state.betAmount > 0 && state.phase !== 'finished';
+        if (isActiveWager && !confirm(LEAVE_WARNING)) return;
+        getSocket()?.emit('batak:leaveTable', { tableId });
+        onExit();
+    };
     const bidOptions = Array.from({ length: 13 - state.highestBid }, (_, i) => state.highestBid + 1 + i);
 
     return (
@@ -504,6 +517,8 @@ function BatakLobby({ myName, onMatched }) {
     );
 }
 
+const LEAVE_WARNING = 'Oyundan çıkarsan otomatik kaybetmiş sayılacaksın, puanın iade edilmeyecek. Emin misin?';
+
 function BatakPage() {
     const navigate = useNavigate();
     const user = useSelector(s => s.auth.user);
@@ -517,15 +532,28 @@ function BatakPage() {
         } catch { return user?.id || null; }
     })();
     const [tableId, setTableId] = useState(null);
+    const [activeWager, setActiveWager] = useState(false);
 
     useEffect(() => { if (myId) connectSocket(myId); }, [myId]);
 
+    useEffect(() => {
+        if (!activeWager) return;
+        const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [activeWager]);
+
+    const handleBack = () => {
+        if (activeWager && !confirm(LEAVE_WARNING)) return;
+        navigate(-1);
+    };
+
     return (
         <div className="min-h-screen bg-gray-950">
-            <Navbar onBack={() => navigate(-1)} title="Batak" />
+            <Navbar onBack={handleBack} title="Batak" />
             <div className="px-4 py-6">
                 {tableId
-                    ? <BatakBoard tableId={tableId} myId={myId} onExit={() => setTableId(null)} />
+                    ? <BatakBoard tableId={tableId} myId={myId} onExit={() => setTableId(null)} onActiveWagerChange={setActiveWager} />
                     : <BatakLobby myName={user?.fullName || user?.username || 'Oyuncu'} onMatched={setTableId} />}
             </div>
         </div>
