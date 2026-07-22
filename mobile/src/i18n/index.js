@@ -78,7 +78,7 @@ const en = {
     years: 'yrs',
 
     // Home
-    myBranches: 'My Sports',
+    myBranches: 'My Activities',
     catLabelSports: 'Sports', catLabelSocial: 'Social', catLabelArts: 'Arts', catLabelGames: 'Games',
     heroTitle: 'What do you want\nto do today?',
     heroSub: 'Choose a category to explore activities,\nfind people and join events',
@@ -690,7 +690,7 @@ const en = {
     noLikesYetText: 'No likes yet.',
     friendsLabel: 'Friends',
     activitiesLabel: 'Activities',
-    branchesSection: '🏅 My Sports',
+    branchesSection: '🏅 My Activities',
     addSportBtn: 'Add Sport',
     noSportsYet: 'No sports added yet.',
     myUpcomingBtn: '⏰ Yaklaşan Maçlarım',
@@ -1196,7 +1196,7 @@ const tr = {
     years: 'yaş',
 
     // Home
-    myBranches: 'Benim Sporlarım',
+    myBranches: 'Benim Aktivitelerim',
     catLabelSports: 'Spor', catLabelSocial: 'Sosyal', catLabelArts: 'Sanat', catLabelGames: 'Oyunlar',
     heroTitle: 'Bugün ne yapmak\nistiyorsun?',
     heroSub: 'Aktiviteleri keşfetmek, insan bulmak\nve etkinliklere katılmak için kategori seç',
@@ -1808,7 +1808,7 @@ const tr = {
     noLikesYetText: 'Henüz beğeni yok.',
     friendsLabel: 'Arkadaşlar',
     activitiesLabel: 'Aktiviteler',
-    branchesSection: '🏅 Benim Sporlarım',
+    branchesSection: '🏅 Benim Aktivitelerim',
     addSportBtn: 'Spor Ekle',
     noSportsYet: 'Henüz spor eklenmemiş.',
     myUpcomingBtn: '⏰ Yaklaşan Maçlarım',

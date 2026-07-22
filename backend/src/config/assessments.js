@@ -601,6 +601,61 @@ const QUESTIONS = {
     ],
 
     // Shared default for sports without specific questions
+    // Okey/Batak gibi masa oyunları için değerlendirme _default'un ilk iki sorusuyla
+    // sınırlı — antrenörlük/yarışma/haftalık saat gibi soruların bu dallar için
+    // anlamı yok (kullanıcı talebi).
+    okey: [
+        {
+            id: 'q1',
+            question: 'How long have you been involved in this activity?',
+            tr: 'Bu aktiviteye ne kadar süredir devam ediyorsun?',
+            options: [
+                { text: 'Just starting out',    tr: 'Yeni başlıyorum',      points: 0 },
+                { text: 'Less than 1 year',      tr: '1 yıldan az',          points: 8 },
+                { text: '1–3 years',             tr: '1–3 yıl',              points: 16 },
+                { text: '3–6 years',             tr: '3–6 yıl',              points: 23 },
+                { text: '6+ years',              tr: '6+ yıl',               points: 30 },
+            ],
+        },
+        {
+            id: 'q2',
+            question: 'How would you rate your current skill level?',
+            tr: 'Mevcut beceri seviyeni nasıl değerlendirirsin?',
+            options: [
+                { text: 'Complete beginner',                  tr: 'Tam yeni başlayan',                      points: 0 },
+                { text: 'Still learning basics',              tr: 'Hâlâ temelleri öğreniyorum',             points: 8 },
+                { text: 'Comfortable with most fundamentals', tr: 'Çoğu temel konuda rahatım',              points: 16 },
+                { text: 'Advanced practitioner',              tr: 'İleri seviye',                           points: 24 },
+                { text: 'Expert / near-professional',         tr: 'Uzman / neredeyse profesyonel',          points: 30 },
+            ],
+        },
+    ],
+    batak: [
+        {
+            id: 'q1',
+            question: 'How long have you been involved in this activity?',
+            tr: 'Bu aktiviteye ne kadar süredir devam ediyorsun?',
+            options: [
+                { text: 'Just starting out',    tr: 'Yeni başlıyorum',      points: 0 },
+                { text: 'Less than 1 year',      tr: '1 yıldan az',          points: 8 },
+                { text: '1–3 years',             tr: '1–3 yıl',              points: 16 },
+                { text: '3–6 years',             tr: '3–6 yıl',              points: 23 },
+                { text: '6+ years',              tr: '6+ yıl',               points: 30 },
+            ],
+        },
+        {
+            id: 'q2',
+            question: 'How would you rate your current skill level?',
+            tr: 'Mevcut beceri seviyeni nasıl değerlendirirsin?',
+            options: [
+                { text: 'Complete beginner',                  tr: 'Tam yeni başlayan',                      points: 0 },
+                { text: 'Still learning basics',              tr: 'Hâlâ temelleri öğreniyorum',             points: 8 },
+                { text: 'Comfortable with most fundamentals', tr: 'Çoğu temel konuda rahatım',              points: 16 },
+                { text: 'Advanced practitioner',              tr: 'İleri seviye',                           points: 24 },
+                { text: 'Expert / near-professional',         tr: 'Uzman / neredeyse profesyonel',          points: 30 },
+            ],
+        },
+    ],
     _default: [
         {
             id: 'q1',
