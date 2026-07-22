@@ -10,7 +10,6 @@ import padelImg from '../assets/padel.png';
 const SPECIAL_ROUTES = {
     music: '/music', cinema: '/cinema', theater: '/theater', friend_finding: '/friend-finding',
     batak: '/games/batak', okey: '/games/okey', chess: '/games/chess', tavla: '/games/tavla',
-    ai_referee: '/games/ai-referee',
 };
 
 // Batak/Okey/Satranç/Tavla kendi gerçek zamanlı oyun ekranlarına gider — genel "ilan"
@@ -21,7 +20,6 @@ const EXTRA_GAMES_SUBS = [
     { id: 'okey',  name: 'Okey',  emoji: '🀄' },
     { id: 'chess', name: 'Chess', emoji: '♞' },
     { id: 'tavla', name: 'Backgammon', emoji: '🎲' },
-    { id: 'ai_referee', name: 'AI Hakem', emoji: '☕' },
 ];
 
 const CATEGORY_CONFIG = {

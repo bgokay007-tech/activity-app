@@ -23,7 +23,6 @@ import ChessPage from './pages/games/ChessPage';
 import TavlaPage from './pages/games/TavlaPage';
 import OkeyPage from './pages/games/OkeyPage';
 import BatakPage from './pages/games/BatakPage';
-import AiRefereePage from './pages/games/AiRefereePage';
 import MyReservationsPage from './pages/MyReservationsPage';
 
 function App() {
@@ -60,7 +59,6 @@ function App() {
       <Route path="/games/tavla" element={token ? <TavlaPage /> : <Navigate to="/login" />} />
       <Route path="/games/okey" element={token ? <OkeyPage /> : <Navigate to="/login" />} />
       <Route path="/games/batak" element={token ? <BatakPage /> : <Navigate to="/login" />} />
-      <Route path="/games/ai-referee" element={token ? <AiRefereePage /> : <Navigate to="/login" />} />
       <Route path="/reservations" element={token ? <MyReservationsPage /> : <Navigate to="/login" />} />
       <Route path="*" element={<Navigate to={token ? "/home" : "/login"} />} />
     </Routes>
