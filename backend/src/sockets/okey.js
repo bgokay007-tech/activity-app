@@ -225,7 +225,8 @@ function publicState(table) {
         okeyColor: table.okeyColor,
         okeyNumber: table.okeyNumber,
         deckCount: table.deck.length,
-        discardTop: table.discardPile.length > 0 ? table.discardPile[table.discardPile.length - 1] : null,
+        discardTop: table.discardPile.length > 0 ? table.discardPile[table.discardPile.length - 1].tile : null,
+        discardTopSeat: table.discardPile.length > 0 ? table.discardPile[table.discardPile.length - 1].seat : null,
         scores: table.scores,
         roundNumber: table.roundNumber,
         totalRounds: TOTAL_ROUNDS,
@@ -353,7 +354,7 @@ function findWinningTile(hand, table) {
 
 function chooseBotDraw(table, seat, difficulty) {
     if (table.discardPile.length === 0) return 'deck';
-    const top = table.discardPile[table.discardPile.length - 1];
+    const top = table.discardPile[table.discardPile.length - 1].tile;
     if (difficulty === 'easy') return Math.random() < 0.2 ? 'discard' : 'deck';
     if (isOkeyTile(top, table)) return 'discard';
     const hand = table.hands[seat];
@@ -421,7 +422,7 @@ function applyDraw(io, table, seat, source) {
     let tile;
     if (source === 'discard') {
         if (table.discardPile.length === 0) throw new Error('Atım yığını boş');
-        tile = table.discardPile.pop();
+        tile = table.discardPile.pop().tile;
         // "Zor"/"Çok Zor" botların savunmacı atış yapabilmesi için kimin atım yığınından
         // hangi taşı aldığı kısa bir geçmişte tutulur — o oyuncunun o bölgede (renk/sayı
         // yakınlığında) taş biriktiriyor olabileceği varsayılır, benzer taşlar ona atılmaz.
@@ -450,7 +451,7 @@ function applyDiscard(io, table, seat, tile) {
     if (idx === -1) throw new Error('Bu taş elinde yok');
 
     hand.splice(idx, 1);
-    table.discardPile.push(tile);
+    table.discardPile.push({ seat, tile });
     table.awaitingDiscard = false;
 
     if (table.deck.length === 0) {
@@ -494,7 +495,7 @@ function applyDeclareWin(io, table, seat, tile) {
     if (!isCift && !canFormMelds(remaining, table)) throw new Error('Elin geçerli bir açılış değil');
 
     hand.splice(idx, 1);
-    table.discardPile.push(tile);
+    table.discardPile.push({ seat, tile });
 
     const delta = scoreRound(table, seat, isCift);
     table.phase = 'roundEnd';

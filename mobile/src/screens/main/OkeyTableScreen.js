@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, Animated, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, Animated, ScrollView, ActivityIndicator, PanResponder } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
@@ -28,6 +28,47 @@ function PopIn({ trigger, children }) {
         ]).start();
     }, [trigger]);
     return <Animated.View style={{ transform: [{ scale }], opacity }}>{children}</Animated.View>;
+}
+
+// Basılı tut + sürükle: parmağı bırakınca hedef bölgenin (dropZoneLayoutRef ile ölçülen,
+// ekran mutlak koordinatlarındaki) içindeyse eylem tetiklenir; hareket etmeden bırakılırsa
+// (düz dokunuş) eylem yine tetiklenir — eski dokun-at/çek davranışı böylece korunuyor.
+// Her denemeden sonra taş görsel olarak yerine geri döner (liste gerçekte yeniden
+// sıralanmıyor, sadece sürükleme sırasında geçici bir ofset uygulanıyor).
+function Draggable({ payload, dropZoneLayoutRef, onAction, disabled, children }) {
+    const pan = useRef(new Animated.ValueXY()).current;
+    const scale = useRef(new Animated.Value(1)).current;
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => !disabled,
+            onMoveShouldSetPanResponder: () => !disabled,
+            onPanResponderGrant: () => {
+                Animated.spring(scale, { toValue: 1.18, useNativeDriver: true, friction: 5 }).start();
+            },
+            onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+            onPanResponderRelease: (evt, gestureState) => {
+                const moved = Math.hypot(gestureState.dx, gestureState.dy) > 10;
+                Animated.parallel([
+                    Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: true, friction: 6 }),
+                    Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 5 }),
+                ]).start();
+                if (!moved) { onAction(payload); return; }
+                const zone = dropZoneLayoutRef.current;
+                if (zone) {
+                    const px = gestureState.moveX, py = gestureState.moveY;
+                    if (px >= zone.x && px <= zone.x + zone.width && py >= zone.y && py <= zone.y + zone.height) {
+                        onAction(payload);
+                    }
+                }
+            },
+        })
+    ).current;
+
+    return (
+        <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }], zIndex: 2 }}>
+            {children}
+        </Animated.View>
+    );
 }
 
 function OkeyTile({ tile, small, disabled, highlighted, rejected, onPress, onLongPress }) {
@@ -162,6 +203,7 @@ export default function OkeyTableScreen({ route, navigation }) {
     const [hand, setHand] = useState([]);
     const [roundEnd, setRoundEnd] = useState(null);
     const [gameEnd, setGameEnd] = useState(null);
+    const [declareMode, setDeclareMode] = useState(false);
     const [hint, setHint] = useState('');
     const hintTimerRef = useRef(null);
     const showHint = useCallback((msg) => {
@@ -233,6 +275,16 @@ export default function OkeyTableScreen({ route, navigation }) {
         return unsub;
     }, [navigation, state?.betAmount, state?.phase]);
 
+    // Basılı tut + sürükle hedef bölgelerinin ekran mutlak koordinatları — her layout
+    // değişiminde (elim büyüyüp küçüldükçe) tazelenir, PanResponder bırakma anında
+    // parmağın bu dikdörtgenlerden hangisinin içinde olduğuna bakar.
+    const handZoneRef = useRef(null);
+    const handZoneLayoutRef = useRef(null);
+    const measureHandZone = () => handZoneRef.current?.measureInWindow((x, y, width, height) => { handZoneLayoutRef.current = { x, y, width, height }; });
+    const myDiscardZoneRef = useRef(null);
+    const myDiscardZoneLayoutRef = useRef(null);
+    const measureMyDiscardZone = () => myDiscardZoneRef.current?.measureInWindow((x, y, width, height) => { myDiscardZoneLayoutRef.current = { x, y, width, height }; });
+
     if (!state) {
         return (
             <View style={[s.root, { alignItems: 'center', justifyContent: 'center' }]}>
@@ -282,8 +334,31 @@ export default function OkeyTableScreen({ route, navigation }) {
             ],
         );
     };
+    // Basılı tut + sürükle taşı atım bölgesine götürüyor; "elini aç" modu aktifken
+    // aynı sürükleme/dokunuş atmak yerine elini açma teyidini tetikler.
+    const handleHandTileAction = (tile) => {
+        if (declareMode) { setDeclareMode(false); declareWin(tile); }
+        else discardTile(tile);
+    };
 
     const goBack = () => { leaveTable(); navigation.goBack(); };
+
+    // Herkes taşını kendi istakasının yanına attığı için atım artık tek ortak bir
+    // yer değil, o taşı en son atan koltuğun yanında gösteriliyor — sadece en son
+    // atılan (ve dolayısıyla şu an çekilebilir olan) taş etkileşimli.
+    const renderDiscardSlot = (seatNum, small) => {
+        const isLive = state.discardTopSeat === seatNum && state.discardTop;
+        if (!isLive) return <View style={small ? s.tileSmall : s.tile} />;
+        const tileEl = <OkeyTile tile={state.discardTop} small={small} highlighted={isHighlighted(state.discardTop)} disabled={!canDraw} />;
+        return (
+            <PopIn trigger={state.discardTop}>
+                <Draggable payload={{ source: 'discard' }} dropZoneLayoutRef={handZoneLayoutRef} onAction={handleDrawPayload} disabled={!canDraw}>
+                    {tileEl}
+                </Draggable>
+            </PopIn>
+        );
+    };
+    const handleDrawPayload = (payload) => { if (payload.source === 'deck') drawFromDeck(); else drawFromDiscard(); };
 
     return (
         <View style={s.root}>
@@ -321,34 +396,35 @@ export default function OkeyTableScreen({ route, navigation }) {
                 <View style={s.topSeat}>
                     <Avatar user={seatByIdx(topSeat)} size={26} ring={topSeat === state.turn} />
                     <Text style={[s.seatLabel, topSeat === state.turn && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(topSeat).username}</Text>
-                    <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
+                    <View style={s.oppHandRow}>
+                        <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
+                        {renderDiscardSlot(topSeat, true)}
+                    </View>
                 </View>
                 <View style={s.middleRow}>
                     <View style={s.sideSeat}>
                         <Avatar user={seatByIdx(leftSeat)} size={26} ring={leftSeat === state.turn} />
                         <Text style={[s.seatLabel, leftSeat === state.turn && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(leftSeat).username}</Text>
-                        <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(leftSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
+                        <View style={s.oppHandRow}>
+                            <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(leftSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
+                            {renderDiscardSlot(leftSeat, true)}
+                        </View>
                     </View>
                     <View style={s.centerPiles}>
-                        <TouchableOpacity style={[s.pile, !canDraw && s.pileDisabled]} onPress={drawFromDeck} activeOpacity={0.7}>
-                            <TileBack />
-                            <Text style={s.pileCount}>{state.deckCount} taş</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[s.pile, !(canDraw && state.discardTop) && s.pileDisabled]}
-                            onPress={drawFromDiscard}
-                            activeOpacity={0.7}
-                        >
-                            {state.discardTop
-                                ? <PopIn trigger={state.discardTop}><OkeyTile tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} /></PopIn>
-                                : <Text style={s.pileEmptyText}>—</Text>
-                            }
-                        </TouchableOpacity>
+                        <Draggable payload={{ source: 'deck' }} dropZoneLayoutRef={handZoneLayoutRef} onAction={handleDrawPayload} disabled={!canDraw}>
+                            <View style={[s.pile, !canDraw && s.pileDisabled]}>
+                                <TileBack />
+                                <Text style={s.pileCount}>{state.deckCount} taş</Text>
+                            </View>
+                        </Draggable>
                     </View>
                     <View style={s.sideSeat}>
                         <Avatar user={seatByIdx(rightSeat)} size={26} ring={rightSeat === state.turn} />
                         <Text style={[s.seatLabel, rightSeat === state.turn && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(rightSeat).username}</Text>
-                        <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(rightSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
+                        <View style={s.oppHandRow}>
+                            {renderDiscardSlot(rightSeat, true)}
+                            <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(rightSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
+                        </View>
                     </View>
                 </View>
             </View>
@@ -365,24 +441,40 @@ export default function OkeyTableScreen({ route, navigation }) {
 
             {/* Elim */}
             <View style={s.myHandWrap}>
-                <View style={s.myHandRow}>
-                    {hand.map((tile, i) => {
-                        const tileEl = (
-                            <OkeyTile
-                                tile={tile}
-                                highlighted={isHighlighted(tile)}
-                                disabled={!canAct}
-                                rejected={rejectedTile === tile}
-                                onPress={discardTile}
-                                onLongPress={declareWin}
-                            />
-                        );
-                        return i === justDrawnIndex
-                            ? <PopIn key={`${tile}_${i}`} trigger={`${tile}_${i}_${hand.length}`}>{tileEl}</PopIn>
-                            : <View key={`${tile}_${i}`}>{tileEl}</View>;
-                    })}
+                <View style={s.myHandOuterRow}>
+                    <View ref={handZoneRef} onLayout={measureHandZone} style={s.myHandRow}>
+                        {hand.map((tile, i) => {
+                            const tileEl = (
+                                <OkeyTile
+                                    tile={tile}
+                                    highlighted={isHighlighted(tile)}
+                                    disabled={!canAct}
+                                    rejected={rejectedTile === tile}
+                                />
+                            );
+                            const draggable = (
+                                <Draggable payload={tile} dropZoneLayoutRef={myDiscardZoneLayoutRef} onAction={handleHandTileAction} disabled={!canAct}>
+                                    {tileEl}
+                                </Draggable>
+                            );
+                            return i === justDrawnIndex
+                                ? <PopIn key={`${tile}_${i}`} trigger={`${tile}_${i}_${hand.length}`}>{draggable}</PopIn>
+                                : <View key={`${tile}_${i}`}>{draggable}</View>;
+                        })}
+                    </View>
+                    <View ref={myDiscardZoneRef} onLayout={measureMyDiscardZone} style={s.myDiscardSlot}>
+                        <Text style={s.myDiscardLabel}>SEN</Text>
+                        {renderDiscardSlot(mySeat)}
+                    </View>
                 </View>
-                <Text style={s.myHandHint}>{t.okeyHandHint || 'Dokun: at · Uzun bas: elini aç'}</Text>
+                {canAct && (
+                    <TouchableOpacity onPress={() => setDeclareMode(v => !v)} style={[s.declareBtn, declareMode && s.declareBtnActive]}>
+                        <Text style={[s.declareBtnText, declareMode && s.declareBtnTextActive]}>
+                            {declareMode ? '✓ Elini aç modu — bir taş seç' : '🏆 Elini Aç'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
+                <Text style={s.myHandHint}>{t.okeyHandHint || 'Basılı tut + sürükle (veya dokun): at'}</Text>
             </View>
 
             {/* El sonu */}
@@ -461,6 +553,7 @@ const s = StyleSheet.create({
     seatLabelActive: { color: '#fde047', fontWeight: '900' },
     oppHand: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
     oppHandVert: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+    oppHandRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 
     centerPiles: { flex: 1, flexDirection: 'row', gap: 14, alignItems: 'center', justifyContent: 'center', minHeight: 90 },
     pile: { alignItems: 'center', justifyContent: 'center', padding: 6 },
@@ -476,8 +569,19 @@ const s = StyleSheet.create({
     hintText: { color: '#fca5a5', fontSize: 14, fontWeight: '900', textAlign: 'center', marginTop: 6, backgroundColor: '#ef444422', borderRadius: 8, paddingVertical: 4, marginHorizontal: 12 },
 
     myHandWrap: { paddingHorizontal: 10, paddingBottom: 14, paddingTop: 4, alignItems: 'center' },
-    myHandRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' },
+    myHandOuterRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    myHandRow: {
+        flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center',
+        backgroundColor: '#7c4e22', borderBottomWidth: 4, borderBottomColor: '#5c3417',
+        borderRadius: 8, paddingHorizontal: 8, paddingTop: 6, paddingBottom: 8,
+    },
+    myDiscardSlot: { alignItems: 'center', gap: 2, paddingBottom: 8 },
+    myDiscardLabel: { color: '#ffffff66', fontSize: 9, fontWeight: '700' },
     myHandHint: { color: '#ffffff88', fontSize: 10, marginTop: 6 },
+    declareBtn: { marginTop: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: '#ffffff1a', borderWidth: 1, borderColor: '#ffffff33' },
+    declareBtnActive: { backgroundColor: '#fbbf24', borderColor: '#f59e0b' },
+    declareBtnText: { color: '#fde047', fontSize: 12, fontWeight: '700' },
+    declareBtnTextActive: { color: '#111827', fontWeight: '900' },
 
     tile: { width: 40, height: 56, backgroundColor: '#f3e8cf', borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#d6c6a1', marginHorizontal: 1.5, marginVertical: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 3, elevation: 3 },
     tileSmall: { width: 26, height: 36, marginHorizontal: 1 },

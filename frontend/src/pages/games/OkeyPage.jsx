@@ -11,22 +11,69 @@ function isJokerTile(t) { return t === 'J1' || t === 'J2'; }
 function tileColorCode(t) { return t[0]; }
 function tileNumLabel(t) { return t.slice(1); }
 
-function OkeyTile({ tile, small, disabled, highlighted, rejected, popIn, onClick, style }) {
+function OkeyTile({ tile, small, disabled, highlighted, rejected, popIn, onClick, onPointerDown, onPointerMove, onPointerUp, style }) {
     const joker = isJokerTile(tile);
     const colorHex = joker ? '#b45309' : COLOR_HEX[tileColorCode(tile)];
     const sizeCls = small ? 'w-6 h-9' : 'w-10 h-14';
     return (
         <button onClick={onClick ? () => onClick(tile) : undefined}
+            onPointerDown={onPointerDown ? (e) => onPointerDown(e, tile) : undefined}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
             className={`${sizeCls} rounded-md flex items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[okeyShake_0.4s_ease-in-out]' : ''} ${popIn ? 'animate-[tilePopIn_0.28s_ease-out]' : ''}`}
             style={{
                 background: highlighted ? 'linear-gradient(180deg, #fffdf5 0%, #fff2c7 100%)' : 'linear-gradient(180deg, #fffdf8 0%, #f3e8cf 100%)',
                 borderColor: rejected ? '#ef4444' : (highlighted ? '#f59e0b' : '#d6c6a1'),
                 boxShadow: highlighted ? '0 2px 0 #b45309, 0 4px 6px rgba(0,0,0,.35)' : '0 2px 0 #b8a276, 0 3px 5px rgba(0,0,0,.35)',
-                opacity: disabled ? 0.45 : 1, cursor: onClick ? 'pointer' : 'default', ...style,
+                opacity: disabled ? 0.45 : 1, cursor: onClick ? 'pointer' : 'default',
+                touchAction: onPointerDown ? 'none' : undefined, ...style,
             }}>
             {joker ? <span className={small ? 'text-xs' : 'text-lg'}>🃏</span> : <span className={`font-black ${small ? 'text-[11px]' : 'text-lg'}`} style={{ color: colorHex, textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{tileNumLabel(tile)}</span>}
         </button>
     );
+}
+
+// Basılı tutup sürükleme + tıklama (tap) desteği tek bir yerden — bir taşa basılı
+// tutup uygun bölgeye (atım/istaka) sürükleyince işlem tetiklenir; sadece dokunup
+// bırakınca (sürüklemeden) da eski tıkla-at/çek davranışı aynen çalışmaya devam eder.
+// Gerçek bir sürükleme sonrası tarayıcının kendiliğinden ürettiği "click" olayının
+// işlemi bir daha tetiklememesi için suppressClickRef ile bastırılıyor.
+function useDragOrTap(action, dropZoneRef) {
+    const dragRef = useRef(null);
+    const suppressClickRef = useRef(false);
+    const [ghost, setGhost] = useState(null);
+
+    const onPointerDown = (e, payload) => {
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        dragRef.current = { startX: e.clientX, startY: e.clientY, moved: false, payload, pointerId: e.pointerId };
+    };
+    const onPointerMove = (e) => {
+        const d = dragRef.current;
+        if (!d || e.pointerId !== d.pointerId) return;
+        const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+        if (!d.moved && Math.hypot(dx, dy) > 8) d.moved = true;
+        if (d.moved) setGhost({ x: e.clientX, y: e.clientY, payload: d.payload });
+    };
+    const onPointerUp = (e) => {
+        const d = dragRef.current;
+        if (!d || e.pointerId !== d.pointerId) return;
+        dragRef.current = null;
+        setGhost(null);
+        if (d.moved) {
+            suppressClickRef.current = true;
+            let dropped = false;
+            if (dropZoneRef.current) {
+                const r = dropZoneRef.current.getBoundingClientRect();
+                dropped = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+            }
+            if (dropped) action(d.payload);
+        }
+    };
+    const onClick = (payload) => {
+        if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+        action(payload);
+    };
+    return { onPointerDown, onPointerMove, onPointerUp, onClick, ghost };
 }
 function TileBack({ small }) {
     const sizeCls = small ? 'w-6 h-9' : 'w-10 h-14';
@@ -203,6 +250,18 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     }, [state?.betAmount, state?.phase, onActiveWagerChange]);
     useEffect(() => () => onActiveWagerChange?.(false), [onActiveWagerChange]);
 
+    // Basılı tut + sürükle: elimdeki taşı atım bölgesine (discardZoneRef), deste/atım
+    // yığınındaki taşı da rafıma (handZoneRef) sürükleyip bırakınca işlem tetiklenir.
+    // Hook'lar erken dönüşten önce (Hooks kurallarına uymak için) çağrılmalı, ama
+    // gerçek eylem fonksiyonları (onTileClick vb.) state hazır olmadan tanımlanamıyor —
+    // bu yüzden en güncel eylem bir ref üzerinden çağrılıyor (aşağıda atanıyor).
+    const discardZoneRef = useRef(null);
+    const handZoneRef = useRef(null);
+    const onTileClickRef = useRef(() => {});
+    const onDrawRef = useRef(() => {});
+    const dragHand = useDragOrTap((tile) => onTileClickRef.current(tile), discardZoneRef);
+    const dragDraw = useDragOrTap((payload) => onDrawRef.current(payload), handZoneRef);
+
     if (!state) return <p className="text-gray-500 text-sm text-center py-16">Masaya bağlanılıyor...</p>;
 
     if (state.phase === 'waiting') {
@@ -245,6 +304,27 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
         onExit();
     };
 
+    onTileClickRef.current = onTileClick;
+    onDrawRef.current = (payload) => { if (payload.source === 'deck') drawFromDeck(); else drawFromDiscard(); };
+
+    // Herkes taşını kendi istakasının yanına attığı için atım yığını artık tek ortak
+    // bir yer değil, o taşı en son atan koltuğun yanında gösteriliyor — sadece en son
+    // atılan (ve dolayısıyla şu an çekilebilir olan) taş etkileşimli.
+    const renderDiscardSlot = (seatNum, small) => {
+        const isLive = state.discardTopSeat === seatNum && state.discardTop;
+        if (!isLive) return <div className={small ? 'w-6 h-9' : 'w-10 h-14'} />;
+        return (
+            <OkeyTile key={`discard-${discardAnimKey}`} tile={state.discardTop} small={small}
+                highlighted={isHighlighted(state.discardTop)} popIn
+                onClick={dragDraw.onClick.bind(null, { source: 'discard' })}
+                onPointerDown={canDraw ? (e) => dragDraw.onPointerDown(e, { source: 'discard' }) : undefined}
+                onPointerMove={canDraw ? dragDraw.onPointerMove : undefined}
+                onPointerUp={canDraw ? dragDraw.onPointerUp : undefined}
+                style={{ opacity: canDraw ? 1 : 0.55, cursor: canDraw ? 'grab' : 'default' }}
+            />
+        );
+    };
+
     return (
         <div className="max-w-3xl mx-auto">
             <style>{`
@@ -282,20 +362,30 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                 <div className="flex flex-col items-center gap-1 mb-2">
                     <Avatar user={seatByIdx(topSeat)} size="xs" ring={topSeat === state.turn} />
                     <p className="text-xs font-bold truncate max-w-[140px]" style={{ color: topSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(topSeat).username}</p>
-                    <div className="flex flex-wrap justify-center gap-0.5 max-w-xs">
-                        {Array.from({ length: Math.min(seatByIdx(topSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
+                    <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap justify-center gap-0.5 max-w-xs">
+                            {Array.from({ length: Math.min(seatByIdx(topSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
+                        </div>
+                        {renderDiscardSlot(topSeat, true)}
                     </div>
                 </div>
                 <div className="flex items-center justify-between" style={{ minHeight: 100 }}>
-                    <div className="flex flex-col items-center gap-1 w-20">
+                    <div className="flex flex-col items-center gap-1 w-24">
                         <Avatar user={seatByIdx(leftSeat)} size="xs" ring={leftSeat === state.turn} />
                         <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: leftSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(leftSeat).username}</p>
-                        <div className="flex flex-wrap justify-center gap-0.5">
-                            {Array.from({ length: Math.min(seatByIdx(leftSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
+                        <div className="flex items-center gap-1">
+                            <div className="flex flex-wrap justify-center gap-0.5">
+                                {Array.from({ length: Math.min(seatByIdx(leftSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
+                            </div>
+                            {renderDiscardSlot(leftSeat, true)}
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        <button onClick={drawFromDeck} className="flex flex-col items-center transition" style={{ opacity: canDraw ? 1 : 0.5, cursor: 'pointer' }}>
+                        <button onClick={() => dragDraw.onClick({ source: 'deck' })}
+                            onPointerDown={canDraw ? (e) => dragDraw.onPointerDown(e, { source: 'deck' }) : undefined}
+                            onPointerMove={canDraw ? dragDraw.onPointerMove : undefined}
+                            onPointerUp={canDraw ? dragDraw.onPointerUp : undefined}
+                            className="flex flex-col items-center transition" style={{ opacity: canDraw ? 1 : 0.5, cursor: canDraw ? 'grab' : 'pointer', touchAction: canDraw ? 'none' : undefined }}>
                             <div className="w-11 h-15 rounded-md" style={{
                                 width: 44, height: 60,
                                 background: 'repeating-linear-gradient(45deg, #7a1730, #7a1730 4px, #5c1024 4px, #5c1024 8px)',
@@ -303,17 +393,15 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                             }} />
                             <span className="text-white text-[11px] font-bold mt-1">{state.deckCount} taş</span>
                         </button>
-                        <div style={{ opacity: canDraw && state.discardTop ? 1 : 0.5 }}>
-                            {state.discardTop
-                                ? <OkeyTile key={`discard-${discardAnimKey}`} tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} popIn onClick={drawFromDiscard} />
-                                : <button onClick={drawFromDiscard} className="text-white/30 text-2xl" style={{ cursor: 'pointer' }}>—</button>}
-                        </div>
                     </div>
-                    <div className="flex flex-col items-center gap-1 w-20">
+                    <div className="flex flex-col items-center gap-1 w-24">
                         <Avatar user={seatByIdx(rightSeat)} size="xs" ring={rightSeat === state.turn} />
                         <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: rightSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(rightSeat).username}</p>
-                        <div className="flex flex-wrap justify-center gap-0.5">
-                            {Array.from({ length: Math.min(seatByIdx(rightSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
+                        <div className="flex items-center gap-1">
+                            {renderDiscardSlot(rightSeat, true)}
+                            <div className="flex flex-wrap justify-center gap-0.5">
+                                {Array.from({ length: Math.min(seatByIdx(rightSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -327,10 +415,26 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
             </div>
 
             <div className="flex flex-col items-center mt-3">
-                <div className="flex flex-wrap justify-center gap-2 max-w-2xl">
-                    {hand.map((tile, i) => (
-                        <OkeyTile key={`${tile}_${i}`} tile={tile} highlighted={isHighlighted(tile)} disabled={!canAct} rejected={rejectedTile === tile} popIn={i === justDrawnIndex} onClick={onTileClick} />
-                    ))}
+                <div className="flex items-end gap-3">
+                    <div ref={handZoneRef} className="flex flex-wrap justify-center gap-2 max-w-2xl px-3 pt-2 pb-3 rounded-lg" style={{
+                        background: 'linear-gradient(180deg, #a9743a 0%, #7c4e22 100%)',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,.3), 0 3px 6px rgba(0,0,0,.4)',
+                        borderBottom: '4px solid #5c3417',
+                    }}>
+                        {hand.map((tile, i) => (
+                            <OkeyTile key={`${tile}_${i}`} tile={tile} highlighted={isHighlighted(tile)} disabled={!canAct} rejected={rejectedTile === tile} popIn={i === justDrawnIndex}
+                                onClick={dragHand.onClick}
+                                onPointerDown={canAct ? dragHand.onPointerDown : undefined}
+                                onPointerMove={canAct ? dragHand.onPointerMove : undefined}
+                                onPointerUp={canAct ? dragHand.onPointerUp : undefined}
+                                style={canAct ? { cursor: 'grab' } : undefined}
+                            />
+                        ))}
+                    </div>
+                    <div ref={discardZoneRef} className="flex flex-col items-center gap-1 pb-2">
+                        <span className="text-white/40 text-[9px] font-bold">SEN</span>
+                        {renderDiscardSlot(mySeat)}
+                    </div>
                 </div>
                 {canAct && (
                     <button onClick={() => setDeclareMode(v => !v)}
@@ -338,8 +442,21 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                         {declareMode ? '✓ Elini aç modu — bir taş seç' : '🏆 Elini Aç'}
                     </button>
                 )}
-                <p className="text-white/50 text-[10px] mt-1">Tıkla: at (veya elini aç modundaysan aç)</p>
+                <p className="text-white/50 text-[10px] mt-1">Basılı tut + sürükle (veya tıkla): at · Uzun basılı tutup elini aç modunda seç</p>
             </div>
+
+            {dragHand.ghost && (
+                <div style={{ position: 'fixed', left: dragHand.ghost.x, top: dragHand.ghost.y, transform: 'translate(-50%,-50%) scale(1.15)', pointerEvents: 'none', zIndex: 9999 }}>
+                    <OkeyTile tile={dragHand.ghost.payload} highlighted={isHighlighted(dragHand.ghost.payload)} />
+                </div>
+            )}
+            {dragDraw.ghost && (
+                <div style={{ position: 'fixed', left: dragDraw.ghost.x, top: dragDraw.ghost.y, transform: 'translate(-50%,-50%) scale(1.15)', pointerEvents: 'none', zIndex: 9999 }}>
+                    {dragDraw.ghost.payload.source === 'deck'
+                        ? <TileBack />
+                        : <OkeyTile tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} />}
+                </div>
+            )}
 
             {roundEnd && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
