@@ -225,6 +225,7 @@ export default function OkeyHomeScreen({ navigation }) {
                                     { id: 'easy',   label: t.okeyDifficultyEasy   || 'Kolay' },
                                     { id: 'medium', label: t.okeyDifficultyMedium || 'Orta' },
                                     { id: 'hard',   label: t.okeyDifficultyHard   || 'Zor' },
+                                    { id: 'expert', label: t.okeyDifficultyExpert || 'Çok Zor' },
                                 ].map(d => (
                                     <TouchableOpacity key={d.id}
                                         style={[s.difficultyChip, difficulty === d.id && s.difficultyChipActive]}
@@ -360,8 +361,8 @@ const s = StyleSheet.create({
 
     orText: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginTop: 22, marginBottom: 14 },
     difficultyLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 },
-    difficultyRow: { flexDirection: 'row', gap: 8 },
-    difficultyChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    difficultyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    difficultyChip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     difficultyChipActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
     difficultyChipText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
     difficultyChipTextActive: { color: colors.purpleLight || colors.purple },

@@ -272,7 +272,7 @@ function OkeyLobby({ myName, onMatched }) {
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
                 <p className="text-gray-400 text-xs font-bold mb-2">🤖 Botlara Karşı Oyna</p>
                 <div className="flex gap-2 mb-3">
-                    {[['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor']].map(([k, l]) => (
+                    {[['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor'], ['expert', 'Çok Zor']].map(([k, l]) => (
                         <button key={k} onClick={() => setDifficulty(k)}
                             className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${difficulty === k ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
                             {l}

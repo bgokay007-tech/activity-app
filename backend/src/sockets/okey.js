@@ -17,7 +17,7 @@ const COLORS = ['R', 'Y', 'B', 'K']; // Kırmızı, Sarı, Mavi, Siyah
 const TOTAL_ROUNDS = 8;
 const BOT_DELAY_MS = 2500;      // gerçek oyuncu koptuğunda devreye giren yedek bot gecikmesi
 const BOT_TURN_DELAY_MS = 1200; // "botlarla oyna" masasındaki botların doğal tempoda oynaması için
-const BOT_NAMES = { easy: 'Kolay', medium: 'Orta', hard: 'Zor' };
+const BOT_NAMES = { easy: 'Kolay', medium: 'Orta', hard: 'Zor', expert: 'Çok Zor' };
 
 const tables = new Map();       // tableId -> table state
 const queue = [];               // [{ userId, username, socket }]
@@ -194,11 +194,18 @@ function dealRound(table) {
 }
 
 // ── Bot yapay zekası ──────────────────────────────────────────────────────────
-// easy: çoğunlukla rastgele atış, atım yığınını nadiren alır. medium/hard: hangi taşın
-// elin "kapsama skorunu" en çok artırdığına bakarak çeker/atar, okey taşını korur, açık
-// bir kazanma varsa (herhangi bir zorlukta) her zaman kazanır — bariz kazancı kaçırmak
-// bug gibi görünür, bu yüzden zorluk farkı sadece çekme/atma tercihinde.
-function handUsefulnessScore(hand, table) {
+// 4 zorluk seviyesi, her biri bir öncekinin üzerine ekleme yapar:
+//  - easy:   çoğunlukla rastgele atış/çekiş, hiçbir hesap yapmaz.
+//  - medium: hangi taşın elin "kapsama skorunu" en çok artırdığına bakarak çeker/atar
+//            (ikili yakınlık — per/seri adayı ikili taş kombinasyonları).
+//  - hard:   medium'un üstüne, tamamlanmaya yakın (2/3'ü tamam) üçlü grupları da tanır
+//            VE rakiplerin atım yığınından son aldığı taşlara yakın (aynı sayı farklı
+//            renk / bitişik sayı aynı renk) taşları atmaktan kaçınır (savunmacı atış).
+//  - expert: hard'ın üstüne, savunmacı atıştan daha güçlü kaçınır ve elin kazanmaya
+//            "uzaklığını" (kaç taş eksik) de değerlendirerek en optimum atışı seçer.
+// Açık bir kazanma varsa (herhangi bir zorlukta) her zaman kazanır — bariz kazancı
+// kaçırmak bug gibi görünür, bu yüzden zorluk farkı sadece çekme/atma tercihinde.
+function handUsefulnessScore(hand, table, difficulty = 'medium') {
     let score = 0;
     for (let i = 0; i < hand.length; i++) {
         for (let j = i + 1; j < hand.length; j++) {
@@ -211,7 +218,58 @@ function handUsefulnessScore(hand, table) {
             else if (ca === cb && Math.abs(na - nb) === 2) score += 0.3;
         }
     }
+    if (difficulty === 'hard' || difficulty === 'expert') {
+        score += tripletCompletionBonus(hand, table);
+    }
     return score;
+}
+
+// hard/expert: tamamlanmaya bir taş kalmış üçlü grup/perde adaylarına büyük bonus verir —
+// bu, botun sadece ikili yakınlığa değil "bitirmeye yakın" gruplara öncelik vermesini sağlar.
+function tripletCompletionBonus(hand, table) {
+    let bonus = 0;
+    const real = hand.filter(t => !isOkeyTile(t, table));
+    const jokerCount = hand.length - real.length;
+    for (let i = 0; i < real.length; i++) {
+        for (let j = i + 1; j < real.length; j++) {
+            const a = real[i], b = real[j];
+            const ca = tileColor(a), na = tileNumber(a);
+            const cb = tileColor(b), nb = tileNumber(b);
+            let thirdExists = false, thirdIsJokerable = jokerCount > 0;
+            if (na === nb && ca !== cb) {
+                // Per adayı — üçüncü renk elde var mı?
+                const usedColors = new Set([ca, cb]);
+                thirdExists = real.some(t => tileNumber(t) === na && !usedColors.has(tileColor(t)));
+            } else if (ca === cb && Math.abs(na - nb) === 1) {
+                // Seri adayı — bir öncesi/sonrası elde var mı?
+                const lo = Math.min(na, nb), hi = Math.max(na, nb);
+                thirdExists = real.some(t => tileColor(t) === ca && (tileNumber(t) === lo - 1 || tileNumber(t) === hi + 1));
+            } else continue;
+            if (thirdExists) bonus += 2.5;
+            else if (thirdIsJokerable) bonus += 1.5;
+        }
+    }
+    return bonus;
+}
+
+// hard/expert: rakiplerin atım yığınından az önce aldığı taşlara yakın (aynı sayı farklı
+// renk / bitişik sayı aynı renk) bir taş atmak o rakibe yardım etmiş olabilir — riskli.
+function discardDangerScore(tile, table, seat, difficulty) {
+    if (difficulty !== 'hard' && difficulty !== 'expert') return 0;
+    const pickups = Array.isArray(table.recentDiscardPickups) ? table.recentDiscardPickups : [];
+    if (pickups.length === 0) return 0;
+    const weight = difficulty === 'expert' ? 1 : 0.6;
+    let danger = 0;
+    const tc = tileColor(tile), tn = tileNumber(tile);
+    pickups.forEach((p, idx) => {
+        if (p.seat === seat) return; // kendi aldığımız taş kendimize tehlike değil
+        if (isJokerId(p.tile)) return;
+        const pc = tileColor(p.tile), pn = tileNumber(p.tile);
+        const recency = (idx + 1) / pickups.length; // yeni kayıtlar daha ağır basar
+        if (pn === tn && pc !== tc) danger += weight * recency;
+        else if (pc === tc && Math.abs(pn - tn) <= 2) danger += weight * 0.6 * recency;
+    });
+    return danger;
 }
 
 function findWinningTile(hand, table) {
@@ -228,8 +286,8 @@ function chooseBotDraw(table, seat, difficulty) {
     if (difficulty === 'easy') return Math.random() < 0.2 ? 'discard' : 'deck';
     if (isOkeyTile(top, table)) return 'discard';
     const hand = table.hands[seat];
-    const scoreBefore = handUsefulnessScore(hand, table);
-    const scoreAfter = handUsefulnessScore([...hand, top], table);
+    const scoreBefore = handUsefulnessScore(hand, table, difficulty);
+    const scoreAfter = handUsefulnessScore([...hand, top], table, difficulty);
     return scoreAfter > scoreBefore ? 'discard' : 'deck';
 }
 
@@ -243,7 +301,7 @@ function chooseBotDiscard(table, seat, difficulty) {
     let bestIdx = idxs[0], bestScore = -Infinity;
     for (const i of idxs) {
         const remaining = hand.filter((_, j) => j !== i);
-        const score = handUsefulnessScore(remaining, table);
+        const score = handUsefulnessScore(remaining, table, difficulty) - discardDangerScore(hand[i], table, seat, difficulty);
         if (score > bestScore) { bestScore = score; bestIdx = i; }
     }
     return hand[bestIdx];
@@ -293,6 +351,12 @@ function applyDraw(io, table, seat, source) {
     if (source === 'discard') {
         if (table.discardPile.length === 0) throw new Error('Atım yığını boş');
         tile = table.discardPile.pop();
+        // "Zor"/"Çok Zor" botların savunmacı atış yapabilmesi için kimin atım yığınından
+        // hangi taşı aldığı kısa bir geçmişte tutulur — o oyuncunun o bölgede (renk/sayı
+        // yakınlığında) taş biriktiriyor olabileceği varsayılır, benzer taşlar ona atılmaz.
+        if (!Array.isArray(table.recentDiscardPickups)) table.recentDiscardPickups = [];
+        table.recentDiscardPickups.push({ seat, tile });
+        if (table.recentDiscardPickups.length > 8) table.recentDiscardPickups.shift();
     } else {
         if (table.deck.length === 0) throw new Error('Deste boş');
         tile = table.deck.pop();
@@ -407,6 +471,7 @@ function createTable(io, players) {
         discardPile: [],
         phase: 'dealing',
         botTimer: null,
+        recentDiscardPickups: [],
     };
     tables.set(id, table);
     players.forEach(p => {
@@ -444,6 +509,7 @@ function createBotTable(io, requester, difficulty) {
         discardPile: [],
         phase: 'dealing',
         botTimer: null,
+        recentDiscardPickups: [],
     };
     tables.set(id, table);
     userTableMap.set(requester.userId, id);
@@ -491,7 +557,7 @@ export function registerOkeyHandlers(io, socket) {
     socket.on('okey:playVsBots', ({ difficulty } = {}) => {
         if (!verifiedUserId) return socket.emit('okey:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId)) return socket.emit('okey:error', { message: 'Zaten bir masadasın' });
-        const diff = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
+        const diff = ['easy', 'medium', 'hard', 'expert'].includes(difficulty) ? difficulty : 'medium';
         createBotTable(io, { userId: verifiedUserId, username, socket }, diff);
     });
 

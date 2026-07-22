@@ -322,7 +322,7 @@ const en = {
     okeyCiftOkeyLabel: 'Double Okey', okeyWon: 'won', okeyNextRoundSoon: 'Next hand starting soon...',
     okeyGameEndTitle: '🏆 Game Over', okeyBackHome: 'Go Back',
     okeyOr: 'or', okeyDifficultyLabel: 'Bot Difficulty',
-    okeyDifficultyEasy: 'Easy', okeyDifficultyMedium: 'Medium', okeyDifficultyHard: 'Hard',
+    okeyDifficultyEasy: 'Easy', okeyDifficultyMedium: 'Medium', okeyDifficultyHard: 'Hard', okeyDifficultyExpert: 'Very Hard',
     okeyPlayVsBots: '🤖 Play vs Bots',
 
     tavlaTitle: '🎲 Backgammon', tavlaTabPlay: '🎲 Play Backgammon', tavlaTabEvents: '📋 Backgammon Listings',
@@ -1440,7 +1440,7 @@ const tr = {
     okeyCiftOkeyLabel: 'Çift Okey', okeyWon: 'kazandı', okeyNextRoundSoon: 'Yeni el birazdan başlıyor...',
     okeyGameEndTitle: '🏆 Oyun Bitti', okeyBackHome: 'Geri Dön',
     okeyOr: 'veya', okeyDifficultyLabel: 'Bot Zorluğu',
-    okeyDifficultyEasy: 'Kolay', okeyDifficultyMedium: 'Orta', okeyDifficultyHard: 'Zor',
+    okeyDifficultyEasy: 'Kolay', okeyDifficultyMedium: 'Orta', okeyDifficultyHard: 'Zor', okeyDifficultyExpert: 'Çok Zor',
     okeyPlayVsBots: '🤖 Botlarla Oyna',
 
     tavlaTitle: '🎲 Tavla', tavlaTabPlay: '🎲 Tavla Oyna', tavlaTabEvents: '📋 Tavla İlanı',
