@@ -10,7 +10,13 @@ import AssessmentModal from './AssessmentModal';
 import FriendFindingSurveyModal from './FriendFindingSurveyModal';
 import useT from '../hooks/useT';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'friend_finding']);
+const ENABLED_SUBS = new Set([
+    'tennis', 'padel', 'volleyball', 'friend_finding',
+    // Sanat — tüm dallar
+    'music', 'painting', 'dance', 'photography', 'theater', 'writing', 'sculpture', 'cinema', 'poetry', 'illustration',
+    // Oyunlar — tüm dallar
+    'fps', 'rpg', 'strategy', 'sports_games', 'moba', 'battle_royale', 'simulation', 'puzzle', 'racing', 'card_games', 'okey', 'batak',
+]);
 
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();

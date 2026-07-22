@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball']);
+const ENABLED_SUBS = new Set([
+    'tennis', 'padel', 'volleyball',
+    // Sanat — tüm dallar
+    'music', 'painting', 'dance', 'photography', 'theater', 'writing', 'sculpture', 'cinema', 'poetry', 'illustration',
+    // Oyunlar — tüm dallar
+    'fps', 'rpg', 'strategy', 'sports_games', 'moba', 'battle_royale', 'simulation', 'puzzle', 'racing', 'card_games', 'okey', 'batak',
+]);
 
 function SelectInterestsPage() {
     const navigate = useNavigate();
