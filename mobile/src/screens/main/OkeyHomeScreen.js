@@ -65,6 +65,7 @@ export default function OkeyHomeScreen({ navigation }) {
     const [difficulty, setDifficulty] = useState('medium');
     const [joinCode, setJoinCode] = useState('');
     const [betAmount, setBetAmount] = useState(100);
+    const [ratingAmount, setRatingAmount] = useState(0);
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
     const [interest, setInterest] = useState(undefined);
     const [addingActivity, setAddingActivity] = useState(false);
@@ -103,7 +104,7 @@ export default function OkeyHomeScreen({ navigation }) {
         const offError = onSocket('okey:error', (data) => {
             setSearching(false);
             if (data?.code === 'ACTIVITY_REQUIRED') { setInterest(null); return; }
-            if (data?.code === 'INSUFFICIENT_POINTS') { loadInterest(); }
+            if (data?.code === 'INSUFFICIENT_POINTS' || data?.code === 'INSUFFICIENT_RATING') { loadInterest(); }
             Alert.alert('', data?.message || (t.okeyError || 'Bir hata oluştu.'));
         });
         return () => { offQueued(); offMatched(); offError(); };
@@ -116,7 +117,7 @@ export default function OkeyHomeScreen({ navigation }) {
         if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
         setSearching(true);
         setQueuePos(null);
-        socket.emit('okey:findMatch', { betAmount });
+        socket.emit('okey:findMatch', { betAmount, ratingAmount });
     };
 
     const cancelSearch = () => {
@@ -134,7 +135,7 @@ export default function OkeyHomeScreen({ navigation }) {
     const createPrivateTable = () => {
         const socket = getSocket();
         if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('okey:createPrivateTable', { betAmount });
+        socket.emit('okey:createPrivateTable', { betAmount, ratingAmount });
     };
     const joinByCode = () => {
         const socket = getSocket();
@@ -243,7 +244,10 @@ export default function OkeyHomeScreen({ navigation }) {
                     </View>
                 ) : (
                     <ScrollView contentContainerStyle={s.playWrap} showsVerticalScrollIndicator={false}>
-                        <Text style={s.balanceText}>🪙 {interest.walletPoints} puan</Text>
+                        <View style={{ flexDirection: 'row', gap: 14 }}>
+                            <Text style={s.balanceText}>🪙 {interest.walletPoints} puan</Text>
+                            <Text style={s.ratingBalanceText}>⭐ {interest.skillRating?.toFixed(2)} derece</Text>
+                        </View>
                         <Text style={s.playEmoji}>🀄</Text>
                         <Text style={s.playTitle}>{t.okeyPlayTitle || 'Gerçek Zamanlı Okey'}</Text>
                         <Text style={s.playDesc}>{t.okeyPlayDesc || '4 kişilik masaya otomatik eşleşerek uygulama içinde canlı Okey oyna.'}</Text>
@@ -260,19 +264,33 @@ export default function OkeyHomeScreen({ navigation }) {
                             </View>
                         ) : (
                             <>
-                                <Text style={s.difficultyLabel}>Bahis Miktarı</Text>
+                                <Text style={s.difficultyLabel}>Puan Bahsi</Text>
                                 <View style={s.difficultyRow}>
-                                    {[50, 100, 250, 500].map(amount => (
+                                    {[0, 50, 100, 250, 500].map(amount => (
                                         <TouchableOpacity key={amount}
                                             style={[s.difficultyChip, betAmount === amount && s.difficultyChipActive, interest.walletPoints < amount && { opacity: 0.3 }]}
                                             onPress={() => setBetAmount(amount)} activeOpacity={0.8} disabled={interest.walletPoints < amount}>
-                                            <Text style={[s.difficultyChipText, betAmount === amount && s.difficultyChipTextActive]}>{amount}</Text>
+                                            <Text style={[s.difficultyChipText, betAmount === amount && s.difficultyChipTextActive]}>{amount === 0 ? 'Yok' : amount}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
 
-                                <TouchableOpacity style={[s.findBtn, interest.walletPoints < betAmount && { opacity: 0.4 }]} onPress={startSearch} activeOpacity={0.85} disabled={interest.walletPoints < betAmount}>
-                                    <Text style={s.findBtnText}>{t.okeyFindMatch || '🔍 Rakip Ara'} ({betAmount} puan)</Text>
+                                <Text style={s.difficultyLabel}>Derece Bahsi</Text>
+                                <View style={s.difficultyRow}>
+                                    {[0, 0.10, 0.25, 0.50].map(amount => (
+                                        <TouchableOpacity key={amount}
+                                            style={[s.difficultyChip, ratingAmount === amount && s.ratingChipActive, interest.skillRating < amount && { opacity: 0.3 }]}
+                                            onPress={() => setRatingAmount(amount)} activeOpacity={0.8} disabled={interest.skillRating < amount}>
+                                            <Text style={[s.difficultyChipText, ratingAmount === amount && s.difficultyChipTextActive]}>{amount === 0 ? 'Yok' : amount.toFixed(2)}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                <TouchableOpacity
+                                    style={[s.findBtn, (interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)) && { opacity: 0.4 }]}
+                                    onPress={startSearch} activeOpacity={0.85}
+                                    disabled={interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)}>
+                                    <Text style={s.findBtnText}>{t.okeyFindMatch || '🔍 Rakip Ara'} ({betAmount} puan{ratingAmount > 0 ? ` + ${ratingAmount.toFixed(2)} derece` : ''})</Text>
                                 </TouchableOpacity>
 
                                 <Text style={s.orText}>{t.okeyOr || 'veya'}</Text>
@@ -299,8 +317,11 @@ export default function OkeyHomeScreen({ navigation }) {
                                 <Text style={s.orText}>{t.okeyOr || 'veya'}</Text>
 
                                 <Text style={s.difficultyLabel}>{t.okeyPrivateTableLabel || '👥 Arkadaşlarınla Özel Masa'}</Text>
-                                <TouchableOpacity style={[s.privateBtn, interest.walletPoints < betAmount && { opacity: 0.4 }]} onPress={createPrivateTable} activeOpacity={0.85} disabled={interest.walletPoints < betAmount}>
-                                    <Text style={s.privateBtnText}>{t.okeyCreatePrivateTable || 'Özel Masa Kur'} ({betAmount} puan)</Text>
+                                <TouchableOpacity
+                                    style={[s.privateBtn, (interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)) && { opacity: 0.4 }]}
+                                    onPress={createPrivateTable} activeOpacity={0.85}
+                                    disabled={interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)}>
+                                    <Text style={s.privateBtnText}>{t.okeyCreatePrivateTable || 'Özel Masa Kur'} ({betAmount} puan{ratingAmount > 0 ? ` + ${ratingAmount.toFixed(2)} derece` : ''})</Text>
                                 </TouchableOpacity>
                                 <View style={s.joinCodeRow}>
                                     <TextInput
@@ -431,6 +452,7 @@ const s = StyleSheet.create({
 
     playWrap: { flex: 1, alignItems: 'center', paddingTop: 50, paddingHorizontal: 30 },
     balanceText: { color: '#fbbf24', fontSize: 15, fontWeight: '900', marginBottom: 10 },
+    ratingBalanceText: { color: '#38bdf8', fontSize: 15, fontWeight: '900', marginBottom: 10 },
     playEmoji: { fontSize: 64, marginBottom: 12 },
     playTitle: { color: '#fff', fontSize: 20, fontWeight: '900', textAlign: 'center' },
     playDesc: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 19 },
@@ -445,6 +467,7 @@ const s = StyleSheet.create({
     difficultyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     difficultyChip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     difficultyChipActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    ratingChipActive: { backgroundColor: '#0ea5e922', borderColor: '#38bdf8' },
     difficultyChipText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
     difficultyChipTextActive: { color: colors.purpleLight || colors.purple },
     botBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.purple, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 34, marginTop: 18 },

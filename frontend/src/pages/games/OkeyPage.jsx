@@ -245,7 +245,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     // Bahisli bir el aktif oynanırken (bekleme odası/oyun bitmiş değilken) üst bileşene
     // haber veriliyor ki sekme kapatma/geri gitmede uyarı gösterilebilsin.
     useEffect(() => {
-        const active = !!(state && state.betAmount > 0 && state.phase !== 'waiting' && state.phase !== 'finished');
+        const active = !!(state && (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'waiting' && state.phase !== 'finished');
         onActiveWagerChange?.(active);
     }, [state?.betAmount, state?.phase, onActiveWagerChange]);
     useEffect(() => () => onActiveWagerChange?.(false), [onActiveWagerChange]);
@@ -298,7 +298,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
         }
     };
     const goBack = () => {
-        const isActiveWager = state.betAmount > 0 && state.phase !== 'finished';
+        const isActiveWager = (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'finished';
         if (isActiveWager && !confirm(LEAVE_WARNING)) return;
         getSocket()?.emit('okey:leaveTable', { tableId });
         onExit();
@@ -488,11 +488,12 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                             .map(({ seat, score }, i) => (
                                 <p key={seat.seat} className="text-gray-300 text-sm text-center">
                                     {i === 0 ? '🥇 ' : `${i + 1}. `}{seat.userId === myId ? 'Sen' : seat.username}: {score}
-                                    {gameEnd.payouts && gameEnd.payouts[seat.seat] > 0 && <span className="text-emerald-400 font-bold"> (+{gameEnd.payouts[seat.seat]} puan)</span>}
+                                    {gameEnd.payouts?.points?.[seat.seat] > 0 && <span className="text-emerald-400 font-bold"> (+{gameEnd.payouts.points[seat.seat]} puan)</span>}
+                                    {gameEnd.payouts?.rating?.[seat.seat] > 0 && <span className="text-sky-400 font-bold"> (+{gameEnd.payouts.rating[seat.seat].toFixed(2)} derece)</span>}
                                 </p>
                             ))}
-                        {gameEnd.payouts && gameEnd.payouts[mySeat] === 0 && state.betAmount > 0 && (
-                            <p className="text-red-400 text-xs text-center mt-2">Bahis puanını kaybettin.</p>
+                        {gameEnd.payouts && gameEnd.payouts.points[mySeat] === 0 && gameEnd.payouts.rating[mySeat] === 0 && (state.betAmount > 0 || state.ratingAmount > 0) && (
+                            <p className="text-red-400 text-xs text-center mt-2">Bahis puanını/dereceni kaybettin.</p>
                         )}
                         <button onClick={goBack} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl mt-4">Geri Dön</button>
                     </div>
@@ -503,6 +504,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
 }
 
 const BET_TIERS = [50, 100, 250, 500];
+const RATING_TIERS = [0, 0.10, 0.25, 0.50];
 
 function OkeyLobby({ myName, onMatched }) {
     const [searching, setSearching] = useState(false);
@@ -510,6 +512,7 @@ function OkeyLobby({ myName, onMatched }) {
     const [difficulty, setDifficulty] = useState('medium');
     const [joinCode, setJoinCode] = useState('');
     const [betAmount, setBetAmount] = useState(100);
+    const [ratingAmount, setRatingAmount] = useState(0);
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
     const [interest, setInterest] = useState(undefined);
     const [addingActivity, setAddingActivity] = useState(false);
@@ -543,7 +546,7 @@ function OkeyLobby({ myName, onMatched }) {
         const offErr = onSocket('okey:error', (data) => {
             setSearching(false);
             if (data?.code === 'ACTIVITY_REQUIRED') { setInterest(null); return; }
-            if (data?.code === 'INSUFFICIENT_POINTS') { loadInterest(); }
+            if (data?.code === 'INSUFFICIENT_POINTS' || data?.code === 'INSUFFICIENT_RATING') { loadInterest(); }
             alert(data?.message || 'Bir hata oluştu.');
         });
         return () => { offQueued(); offMatched(); offErr(); };
@@ -553,7 +556,7 @@ function OkeyLobby({ myName, onMatched }) {
         const socket = getSocket();
         if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
         setSearching(true); setQueuePos(null);
-        socket.emit('okey:findMatch', { betAmount });
+        socket.emit('okey:findMatch', { betAmount, ratingAmount });
     };
     const cancelSearch = () => { getSocket()?.emit('okey:cancelFindMatch'); setSearching(false); setQueuePos(null); };
     const startVsBots = () => {
@@ -564,7 +567,7 @@ function OkeyLobby({ myName, onMatched }) {
     const createPrivateTable = () => {
         const socket = getSocket();
         if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('okey:createPrivateTable', { betAmount });
+        socket.emit('okey:createPrivateTable', { betAmount, ratingAmount });
     };
     const joinByCode = () => {
         const socket = getSocket();
@@ -592,22 +595,32 @@ function OkeyLobby({ myName, onMatched }) {
         );
     }
 
-    const canAfford = interest.walletPoints >= betAmount;
+    const canAfford = interest.walletPoints >= betAmount && interest.skillRating >= ratingAmount && (betAmount > 0 || ratingAmount > 0);
+    const stakeLabel = `${betAmount} puan${ratingAmount > 0 ? ` + ${ratingAmount.toFixed(2)} derece` : ''}`;
 
     return (
         <div className="max-w-md mx-auto">
-            <div className="flex items-center justify-center gap-1.5 mb-4">
-                <span className="text-amber-400 font-black text-lg">🪙 {interest.walletPoints}</span>
-                <span className="text-gray-500 text-xs">puan</span>
+            <div className="flex items-center justify-center gap-3 mb-4">
+                <span className="text-amber-400 font-black text-lg">🪙 {interest.walletPoints} <span className="text-gray-500 text-xs font-normal">puan</span></span>
+                <span className="text-sky-400 font-black text-lg">⭐ {interest.skillRating?.toFixed(2)} <span className="text-gray-500 text-xs font-normal">derece</span></span>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center mb-4">
                 <p className="text-5xl mb-3">🀄</p>
-                <p className="text-gray-400 text-xs font-bold mb-2">Bahis Miktarı</p>
-                <div className="flex gap-2 justify-center mb-4">
-                    {BET_TIERS.map(amount => (
+                <p className="text-gray-400 text-xs font-bold mb-2">Puan Bahsi</p>
+                <div className="flex gap-2 justify-center mb-3">
+                    {[0, ...BET_TIERS].map(amount => (
                         <button key={amount} onClick={() => setBetAmount(amount)} disabled={interest.walletPoints < amount}
                             className={`px-3 py-2 rounded-lg text-xs font-bold border transition disabled:opacity-30 ${betAmount === amount ? 'bg-amber-500 border-amber-400 text-black' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
-                            {amount}
+                            {amount === 0 ? 'Yok' : amount}
+                        </button>
+                    ))}
+                </div>
+                <p className="text-gray-400 text-xs font-bold mb-2">Derece Bahsi</p>
+                <div className="flex gap-2 justify-center mb-4">
+                    {RATING_TIERS.map(amount => (
+                        <button key={amount} onClick={() => setRatingAmount(amount)} disabled={interest.skillRating < amount}
+                            className={`px-3 py-2 rounded-lg text-xs font-bold border transition disabled:opacity-30 ${ratingAmount === amount ? 'bg-sky-500 border-sky-400 text-black' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
+                            {amount === 0 ? 'Yok' : amount.toFixed(2)}
                         </button>
                     ))}
                 </div>
@@ -618,14 +631,14 @@ function OkeyLobby({ myName, onMatched }) {
                     </>
                 ) : (
                     <button onClick={startSearch} disabled={!canAfford} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 rounded-xl disabled:opacity-40">
-                        🎯 Rakip Bul (4 kişilik, {betAmount} puan bahis)
+                        🎯 Rakip Bul (4 kişilik, {stakeLabel} bahis)
                     </button>
                 )}
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
                 <p className="text-gray-400 text-xs font-bold mb-2">👥 Arkadaşlarınla Özel Masa</p>
                 <button onClick={createPrivateTable} disabled={!canAfford} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm mb-3 disabled:opacity-40">
-                    Özel Masa Kur ({betAmount} puan bahis)
+                    Özel Masa Kur ({stakeLabel} bahis)
                 </button>
                 <div className="flex gap-2">
                     <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="Masa Kodu"
