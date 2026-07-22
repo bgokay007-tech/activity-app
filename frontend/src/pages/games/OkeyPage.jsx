@@ -358,8 +358,12 @@ function OkeyBoard({ tableId, myId, onExit }) {
                             .map(({ seat, score }, i) => (
                                 <p key={seat.seat} className="text-gray-300 text-sm text-center">
                                     {i === 0 ? '🥇 ' : `${i + 1}. `}{seat.userId === myId ? 'Sen' : seat.username}: {score}
+                                    {gameEnd.payouts && gameEnd.payouts[seat.seat] > 0 && <span className="text-emerald-400 font-bold"> (+{gameEnd.payouts[seat.seat]} puan)</span>}
                                 </p>
                             ))}
+                        {gameEnd.payouts && gameEnd.payouts[mySeat] === 0 && state.betAmount > 0 && (
+                            <p className="text-red-400 text-xs text-center mt-2">Bahis puanını kaybettin.</p>
+                        )}
                         <button onClick={goBack} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl mt-4">Geri Dön</button>
                     </div>
                 </div>
@@ -368,12 +372,33 @@ function OkeyBoard({ tableId, myId, onExit }) {
     );
 }
 
+const BET_TIERS = [50, 100, 250, 500];
+
 function OkeyLobby({ myName, onMatched }) {
     const [searching, setSearching] = useState(false);
     const [queuePos, setQueuePos] = useState(null);
     const [difficulty, setDifficulty] = useState('medium');
     const [joinCode, setJoinCode] = useState('');
+    const [betAmount, setBetAmount] = useState(100);
+    // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
+    const [interest, setInterest] = useState(undefined);
+    const [addingActivity, setAddingActivity] = useState(false);
     const navigatedRef = useRef(false);
+
+    const loadInterest = () => {
+        api.get('/interests/my')
+            .then(({ data }) => setInterest((Array.isArray(data) ? data : []).find(i => i.category === 'GAMES' && i.subCategory === 'okey') || null))
+            .catch(() => setInterest(null));
+    };
+    useEffect(() => { loadInterest(); }, []);
+
+    const addActivity = () => {
+        setAddingActivity(true);
+        api.post('/interests/add', { category: 'GAMES', subCategory: 'okey' })
+            .then(loadInterest)
+            .catch(() => alert('Aktivite eklenemedi, tekrar deneyin.'))
+            .finally(() => setAddingActivity(false));
+    };
 
     useEffect(() => { getSocket()?.emit('okey:setUsername', myName); }, [myName]);
 
@@ -385,7 +410,12 @@ function OkeyLobby({ myName, onMatched }) {
             setSearching(false);
             onMatched(data.tableId);
         });
-        const offErr = onSocket('okey:error', (data) => { setSearching(false); alert(data?.message || 'Bir hata oluştu.'); });
+        const offErr = onSocket('okey:error', (data) => {
+            setSearching(false);
+            if (data?.code === 'ACTIVITY_REQUIRED') { setInterest(null); return; }
+            if (data?.code === 'INSUFFICIENT_POINTS') { loadInterest(); }
+            alert(data?.message || 'Bir hata oluştu.');
+        });
         return () => { offQueued(); offMatched(); offErr(); };
     }, [onMatched]);
 
@@ -393,7 +423,7 @@ function OkeyLobby({ myName, onMatched }) {
         const socket = getSocket();
         if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
         setSearching(true); setQueuePos(null);
-        socket.emit('okey:findMatch');
+        socket.emit('okey:findMatch', { betAmount });
     };
     const cancelSearch = () => { getSocket()?.emit('okey:cancelFindMatch'); setSearching(false); setQueuePos(null); };
     const startVsBots = () => {
@@ -404,7 +434,7 @@ function OkeyLobby({ myName, onMatched }) {
     const createPrivateTable = () => {
         const socket = getSocket();
         if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('okey:createPrivateTable');
+        socket.emit('okey:createPrivateTable', { betAmount });
     };
     const joinByCode = () => {
         const socket = getSocket();
@@ -413,25 +443,59 @@ function OkeyLobby({ myName, onMatched }) {
         socket.emit('okey:joinByCode', { code: joinCode.trim() });
     };
 
+    if (interest === undefined) {
+        return <p className="text-gray-500 text-sm text-center py-16">Yükleniyor...</p>;
+    }
+
+    if (interest === null) {
+        return (
+            <div className="max-w-md mx-auto">
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center">
+                    <p className="text-5xl mb-3">🀄</p>
+                    <p className="text-white font-bold mb-2">Okey oynamak için önce bu oyunu aktivite olarak ekle</p>
+                    <p className="text-gray-400 text-xs mb-4">Eklediğinde 2000 puanla başlarsın. Bu aktiviteyi daha sonra silemezsin, sadece gizleyebilirsin.</p>
+                    <button onClick={addActivity} disabled={addingActivity} className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl disabled:opacity-50">
+                        {addingActivity ? '...' : 'Aktivitelerime Ekle ve Başla (2000 puan)'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const canAfford = interest.walletPoints >= betAmount;
+
     return (
         <div className="max-w-md mx-auto">
+            <div className="flex items-center justify-center gap-1.5 mb-4">
+                <span className="text-amber-400 font-black text-lg">🪙 {interest.walletPoints}</span>
+                <span className="text-gray-500 text-xs">puan</span>
+            </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center mb-4">
                 <p className="text-5xl mb-3">🀄</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">Bahis Miktarı</p>
+                <div className="flex gap-2 justify-center mb-4">
+                    {BET_TIERS.map(amount => (
+                        <button key={amount} onClick={() => setBetAmount(amount)} disabled={interest.walletPoints < amount}
+                            className={`px-3 py-2 rounded-lg text-xs font-bold border transition disabled:opacity-30 ${betAmount === amount ? 'bg-amber-500 border-amber-400 text-black' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
+                            {amount}
+                        </button>
+                    ))}
+                </div>
                 {searching ? (
                     <>
                         <p className="text-white font-bold mb-3">Rakip aranıyor{queuePos ? ` (${queuePos}/4)` : ''}...</p>
                         <button onClick={cancelSearch} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-sm">Vazgeç</button>
                     </>
                 ) : (
-                    <button onClick={startSearch} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 rounded-xl">
-                        🎯 Rakip Bul (4 kişilik)
+                    <button onClick={startSearch} disabled={!canAfford} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 rounded-xl disabled:opacity-40">
+                        🎯 Rakip Bul (4 kişilik, {betAmount} puan bahis)
                     </button>
                 )}
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
                 <p className="text-gray-400 text-xs font-bold mb-2">👥 Arkadaşlarınla Özel Masa</p>
-                <button onClick={createPrivateTable} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm mb-3">
-                    Özel Masa Kur
+                <button onClick={createPrivateTable} disabled={!canAfford} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm mb-3 disabled:opacity-40">
+                    Özel Masa Kur ({betAmount} puan bahis)
                 </button>
                 <div className="flex gap-2">
                     <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="Masa Kodu"
@@ -442,7 +506,7 @@ function OkeyLobby({ myName, onMatched }) {
                 </div>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                <p className="text-gray-400 text-xs font-bold mb-2">🤖 Botlara Karşı Oyna</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">🤖 Botlara Karşı Oyna (puansız)</p>
                 <div className="flex gap-2 mb-3">
                     {[['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor'], ['expert', 'Çok Zor']].map(([k, l]) => (
                         <button key={k} onClick={() => setDifficulty(k)}

@@ -213,6 +213,7 @@ model UserInterest {
   assessmentCompleted Boolean @default(false)  // anket tamamlanmadan maca katilamaz
   matchesSinceAssessment Int @default(0)  // tenis/padel: anketten sonra oynanan maç sayısı (0-3, ilk 3 maç doğrulama penceresi)
   totalPoints  Int          @default(0)
+  walletPoints Int          @default(2000)  // okey/batak gibi bahisli oyunlar icin harcanabilir puan bakiyesi
   wins             Int          @default(0)
   losses           Int          @default(0)
   lateCancelCount  Int          @default(0)  // unilateral cancels within 5h of match

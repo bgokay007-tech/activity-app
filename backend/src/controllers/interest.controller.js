@@ -64,8 +64,15 @@ export const SUBCATEGORIES = {
         { id: 'puzzle', name: 'Puzzle', emoji: '🧩' },
         { id: 'racing', name: 'Racing', emoji: '🏎️' },
         { id: 'card_games', name: 'Card Games', emoji: '🃏' },
+        { id: 'okey', name: 'Okey', emoji: '🀄' },
+        { id: 'batak', name: 'Batak', emoji: '🃏' },
     ],
 };
+
+// Puanla (bahisle) oynanan aktiviteler — bkz. removeInterest: bu branslar hic
+// silinemez, cunku silip yeniden eklemek 2000 puanlik baslangic bakiyesini
+// sifirdan yuklemenin bir yolu olurdu.
+const WAGERED_GAMES = new Set(['okey', 'batak']);
 
 // Tüm kategorileri getir
 export const getCategories = async (req, res) => {
@@ -215,6 +222,9 @@ export const removeInterest = async (req, res, next) => {
             return res.status(404).json({ message: 'Interest not found' });
         }
 
+        if (interest.category === 'GAMES' && WAGERED_GAMES.has(interest.subCategory)) {
+            return res.status(403).json({ message: 'Puanlı oyun aktiviteleri tamamen silinemez, sadece gizlenebilir.' });
+        }
         if ((interest.wins || 0) + (interest.losses || 0) >= 3) {
             return res.status(403).json({ message: 'Bu branşta 3 veya daha fazla maç oynadığınız için tamamen silinemez. Gizleyebilirsiniz.' });
         }

@@ -17,9 +17,66 @@ const BOT_TURN_DELAY_MS = 1200; // "botlarla oyna" masasındaki botların doğal
 const BOT_NAMES = { easy: 'Kolay', medium: 'Orta', hard: 'Zor' };
 
 const tables = new Map();       // tableId -> table state
-const queue = [];               // [{ userId, username, socket }]
+const queues = { 50: [], 100: [], 250: [], 500: [] }; // bahis miktarına göre ayrı eşleşme kuyrukları
 const userTableMap = new Map(); // userId -> tableId (bir kullanıcı aynı anda tek masada olabilir)
 const codeToTableId = new Map(); // özel masa paylaşım kodu -> tableId
+
+const BET_AMOUNTS = [50, 100, 250, 500];
+
+function isUserQueued(userId) {
+    return Object.values(queues).some(q => q.some(x => x.userId === userId));
+}
+
+// Kullanıcının Batak'ı profilinden "aktivite" olarak eklemiş olup olmadığını (ve puan
+// bakiyesini) döner — eklenmemiş veya gizlenmişse null. Oynamanın ön koşulu bu.
+async function getGameInterest(userId) {
+    try {
+        return await prisma.userInterest.findUnique({
+            where: { userId_category_subCategory: { userId, category: 'GAMES', subCategory: 'batak' } },
+        });
+    } catch { return null; }
+}
+
+// Masa gerçekten başladığında (4 koltuk da dolup ilk el dağıtıldığında) bahisli
+// masalardaki her insan oyuncunun bakiyesinden bahis miktarı düşülür.
+async function chargeStakes(table) {
+    if (!table.betAmount || table.betAmount <= 0) return;
+    const humans = table.seats.filter(s => s.userId && !s.isBot);
+    try {
+        await Promise.all(humans.map(s => prisma.userInterest.update({
+            where: { userId_category_subCategory: { userId: s.userId, category: 'GAMES', subCategory: 'batak' } },
+            data: { walletPoints: { decrement: table.betAmount } },
+        })));
+    } catch (e) { console.error('batak stake kesme hatasi:', e.message); }
+}
+
+// Oyun (8 el) tamamen bittiğinde bahis havuzunun dağılımını hesaplar: 1. %75, 2. %25,
+// 3./4. hiçbir şey almaz. Oyun sırasında masadan ayrılan (leftEarly) koltuklar puanlama
+// için en sona atılır — kazanan olamazlar, hatta skorları iyi olsa bile.
+function computePayouts(table) {
+    if (!table.betAmount || table.betAmount <= 0) return null;
+    const ranking = table.seats
+        .map(s => ({ seat: s.seat, effective: table.leftEarly[s.seat] ? -Infinity : table.scores[s.seat] }))
+        .sort((a, b) => b.effective - a.effective || a.seat - b.seat);
+    const pot = table.betAmount * 4;
+    const payouts = [0, 0, 0, 0];
+    if (ranking[0]) payouts[ranking[0].seat] = Math.floor(pot * 3 / 4);
+    if (ranking[1]) payouts[ranking[1].seat] = Math.floor(pot / 4);
+    return payouts;
+}
+
+async function payoutWinners(table, payouts) {
+    if (!payouts) return;
+    try {
+        await Promise.all(table.seats.map((s, i) => {
+            if (!s.userId || s.isBot || !payouts[i]) return null;
+            return prisma.userInterest.update({
+                where: { userId_category_subCategory: { userId: s.userId, category: 'GAMES', subCategory: 'batak' } },
+                data: { walletPoints: { increment: payouts[i] } },
+            });
+        }));
+    } catch (e) { console.error('batak odeme hatasi:', e.message); }
+}
 
 // Karışabilecek karakterler (I/O/0/1) hariç tutulur — sesli okunup elle girilen bir kod.
 function genCode() {
@@ -46,6 +103,7 @@ function publicState(table) {
         tableId: table.id,
         phase: table.phase,
         code: table.code || null,
+        betAmount: table.betAmount || 0,
         seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, open: !!s.open, handCount: table.hands[s.seat]?.length ?? 0 })),
         dealerIndex: table.dealerIndex,
         turn: table.phase === 'bidding' ? table.biddingTurn : table.phase === 'playing' ? table.turn : null,
@@ -320,7 +378,9 @@ function nextRoundOrEnd(io, table) {
     if (!tables.has(table.id)) return;
     if (table.roundNumber >= TOTAL_ROUNDS) {
         table.phase = 'finished';
-        io.to(`batak:${table.id}`).emit('batak:gameEnd', { scores: table.scores });
+        const payouts = computePayouts(table);
+        io.to(`batak:${table.id}`).emit('batak:gameEnd', { scores: table.scores, payouts });
+        payoutWinners(table, payouts);
         setTimeout(() => destroyTable(table.id), 30000);
         return;
     }
@@ -341,10 +401,12 @@ function destroyTable(tableId) {
     tables.delete(tableId);
 }
 
-function createTable(io, players) {
+function createTable(io, players, betAmount) {
     const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const table = {
         id,
+        betAmount: betAmount || 0,
+        leftEarly: [false, false, false, false],
         seats: players.map((p, seat) => ({ seat, userId: p.userId, username: p.username, avatar: p.avatar || null, socketId: p.socket.id, connected: true, isBot: false })),
         dealerIndex: 0,
         scores: [0, 0, 0, 0],
@@ -366,6 +428,7 @@ function createTable(io, players) {
     broadcastState(io, table);
     sendAllHands(io, table);
     scheduleBotIfNeeded(io, table);
+    chargeStakes(table);
     return table;
 }
 
@@ -375,6 +438,8 @@ function createBotTable(io, requester, difficulty) {
     const table = {
         id,
         difficulty,
+        betAmount: 0,
+        leftEarly: [false, false, false, false],
         seats: [
             { seat: 0, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false },
             { seat: 1, userId: null, username: botLabel, avatar: null, socketId: null, connected: true, isBot: true, difficulty },
@@ -403,21 +468,26 @@ function createBotTable(io, requester, difficulty) {
 }
 
 function tryMatch(io) {
-    while (queue.length >= 4) {
-        const players = queue.splice(0, 4);
-        createTable(io, players);
+    for (const amount of BET_AMOUNTS) {
+        const q = queues[amount];
+        while (q.length >= 4) {
+            const players = q.splice(0, 4);
+            createTable(io, players, amount);
+        }
     }
 }
 
 // ── Özel masa (arkadaşla oyna) — kuyruğa girmez, kurucu bekleme odasında 3 açık
 // koltuğa arkadaş davet edebilir veya masa kodunu paylaşabilir. 4. kişi katılınca
 // (kod ile veya davet kabulüyle) normal 'bidding' akışına geçilir.
-function createPrivateTable(io, requester) {
+function createPrivateTable(io, requester, betAmount) {
     const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     let code = genCode();
     while (codeToTableId.has(code)) code = genCode();
     const table = {
         id, code,
+        betAmount: betAmount || 0,
+        leftEarly: [false, false, false, false],
         seats: [
             { seat: 0, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false, open: false },
             { seat: 1, userId: null, username: null, avatar: null, socketId: null, connected: false, isBot: false, open: true },
@@ -471,6 +541,7 @@ function joinTableByCode(io, joiner, code) {
         broadcastState(io, table);
         sendAllHands(io, table);
         scheduleBotIfNeeded(io, table);
+        chargeStakes(table);
     } else {
         broadcastState(io, table);
     }
@@ -495,35 +566,52 @@ export function registerBatakHandlers(io, socket) {
 
     socket.on('batak:setUsername', (name) => { username = String(name || '').slice(0, 40) || 'Oyuncu'; });
 
-    socket.on('batak:findMatch', () => {
+    socket.on('batak:findMatch', async ({ betAmount } = {}) => {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
-        if (userTableMap.has(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
-        if (queue.some(q => q.userId === verifiedUserId)) return;
-        queue.push({ userId: verifiedUserId, username, avatar, socket });
-        socket.emit('batak:queued', { position: queue.length });
+        if (userTableMap.has(verifiedUserId) || isUserQueued(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
+        if (!BET_AMOUNTS.includes(betAmount)) return socket.emit('batak:error', { message: 'Geçersiz bahis miktarı' });
+        const interest = await getGameInterest(verifiedUserId);
+        if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
+        if (interest.walletPoints < betAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Yetersiz puan bakiyesi.' });
+        queues[betAmount].push({ userId: verifiedUserId, username, avatar, socket });
+        socket.emit('batak:queued', { position: queues[betAmount].length });
         tryMatch(io);
     });
 
-    socket.on('batak:playVsBots', ({ difficulty } = {}) => {
+    socket.on('batak:playVsBots', async ({ difficulty } = {}) => {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
+        const interest = await getGameInterest(verifiedUserId);
+        if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
         const diff = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
         createBotTable(io, { userId: verifiedUserId, username, avatar, socket }, diff);
     });
 
     socket.on('batak:cancelFindMatch', () => {
-        const idx = queue.findIndex(q => q.userId === verifiedUserId);
-        if (idx !== -1) queue.splice(idx, 1);
+        for (const amount of BET_AMOUNTS) {
+            const idx = queues[amount].findIndex(q => q.userId === verifiedUserId);
+            if (idx !== -1) queues[amount].splice(idx, 1);
+        }
     });
 
-    socket.on('batak:createPrivateTable', () => {
+    socket.on('batak:createPrivateTable', async ({ betAmount } = {}) => {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
-        if (userTableMap.has(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
-        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket });
+        if (userTableMap.has(verifiedUserId) || isUserQueued(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
+        if (!BET_AMOUNTS.includes(betAmount)) return socket.emit('batak:error', { message: 'Geçersiz bahis miktarı' });
+        const interest = await getGameInterest(verifiedUserId);
+        if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
+        if (interest.walletPoints < betAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Yetersiz puan bakiyesi.' });
+        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount);
     });
 
-    socket.on('batak:joinByCode', ({ code } = {}) => {
+    socket.on('batak:joinByCode', async ({ code } = {}) => {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
+        const tableId = codeToTableId.get(String(code || '').trim().toUpperCase());
+        const table = tableId && tables.get(tableId);
+        if (!table) return socket.emit('batak:error', { message: 'Kod geçersiz veya masa artık yok' });
+        const interest = await getGameInterest(verifiedUserId);
+        if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
+        if (table.betAmount > 0 && interest.walletPoints < table.betAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Bu masaya katılmak için yeterli puanın yok.' });
         try { joinTableByCode(io, { userId: verifiedUserId, username, avatar, socket }, code); }
         catch (e) { socket.emit('batak:error', { message: e.message }); }
     });
@@ -606,6 +694,9 @@ export function registerBatakHandlers(io, socket) {
             return;
         }
         seat.connected = false;
+        // Bahisli bir masada oyun devam ederken bilerek ayrılan oyuncu otomatik
+        // kaybetmiş sayılır — puanını geri alamaz, oyun sonu ödemesinde en sona atılır.
+        if (table.betAmount > 0) table.leftEarly[seat.seat] = true;
         // Kullanıcı bilerek masadan ayrıldı — eşleşme kilidini hemen serbest bırak ki
         // yeni bir oyuna girebilsin (aksi halde masa bitene kadar kilitli kalırdı).
         broadcastState(io, table);
@@ -613,8 +704,10 @@ export function registerBatakHandlers(io, socket) {
     });
 
     socket.on('disconnect', () => {
-        const qIdx = queue.findIndex(q => q.userId === verifiedUserId);
-        if (qIdx !== -1) queue.splice(qIdx, 1);
+        for (const amount of BET_AMOUNTS) {
+            const qIdx = queues[amount].findIndex(q => q.userId === verifiedUserId);
+            if (qIdx !== -1) queues[amount].splice(qIdx, 1);
+        }
         const tableId = verifiedUserId && userTableMap.get(verifiedUserId);
         if (!tableId) return;
         const table = tables.get(tableId);
@@ -628,6 +721,7 @@ export function registerBatakHandlers(io, socket) {
                 return;
             }
             seat.connected = false;
+            if (table.betAmount > 0) table.leftEarly[seat.seat] = true;
             // Kod tabanında bağlantı kopunca yeniden bağlanmak için ayrı bir bekleme
             // süresi (grace period) yok — batak:getState çağrısı tableId ile doğrudan
             // masaya geri döner ve userTableMap'ten bağımsız çalışır. Bu yüzden kilidi

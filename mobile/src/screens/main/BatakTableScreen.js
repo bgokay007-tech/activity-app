@@ -405,8 +405,12 @@ export default function BatakTableScreen({ route, navigation }) {
                             .map(({ seat, score }, i) => (
                                 <Text key={seat.seat} style={s.modalLine}>
                                     {i === 0 ? '🥇 ' : `${i + 1}. `}{seat.userId === myId ? (t.batakYou || 'Sen') : seat.username}: {score}
+                                    {gameEnd.payouts && gameEnd.payouts[seat.seat] > 0 && <Text style={s.payoutText}> (+{gameEnd.payouts[seat.seat]} puan)</Text>}
                                 </Text>
                             ))}
+                        {gameEnd && gameEnd.payouts && gameEnd.payouts[mySeat] === 0 && state.betAmount > 0 && (
+                            <Text style={s.lossText}>Bahis puanını kaybettin.</Text>
+                        )}
                         <TouchableOpacity style={s.modalBtn} onPress={goBack}>
                             <Text style={s.modalBtnText}>{t.batakBackHome || 'Geri Dön'}</Text>
                         </TouchableOpacity>
@@ -477,6 +481,8 @@ const s = StyleSheet.create({
     modalBox: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: '85%' },
     modalTitle: { color: '#fff', fontSize: 17, fontWeight: '900', marginBottom: 12, textAlign: 'center' },
     modalLine: { color: colors.textSecondary, fontSize: 13, marginBottom: 4 },
+    payoutText: { color: '#4ade80', fontWeight: '800' },
+    lossText: { color: '#f87171', fontSize: 12, textAlign: 'center', marginTop: 6 },
     modalHint: { color: colors.textMuted, fontSize: 11, marginTop: 10, textAlign: 'center' },
     modalBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 14 },
     modalBtnText: { color: '#fff', fontWeight: '800' },
