@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Navbar from '../../components/Navbar';
 import Avatar from '../../components/Avatar';
+import api from '../../services/api';
 import { connectSocket, getSocket, onSocket } from '../../services/socket';
 
 const COLOR_HEX = { R: '#dc2626', Y: '#ca8a04', B: '#2563eb', K: '#111827' };
@@ -34,6 +35,98 @@ function TileBack({ small }) {
             background: 'repeating-linear-gradient(45deg, #7a1730, #7a1730 4px, #5c1024 4px, #5c1024 8px)',
             border: '1px solid #d4af37', boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.4)',
         }} />
+    );
+}
+
+// Özel masa bekleme odası — kurucu 3. koltuğu bir arkadaşıyla doldurana kadar burada
+// bekler: masa kodunu paylaşabilir veya doğrudan arkadaş listesinden davet gönderebilir.
+function WaitingRoom({ state, myId, tableId, onExit }) {
+    const [friends, setFriends] = useState([]);
+    const [loadingFriends, setLoadingFriends] = useState(true);
+    const [onlineIds, setOnlineIds] = useState(new Set());
+    const [invited, setInvited] = useState(new Set());
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        api.get('/friends')
+            .then(({ data }) => setFriends(Array.isArray(data) ? data : []))
+            .catch(() => {})
+            .finally(() => setLoadingFriends(false));
+    }, []);
+
+    useEffect(() => {
+        const socket = getSocket();
+        if (!socket || friends.length === 0) return;
+        socket.emit('presence:query', friends.map(f => f.id), (online) => setOnlineIds(new Set(online || [])));
+    }, [friends]);
+
+    useEffect(() => onSocket('okey:inviteSent', (data) => setInvited(prev => new Set(prev).add(data.userId))), []);
+
+    const inviteFriend = (friendId) => getSocket()?.emit('okey:inviteFriend', { tableId, userId: friendId });
+    const copyCode = () => {
+        navigator.clipboard?.writeText(state.code || '').then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+    };
+
+    return (
+        <div className="max-w-md mx-auto">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center mb-4">
+                <p className="text-gray-400 text-xs font-bold mb-2">Masa Kodu</p>
+                <p className="text-white text-3xl font-black tracking-[0.3em] mb-3">{state.code}</p>
+                <button onClick={copyCode} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-xs">
+                    {copied ? '✓ Kopyalandı' : 'Kodu Kopyala'}
+                </button>
+                <p className="text-gray-500 text-[11px] mt-3">Bu kodu paylaşarak arkadaşların masaya katılabilir.</p>
+            </div>
+
+            <div className="flex gap-1.5 mb-4">
+                {state.seats.map(seat => (
+                    <div key={seat.seat} className="flex-1 rounded-lg py-2 text-center border border-gray-800 bg-gray-900 flex flex-col items-center gap-1">
+                        {seat.open ? (
+                            <>
+                                <div className="w-7 h-7 rounded-full border-2 border-dashed border-gray-700" />
+                                <p className="text-[10px] text-gray-600 font-bold">Boş</p>
+                            </>
+                        ) : (
+                            <>
+                                <Avatar user={seat} size="xs" />
+                                <p className="text-[10px] font-bold text-white truncate w-full">{seat.userId === myId ? 'Sen' : seat.username}</p>
+                            </>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
+                <p className="text-gray-400 text-xs font-bold mb-2">Arkadaşlarını Davet Et</p>
+                {loadingFriends ? (
+                    <p className="text-gray-600 text-xs text-center py-3">Yükleniyor...</p>
+                ) : friends.length === 0 ? (
+                    <p className="text-gray-600 text-xs text-center py-3">Henüz arkadaşın yok.</p>
+                ) : (
+                    <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                        {friends.map(f => {
+                            const alreadySeated = state.seats.some(s => s.userId === f.id);
+                            const isInvited = invited.has(f.id);
+                            return (
+                                <div key={f.id} className="flex items-center gap-2">
+                                    <Avatar user={f} size="xs" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white text-xs font-bold truncate">{f.fullName || f.username}</p>
+                                        <p className="text-[10px]" style={{ color: onlineIds.has(f.id) ? '#4ade80' : '#6b7280' }}>{onlineIds.has(f.id) ? '● Çevrimiçi' : '○ Çevrimdışı'}</p>
+                                    </div>
+                                    <button onClick={() => inviteFriend(f.id)} disabled={alreadySeated || isInvited}
+                                        className={`text-[11px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0 ${alreadySeated || isInvited ? 'bg-gray-800 text-gray-600' : 'bg-purple-600 text-white'}`}>
+                                        {alreadySeated ? 'Masada' : isInvited ? 'Gönderildi' : 'Davet Et'}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            <button onClick={onExit} className="w-full bg-gray-800 border border-gray-700 text-gray-300 font-bold py-2.5 rounded-xl text-sm">Masadan Ayrıl</button>
+        </div>
     );
 }
 
@@ -103,6 +196,10 @@ function OkeyBoard({ tableId, myId, onExit }) {
     }, [tableId]);
 
     if (!state) return <p className="text-gray-500 text-sm text-center py-16">Masaya bağlanılıyor...</p>;
+
+    if (state.phase === 'waiting') {
+        return <WaitingRoom state={state} myId={myId} tableId={tableId} onExit={() => { getSocket()?.emit('okey:leaveTable', { tableId }); onExit(); }} />;
+    }
 
     const mySeatInfo = state.seats.find(seat => seat.userId === myId);
     const mySeat = mySeatInfo ? mySeatInfo.seat : 0;
@@ -275,6 +372,7 @@ function OkeyLobby({ myName, onMatched }) {
     const [searching, setSearching] = useState(false);
     const [queuePos, setQueuePos] = useState(null);
     const [difficulty, setDifficulty] = useState('medium');
+    const [joinCode, setJoinCode] = useState('');
     const navigatedRef = useRef(false);
 
     useEffect(() => { getSocket()?.emit('okey:setUsername', myName); }, [myName]);
@@ -303,6 +401,17 @@ function OkeyLobby({ myName, onMatched }) {
         if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
         socket.emit('okey:playVsBots', { difficulty });
     };
+    const createPrivateTable = () => {
+        const socket = getSocket();
+        if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('okey:createPrivateTable');
+    };
+    const joinByCode = () => {
+        const socket = getSocket();
+        if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!joinCode.trim()) return;
+        socket.emit('okey:joinByCode', { code: joinCode.trim() });
+    };
 
     return (
         <div className="max-w-md mx-auto">
@@ -318,6 +427,19 @@ function OkeyLobby({ myName, onMatched }) {
                         🎯 Rakip Bul (4 kişilik)
                     </button>
                 )}
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
+                <p className="text-gray-400 text-xs font-bold mb-2">👥 Arkadaşlarınla Özel Masa</p>
+                <button onClick={createPrivateTable} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm mb-3">
+                    Özel Masa Kur
+                </button>
+                <div className="flex gap-2">
+                    <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="Masa Kodu"
+                        maxLength={5} className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm font-bold tracking-widest text-center rounded-lg px-2 py-2 placeholder:text-gray-600 placeholder:tracking-normal placeholder:font-normal" />
+                    <button onClick={joinByCode} className="bg-gray-800 border border-gray-700 text-white font-bold px-4 py-2 rounded-lg text-sm hover:bg-gray-700 transition">
+                        Katıl
+                    </button>
+                </div>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
                 <p className="text-gray-400 text-xs font-bold mb-2">🤖 Botlara Karşı Oyna</p>

@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/env.js';
 import prisma from '../config/prisma.js';
+import { emitToUser } from '../config/socket.js';
+import { createNotification } from '../controllers/notification.controller.js';
 
 // Basit, sunucu taraflı (hile yapılamaz) 4 kişilik Okey motoru — batak.js ile birebir aynı
 // mimari desen (bellek-içi masa, JWT doğrulama, bot zamanlayıcısı, eşleşme kuyruğu). Oyun
@@ -23,6 +25,15 @@ const BOT_NAMES = { easy: 'Kolay', medium: 'Orta', hard: 'Zor', expert: 'Çok Zo
 const tables = new Map();       // tableId -> table state
 const queue = [];               // [{ userId, username, socket }]
 const userTableMap = new Map(); // userId -> tableId (bir kullanıcı aynı anda tek masada olabilir)
+const codeToTableId = new Map(); // özel masa paylaşım kodu -> tableId
+
+// Karışabilecek karakterler (I/O/0/1) hariç tutulur — sesli okunup elle girilen bir kod.
+function genCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+}
 
 // ── Taş yardımcıları ─────────────────────────────────────────────────────────
 function isJokerId(t) { return t === 'J1' || t === 'J2'; }
@@ -146,8 +157,9 @@ function isCiftOkey(tiles, table) {
 function publicState(table) {
     return {
         tableId: table.id,
+        code: table.code || null,
         phase: table.phase,
-        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, handCount: table.hands[s.seat]?.length ?? 0 })),
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, open: !!s.open, handCount: table.hands[s.seat]?.length ?? 0 })),
         dealerIndex: table.dealerIndex,
         turn: table.phase === 'playing' ? table.turn : null,
         awaitingDiscard: table.awaitingDiscard,
@@ -455,7 +467,8 @@ function destroyTable(tableId) {
     const table = tables.get(tableId);
     if (!table) return;
     clearBotTimer(table);
-    table.seats.forEach(s => userTableMap.delete(s.userId));
+    table.seats.forEach(s => { if (s.userId) userTableMap.delete(s.userId); });
+    if (table.code) codeToTableId.delete(table.code);
     tables.delete(tableId);
 }
 
@@ -533,6 +546,77 @@ function tryMatch(io) {
     }
 }
 
+// ── Özel masa (arkadaşla oyna) — kuyruğa girmez, kurucu bekleme odasında 3 açık
+// koltuğa arkadaş davet edebilir veya masa kodunu paylaşabilir. 4. kişi katılınca
+// (kod ile veya davet kabulüyle) normal 'playing' akışına geçilir.
+function createPrivateTable(io, requester) {
+    const id = `ok_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    let code = genCode();
+    while (codeToTableId.has(code)) code = genCode();
+    const table = {
+        id, code,
+        seats: [
+            { seat: 0, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false, open: false },
+            { seat: 1, userId: null, username: null, avatar: null, socketId: null, connected: false, isBot: false, open: true },
+            { seat: 2, userId: null, username: null, avatar: null, socketId: null, connected: false, isBot: false, open: true },
+            { seat: 3, userId: null, username: null, avatar: null, socketId: null, connected: false, isBot: false, open: true },
+        ],
+        dealerIndex: 0,
+        scores: [0, 0, 0, 0],
+        roundNumber: 1,
+        hands: [[], [], [], []],
+        deck: [],
+        discardPile: [],
+        phase: 'waiting',
+        botTimer: null,
+        recentDiscardPickups: [],
+    };
+    tables.set(id, table);
+    codeToTableId.set(code, id);
+    userTableMap.set(requester.userId, id);
+    requester.socket.join(`okey:${id}`);
+    io.to(`okey:${id}`).emit('okey:matched', {
+        tableId: id, code,
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar, seat: s.seat, isBot: s.isBot, open: s.open })),
+    });
+    broadcastState(io, table);
+    return table;
+}
+
+function joinTableByCode(io, joiner, code) {
+    const tableId = codeToTableId.get(String(code || '').trim().toUpperCase());
+    const table = tableId && tables.get(tableId);
+    if (!table) throw new Error('Kod geçersiz veya masa artık yok');
+    if (table.phase !== 'waiting') throw new Error('Bu masa artık katılıma kapalı');
+    if (userTableMap.has(joiner.userId)) throw new Error('Zaten bir masadasın');
+    const openSeat = table.seats.find(s => s.open);
+    if (!openSeat) throw new Error('Masa dolu');
+
+    openSeat.userId = joiner.userId;
+    openSeat.username = joiner.username;
+    openSeat.avatar = joiner.avatar || null;
+    openSeat.socketId = joiner.socket.id;
+    openSeat.connected = true;
+    openSeat.open = false;
+    userTableMap.set(joiner.userId, table.id);
+    joiner.socket.join(`okey:${table.id}`);
+
+    io.to(`okey:${table.id}`).emit('okey:matched', {
+        tableId: table.id, code: table.code,
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar, seat: s.seat, isBot: s.isBot, open: s.open })),
+    });
+
+    if (!table.seats.some(s => s.open)) {
+        dealRound(table);
+        broadcastState(io, table);
+        sendAllHands(io, table);
+        scheduleBotIfNeeded(io, table);
+    } else {
+        broadcastState(io, table);
+    }
+    return table;
+}
+
 export function registerOkeyHandlers(io, socket) {
     let verifiedUserId = null;
     let username = 'Oyuncu';
@@ -571,6 +655,47 @@ export function registerOkeyHandlers(io, socket) {
     socket.on('okey:cancelFindMatch', () => {
         const idx = queue.findIndex(q => q.userId === verifiedUserId);
         if (idx !== -1) queue.splice(idx, 1);
+    });
+
+    socket.on('okey:createPrivateTable', () => {
+        if (!verifiedUserId) return socket.emit('okey:error', { message: 'Oturum doğrulanamadı' });
+        if (userTableMap.has(verifiedUserId)) return socket.emit('okey:error', { message: 'Zaten bir masadasın' });
+        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket });
+    });
+
+    socket.on('okey:joinByCode', ({ code } = {}) => {
+        if (!verifiedUserId) return socket.emit('okey:error', { message: 'Oturum doğrulanamadı' });
+        try { joinTableByCode(io, { userId: verifiedUserId, username, avatar, socket }, code); }
+        catch (e) { socket.emit('okey:error', { message: e.message }); }
+    });
+
+    socket.on('okey:inviteFriend', async ({ tableId, userId: targetUserId } = {}) => {
+        if (!verifiedUserId) return socket.emit('okey:error', { message: 'Oturum doğrulanamadı' });
+        const table = tables.get(tableId);
+        const mySeat = table?.seats.find(s => s.userId === verifiedUserId);
+        if (!table || !mySeat) return socket.emit('okey:error', { message: 'Bu masada değilsin' });
+        if (!table.seats.some(s => s.open)) return socket.emit('okey:error', { message: 'Masa dolu' });
+        try {
+            const friendship = await prisma.friendship.findFirst({
+                where: {
+                    status: 'ACCEPTED',
+                    OR: [
+                        { senderId: verifiedUserId, receiverId: targetUserId },
+                        { senderId: targetUserId, receiverId: verifiedUserId },
+                    ],
+                },
+            });
+            if (!friendship) return socket.emit('okey:error', { message: 'Bu kişi arkadaş listende değil' });
+            await createNotification(
+                targetUserId, 'GAME_TABLE_INVITE', 'Okey Daveti',
+                `${username} seni özel bir Okey masasına davet etti (kod: ${table.code})`,
+                { tableId: table.id, code: table.code, game: 'okey' },
+            );
+            emitToUser(targetUserId, 'okey:inviteReceived', { tableId: table.id, code: table.code, inviterUsername: username });
+            socket.emit('okey:inviteSent', { userId: targetUserId });
+        } catch (e) {
+            socket.emit('okey:error', { message: 'Davet gönderilemedi' });
+        }
     });
 
     socket.on('okey:getState', ({ tableId } = {}) => {
@@ -612,10 +737,18 @@ export function registerOkeyHandlers(io, socket) {
         const table = tables.get(tableId);
         const seat = table?.seats.find(s => s.userId === verifiedUserId);
         if (!table || !seat) return;
+        userTableMap.delete(verifiedUserId);
+        if (table.phase === 'waiting') {
+            // Bekleme odasında oyun henüz başlamadı — bot yedeği yok, koltuk tamamen
+            // boşalıp başka biri kod ile katılabilsin diye 'open' durumuna dönüyor.
+            seat.userId = null; seat.username = null; seat.avatar = null; seat.socketId = null; seat.connected = false; seat.open = true;
+            if (table.seats.every(s => s.open)) { destroyTable(table.id); return; }
+            broadcastState(io, table);
+            return;
+        }
         seat.connected = false;
         // Kullanıcı bilerek masadan ayrıldı — eşleşme kilidini hemen serbest bırak ki
         // yeni bir oyuna girebilsin (aksi halde masa bitene kadar kilitli kalırdı).
-        userTableMap.delete(verifiedUserId);
         broadcastState(io, table);
         scheduleBotIfNeeded(io, table);
     });
@@ -628,13 +761,19 @@ export function registerOkeyHandlers(io, socket) {
         const table = tables.get(tableId);
         const seat = table?.seats.find(s => s.userId === verifiedUserId);
         if (seat && seat.socketId === socket.id) {
+            userTableMap.delete(verifiedUserId);
+            if (table.phase === 'waiting') {
+                seat.userId = null; seat.username = null; seat.avatar = null; seat.socketId = null; seat.connected = false; seat.open = true;
+                if (table.seats.every(s => s.open)) { destroyTable(table.id); return; }
+                broadcastState(io, table);
+                return;
+            }
             seat.connected = false;
             // Kod tabanında bağlantı kopunca yeniden bağlanmak için ayrı bir bekleme
             // süresi (grace period) yok — okey:getState çağrısı tableId ile doğrudan
             // masaya geri döner ve userTableMap'ten bağımsız çalışır. Bu yüzden kilidi
             // hemen serbest bırakmak güvenli: kullanıcı isterse aynı masaya geri döner,
             // isterse yeni bir eşleşme/bot masası başlatabilir.
-            userTableMap.delete(verifiedUserId);
             broadcastState(io, table);
             scheduleBotIfNeeded(io, table);
         }

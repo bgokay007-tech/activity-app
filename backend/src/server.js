@@ -77,15 +77,36 @@ const io = new Server(httpServer, {
 
 setIO(io);
 
+// Basit çevrimiçi takibi — kullanıcı birden fazla sekme/cihazdan bağlı olabilir,
+// bu yüzden sayaç tutulur (0'a inince gerçekten çevrimdışı sayılır). Arkadaş davet
+// panelinde "çevrimiçi" göstergesi için kullanılıyor (okey/batak özel masa daveti).
+const onlineUsers = new Map(); // userId -> açık bağlantı sayısı
+
 io.on('connection', (socket) => {
     const userId = socket.handshake.auth?.userId;
     if (userId) {
         socket.join(`user:${userId}`);
+        const count = (onlineUsers.get(userId) || 0) + 1;
+        onlineUsers.set(userId, count);
+        if (count === 1) io.emit('presence:changed', { userId, online: true });
     }
     registerBatakHandlers(io, socket);
     registerOkeyHandlers(io, socket);
     registerTavlaHandlers(io, socket);
     registerChessHandlers(io, socket);
+
+    socket.on('presence:query', (userIds, cb) => {
+        if (typeof cb !== 'function') return;
+        const ids = Array.isArray(userIds) ? userIds : [];
+        cb(ids.filter(id => onlineUsers.has(id)));
+    });
+
+    socket.on('disconnect', () => {
+        if (!userId) return;
+        const count = (onlineUsers.get(userId) || 1) - 1;
+        if (count <= 0) { onlineUsers.delete(userId); io.emit('presence:changed', { userId, online: false }); }
+        else onlineUsers.set(userId, count);
+    });
 });
 
 Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {

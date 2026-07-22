@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView, Animated, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
+import api from '../../services/api';
 import { getSocket, onSocket } from '../../services/socket';
 import Avatar from '../../components/Avatar';
 
@@ -52,6 +53,101 @@ function CardBack({ small }) {
     return (
         <View style={[s.cardBack, small && s.cardSmall]}>
             <View style={s.cardBackInner} />
+        </View>
+    );
+}
+
+// Özel masa bekleme odası — kurucu 3. koltuğu bir arkadaşıyla doldurana kadar burada
+// bekler: masa kodunu paylaşabilir veya doğrudan arkadaş listesinden davet gönderebilir.
+function BatakWaitingRoom({ state, myId, tableId, onExit }) {
+    const [friends, setFriends] = useState([]);
+    const [loadingFriends, setLoadingFriends] = useState(true);
+    const [onlineIds, setOnlineIds] = useState(new Set());
+    const [invited, setInvited] = useState(new Set());
+
+    useEffect(() => {
+        api.get('/friends')
+            .then(({ data }) => setFriends(Array.isArray(data) ? data : []))
+            .catch(() => {})
+            .finally(() => setLoadingFriends(false));
+    }, []);
+
+    useEffect(() => {
+        const socket = getSocket();
+        if (!socket || friends.length === 0) return;
+        socket.emit('presence:query', friends.map(f => f.id), (online) => setOnlineIds(new Set(online || [])));
+    }, [friends]);
+
+    useEffect(() => onSocket('batak:inviteSent', (data) => setInvited(prev => new Set(prev).add(data.userId))), []);
+
+    const inviteFriend = (friendId) => getSocket()?.emit('batak:inviteFriend', { tableId, userId: friendId });
+
+    return (
+        <View style={s.root}>
+            <StatusBar barStyle="light-content" />
+            <ScrollView contentContainerStyle={{ padding: 16 }}>
+                <View style={s.waitCodeBox}>
+                    <Text style={s.waitCodeLabel}>Masa Kodu</Text>
+                    <Text style={s.waitCodeValue}>{state.code}</Text>
+                    <Text style={s.waitCodeHint}>Bu kodu paylaşarak arkadaşların masaya katılabilir.</Text>
+                </View>
+
+                <View style={s.waitSeatRow}>
+                    {state.seats.map(seat => (
+                        <View key={seat.seat} style={s.waitSeatCell}>
+                            {seat.open ? (
+                                <>
+                                    <View style={s.waitSeatEmpty} />
+                                    <Text style={s.waitSeatEmptyText}>Boş</Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Avatar user={seat} size={26} />
+                                    <Text style={s.waitSeatName} numberOfLines={1}>{seat.userId === myId ? 'Sen' : seat.username}</Text>
+                                </>
+                            )}
+                        </View>
+                    ))}
+                </View>
+
+                <View style={s.waitInviteBox}>
+                    <Text style={s.waitInviteTitle}>Arkadaşlarını Davet Et</Text>
+                    {loadingFriends ? (
+                        <ActivityIndicator color={colors.purple} style={{ marginTop: 10 }} />
+                    ) : friends.length === 0 ? (
+                        <Text style={s.waitEmptyText}>Henüz arkadaşın yok.</Text>
+                    ) : (
+                        friends.map(f => {
+                            const alreadySeated = state.seats.some(seat => seat.userId === f.id);
+                            const isInvited = invited.has(f.id);
+                            return (
+                                <View key={f.id} style={s.waitFriendRow}>
+                                    <Avatar user={f} size={26} />
+                                    <View style={{ flex: 1, marginLeft: 8 }}>
+                                        <Text style={s.waitFriendName} numberOfLines={1}>{f.fullName || f.username}</Text>
+                                        <Text style={[s.waitFriendStatus, { color: onlineIds.has(f.id) ? '#4ade80' : colors.textMuted }]}>
+                                            {onlineIds.has(f.id) ? '● Çevrimiçi' : '○ Çevrimdışı'}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        disabled={alreadySeated || isInvited}
+                                        onPress={() => inviteFriend(f.id)}
+                                        style={[s.waitInviteBtn, (alreadySeated || isInvited) && s.waitInviteBtnDisabled]}
+                                    >
+                                        <Text style={[s.waitInviteBtnText, (alreadySeated || isInvited) && s.waitInviteBtnTextDisabled]}>
+                                            {alreadySeated ? 'Masada' : isInvited ? 'Gönderildi' : 'Davet Et'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        })
+                    )}
+                </View>
+
+                <TouchableOpacity style={s.waitLeaveBtn} onPress={onExit}>
+                    <Text style={s.waitLeaveBtnText}>Masadan Ayrıl</Text>
+                </TouchableOpacity>
+            </ScrollView>
         </View>
     );
 }
@@ -123,6 +219,10 @@ export default function BatakTableScreen({ route, navigation }) {
                 <Text style={{ color: colors.textMuted }}>{t.batakLoadingTable || 'Masaya bağlanılıyor...'}</Text>
             </View>
         );
+    }
+
+    if (state.phase === 'waiting') {
+        return <BatakWaitingRoom state={state} myId={myId} tableId={tableId} onExit={() => { leaveTable(); navigation.goBack(); }} />;
     }
 
     const mySeatInfo = state.seats.find(seat => seat.userId === myId);
@@ -380,4 +480,29 @@ const s = StyleSheet.create({
     modalHint: { color: colors.textMuted, fontSize: 11, marginTop: 10, textAlign: 'center' },
     modalBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 14 },
     modalBtnText: { color: '#fff', fontWeight: '800' },
+
+    waitCodeBox: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 20, alignItems: 'center', marginBottom: 14 },
+    waitCodeLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 6 },
+    waitCodeValue: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: 6 },
+    waitCodeHint: { color: colors.textMuted, fontSize: 11, marginTop: 10, textAlign: 'center' },
+
+    waitSeatRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+    waitSeatCell: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, alignItems: 'center', gap: 4 },
+    waitSeatEmpty: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.border, borderStyle: 'dashed' },
+    waitSeatEmptyText: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
+    waitSeatName: { color: '#fff', fontSize: 10, fontWeight: '700', maxWidth: 60 },
+
+    waitInviteBox: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 14 },
+    waitInviteTitle: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 },
+    waitEmptyText: { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 10 },
+    waitFriendRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+    waitFriendName: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    waitFriendStatus: { fontSize: 10, marginTop: 1 },
+    waitInviteBtn: { backgroundColor: colors.purple, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+    waitInviteBtnDisabled: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    waitInviteBtnText: { color: '#fff', fontWeight: '700', fontSize: 11 },
+    waitInviteBtnTextDisabled: { color: colors.textMuted },
+
+    waitLeaveBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+    waitLeaveBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
 });

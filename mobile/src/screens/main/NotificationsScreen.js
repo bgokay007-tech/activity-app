@@ -1,10 +1,10 @@
 ﻿import { useEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import api from '../../services/api';
-import { onSocket } from '../../services/socket';
+import { onSocket, getSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { decrementUnread, clearUnread } from '../../store/slices/notificationSlice';
@@ -50,6 +50,7 @@ const TYPE_ICON = {
     PAYMENT_ALERT: '💳',
     PEER_REVIEW_PROMPT: '🏐',
     EQUIPMENT_OFFER: '💰',
+    GAME_TABLE_INVITE: '🎲',
     default: '🔔',
 };
 
@@ -134,7 +135,21 @@ export default function NotificationsScreen({ navigation }) {
             navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: 'equipment', openEquipmentId: data.listingId });
         };
 
-        if (type === 'EQUIPMENT_OFFER') {
+        if (type === 'GAME_TABLE_INVITE') {
+            const game = data.game === 'batak' ? 'batak' : 'okey';
+            const code = data.code;
+            const socket = getSocket();
+            if (!code || !socket) return;
+            const offMatched = onSocket(`${game}:matched`, (matchData) => {
+                offMatched(); offErr();
+                navigation.navigate('HomeTab', { screen: game === 'batak' ? 'BatakTable' : 'OkeyTable', params: { tableId: matchData.tableId } });
+            });
+            const offErr = onSocket(`${game}:error`, (errData) => {
+                offMatched(); offErr();
+                Alert.alert('', errData?.message || 'Masaya katılınamadı.');
+            });
+            socket.emit(`${game}:joinByCode`, { code });
+        } else if (type === 'EQUIPMENT_OFFER') {
             goToEquipmentListing();
         } else if (type === 'MESSAGE' && data.listingId) {
             goToEquipmentListing();

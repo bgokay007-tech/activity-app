@@ -63,6 +63,7 @@ export default function OkeyHomeScreen({ navigation }) {
     const [searching, setSearching] = useState(false);
     const [queuePos, setQueuePos] = useState(null);
     const [difficulty, setDifficulty] = useState('medium');
+    const [joinCode, setJoinCode] = useState('');
     const navigatedRef = useRef(false);
 
     useEffect(() => {
@@ -107,6 +108,18 @@ export default function OkeyHomeScreen({ navigation }) {
         const socket = getSocket();
         if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
         socket.emit('okey:playVsBots', { difficulty });
+    };
+
+    const createPrivateTable = () => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('okey:createPrivateTable');
+    };
+    const joinByCode = () => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        if (!joinCode.trim()) return;
+        socket.emit('okey:joinByCode', { code: joinCode.trim() });
     };
 
     // ── Okey İlanı ──────────────────────────────────────────────────────────
@@ -196,7 +209,7 @@ export default function OkeyHomeScreen({ navigation }) {
             </View>
 
             {mainTab === 'play' ? (
-                <View style={s.playWrap}>
+                <ScrollView contentContainerStyle={s.playWrap} showsVerticalScrollIndicator={false}>
                     <Text style={s.playEmoji}>🀄</Text>
                     <Text style={s.playTitle}>{t.okeyPlayTitle || 'Gerçek Zamanlı Okey'}</Text>
                     <Text style={s.playDesc}>{t.okeyPlayDesc || '4 kişilik masaya otomatik eşleşerek uygulama içinde canlı Okey oyna.'}</Text>
@@ -237,9 +250,30 @@ export default function OkeyHomeScreen({ navigation }) {
                             <TouchableOpacity style={s.botBtn} onPress={startVsBots} activeOpacity={0.85}>
                                 <Text style={s.botBtnText}>{t.okeyPlayVsBots || '🤖 Botlarla Oyna'}</Text>
                             </TouchableOpacity>
+
+                            <Text style={s.orText}>{t.okeyOr || 'veya'}</Text>
+
+                            <Text style={s.difficultyLabel}>{t.okeyPrivateTableLabel || '👥 Arkadaşlarınla Özel Masa'}</Text>
+                            <TouchableOpacity style={s.privateBtn} onPress={createPrivateTable} activeOpacity={0.85}>
+                                <Text style={s.privateBtnText}>{t.okeyCreatePrivateTable || 'Özel Masa Kur'}</Text>
+                            </TouchableOpacity>
+                            <View style={s.joinCodeRow}>
+                                <TextInput
+                                    value={joinCode}
+                                    onChangeText={v => setJoinCode(v.toUpperCase())}
+                                    placeholder={t.okeyTableCode || 'Masa Kodu'}
+                                    placeholderTextColor={colors.textMuted}
+                                    autoCapitalize="characters"
+                                    maxLength={5}
+                                    style={s.joinCodeInput}
+                                />
+                                <TouchableOpacity style={s.joinCodeBtn} onPress={joinByCode} activeOpacity={0.85}>
+                                    <Text style={s.joinCodeBtnText}>{t.okeyJoinBtn || 'Katıl'}</Text>
+                                </TouchableOpacity>
+                            </View>
                         </>
                     )}
-                </View>
+                </ScrollView>
             ) : (
                 <>
                     <View style={s.smallCreateRow}>
@@ -368,6 +402,13 @@ const s = StyleSheet.create({
     difficultyChipTextActive: { color: colors.purpleLight || colors.purple },
     botBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.purple, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 34, marginTop: 18 },
     botBtnText: { color: colors.purpleLight || colors.purple, fontSize: 15, fontWeight: '900' },
+
+    privateBtn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 30, marginTop: 4 },
+    privateBtnText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+    joinCodeRow: { flexDirection: 'row', gap: 8, marginTop: 10, width: '100%', maxWidth: 280 },
+    joinCodeInput: { flex: 1, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 2, textAlign: 'center' },
+    joinCodeBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center' },
+    joinCodeBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
     smallCreateRow: { paddingHorizontal: 12, paddingTop: 10, alignItems: 'flex-end' },
     smallCreateBtn: { backgroundColor: colors.purple, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 7 },
