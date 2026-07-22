@@ -10,13 +10,13 @@ function isJokerTile(t) { return t === 'J1' || t === 'J2'; }
 function tileColorCode(t) { return t[0]; }
 function tileNumLabel(t) { return t.slice(1); }
 
-function OkeyTile({ tile, small, disabled, highlighted, rejected, onClick, style }) {
+function OkeyTile({ tile, small, disabled, highlighted, rejected, popIn, onClick, style }) {
     const joker = isJokerTile(tile);
     const colorHex = joker ? '#b45309' : COLOR_HEX[tileColorCode(tile)];
     const sizeCls = small ? 'w-6 h-9' : 'w-10 h-14';
     return (
         <button onClick={onClick ? () => onClick(tile) : undefined}
-            className={`${sizeCls} rounded-md flex items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[okeyShake_0.4s_ease-in-out]' : ''}`}
+            className={`${sizeCls} rounded-md flex items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[okeyShake_0.4s_ease-in-out]' : ''} ${popIn ? 'animate-[tilePopIn_0.28s_ease-out]' : ''}`}
             style={{
                 background: highlighted ? 'linear-gradient(180deg, #fffdf5 0%, #fff2c7 100%)' : 'linear-gradient(180deg, #fffdf8 0%, #f3e8cf 100%)',
                 borderColor: rejected ? '#ef4444' : (highlighted ? '#f59e0b' : '#d6c6a1'),
@@ -61,6 +61,31 @@ function OkeyBoard({ tableId, myId, onExit }) {
         rejectedTimerRef.current = setTimeout(() => setRejectedTile(null), 450);
     };
     useEffect(() => () => { if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current); }, []);
+
+    // Elde bir taş fazlalaştığında (çekildiğinde) o taş kısa bir "pop-in" animasyonuyla beliriyor.
+    const prevHandLenRef = useRef(0);
+    const [justDrawnIndex, setJustDrawnIndex] = useState(-1);
+    const justDrawnTimerRef = useRef(null);
+    useEffect(() => {
+        if (hand.length > prevHandLenRef.current) {
+            setJustDrawnIndex(hand.length - 1);
+            if (justDrawnTimerRef.current) clearTimeout(justDrawnTimerRef.current);
+            justDrawnTimerRef.current = setTimeout(() => setJustDrawnIndex(-1), 300);
+        }
+        prevHandLenRef.current = hand.length;
+    }, [hand]);
+    useEffect(() => () => { if (justDrawnTimerRef.current) clearTimeout(justDrawnTimerRef.current); }, []);
+
+    // Atım yığınının üstü değiştiğinde (biri taş attığında) o taş her seferinde
+    // yeniden "pop-in" oynasın diye anahtarını artırıyoruz (React'i yeniden mount etmeye zorlar).
+    const prevDiscardTopRef = useRef(undefined);
+    const [discardAnimKey, setDiscardAnimKey] = useState(0);
+    useEffect(() => {
+        if (state?.discardTop !== undefined && state.discardTop !== prevDiscardTopRef.current) {
+            setDiscardAnimKey(k => k + 1);
+        }
+        prevDiscardTopRef.current = state?.discardTop;
+    }, [state?.discardTop]);
 
     useEffect(() => {
         getSocket()?.emit('okey:getState', { tableId });
@@ -112,7 +137,10 @@ function OkeyBoard({ tableId, myId, onExit }) {
 
     return (
         <div className="max-w-3xl mx-auto">
-            <style>{`@keyframes okeyShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }`}</style>
+            <style>{`
+                @keyframes okeyShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+                @keyframes tilePopIn { 0% { transform: scale(0.4); opacity: 0; } 65% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+            `}</style>
             <div className="flex items-center justify-between mb-2">
                 <button onClick={goBack} className="text-white text-sm">‹ Ayrıl</button>
                 <p className="text-white text-sm font-bold">El {state.roundNumber}/{state.totalRounds}</p>
@@ -167,7 +195,7 @@ function OkeyBoard({ tableId, myId, onExit }) {
                         </button>
                         <div style={{ opacity: canDraw && state.discardTop ? 1 : 0.5 }}>
                             {state.discardTop
-                                ? <OkeyTile tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} onClick={drawFromDiscard} />
+                                ? <OkeyTile key={`discard-${discardAnimKey}`} tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} popIn onClick={drawFromDiscard} />
                                 : <button onClick={drawFromDiscard} className="text-white/30 text-2xl" style={{ cursor: 'pointer' }}>—</button>}
                         </div>
                     </div>
@@ -191,7 +219,7 @@ function OkeyBoard({ tableId, myId, onExit }) {
             <div className="flex flex-col items-center mt-3">
                 <div className="flex flex-wrap justify-center gap-2 max-w-2xl">
                     {hand.map((tile, i) => (
-                        <OkeyTile key={`${tile}_${i}`} tile={tile} highlighted={isHighlighted(tile)} disabled={!canAct} rejected={rejectedTile === tile} onClick={onTileClick} />
+                        <OkeyTile key={`${tile}_${i}`} tile={tile} highlighted={isHighlighted(tile)} disabled={!canAct} rejected={rejectedTile === tile} popIn={i === justDrawnIndex} onClick={onTileClick} />
                     ))}
                 </div>
                 {canAct && (

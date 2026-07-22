@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
@@ -12,6 +12,22 @@ const COLOR_HEX = { R: '#dc2626', Y: '#ca8a04', B: '#2563eb', K: '#111827' };
 function isJokerTile(t) { return t === 'J1' || t === 'J2'; }
 function tileColorCode(t) { return t[0]; }
 function tileNumLabel(t) { return t.slice(1); }
+
+// ProfileScreen.js'teki spring pop-in deseninin taş/kart için uyarlanmışı — `trigger`
+// değeri her değiştiğinde ölçek+opaklık sıfırdan oynatılıyor (çekilen taş/atılan kart hissi).
+function PopIn({ trigger, children }) {
+    const scale = useRef(new Animated.Value(0.4)).current;
+    const opacity = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        scale.setValue(0.4);
+        opacity.setValue(0);
+        Animated.parallel([
+            Animated.spring(scale, { toValue: 1, friction: 5, tension: 140, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+        ]).start();
+    }, [trigger]);
+    return <Animated.View style={{ transform: [{ scale }], opacity }}>{children}</Animated.View>;
+}
 
 function OkeyTile({ tile, small, disabled, highlighted, rejected, onPress, onLongPress }) {
     const joker = isJokerTile(tile);
@@ -68,6 +84,15 @@ export default function OkeyTableScreen({ route, navigation }) {
         rejectedTimerRef.current = setTimeout(() => setRejectedTile(null), 500);
     }, []);
     useEffect(() => () => { if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current); }, []);
+
+    // Elde bir taş fazlalaştığında (çekildiğinde) o taşın index'ini işaretliyoruz,
+    // hand satırında o taş PopIn ile "pop-in" oynuyor.
+    const prevHandLenRef = useRef(0);
+    const [justDrawnIndex, setJustDrawnIndex] = useState(-1);
+    useEffect(() => {
+        if (hand.length > prevHandLenRef.current) setJustDrawnIndex(hand.length - 1);
+        prevHandLenRef.current = hand.length;
+    }, [hand]);
 
     useFocusEffect(useCallback(() => {
         const socket = getSocket();
@@ -196,7 +221,7 @@ export default function OkeyTableScreen({ route, navigation }) {
                             activeOpacity={0.7}
                         >
                             {state.discardTop
-                                ? <OkeyTile tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} />
+                                ? <PopIn trigger={state.discardTop}><OkeyTile tile={state.discardTop} highlighted={isHighlighted(state.discardTop)} /></PopIn>
                                 : <Text style={s.pileEmptyText}>—</Text>
                             }
                         </TouchableOpacity>
@@ -222,17 +247,21 @@ export default function OkeyTableScreen({ route, navigation }) {
             {/* Elim */}
             <View style={s.myHandWrap}>
                 <View style={s.myHandRow}>
-                    {hand.map((tile, i) => (
-                        <OkeyTile
-                            key={`${tile}_${i}`}
-                            tile={tile}
-                            highlighted={isHighlighted(tile)}
-                            disabled={!canAct}
-                            rejected={rejectedTile === tile}
-                            onPress={discardTile}
-                            onLongPress={declareWin}
-                        />
-                    ))}
+                    {hand.map((tile, i) => {
+                        const tileEl = (
+                            <OkeyTile
+                                tile={tile}
+                                highlighted={isHighlighted(tile)}
+                                disabled={!canAct}
+                                rejected={rejectedTile === tile}
+                                onPress={discardTile}
+                                onLongPress={declareWin}
+                            />
+                        );
+                        return i === justDrawnIndex
+                            ? <PopIn key={`${tile}_${i}`} trigger={`${tile}_${i}_${hand.length}`}>{tileEl}</PopIn>
+                            : <View key={`${tile}_${i}`}>{tileEl}</View>;
+                    })}
                 </View>
                 <Text style={s.myHandHint}>{t.okeyHandHint || 'Dokun: at · Uzun bas: elini aç'}</Text>
             </View>

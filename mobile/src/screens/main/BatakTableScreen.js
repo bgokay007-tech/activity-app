@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
@@ -16,6 +16,22 @@ function rankLabel(card) {
     return RANK_LABEL[rank] || String(rank);
 }
 function cardSuit(card) { return card.slice(-1); }
+
+// ProfileScreen.js'teki spring pop-in deseninin kart için uyarlanmışı — `trigger`
+// değeri her değiştiğinde ölçek+opaklık sıfırdan oynatılıyor (oynanan kart hissi).
+function PopIn({ trigger, children }) {
+    const scale = useRef(new Animated.Value(0.4)).current;
+    const opacity = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        scale.setValue(0.4);
+        opacity.setValue(0);
+        Animated.parallel([
+            Animated.spring(scale, { toValue: 1, friction: 5, tension: 140, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+        ]).start();
+    }, [trigger]);
+    return <Animated.View style={{ transform: [{ scale }], opacity }}>{children}</Animated.View>;
+}
 
 function PlayingCard({ card, small, disabled, rejected, onPress }) {
     const suit = cardSuit(card);
@@ -171,7 +187,7 @@ export default function BatakTableScreen({ route, navigation }) {
                     <Avatar user={seatByIdx(topSeat)} size={26} ring={topSeat === activeSeat} />
                     <Text style={[s.seatLabel, topSeat === activeSeat && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(topSeat).username}</Text>
                     <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
-                    {trickCardFor(topSeat) && <PlayingCard card={trickCardFor(topSeat)} small />}
+                    {trickCardFor(topSeat) && <PopIn key={trickCardFor(topSeat)} trigger={trickCardFor(topSeat)}><PlayingCard card={trickCardFor(topSeat)} small /></PopIn>}
                 </View>
                 <View style={s.middleRow}>
                     <View style={s.sideSeat}>
@@ -180,9 +196,9 @@ export default function BatakTableScreen({ route, navigation }) {
                         <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(leftSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
                     </View>
                     <View style={s.trickCenter}>
-                        {trickCardFor(leftSeat) && <PlayingCard card={trickCardFor(leftSeat)} small />}
-                        {trickCardFor(bottomSeat) && <PlayingCard card={trickCardFor(bottomSeat)} small />}
-                        {trickCardFor(rightSeat) && <PlayingCard card={trickCardFor(rightSeat)} small />}
+                        {trickCardFor(leftSeat) && <PopIn key={trickCardFor(leftSeat)} trigger={trickCardFor(leftSeat)}><PlayingCard card={trickCardFor(leftSeat)} small /></PopIn>}
+                        {trickCardFor(bottomSeat) && <PopIn key={trickCardFor(bottomSeat)} trigger={trickCardFor(bottomSeat)}><PlayingCard card={trickCardFor(bottomSeat)} small /></PopIn>}
+                        {trickCardFor(rightSeat) && <PopIn key={trickCardFor(rightSeat)} trigger={trickCardFor(rightSeat)}><PlayingCard card={trickCardFor(rightSeat)} small /></PopIn>}
                         {(!state.trick || state.trick.length === 0) && <Text style={s.tableEmoji}>🎴</Text>}
                     </View>
                     <View style={s.sideSeat}>

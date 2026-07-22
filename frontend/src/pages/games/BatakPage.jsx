@@ -12,12 +12,12 @@ const RANK_LABEL = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
 function rankLabel(card) { const rank = parseInt(card.slice(0, -1), 10); return RANK_LABEL[rank] || String(rank); }
 function cardSuit(card) { return card.slice(-1); }
 
-function PlayingCard({ card, small, disabled, rejected, onClick }) {
+function PlayingCard({ card, small, disabled, rejected, popIn, onClick }) {
     const suit = cardSuit(card);
     const sizeCls = small ? 'w-8 h-11' : 'w-12 h-16';
     return (
         <button onClick={onClick ? () => onClick(card) : undefined}
-            className={`${sizeCls} rounded-md flex flex-col items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[batakShake_0.4s_ease-in-out]' : ''}`}
+            className={`${sizeCls} rounded-md flex flex-col items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[batakShake_0.4s_ease-in-out]' : ''} ${popIn ? 'animate-[cardPopIn_0.28s_ease-out]' : ''}`}
             style={{
                 background: 'linear-gradient(180deg, #fffdf8 0%, #f3e8cf 100%)',
                 borderColor: rejected ? '#ef4444' : '#d6c6a1',
@@ -114,7 +114,10 @@ function BatakBoard({ tableId, myId, onExit }) {
 
     return (
         <div className="max-w-3xl mx-auto">
-            <style>{`@keyframes batakShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }`}</style>
+            <style>{`
+                @keyframes batakShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+                @keyframes cardPopIn { 0% { transform: scale(0.4); opacity: 0; } 65% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+            `}</style>
             <div className="flex items-center justify-between mb-2">
                 <button onClick={goBack} className="text-white text-sm">‹ Ayrıl</button>
                 <p className="text-white text-sm font-bold">El {state.roundNumber}/{state.totalRounds}</p>
@@ -148,7 +151,7 @@ function BatakBoard({ tableId, myId, onExit }) {
                     <Avatar user={seatByIdx(topSeat)} size="xs" ring={topSeat === activeSeat} />
                     <p className="text-xs font-bold truncate max-w-[140px]" style={{ color: topSeat === activeSeat ? '#fde047' : '#fff' }}>{seatByIdx(topSeat).username}</p>
                     <div className="flex gap-0.5">{Array.from({ length: Math.min(seatByIdx(topSeat).handCount || 0, 5) }).map((_, i) => <CardBack key={i} small />)}</div>
-                    {trickCardFor(topSeat) && <PlayingCard card={trickCardFor(topSeat)} small />}
+                    {trickCardFor(topSeat) && <PlayingCard key={trickCardFor(topSeat)} card={trickCardFor(topSeat)} small popIn />}
                 </div>
                 <div className="flex items-center justify-between" style={{ minHeight: 100 }}>
                     <div className="flex flex-col items-center gap-1 w-20">
@@ -157,9 +160,9 @@ function BatakBoard({ tableId, myId, onExit }) {
                         <div className="flex flex-wrap justify-center gap-0.5">{Array.from({ length: Math.min(seatByIdx(leftSeat).handCount || 0, 5) }).map((_, i) => <CardBack key={i} small />)}</div>
                     </div>
                     <div className="flex items-center gap-1.5" style={{ minHeight: 90 }}>
-                        {trickCardFor(leftSeat) && <PlayingCard card={trickCardFor(leftSeat)} small />}
-                        {trickCardFor(bottomSeat) && <PlayingCard card={trickCardFor(bottomSeat)} small />}
-                        {trickCardFor(rightSeat) && <PlayingCard card={trickCardFor(rightSeat)} small />}
+                        {trickCardFor(leftSeat) && <PlayingCard key={trickCardFor(leftSeat)} card={trickCardFor(leftSeat)} small popIn />}
+                        {trickCardFor(bottomSeat) && <PlayingCard key={trickCardFor(bottomSeat)} card={trickCardFor(bottomSeat)} small popIn />}
+                        {trickCardFor(rightSeat) && <PlayingCard key={trickCardFor(rightSeat)} card={trickCardFor(rightSeat)} small popIn />}
                         {(!state.trick || state.trick.length === 0) && <span className="text-3xl opacity-30">🎴</span>}
                     </div>
                     <div className="flex flex-col items-center gap-1 w-20">
