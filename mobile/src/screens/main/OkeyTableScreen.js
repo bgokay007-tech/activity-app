@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { getSocket, onSocket } from '../../services/socket';
+import Avatar from '../../components/Avatar';
 
 const COLOR_HEX = { R: '#dc2626', Y: '#ca8a04', B: '#2563eb', K: '#111827' };
 
@@ -33,7 +34,11 @@ function OkeyTile({ tile, small, disabled, highlighted, rejected, onPress, onLon
 }
 
 function TileBack({ small }) {
-    return <View style={[s.tileBack, small && s.tileSmall]}><Text style={s.tileBackText}>🀫</Text></View>;
+    return (
+        <View style={[s.tileBack, small && s.tileSmall]}>
+            <View style={s.tileBackInner} />
+        </View>
+    );
 }
 
 export default function OkeyTableScreen({ route, navigation }) {
@@ -156,6 +161,7 @@ export default function OkeyTableScreen({ route, navigation }) {
             <View style={s.scoreRow}>
                 {state.seats.map(seat => (
                     <View key={seat.seat} style={[s.scoreCell, seat.seat === state.turn && s.scoreCellActive]}>
+                        <Avatar user={seat} size={20} ring={seat.seat === state.turn} />
                         <Text style={[s.scoreName, seat.seat === state.turn && s.scoreNameActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {seat.userId === myId ? (t.okeyYou || 'Sen') : seat.username}
                             {seat.seat === state.dealerIndex ? ' 🎯' : ''}
@@ -169,18 +175,20 @@ export default function OkeyTableScreen({ route, navigation }) {
             {/* Masa */}
             <View style={s.table}>
                 <View style={s.topSeat}>
+                    <Avatar user={seatByIdx(topSeat)} size={26} ring={topSeat === state.turn} />
                     <Text style={[s.seatLabel, topSeat === state.turn && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(topSeat).username}</Text>
                     <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
                 </View>
                 <View style={s.middleRow}>
                     <View style={s.sideSeat}>
+                        <Avatar user={seatByIdx(leftSeat)} size={26} ring={leftSeat === state.turn} />
                         <Text style={[s.seatLabel, leftSeat === state.turn && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(leftSeat).username}</Text>
                         <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(leftSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
                     </View>
                     <View style={s.centerPiles}>
                         <TouchableOpacity style={[s.pile, !canDraw && s.pileDisabled]} onPress={drawFromDeck} activeOpacity={0.7}>
-                            <Text style={s.pileEmoji}>🀫</Text>
-                            <Text style={s.pileCount}>{state.deckCount}</Text>
+                            <TileBack />
+                            <Text style={s.pileCount}>{state.deckCount} taş</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[s.pile, !(canDraw && state.discardTop) && s.pileDisabled]}
@@ -194,6 +202,7 @@ export default function OkeyTableScreen({ route, navigation }) {
                         </TouchableOpacity>
                     </View>
                     <View style={s.sideSeat}>
+                        <Avatar user={seatByIdx(rightSeat)} size={26} ring={rightSeat === state.turn} />
                         <Text style={[s.seatLabel, rightSeat === state.turn && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(rightSeat).username}</Text>
                         <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(rightSeat).handCount || 0 }).slice(0, 7).map((_, i) => <TileBack key={i} small />)}</View>
                     </View>
@@ -277,7 +286,7 @@ export default function OkeyTableScreen({ route, navigation }) {
 }
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#0b3d1f' },
+    root: { flex: 1, backgroundColor: '#062615' },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 10 },
     backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     backBtnText: { color: '#fff', fontSize: 26, fontWeight: '300' },
@@ -292,7 +301,7 @@ const s = StyleSheet.create({
     scoreNameActive: { color: '#fde047' },
     scoreValue: { color: '#4ade80', fontSize: 13, fontWeight: '900' },
 
-    table: { flex: 1, paddingHorizontal: 8 },
+    table: { flex: 1, marginHorizontal: 8, paddingHorizontal: 8, borderRadius: 16, backgroundColor: '#14532d', borderWidth: 4, borderColor: '#3f2a14' },
     topSeat: { alignItems: 'center', marginTop: 6, gap: 3 },
     middleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sideSeat: { alignItems: 'center', gap: 3, width: 70 },
@@ -318,17 +327,17 @@ const s = StyleSheet.create({
     myHandRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' },
     myHandHint: { color: '#ffffff88', fontSize: 10, marginTop: 6 },
 
-    tile: { width: 40, height: 56, backgroundColor: '#fdf6e3', borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#00000022', marginHorizontal: 1.5, marginVertical: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.25, shadowRadius: 2, elevation: 2 },
+    tile: { width: 40, height: 56, backgroundColor: '#f3e8cf', borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#d6c6a1', marginHorizontal: 1.5, marginVertical: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 3, elevation: 3 },
     tileSmall: { width: 26, height: 36, marginHorizontal: 1 },
-    tileHighlight: { borderWidth: 2, borderColor: '#f59e0b', backgroundColor: '#fff7e0' },
+    tileHighlight: { borderWidth: 2, borderColor: '#f59e0b', backgroundColor: '#fff2c7' },
     tileDisabled: { opacity: 0.45 },
     tileRejected: { borderWidth: 2, borderColor: '#ef4444' },
     tileNum: { fontSize: 18, fontWeight: '900' },
     tileNumSmall: { fontSize: 11 },
     tileJoker: { fontSize: 18 },
     tileJokerSmall: { fontSize: 12 },
-    tileBack: { width: 40, height: 56, backgroundColor: '#1e3a8a', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginHorizontal: 1, marginVertical: 1, borderWidth: 1, borderColor: '#ffffff33' },
-    tileBackText: { fontSize: 14 },
+    tileBack: { width: 40, height: 56, backgroundColor: '#7a1730', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginHorizontal: 1, marginVertical: 1, borderWidth: 1, borderColor: '#d4af37', overflow: 'hidden' },
+    tileBackInner: { width: '70%', height: '70%', borderRadius: 4, borderWidth: 1, borderColor: '#d4af3766', backgroundColor: '#5c1024' },
 
     modalOverlay: { flex: 1, backgroundColor: '#000000aa', alignItems: 'center', justifyContent: 'center' },
     modalBox: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: '85%' },

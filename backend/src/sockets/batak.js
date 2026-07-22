@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/env.js';
+import prisma from '../config/prisma.js';
 
 // Basit, sunucu taraflı (hile yapılamaz) 4 kişilik Batak motoru — oyun durumu
 // veritabanında değil bellekte tutulur (sunucu yeniden başlarsa masalar sıfırlanır,
@@ -33,7 +34,7 @@ function publicState(table) {
     return {
         tableId: table.id,
         phase: table.phase,
-        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, connected: s.connected, isBot: !!s.isBot, handCount: table.hands[s.seat]?.length ?? 0 })),
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, handCount: table.hands[s.seat]?.length ?? 0 })),
         dealerIndex: table.dealerIndex,
         turn: table.phase === 'bidding' ? table.biddingTurn : table.phase === 'playing' ? table.turn : null,
         bids: table.passed.map((p, s) => (p ? 'PASS' : (s === table.highestBidder ? table.highestBid : null))),
@@ -331,7 +332,7 @@ function createTable(io, players) {
     const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const table = {
         id,
-        seats: players.map((p, seat) => ({ seat, userId: p.userId, username: p.username, socketId: p.socket.id, connected: true, isBot: false })),
+        seats: players.map((p, seat) => ({ seat, userId: p.userId, username: p.username, avatar: p.avatar || null, socketId: p.socket.id, connected: true, isBot: false })),
         dealerIndex: 0,
         scores: [0, 0, 0, 0],
         roundNumber: 1,
@@ -347,7 +348,7 @@ function createTable(io, players) {
     dealRound(table);
     io.to(`batak:${id}`).emit('batak:matched', {
         tableId: id,
-        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, isBot: false })),
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar, seat: s.seat, isBot: false })),
     });
     broadcastState(io, table);
     sendAllHands(io, table);
@@ -362,10 +363,10 @@ function createBotTable(io, requester, difficulty) {
         id,
         difficulty,
         seats: [
-            { seat: 0, userId: requester.userId, username: requester.username, socketId: requester.socket.id, connected: true, isBot: false },
-            { seat: 1, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
-            { seat: 2, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
-            { seat: 3, userId: null, username: botLabel, socketId: null, connected: true, isBot: true, difficulty },
+            { seat: 0, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false },
+            { seat: 1, userId: null, username: botLabel, avatar: null, socketId: null, connected: true, isBot: true, difficulty },
+            { seat: 2, userId: null, username: botLabel, avatar: null, socketId: null, connected: true, isBot: true, difficulty },
+            { seat: 3, userId: null, username: botLabel, avatar: null, socketId: null, connected: true, isBot: true, difficulty },
         ],
         dealerIndex: 0,
         scores: [0, 0, 0, 0],
@@ -380,7 +381,7 @@ function createBotTable(io, requester, difficulty) {
     dealRound(table);
     io.to(`batak:${id}`).emit('batak:matched', {
         tableId: id,
-        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, seat: s.seat, isBot: s.isBot })),
+        seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar, seat: s.seat, isBot: s.isBot })),
     });
     broadcastState(io, table);
     sendHand(io, table, 0);
@@ -398,11 +399,16 @@ function tryMatch(io) {
 export function registerBatakHandlers(io, socket) {
     let verifiedUserId = null;
     let username = 'Oyuncu';
+    let avatar = null;
     try {
         const token = socket.handshake.auth?.token;
         if (token) {
             const decoded = jwt.verify(token, JWT_SECRET);
             verifiedUserId = decoded.userId;
+            // Avatarı arka planda çek — saf kozmetik olduğu için bloklamadan (fire-and-forget) yapılır.
+            prisma.user.findUnique({ where: { id: verifiedUserId }, select: { avatar: true } })
+                .then(u => { avatar = u?.avatar || null; })
+                .catch(() => {});
         }
     } catch { /* token yoksa/geçersizse batak özellikleri kullanılamaz */ }
 
@@ -412,7 +418,7 @@ export function registerBatakHandlers(io, socket) {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
         if (queue.some(q => q.userId === verifiedUserId)) return;
-        queue.push({ userId: verifiedUserId, username, socket });
+        queue.push({ userId: verifiedUserId, username, avatar, socket });
         socket.emit('batak:queued', { position: queue.length });
         tryMatch(io);
     });
@@ -421,7 +427,7 @@ export function registerBatakHandlers(io, socket) {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
         const diff = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
-        createBotTable(io, { userId: verifiedUserId, username, socket }, diff);
+        createBotTable(io, { userId: verifiedUserId, username, avatar, socket }, diff);
     });
 
     socket.on('batak:cancelFindMatch', () => {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Navbar from '../../components/Navbar';
+import Avatar from '../../components/Avatar';
 import { connectSocket, getSocket, onSocket } from '../../services/socket';
 
 const COLOR_HEX = { R: '#dc2626', Y: '#ca8a04', B: '#2563eb', K: '#111827' };
@@ -9,21 +10,31 @@ function isJokerTile(t) { return t === 'J1' || t === 'J2'; }
 function tileColorCode(t) { return t[0]; }
 function tileNumLabel(t) { return t.slice(1); }
 
-function OkeyTile({ tile, small, disabled, highlighted, rejected, onClick }) {
+function OkeyTile({ tile, small, disabled, highlighted, rejected, onClick, style }) {
     const joker = isJokerTile(tile);
     const colorHex = joker ? '#b45309' : COLOR_HEX[tileColorCode(tile)];
     const sizeCls = small ? 'w-6 h-9' : 'w-10 h-14';
     return (
         <button onClick={onClick ? () => onClick(tile) : undefined}
-            className={`${sizeCls} rounded-md flex items-center justify-center border-2 flex-shrink-0 transition shadow-sm ${rejected ? 'animate-[okeyShake_0.4s_ease-in-out]' : ''}`}
-            style={{ backgroundColor: highlighted ? '#fff7e0' : '#fdf6e3', borderColor: rejected ? '#ef4444' : (highlighted ? '#f59e0b' : '#00000022'), opacity: disabled ? 0.45 : 1, cursor: onClick ? 'pointer' : 'default' }}>
-            {joker ? <span className={small ? 'text-xs' : 'text-lg'}>🃏</span> : <span className={`font-black ${small ? 'text-[11px]' : 'text-lg'}`} style={{ color: colorHex }}>{tileNumLabel(tile)}</span>}
+            className={`${sizeCls} rounded-md flex items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[okeyShake_0.4s_ease-in-out]' : ''}`}
+            style={{
+                background: highlighted ? 'linear-gradient(180deg, #fffdf5 0%, #fff2c7 100%)' : 'linear-gradient(180deg, #fffdf8 0%, #f3e8cf 100%)',
+                borderColor: rejected ? '#ef4444' : (highlighted ? '#f59e0b' : '#d6c6a1'),
+                boxShadow: highlighted ? '0 2px 0 #b45309, 0 4px 6px rgba(0,0,0,.35)' : '0 2px 0 #b8a276, 0 3px 5px rgba(0,0,0,.35)',
+                opacity: disabled ? 0.45 : 1, cursor: onClick ? 'pointer' : 'default', ...style,
+            }}>
+            {joker ? <span className={small ? 'text-xs' : 'text-lg'}>🃏</span> : <span className={`font-black ${small ? 'text-[11px]' : 'text-lg'}`} style={{ color: colorHex, textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{tileNumLabel(tile)}</span>}
         </button>
     );
 }
 function TileBack({ small }) {
     const sizeCls = small ? 'w-6 h-9' : 'w-10 h-14';
-    return <div className={`${sizeCls} rounded-md flex items-center justify-center flex-shrink-0`} style={{ backgroundColor: '#1e3a8a', border: '1px solid #ffffff33' }}><span className="text-xs">🀫</span></div>;
+    return (
+        <div className={`${sizeCls} rounded-md flex-shrink-0`} style={{
+            background: 'repeating-linear-gradient(45deg, #7a1730, #7a1730 4px, #5c1024 4px, #5c1024 8px)',
+            border: '1px solid #d4af37', boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.4)',
+        }} />
+    );
 }
 
 function OkeyBoard({ tableId, myId, onExit }) {
@@ -115,18 +126,23 @@ function OkeyBoard({ tableId, myId, onExit }) {
 
             <div className="flex gap-1.5 mb-3">
                 {state.seats.map(seat => (
-                    <div key={seat.seat} className="flex-1 rounded-lg py-1 text-center border transition"
+                    <div key={seat.seat} className="flex-1 rounded-lg py-1.5 px-1 text-center border transition flex flex-col items-center gap-1"
                         style={seat.seat === state.turn ? { backgroundColor: '#fbbf2433', borderColor: '#fbbf24' } : { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'transparent' }}>
-                        <p className="text-[10px] font-bold truncate" style={{ color: seat.seat === state.turn ? '#fde047' : '#fff' }}>
+                        <Avatar user={seat} size="xs" ring={seat.seat === state.turn} />
+                        <p className="text-[10px] font-bold truncate w-full" style={{ color: seat.seat === state.turn ? '#fde047' : '#fff' }}>
                             {seat.userId === myId ? 'Sen' : seat.username}{seat.seat === state.dealerIndex ? ' 🎯' : ''}{!seat.connected ? ' 🤖' : ''}
                         </p>
-                        <p className="text-green-400 text-sm font-black" style={{ color: state.scores[seat.seat] < 0 ? '#f87171' : '#4ade80' }}>{state.scores[seat.seat]}</p>
+                        <p className="text-sm font-black" style={{ color: state.scores[seat.seat] < 0 ? '#f87171' : '#4ade80' }}>{state.scores[seat.seat]}</p>
                     </div>
                 ))}
             </div>
 
-            <div className="rounded-2xl p-3" style={{ backgroundColor: '#0b3d1f', minHeight: 320 }}>
+            <div className="rounded-2xl p-3 border-4" style={{
+                background: 'radial-gradient(ellipse at center, #14532d 0%, #0b3d1f 65%, #062615 100%)',
+                borderColor: '#3f2a14', boxShadow: 'inset 0 0 30px rgba(0,0,0,.5), 0 6px 16px rgba(0,0,0,.4)', minHeight: 320,
+            }}>
                 <div className="flex flex-col items-center gap-1 mb-2">
+                    <Avatar user={seatByIdx(topSeat)} size="xs" ring={topSeat === state.turn} />
                     <p className="text-xs font-bold truncate max-w-[140px]" style={{ color: topSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(topSeat).username}</p>
                     <div className="flex flex-wrap justify-center gap-0.5 max-w-xs">
                         {Array.from({ length: Math.min(seatByIdx(topSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
@@ -134,6 +150,7 @@ function OkeyBoard({ tableId, myId, onExit }) {
                 </div>
                 <div className="flex items-center justify-between" style={{ minHeight: 100 }}>
                     <div className="flex flex-col items-center gap-1 w-20">
+                        <Avatar user={seatByIdx(leftSeat)} size="xs" ring={leftSeat === state.turn} />
                         <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: leftSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(leftSeat).username}</p>
                         <div className="flex flex-wrap justify-center gap-0.5">
                             {Array.from({ length: Math.min(seatByIdx(leftSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}
@@ -141,8 +158,12 @@ function OkeyBoard({ tableId, myId, onExit }) {
                     </div>
                     <div className="flex items-center gap-4">
                         <button onClick={drawFromDeck} className="flex flex-col items-center transition" style={{ opacity: canDraw ? 1 : 0.5, cursor: 'pointer' }}>
-                            <span className="text-3xl">🀫</span>
-                            <span className="text-white text-[11px] font-bold mt-0.5">{state.deckCount}</span>
+                            <div className="w-11 h-15 rounded-md" style={{
+                                width: 44, height: 60,
+                                background: 'repeating-linear-gradient(45deg, #7a1730, #7a1730 4px, #5c1024 4px, #5c1024 8px)',
+                                border: '1px solid #d4af37', boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.25), 0 3px 6px rgba(0,0,0,.5)',
+                            }} />
+                            <span className="text-white text-[11px] font-bold mt-1">{state.deckCount} taş</span>
                         </button>
                         <div style={{ opacity: canDraw && state.discardTop ? 1 : 0.5 }}>
                             {state.discardTop
@@ -151,6 +172,7 @@ function OkeyBoard({ tableId, myId, onExit }) {
                         </div>
                     </div>
                     <div className="flex flex-col items-center gap-1 w-20">
+                        <Avatar user={seatByIdx(rightSeat)} size="xs" ring={rightSeat === state.turn} />
                         <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: rightSeat === state.turn ? '#fde047' : '#fff' }}>{seatByIdx(rightSeat).username}</p>
                         <div className="flex flex-wrap justify-center gap-0.5">
                             {Array.from({ length: Math.min(seatByIdx(rightSeat).handCount || 0, 7) }).map((_, i) => <TileBack key={i} small />)}

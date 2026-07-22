@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { getSocket, onSocket } from '../../services/socket';
+import Avatar from '../../components/Avatar';
 
 const SUIT_SYMBOL = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const SUIT_COLOR = { S: '#111827', C: '#111827', H: '#dc2626', D: '#dc2626' };
@@ -32,7 +33,11 @@ function PlayingCard({ card, small, disabled, rejected, onPress }) {
 }
 
 function CardBack({ small }) {
-    return <View style={[s.cardBack, small && s.cardSmall]}><Text style={s.cardBackText}>🃏</Text></View>;
+    return (
+        <View style={[s.cardBack, small && s.cardSmall]}>
+            <View style={s.cardBackInner} />
+        </View>
+    );
 }
 
 export default function BatakTableScreen({ route, navigation }) {
@@ -149,6 +154,7 @@ export default function BatakTableScreen({ route, navigation }) {
             <View style={s.scoreRow}>
                 {state.seats.map(seat => (
                     <View key={seat.seat} style={[s.scoreCell, seat.seat === activeSeat && s.scoreCellActive]}>
+                        <Avatar user={seat} size={20} ring={seat.seat === activeSeat} />
                         <Text style={[s.scoreName, seat.seat === activeSeat && s.scoreNameActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {seat.userId === myId ? (t.batakYou || 'Sen') : seat.username}
                             {seat.seat === state.dealerIndex ? ' 🎯' : ''}
@@ -162,12 +168,14 @@ export default function BatakTableScreen({ route, navigation }) {
             {/* Masa */}
             <View style={s.table}>
                 <View style={s.topSeat}>
+                    <Avatar user={seatByIdx(topSeat)} size={26} ring={topSeat === activeSeat} />
                     <Text style={[s.seatLabel, topSeat === activeSeat && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(topSeat).username}</Text>
                     <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
                     {trickCardFor(topSeat) && <PlayingCard card={trickCardFor(topSeat)} small />}
                 </View>
                 <View style={s.middleRow}>
                     <View style={s.sideSeat}>
+                        <Avatar user={seatByIdx(leftSeat)} size={26} ring={leftSeat === activeSeat} />
                         <Text style={[s.seatLabel, leftSeat === activeSeat && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(leftSeat).username}</Text>
                         <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(leftSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
                     </View>
@@ -178,6 +186,7 @@ export default function BatakTableScreen({ route, navigation }) {
                         {(!state.trick || state.trick.length === 0) && <Text style={s.tableEmoji}>🎴</Text>}
                     </View>
                     <View style={s.sideSeat}>
+                        <Avatar user={seatByIdx(rightSeat)} size={26} ring={rightSeat === activeSeat} />
                         <Text style={[s.seatLabel, rightSeat === activeSeat && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(rightSeat).username}</Text>
                         <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(rightSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
                     </View>
@@ -293,7 +302,7 @@ export default function BatakTableScreen({ route, navigation }) {
 }
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#0b3d1f' },
+    root: { flex: 1, backgroundColor: '#062615' },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 10 },
     backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     backBtnText: { color: '#fff', fontSize: 26, fontWeight: '300' },
@@ -308,7 +317,7 @@ const s = StyleSheet.create({
     scoreNameActive: { color: '#fde047' },
     scoreValue: { color: '#4ade80', fontSize: 13, fontWeight: '900' },
 
-    table: { flex: 1, paddingHorizontal: 8 },
+    table: { flex: 1, marginHorizontal: 8, paddingHorizontal: 8, borderRadius: 16, backgroundColor: '#14532d', borderWidth: 4, borderColor: '#3f2a14' },
     topSeat: { alignItems: 'center', marginTop: 6, gap: 3 },
     middleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sideSeat: { alignItems: 'center', gap: 3, width: 70 },
@@ -337,7 +346,7 @@ const s = StyleSheet.create({
 
     myHandRow: { paddingHorizontal: 10, paddingVertical: 10, gap: 4, alignItems: 'center' },
 
-    card: { width: 46, height: 64, backgroundColor: '#fff', borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#00000022', marginHorizontal: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.25, shadowRadius: 2, elevation: 2 },
+    card: { width: 46, height: 64, backgroundColor: '#f3e8cf', borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#d6c6a1', marginHorizontal: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 3, elevation: 3 },
     cardSmall: { width: 30, height: 42, marginHorizontal: 1 },
     cardDisabled: { opacity: 0.35 },
     cardRejected: { borderWidth: 2, borderColor: '#ef4444' },
@@ -345,8 +354,8 @@ const s = StyleSheet.create({
     cardRankSmall: { fontSize: 10 },
     cardSuit: { fontSize: 18, fontWeight: '900' },
     cardSuitSmall: { fontSize: 12 },
-    cardBack: { width: 46, height: 64, backgroundColor: '#1e3a8a', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginHorizontal: 2, borderWidth: 1, borderColor: '#ffffff33' },
-    cardBackText: { fontSize: 16 },
+    cardBack: { width: 46, height: 64, backgroundColor: '#7a1730', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginHorizontal: 2, borderWidth: 1, borderColor: '#d4af37', overflow: 'hidden' },
+    cardBackInner: { width: '70%', height: '70%', borderRadius: 4, borderWidth: 1, borderColor: '#d4af3766', backgroundColor: '#5c1024' },
 
     modalOverlay: { flex: 1, backgroundColor: '#000000aa', alignItems: 'center', justifyContent: 'center' },
     modalBox: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: '85%' },

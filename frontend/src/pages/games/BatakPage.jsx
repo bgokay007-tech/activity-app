@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Navbar from '../../components/Navbar';
+import Avatar from '../../components/Avatar';
 import { connectSocket, getSocket, onSocket } from '../../services/socket';
 
 const SUIT_SYMBOL = { S: '♠', H: '♥', D: '♦', C: '♣' };
@@ -16,16 +17,27 @@ function PlayingCard({ card, small, disabled, rejected, onClick }) {
     const sizeCls = small ? 'w-8 h-11' : 'w-12 h-16';
     return (
         <button onClick={onClick ? () => onClick(card) : undefined}
-            className={`${sizeCls} bg-white rounded-md flex flex-col items-center justify-center border-2 flex-shrink-0 transition shadow-sm ${rejected ? 'animate-[batakShake_0.4s_ease-in-out]' : ''}`}
-            style={{ borderColor: rejected ? '#ef4444' : '#00000022', opacity: disabled ? 0.35 : 1, cursor: onClick ? 'pointer' : 'default' }}>
-            <span className={`font-black leading-none ${small ? 'text-[10px]' : 'text-sm'}`} style={{ color: SUIT_COLOR[suit] }}>{rankLabel(card)}</span>
-            <span className={`font-black leading-none ${small ? 'text-xs' : 'text-lg'}`} style={{ color: SUIT_COLOR[suit] }}>{SUIT_SYMBOL[suit]}</span>
+            className={`${sizeCls} rounded-md flex flex-col items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[batakShake_0.4s_ease-in-out]' : ''}`}
+            style={{
+                background: 'linear-gradient(180deg, #fffdf8 0%, #f3e8cf 100%)',
+                borderColor: rejected ? '#ef4444' : '#d6c6a1',
+                boxShadow: '0 2px 0 #b8a276, 0 3px 5px rgba(0,0,0,.35)',
+                opacity: disabled ? 0.35 : 1, cursor: onClick ? 'pointer' : 'default',
+            }}>
+            <span className={`font-black leading-none ${small ? 'text-[10px]' : 'text-sm'}`} style={{ color: SUIT_COLOR[suit], textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{rankLabel(card)}</span>
+            <span className={`font-black leading-none ${small ? 'text-xs' : 'text-lg'}`} style={{ color: SUIT_COLOR[suit], textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{SUIT_SYMBOL[suit]}</span>
         </button>
     );
 }
 function CardBack({ small }) {
     const sizeCls = small ? 'w-8 h-11' : 'w-12 h-16';
-    return <div className={`${sizeCls} rounded-md flex items-center justify-center flex-shrink-0`} style={{ backgroundColor: '#1e3a8a', border: '1px solid #ffffff33' }}><span className="text-sm">🃏</span></div>;
+    return (
+        <div className={`${sizeCls} rounded-md flex-shrink-0`} style={{
+            background: 'repeating-linear-gradient(45deg, #7a1730, #7a1730 4px, #5c1024 4px, #5c1024 8px)',
+            border: '1px solid #d4af37',
+            boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.4)',
+        }} />
+    );
 }
 
 function BatakBoard({ tableId, myId, onExit }) {
@@ -115,8 +127,9 @@ function BatakBoard({ tableId, myId, onExit }) {
 
             <div className="flex gap-1.5 mb-3">
                 {state.seats.map(seat => (
-                    <div key={seat.seat} className="flex-1 rounded-lg py-1 text-center border transition"
+                    <div key={seat.seat} className="flex-1 rounded-lg py-1.5 text-center border transition flex flex-col items-center gap-1"
                         style={seat.seat === activeSeat ? { backgroundColor: '#fbbf2433', borderColor: '#fbbf24' } : { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'transparent' }}>
+                        <Avatar user={seat} size="xs" ring={seat.seat === activeSeat} />
                         <p className="text-[10px] font-bold truncate" style={{ color: seat.seat === activeSeat ? '#fde047' : '#fff' }}>
                             {seat.userId === myId ? 'Sen' : seat.username}{seat.seat === state.dealerIndex ? ' 🎯' : ''}{!seat.connected ? ' 🤖' : ''}
                         </p>
@@ -125,14 +138,21 @@ function BatakBoard({ tableId, myId, onExit }) {
                 ))}
             </div>
 
-            <div className="rounded-2xl p-3" style={{ backgroundColor: '#0b3d1f', minHeight: 320 }}>
+            <div className="rounded-2xl p-3 border-4" style={{
+                background: 'radial-gradient(ellipse at center, #14532d 0%, #0b3d1f 65%, #062615 100%)',
+                borderColor: '#3f2a14',
+                boxShadow: 'inset 0 0 30px rgba(0,0,0,.5), 0 6px 16px rgba(0,0,0,.4)',
+                minHeight: 320,
+            }}>
                 <div className="flex flex-col items-center gap-1 mb-2">
+                    <Avatar user={seatByIdx(topSeat)} size="xs" ring={topSeat === activeSeat} />
                     <p className="text-xs font-bold truncate max-w-[140px]" style={{ color: topSeat === activeSeat ? '#fde047' : '#fff' }}>{seatByIdx(topSeat).username}</p>
                     <div className="flex gap-0.5">{Array.from({ length: Math.min(seatByIdx(topSeat).handCount || 0, 5) }).map((_, i) => <CardBack key={i} small />)}</div>
                     {trickCardFor(topSeat) && <PlayingCard card={trickCardFor(topSeat)} small />}
                 </div>
                 <div className="flex items-center justify-between" style={{ minHeight: 100 }}>
                     <div className="flex flex-col items-center gap-1 w-20">
+                        <Avatar user={seatByIdx(leftSeat)} size="xs" ring={leftSeat === activeSeat} />
                         <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: leftSeat === activeSeat ? '#fde047' : '#fff' }}>{seatByIdx(leftSeat).username}</p>
                         <div className="flex flex-wrap justify-center gap-0.5">{Array.from({ length: Math.min(seatByIdx(leftSeat).handCount || 0, 5) }).map((_, i) => <CardBack key={i} small />)}</div>
                     </div>
@@ -143,6 +163,7 @@ function BatakBoard({ tableId, myId, onExit }) {
                         {(!state.trick || state.trick.length === 0) && <span className="text-3xl opacity-30">🎴</span>}
                     </div>
                     <div className="flex flex-col items-center gap-1 w-20">
+                        <Avatar user={seatByIdx(rightSeat)} size="xs" ring={rightSeat === activeSeat} />
                         <p className="text-[11px] font-bold truncate max-w-[70px]" style={{ color: rightSeat === activeSeat ? '#fde047' : '#fff' }}>{seatByIdx(rightSeat).username}</p>
                         <div className="flex flex-wrap justify-center gap-0.5">{Array.from({ length: Math.min(seatByIdx(rightSeat).handCount || 0, 5) }).map((_, i) => <CardBack key={i} small />)}</div>
                     </div>
