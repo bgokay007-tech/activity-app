@@ -10,6 +10,7 @@ import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
@@ -10209,6 +10210,29 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [autoOpenId, setAutoOpenId] = useState(null);
     const autoOpenHandledRef = useRef(null);
 
+    // Yakındaki ilanları harita üzerinde gösteren "Harita" modali (Rakip Bul sekmesi).
+    const [showActivityMap, setShowActivityMap] = useState(false);
+    const [mapMyLocation, setMapMyLocation] = useState(null);
+    const [mapLoading, setMapLoading] = useState(false);
+    const [mapError, setMapError] = useState(null);
+
+    const openActivityMap = async () => {
+        setShowActivityMap(true);
+        if (mapMyLocation) return;
+        setMapLoading(true);
+        setMapError(null);
+        try {
+            const perm = await Location.requestForegroundPermissionsAsync();
+            if (!perm.granted) { setMapError('Konum izni verilmedi'); return; }
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            setMapMyLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        } catch {
+            setMapError('Konum alınamadı');
+        } finally {
+            setMapLoading(false);
+        }
+    };
+
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
     const [matchedUpcoming, setMatchedUpcoming] = useState([]);
@@ -11756,6 +11780,13 @@ export default function SubCategoryScreen({ route, navigation }) {
         <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8, flexWrap:'wrap' }}>
             {children}
             <CityAlertBtn tab={tab} />
+            {tab === 'rivals' && (
+                <TouchableOpacity
+                    onPress={openActivityMap}
+                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: colors.border }}>
+                    <Text style={{ fontSize:11 }}>🗺️</Text>
+                </TouchableOpacity>
+            )}
             <TouchableOpacity
                 onPress={() => setShowCityFilter(true)}
                 style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
@@ -13001,6 +13032,69 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </>
                                 )}
                             </View>
+                        </View>
+                    </Modal>
+
+                    {/* ── Rakip Bul: Yakındaki İlanlar Haritası ── */}
+                    <Modal visible={showActivityMap} animationType="slide" onRequestClose={() => setShowActivityMap(false)}>
+                        <View style={{ flex:1, backgroundColor: colors.bg }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:9,
+                                paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:11,
+                                borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                <TouchableOpacity onPress={() => setShowActivityMap(false)} style={{ marginRight:14, padding:1 }}>
+                                    <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
+                                </TouchableOpacity>
+                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>🗺️ Yakındaki İlanlar</Text>
+                            </View>
+                            {mapLoading ? (
+                                <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
+                                    <ActivityIndicator color={cfg.color} />
+                                    <Text style={{ color: colors.textMuted, fontSize:12, marginTop:8 }}>Konumunuz alınıyor...</Text>
+                                </View>
+                            ) : mapError ? (
+                                <View style={{ flex:1, alignItems:'center', justifyContent:'center', padding:24 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginBottom:12 }}>{mapError}</Text>
+                                    <TouchableOpacity onPress={openActivityMap} style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:8, paddingHorizontal:16 }}>
+                                        <Text style={{ color:'#fff', fontWeight:'700' }}>Tekrar Dene</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : mapMyLocation ? (() => {
+                                const mapRivals = filteredRivals.filter(r => r.courtLat != null && r.courtLng != null);
+                                return (
+                                    <>
+                                        <MapView
+                                            provider={PROVIDER_DEFAULT}
+                                            style={{ flex:1 }}
+                                            initialRegion={{
+                                                latitude: mapMyLocation.latitude,
+                                                longitude: mapMyLocation.longitude,
+                                                latitudeDelta: 0.08,
+                                                longitudeDelta: 0.08,
+                                            }}
+                                            showsUserLocation
+                                            showsMyLocationButton
+                                        >
+                                            {mapRivals.map(r => (
+                                                <Marker
+                                                    key={r.id}
+                                                    coordinate={{ latitude: r.courtLat, longitude: r.courtLng }}
+                                                    pinColor={cfg.color}
+                                                    title={`${r.subCategory} · ${senderAlias(r.sender)}`}
+                                                    description={r.courtName || r.location || ''}
+                                                    onCalloutPress={() => { setShowActivityMap(false); setAutoOpenId(r.id); }}
+                                                />
+                                            ))}
+                                        </MapView>
+                                        <View style={{ position:'absolute', bottom:16, left:16, right:16, backgroundColor: colors.surface, borderRadius:12, padding:10, borderWidth:1, borderColor: colors.border }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center' }}>
+                                                {mapRivals.length > 0
+                                                    ? `${mapRivals.length} ilan konum bilgisiyle haritada — bir işaretçiye dokunup açın`
+                                                    : 'Konum bilgisi olan bir ilan bulunamadı'}
+                                            </Text>
+                                        </View>
+                                    </>
+                                );
+                            })() : null}
                         </View>
                     </Modal>
 
