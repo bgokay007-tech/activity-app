@@ -30,16 +30,23 @@ export const searchTheaterEvents = async (req, res, next) => {
         const apiKey = process.env.TICKETMASTER_API_KEY;
         if (!apiKey) return res.status(503).json({ message: 'Tiyatro arama şu anda yapılandırılmamış' });
 
-        const { city, name, dateFrom, dateTo } = req.query;
+        const { city, name, dateFrom, dateTo, lat, lng, radius } = req.query;
 
         const params = new URLSearchParams({
             apikey: apiKey,
-            countryCode: 'TR',
             classificationName: 'theatre',
             size: '30',
             sort: 'date,asc',
         });
-        if (city) params.set('city', city);
+        // bkz. concert.controller.js — aynı gerekçe: ülke kısıtı kaldırıldı, konum
+        // bazlı (harita) aramada latlong+radius kullanılıyor.
+        if (lat && lng) {
+            params.set('latlong', `${lat},${lng}`);
+            params.set('radius', String(radius || 50));
+            params.set('unit', 'km');
+        } else if (city) {
+            params.set('city', city);
+        }
         if (name) params.set('keyword', name);
         if (dateFrom) params.set('startDateTime', `${dateFrom}T00:00:00Z`);
         if (dateTo) params.set('endDateTime', `${dateTo}T23:59:59Z`);

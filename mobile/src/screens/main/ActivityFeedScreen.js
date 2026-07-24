@@ -775,32 +775,39 @@ export default function ActivityFeedScreen({ navigation }) {
 
     const openActivityMap = async () => {
         setShowActivityMap(true);
-        fetchMapData(mapDate);
-        if (mapMyLocation) return;
-        setMapLoading(true);
-        setMapError(null);
-        try {
-            const perm = await Location.requestForegroundPermissionsAsync();
-            if (!perm.granted) { setMapError('Konum izni verilmedi'); return; }
-            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            setMapMyLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-        } catch {
-            setMapError('Konum alınamadı');
-        } finally {
-            setMapLoading(false);
+        let loc = mapMyLocation;
+        if (!loc) {
+            setMapLoading(true);
+            setMapError(null);
+            try {
+                const perm = await Location.requestForegroundPermissionsAsync();
+                if (!perm.granted) { setMapError('Konum izni verilmedi'); return; }
+                const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                setMapMyLocation(loc);
+            } catch {
+                setMapError('Konum alınamadı');
+                return;
+            } finally {
+                setMapLoading(false);
+            }
         }
+        fetchMapData(mapDate, loc);
     };
 
     // Haritada seçilen tarih için ilanları/etkinlikleri çeker — ana akıştaki
     // filtrelerden (spor/il seçimi) bağımsız, sadece o güne göre ve tüm branşları kapsar.
-    const fetchMapData = async (dateObj) => {
+    // Konser/tiyatro araması kullanıcının GPS konumuna göre (latlong+radius) yapılır —
+    // ülke sınırı yok, Türkiye'de veya yurt dışındaysa oraya göre sonuç döner.
+    const fetchMapData = async (dateObj, loc) => {
         setMapDataLoading(true);
         const dStr = toDateStr(dateObj);
+        const geoParams = loc ? { lat: loc.latitude, lng: loc.longitude, radius: 60 } : {};
         try {
             const [rivalsRes, concertsRes, playsRes] = await Promise.all([
                 api.get('/rivals', { params: { date: dStr } }).then(r => r.data).catch(() => []),
-                api.get('/concerts/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.concerts || []).catch(() => []),
-                api.get('/theater/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.plays || []).catch(() => []),
+                api.get('/concerts/search', { params: { dateFrom: dStr, dateTo: dStr, ...geoParams } }).then(r => r.data?.concerts || []).catch(() => []),
+                api.get('/theater/search', { params: { dateFrom: dStr, dateTo: dStr, ...geoParams } }).then(r => r.data?.plays || []).catch(() => []),
             ]);
             setMapDataItems(rivalsRes);
             setMapDataConcerts(concertsRes);
@@ -813,7 +820,7 @@ export default function ActivityFeedScreen({ navigation }) {
     const changeMapDate = (date) => {
         setMapDate(date);
         setShowMapDateModal(false);
-        fetchMapData(date);
+        fetchMapData(date, mapMyLocation);
     };
 
     useEffect(() => {

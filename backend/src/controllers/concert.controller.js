@@ -32,16 +32,26 @@ export const searchConcerts = async (req, res, next) => {
         const apiKey = process.env.TICKETMASTER_API_KEY;
         if (!apiKey) return res.status(503).json({ message: 'Konser arama şu anda yapılandırılmamış' });
 
-        const { city, artist, dateFrom, dateTo } = req.query;
+        const { city, artist, dateFrom, dateTo, lat, lng, radius } = req.query;
 
         const params = new URLSearchParams({
             apikey: apiKey,
-            countryCode: 'TR',
             classificationName: 'music',
             size: '30',
             sort: 'date,asc',
         });
-        if (city) params.set('city', city);
+        // Konum bazlı (harita) arama: latlong+radius verilirse ülke sınırı olmadan,
+        // kullanıcının fiilen bulunduğu ülkeye göre (Türkiye ya da yurt dışı) sonuç
+        // döner. Şehir adıyla arandığında da ülke kısıtı yok — Ticketmaster zaten
+        // TR dahil 30+ ülkeyi kapsıyor, "sadece Türkiye" filtresi gereksiz yere
+        // yurt dışı etkinlikleri eliyordu.
+        if (lat && lng) {
+            params.set('latlong', `${lat},${lng}`);
+            params.set('radius', String(radius || 50));
+            params.set('unit', 'km');
+        } else if (city) {
+            params.set('city', city);
+        }
         if (artist) params.set('keyword', artist);
         if (dateFrom) params.set('startDateTime', `${dateFrom}T00:00:00Z`);
         if (dateTo) params.set('endDateTime', `${dateTo}T23:59:59Z`);
