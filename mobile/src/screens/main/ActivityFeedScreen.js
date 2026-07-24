@@ -792,22 +792,22 @@ export default function ActivityFeedScreen({ navigation }) {
                 setMapLoading(false);
             }
         }
-        fetchMapData(mapDate, loc);
+        fetchMapData(mapDate);
     };
 
     // Haritada seçilen tarih için ilanları/etkinlikleri çeker — ana akıştaki
     // filtrelerden (spor/il seçimi) bağımsız, sadece o güne göre ve tüm branşları kapsar.
-    // Konser/tiyatro araması kullanıcının GPS konumuna göre (latlong+radius) yapılır —
-    // ülke sınırı yok, Türkiye'de veya yurt dışındaysa oraya göre sonuç döner.
-    const fetchMapData = async (dateObj, loc) => {
+    // Konser/tiyatro araması herhangi bir konum/ülke kısıtı OLMADAN yapılır — kullanıcı
+    // Türkiye'deyken de yurt dışındaki etkinlikleri haritada görüp gezinebilsin diye;
+    // harita sadece başlangıçta kullanıcının konumunu merkez alır, veriyi kısıtlamaz.
+    const fetchMapData = async (dateObj) => {
         setMapDataLoading(true);
         const dStr = toDateStr(dateObj);
-        const geoParams = loc ? { lat: loc.latitude, lng: loc.longitude, radius: 60 } : {};
         try {
             const [rivalsRes, concertsRes, playsRes] = await Promise.all([
                 api.get('/rivals', { params: { date: dStr } }).then(r => r.data).catch(() => []),
-                api.get('/concerts/search', { params: { dateFrom: dStr, dateTo: dStr, ...geoParams } }).then(r => r.data?.concerts || []).catch(() => []),
-                api.get('/theater/search', { params: { dateFrom: dStr, dateTo: dStr, ...geoParams } }).then(r => r.data?.plays || []).catch(() => []),
+                api.get('/concerts/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.concerts || []).catch(() => []),
+                api.get('/theater/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.plays || []).catch(() => []),
             ]);
             setMapDataItems(rivalsRes);
             setMapDataConcerts(concertsRes);
@@ -820,7 +820,7 @@ export default function ActivityFeedScreen({ navigation }) {
     const changeMapDate = (date) => {
         setMapDate(date);
         setShowMapDateModal(false);
-        fetchMapData(date, mapMyLocation);
+        fetchMapData(date);
     };
 
     useEffect(() => {
