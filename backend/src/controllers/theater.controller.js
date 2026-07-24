@@ -13,6 +13,8 @@ function normalizePlay(e) {
         city: venue?.city?.name || null,
         venueName: venue?.name || null,
         venueAddress: venue?.address?.line1 || null,
+        venueLat: venue?.location?.latitude != null ? Number(venue.location.latitude) : null,
+        venueLng: venue?.location?.longitude != null ? Number(venue.location.longitude) : null,
         date: e.dates?.start?.localDate || null,
         time: e.dates?.start?.localTime || null,
         imageUrl: image?.url || null,

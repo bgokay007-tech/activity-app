@@ -1224,6 +1224,9 @@ export default function ActivityFeedScreen({ navigation }) {
                         </View>
                     ) : mapMyLocation ? (() => {
                         const mapItems = items.filter(it => it.courtLat != null && it.courtLng != null);
+                        const mapConcerts = concertItems.filter(c => c.venueLat != null && c.venueLng != null);
+                        const mapPlays = theaterItems.filter(p => p.venueLat != null && p.venueLng != null);
+                        const totalCount = mapItems.length + mapConcerts.length + mapPlays.length;
                         return (
                             <>
                                 <MapView
@@ -1242,7 +1245,7 @@ export default function ActivityFeedScreen({ navigation }) {
                                         const catMeta = CAT_MAP[it.category] || { color: colors.purple };
                                         return (
                                             <Marker
-                                                key={it.id}
+                                                key={`rival-${it.id}`}
                                                 coordinate={{ latitude: it.courtLat, longitude: it.courtLng }}
                                                 pinColor={catMeta.color}
                                                 title={`${it.subCategory} · ${it.sender?.fullName || it.sender?.username || ''}`}
@@ -1257,11 +1260,31 @@ export default function ActivityFeedScreen({ navigation }) {
                                             />
                                         );
                                     })}
+                                    {mapConcerts.map(c => (
+                                        <Marker
+                                            key={`concert-${c.id}`}
+                                            coordinate={{ latitude: c.venueLat, longitude: c.venueLng }}
+                                            pinColor="#ec4899"
+                                            title={`🎵 ${c.name}`}
+                                            description={c.venueName || c.city || ''}
+                                            onCalloutPress={() => c.ticketUrl && Linking.openURL(c.ticketUrl)}
+                                        />
+                                    ))}
+                                    {mapPlays.map(p => (
+                                        <Marker
+                                            key={`play-${p.id}`}
+                                            coordinate={{ latitude: p.venueLat, longitude: p.venueLng }}
+                                            pinColor="#f59e0b"
+                                            title={`🎭 ${p.name}`}
+                                            description={p.venueName || p.city || ''}
+                                            onCalloutPress={() => p.ticketUrl && Linking.openURL(p.ticketUrl)}
+                                        />
+                                    ))}
                                 </MapView>
                                 <View style={{ position: 'absolute', bottom: 16, left: 16, right: 16, backgroundColor: colors.surface, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border }}>
                                     <Text style={{ color: colors.textMuted, fontSize: 12, textAlign: 'center' }}>
-                                        {mapItems.length > 0
-                                            ? `${mapItems.length} aktivite konum bilgisiyle haritada — bir işaretçiye dokunup açın`
+                                        {totalCount > 0
+                                            ? `${totalCount} aktivite konum bilgisiyle haritada — bir işaretçiye dokunup açın`
                                             : 'Konum bilgisi olan bir aktivite bulunamadı'}
                                     </Text>
                                 </View>
