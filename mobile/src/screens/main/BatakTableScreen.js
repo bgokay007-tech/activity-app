@@ -379,7 +379,7 @@ export default function BatakTableScreen({ route, navigation }) {
             )}
 
             {/* Elim */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.myHandRow}>
+            <View style={s.myHandRow}>
                 {hand.map(card => (
                     <PlayingCard
                         key={card}
@@ -389,7 +389,7 @@ export default function BatakTableScreen({ route, navigation }) {
                         onPress={playCard}
                     />
                 ))}
-            </ScrollView>
+            </View>
 
             {/* El sonu */}
             <Modal visible={!!roundEnd} transparent animationType="fade">
@@ -484,15 +484,15 @@ const s = StyleSheet.create({
     trumpChip: { backgroundColor: '#ffffffdd', borderRadius: 12, width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
     trumpChipText: { fontSize: 28, fontWeight: '900' },
 
-    myHandRow: { paddingHorizontal: 10, paddingVertical: 10, gap: 4, alignItems: 'center' },
+    myHandRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 10, gap: 4 },
 
-    card: { width: 46, height: 64, backgroundColor: '#f3e8cf', borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#d6c6a1', marginHorizontal: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 3, elevation: 3 },
+    card: { width: 38, height: 53, backgroundColor: '#f3e8cf', borderRadius: 7, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#d6c6a1', marginHorizontal: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 3, elevation: 3 },
     cardSmall: { width: 30, height: 42, marginHorizontal: 1 },
     cardDisabled: { opacity: 0.35 },
     cardRejected: { borderWidth: 2, borderColor: '#ef4444' },
-    cardRank: { fontSize: 15, fontWeight: '900' },
+    cardRank: { fontSize: 13, fontWeight: '900' },
     cardRankSmall: { fontSize: 10 },
-    cardSuit: { fontSize: 18, fontWeight: '900' },
+    cardSuit: { fontSize: 15, fontWeight: '900' },
     cardSuitSmall: { fontSize: 12 },
     cardBack: { width: 46, height: 64, backgroundColor: '#7a1730', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginHorizontal: 2, borderWidth: 1, borderColor: '#d4af37', overflow: 'hidden' },
     cardBackInner: { width: '70%', height: '70%', borderRadius: 4, borderWidth: 1, borderColor: '#d4af3766', backgroundColor: '#5c1024' },

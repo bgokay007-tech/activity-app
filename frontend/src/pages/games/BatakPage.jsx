@@ -15,7 +15,7 @@ function cardSuit(card) { return card.slice(-1); }
 
 function PlayingCard({ card, small, disabled, rejected, popIn, onClick }) {
     const suit = cardSuit(card);
-    const sizeCls = small ? 'w-8 h-11' : 'w-12 h-16';
+    const sizeCls = small ? 'w-8 h-11' : 'w-10 h-14';
     return (
         <button onClick={onClick ? () => onClick(card) : undefined}
             className={`${sizeCls} rounded-md flex flex-col items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[batakShake_0.4s_ease-in-out]' : ''} ${popIn ? 'animate-[cardPopIn_0.28s_ease-out]' : ''}`}
@@ -25,8 +25,8 @@ function PlayingCard({ card, small, disabled, rejected, popIn, onClick }) {
                 boxShadow: '0 2px 0 #b8a276, 0 3px 5px rgba(0,0,0,.35)',
                 opacity: disabled ? 0.35 : 1, cursor: onClick ? 'pointer' : 'default',
             }}>
-            <span className={`font-black leading-none ${small ? 'text-[10px]' : 'text-sm'}`} style={{ color: SUIT_COLOR[suit], textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{rankLabel(card)}</span>
-            <span className={`font-black leading-none ${small ? 'text-xs' : 'text-lg'}`} style={{ color: SUIT_COLOR[suit], textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{SUIT_SYMBOL[suit]}</span>
+            <span className={`font-black leading-none ${small ? 'text-[10px]' : 'text-xs'}`} style={{ color: SUIT_COLOR[suit], textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{rankLabel(card)}</span>
+            <span className={`font-black leading-none ${small ? 'text-xs' : 'text-base'}`} style={{ color: SUIT_COLOR[suit], textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{SUIT_SYMBOL[suit]}</span>
         </button>
     );
 }
@@ -317,7 +317,7 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                 </div>
             )}
 
-            <div className="flex justify-center gap-2 mt-4 overflow-x-auto pb-2">
+            <div className="flex flex-wrap justify-center gap-1.5 mt-4 pb-2">
                 {hand.map(card => (
                     <PlayingCard key={card} card={card}
                         disabled={!(state.phase === 'playing' && isMyTurn && legalCards.includes(card))}
