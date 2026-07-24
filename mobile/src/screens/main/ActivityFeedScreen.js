@@ -11,6 +11,7 @@ import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import RainbowLogo from '../../components/RainbowLogo';
+import CalendarPickerModal from '../../components/CalendarPickerModal';
 import useT from '../../hooks/useT';
 
 // ── Statik kategori + dal tanımları (her zaman gösterilir) ──
@@ -765,9 +766,16 @@ export default function ActivityFeedScreen({ navigation }) {
     const [mapMyLocation, setMapMyLocation] = useState(null);
     const [mapLoading, setMapLoading] = useState(false);
     const [mapError, setMapError] = useState(null);
+    const [mapDate, setMapDate] = useState(new Date()); // varsayılan: bugün, değiştirilebilir
+    const [showMapDateModal, setShowMapDateModal] = useState(false);
+    const [mapDataLoading, setMapDataLoading] = useState(false);
+    const [mapDataItems, setMapDataItems] = useState([]);
+    const [mapDataConcerts, setMapDataConcerts] = useState([]);
+    const [mapDataPlays, setMapDataPlays] = useState([]);
 
     const openActivityMap = async () => {
         setShowActivityMap(true);
+        fetchMapData(mapDate);
         if (mapMyLocation) return;
         setMapLoading(true);
         setMapError(null);
@@ -781,6 +789,31 @@ export default function ActivityFeedScreen({ navigation }) {
         } finally {
             setMapLoading(false);
         }
+    };
+
+    // Haritada seçilen tarih için ilanları/etkinlikleri çeker — ana akıştaki
+    // filtrelerden (spor/il seçimi) bağımsız, sadece o güne göre ve tüm branşları kapsar.
+    const fetchMapData = async (dateObj) => {
+        setMapDataLoading(true);
+        const dStr = toDateStr(dateObj);
+        try {
+            const [rivalsRes, concertsRes, playsRes] = await Promise.all([
+                api.get('/rivals', { params: { date: dStr } }).then(r => r.data).catch(() => []),
+                api.get('/concerts/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.concerts || []).catch(() => []),
+                api.get('/theater/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.plays || []).catch(() => []),
+            ]);
+            setMapDataItems(rivalsRes);
+            setMapDataConcerts(concertsRes);
+            setMapDataPlays(playsRes);
+        } finally {
+            setMapDataLoading(false);
+        }
+    };
+
+    const changeMapDate = (date) => {
+        setMapDate(date);
+        setShowMapDateModal(false);
+        fetchMapData(date);
     };
 
     useEffect(() => {
@@ -1209,7 +1242,18 @@ export default function ActivityFeedScreen({ navigation }) {
                             <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
                         </TouchableOpacity>
                         <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>🗺️ Yakındaki Aktiviteler</Text>
+                        <TouchableOpacity onPress={() => setShowMapDateModal(true)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 9, borderWidth: 1, borderColor: colors.border }}>
+                            <Text style={{ color: colors.purple, fontSize: 12, fontWeight: '700' }}>
+                                📅 {toDateStr(mapDate) === toDateStr(new Date()) ? 'Bugün' : `${mapDate.getDate()} ${MONTHS_TR[mapDate.getMonth()]}`}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
+                    {mapDataLoading && (
+                        <View style={{ paddingVertical: 6, alignItems: 'center', backgroundColor: colors.purple + '15' }}>
+                            <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '700' }}>Seçilen tarih için etkinlikler yükleniyor...</Text>
+                        </View>
+                    )}
                     {mapLoading ? (
                         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                             <ActivityIndicator color={colors.purple} />
@@ -1223,9 +1267,9 @@ export default function ActivityFeedScreen({ navigation }) {
                             </TouchableOpacity>
                         </View>
                     ) : mapMyLocation ? (() => {
-                        const mapItems = items.filter(it => it.courtLat != null && it.courtLng != null);
-                        const mapConcerts = concertItems.filter(c => c.venueLat != null && c.venueLng != null);
-                        const mapPlays = theaterItems.filter(p => p.venueLat != null && p.venueLng != null);
+                        const mapItems = mapDataItems.filter(it => it.courtLat != null && it.courtLng != null);
+                        const mapConcerts = mapDataConcerts.filter(c => c.venueLat != null && c.venueLng != null);
+                        const mapPlays = mapDataPlays.filter(p => p.venueLat != null && p.venueLng != null);
                         const totalCount = mapItems.length + mapConcerts.length + mapPlays.length;
                         return (
                             <>
@@ -1293,6 +1337,13 @@ export default function ActivityFeedScreen({ navigation }) {
                     })() : null}
                 </View>
             </Modal>
+
+            <CalendarPickerModal
+                visible={showMapDateModal}
+                value={mapDate}
+                onSelect={changeMapDate}
+                onClose={() => setShowMapDateModal(false)}
+            />
         </View>
     );
 }
