@@ -66,6 +66,13 @@ export default function OkeyHomeScreen({ navigation }) {
     const [joinCode, setJoinCode] = useState('');
     const [betAmount, setBetAmount] = useState(100);
     const [ratingAmount, setRatingAmount] = useState(0);
+    // Özel masa: serbest miktar — kurucu 1'den istediği kadar puan girebilir (kim
+    // katılacağını zaten kod/davetle kendisi belirlediği için sabit kademeye gerek yok.
+    const [privateBetAmount, setPrivateBetAmount] = useState('100');
+    const [wagerRating, setWagerRating] = useState(false);
+    const [privateRatingAmount, setPrivateRatingAmount] = useState('0.10');
+    const [ratingRangeMin, setRatingRangeMin] = useState('');
+    const [ratingRangeMax, setRatingRangeMax] = useState('');
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
     const [interest, setInterest] = useState(undefined);
     const [addingActivity, setAddingActivity] = useState(false);
@@ -132,10 +139,19 @@ export default function OkeyHomeScreen({ navigation }) {
         socket.emit('okey:playVsBots', { difficulty });
     };
 
+    const parsedPrivateBet = Math.max(0, Math.floor(Number(privateBetAmount) || 0));
+    const parsedPrivateRating = wagerRating ? Math.max(0, Number(privateRatingAmount) || 0) : 0;
+    const parsedRangeMin = ratingRangeMin.trim() === '' ? null : Number(ratingRangeMin);
+    const parsedRangeMax = ratingRangeMax.trim() === '' ? null : Number(ratingRangeMax);
+    const canAffordPrivate = interest && interest.walletPoints >= parsedPrivateBet && interest.skillRating >= parsedPrivateRating && (parsedPrivateBet > 0 || parsedPrivateRating > 0);
+
     const createPrivateTable = () => {
         const socket = getSocket();
         if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('okey:createPrivateTable', { betAmount, ratingAmount });
+        socket.emit('okey:createPrivateTable', {
+            betAmount: parsedPrivateBet, ratingAmount: parsedPrivateRating,
+            ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
+        });
     };
     const joinByCode = () => {
         const socket = getSocket();
@@ -316,12 +332,66 @@ export default function OkeyHomeScreen({ navigation }) {
 
                                 <Text style={s.orText}>{t.okeyOr || 'veya'}</Text>
 
-                                <Text style={s.difficultyLabel}>{t.okeyPrivateTableLabel || '👥 Arkadaşlarınla Özel Masa'}</Text>
+                                <Text style={s.difficultyLabel}>{'👥 Masa Kur (Arkadaşlarınla)'}</Text>
+
+                                <Text style={s.inputLabel}>Puan Bahsi (1'den istediğin kadar)</Text>
+                                <TextInput
+                                    value={privateBetAmount}
+                                    onChangeText={setPrivateBetAmount}
+                                    placeholder="Örn. 250"
+                                    placeholderTextColor={colors.textMuted}
+                                    keyboardType="numeric"
+                                    style={s.freeInput}
+                                />
+                                {parsedPrivateBet > interest.walletPoints && (
+                                    <Text style={s.inputWarn}>Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</Text>
+                                )}
+
+                                <TouchableOpacity style={s.checkboxRow} onPress={() => setWagerRating(v => !v)} activeOpacity={0.8}>
+                                    <View style={[s.checkbox, wagerRating && s.checkboxChecked]}>{wagerRating && <Text style={s.checkboxMark}>✓</Text>}</View>
+                                    <Text style={s.checkboxLabel}>Ayrıca derece de bahse girsin</Text>
+                                </TouchableOpacity>
+                                {wagerRating && (
+                                    <>
+                                        <TextInput
+                                            value={privateRatingAmount}
+                                            onChangeText={setPrivateRatingAmount}
+                                            placeholder="Örn. 0.25"
+                                            placeholderTextColor={colors.textMuted}
+                                            keyboardType="numeric"
+                                            style={s.freeInput}
+                                        />
+                                        {parsedPrivateRating > interest.skillRating && (
+                                            <Text style={s.inputWarn}>Bu kadar dereceye sahip değilsin ({interest.skillRating?.toFixed(2)}).</Text>
+                                        )}
+                                    </>
+                                )}
+
+                                <Text style={s.inputLabel}>Rakip Derece Aralığı (isteğe bağlı — sadece bu aralıktaki oyuncular katılabilir)</Text>
+                                <View style={{ flexDirection: 'row', gap: 8, width: '100%', maxWidth: 280 }}>
+                                    <TextInput
+                                        value={ratingRangeMin}
+                                        onChangeText={setRatingRangeMin}
+                                        placeholder="Min (1.50)"
+                                        placeholderTextColor={colors.textMuted}
+                                        keyboardType="numeric"
+                                        style={[s.freeInput, { flex: 1 }]}
+                                    />
+                                    <TextInput
+                                        value={ratingRangeMax}
+                                        onChangeText={setRatingRangeMax}
+                                        placeholder="Max (2.50)"
+                                        placeholderTextColor={colors.textMuted}
+                                        keyboardType="numeric"
+                                        style={[s.freeInput, { flex: 1 }]}
+                                    />
+                                </View>
+
                                 <TouchableOpacity
-                                    style={[s.privateBtn, (interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)) && { opacity: 0.4 }]}
+                                    style={[s.privateBtn, !canAffordPrivate && { opacity: 0.4 }]}
                                     onPress={createPrivateTable} activeOpacity={0.85}
-                                    disabled={interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)}>
-                                    <Text style={s.privateBtnText}>{t.okeyCreatePrivateTable || 'Özel Masa Kur'} ({betAmount} puan{ratingAmount > 0 ? ` + ${ratingAmount.toFixed(2)} derece` : ''})</Text>
+                                    disabled={!canAffordPrivate}>
+                                    <Text style={s.privateBtnText}>Masa Kur ({parsedPrivateBet} puan{parsedPrivateRating > 0 ? ` + ${parsedPrivateRating.toFixed(2)} derece` : ''})</Text>
                                 </TouchableOpacity>
                                 <View style={s.joinCodeRow}>
                                     <TextInput
@@ -450,7 +520,7 @@ const s = StyleSheet.create({
     mainTabBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '800' },
     mainTabBtnTextActive: { color: '#fff' },
 
-    playWrap: { flex: 1, alignItems: 'center', paddingTop: 50, paddingHorizontal: 30 },
+    playWrap: { flexGrow: 1, alignItems: 'center', paddingTop: 50, paddingHorizontal: 30, paddingBottom: 40 },
     balanceText: { color: '#fbbf24', fontSize: 15, fontWeight: '900', marginBottom: 10 },
     ratingBalanceText: { color: '#38bdf8', fontSize: 15, fontWeight: '900', marginBottom: 10 },
     playEmoji: { fontSize: 64, marginBottom: 12 },
@@ -475,6 +545,14 @@ const s = StyleSheet.create({
 
     privateBtn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 30, marginTop: 4 },
     privateBtnText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+    inputLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 8, marginBottom: 4, textAlign: 'center', maxWidth: 280 },
+    inputWarn: { color: '#f87171', fontSize: 11, marginBottom: 6, textAlign: 'center' },
+    freeInput: { width: '100%', maxWidth: 280, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 4 },
+    checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4 },
+    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+    checkboxChecked: { backgroundColor: colors.purple, borderColor: colors.purple },
+    checkboxMark: { color: '#fff', fontSize: 12, fontWeight: '900' },
+    checkboxLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
     joinCodeRow: { flexDirection: 'row', gap: 8, marginTop: 10, width: '100%', maxWidth: 280 },
     joinCodeInput: { flex: 1, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 2, textAlign: 'center' },
     joinCodeBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center' },

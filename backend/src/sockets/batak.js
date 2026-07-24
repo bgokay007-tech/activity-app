@@ -35,13 +35,31 @@ function isUserQueued(userId) {
     return false;
 }
 
-// Masa kurucusu/arayan hem puan hem derece bahsi seçebilir — en az biri sıfırdan büyük
-// olmalı (ikisi de sıfırsa bahissiz bir masa anlamsız), her ikisi de geçerli bir kademe
-// olmalı (client'tan gelen keyfi değer asla güvenilmez).
-function isValidStake(betAmount, ratingAmount) {
+// Rastgele eşleşme (findMatch) kuyruğu sabit kademelerle çalışır — kuyruk tam bu
+// miktarda başka arayanlarla eşleşir, bu yüzden serbest sayı kabul edilmez.
+function isValidQueueStake(betAmount, ratingAmount) {
     if (!BET_AMOUNTS.includes(betAmount)) return false;
     if (!RATING_AMOUNTS.includes(ratingAmount)) return false;
     return betAmount > 0 || ratingAmount > 0;
+}
+
+// Özel masa kurucusu serbest bir miktar girebilir (1'den istediği kadar) — kimin
+// katılacağını zaten kod/davetle kendisi kontrol ettiği için kademeye bağlı değil.
+const MAX_CUSTOM_BET = 1000000;
+function isValidPrivateStake(betAmount, ratingAmount) {
+    if (!Number.isInteger(betAmount) || betAmount < 0 || betAmount > MAX_CUSTOM_BET) return false;
+    if (typeof ratingAmount !== 'number' || !Number.isFinite(ratingAmount) || ratingAmount < 0 || ratingAmount > 5) return false;
+    return betAmount > 0 || ratingAmount > 0;
+}
+
+// Özel masada kurucu, katılabilecek oyuncuları belirli bir derece (skillRating) aralığıyla
+// sınırlayabilir — bu bir bahis değil, sadece "seviyeme yakın biriyle oynayayım" filtresi.
+function isValidRatingRange(min, max) {
+    if (min == null && max == null) return true;
+    if (min != null && (typeof min !== 'number' || !Number.isFinite(min) || min < 0 || min > 5)) return false;
+    if (max != null && (typeof max !== 'number' || !Number.isFinite(max) || max < 0 || max > 5)) return false;
+    if (min != null && max != null && min > max) return false;
+    return true;
 }
 
 // Kullanıcının Batak'ı profilinden "aktivite" olarak eklemiş olup olmadığını (ve puan
@@ -140,6 +158,8 @@ function publicState(table) {
         code: table.code || null,
         betAmount: table.betAmount || 0,
         ratingAmount: table.ratingAmount || 0,
+        ratingRangeMin: table.ratingRangeMin ?? null,
+        ratingRangeMax: table.ratingRangeMax ?? null,
         seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, open: !!s.open, handCount: table.hands[s.seat]?.length ?? 0 })),
         dealerIndex: table.dealerIndex,
         turn: table.phase === 'bidding' ? table.biddingTurn : table.phase === 'playing' ? table.turn : null,
@@ -518,7 +538,7 @@ function tryMatch(io) {
 // ── Özel masa (arkadaşla oyna) — kuyruğa girmez, kurucu bekleme odasında 3 açık
 // koltuğa arkadaş davet edebilir veya masa kodunu paylaşabilir. 4. kişi katılınca
 // (kod ile veya davet kabulüyle) normal 'bidding' akışına geçilir.
-function createPrivateTable(io, requester, betAmount, ratingAmount) {
+function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax) {
     const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     let code = genCode();
     while (codeToTableId.has(code)) code = genCode();
@@ -526,6 +546,8 @@ function createPrivateTable(io, requester, betAmount, ratingAmount) {
         id, code,
         betAmount: betAmount || 0,
         ratingAmount: ratingAmount || 0,
+        ratingRangeMin: ratingRangeMin ?? null,
+        ratingRangeMax: ratingRangeMax ?? null,
         leftEarly: [false, false, false, false],
         seats: [
             { seat: 0, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false, open: false },
@@ -608,7 +630,7 @@ export function registerBatakHandlers(io, socket) {
     socket.on('batak:findMatch', async ({ betAmount, ratingAmount = 0 } = {}) => {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId) || isUserQueued(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
-        if (!isValidStake(betAmount, ratingAmount)) return socket.emit('batak:error', { message: 'Geçersiz bahis miktarı' });
+        if (!isValidQueueStake(betAmount, ratingAmount)) return socket.emit('batak:error', { message: 'Geçersiz bahis miktarı' });
         const interest = await getGameInterest(verifiedUserId);
         if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
         if (interest.walletPoints <= 0) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Puanın bitti, bahisli masalara giremezsin.' });
@@ -635,16 +657,17 @@ export function registerBatakHandlers(io, socket) {
         }
     });
 
-    socket.on('batak:createPrivateTable', async ({ betAmount, ratingAmount = 0 } = {}) => {
+    socket.on('batak:createPrivateTable', async ({ betAmount, ratingAmount = 0, ratingRangeMin = null, ratingRangeMax = null } = {}) => {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId) || isUserQueued(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
-        if (!isValidStake(betAmount, ratingAmount)) return socket.emit('batak:error', { message: 'Geçersiz bahis miktarı' });
+        if (!isValidPrivateStake(betAmount, ratingAmount)) return socket.emit('batak:error', { message: 'Geçersiz bahis miktarı' });
+        if (!isValidRatingRange(ratingRangeMin, ratingRangeMax)) return socket.emit('batak:error', { message: 'Geçersiz derece aralığı' });
         const interest = await getGameInterest(verifiedUserId);
         if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
         if (interest.walletPoints <= 0) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Puanın bitti, bahisli masalara giremezsin.' });
         if (interest.walletPoints < betAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Yetersiz puan bakiyesi.' });
         if (interest.skillRating < ratingAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_RATING', message: 'Yetersiz derece.' });
-        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount, ratingAmount);
+        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax);
     });
 
     socket.on('batak:joinByCode', async ({ code } = {}) => {
@@ -657,6 +680,8 @@ export function registerBatakHandlers(io, socket) {
         if (interest.walletPoints <= 0) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Puanın bitti, bahisli masalara giremezsin.' });
         if (table.betAmount > 0 && interest.walletPoints < table.betAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Bu masaya katılmak için yeterli puanın yok.' });
         if (table.ratingAmount > 0 && interest.skillRating < table.ratingAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_RATING', message: 'Bu masaya katılmak için yeterli derecen yok.' });
+        if (table.ratingRangeMin != null && interest.skillRating < table.ratingRangeMin) return socket.emit('batak:error', { code: 'RATING_OUT_OF_RANGE', message: `Bu masaya katılmak için en az ${table.ratingRangeMin.toFixed(2)} derecen olmalı.` });
+        if (table.ratingRangeMax != null && interest.skillRating > table.ratingRangeMax) return socket.emit('batak:error', { code: 'RATING_OUT_OF_RANGE', message: `Bu masaya katılmak için en fazla ${table.ratingRangeMax.toFixed(2)} derecen olabilir.` });
         try { joinTableByCode(io, { userId: verifiedUserId, username, avatar, socket }, code); }
         catch (e) { socket.emit('batak:error', { message: e.message }); }
     });

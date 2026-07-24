@@ -513,6 +513,13 @@ function OkeyLobby({ myName, onMatched }) {
     const [joinCode, setJoinCode] = useState('');
     const [betAmount, setBetAmount] = useState(100);
     const [ratingAmount, setRatingAmount] = useState(0);
+    // Özel masa: serbest miktar — kurucu 1'den istediği kadar puan girebilir (kim
+    // katılacağını zaten kod/davetle kendisi belirlediği için sabit kademeye gerek yok.
+    const [privateBetAmount, setPrivateBetAmount] = useState('100');
+    const [wagerRating, setWagerRating] = useState(false);
+    const [privateRatingAmount, setPrivateRatingAmount] = useState('0.10');
+    const [ratingRangeMin, setRatingRangeMin] = useState('');
+    const [ratingRangeMax, setRatingRangeMax] = useState('');
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
     const [interest, setInterest] = useState(undefined);
     const [addingActivity, setAddingActivity] = useState(false);
@@ -564,10 +571,19 @@ function OkeyLobby({ myName, onMatched }) {
         if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
         socket.emit('okey:playVsBots', { difficulty });
     };
+    const parsedPrivateBet = Math.max(0, Math.floor(Number(privateBetAmount) || 0));
+    const parsedPrivateRating = wagerRating ? Math.max(0, Number(privateRatingAmount) || 0) : 0;
+    const parsedRangeMin = ratingRangeMin.trim() === '' ? null : Number(ratingRangeMin);
+    const parsedRangeMax = ratingRangeMax.trim() === '' ? null : Number(ratingRangeMax);
+    const canAffordPrivate = interest && interest.walletPoints >= parsedPrivateBet && interest.skillRating >= parsedPrivateRating && (parsedPrivateBet > 0 || parsedPrivateRating > 0);
+
     const createPrivateTable = () => {
         const socket = getSocket();
         if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('okey:createPrivateTable', { betAmount, ratingAmount });
+        socket.emit('okey:createPrivateTable', {
+            betAmount: parsedPrivateBet, ratingAmount: parsedPrivateRating,
+            ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
+        });
     };
     const joinByCode = () => {
         const socket = getSocket();
@@ -636,9 +652,39 @@ function OkeyLobby({ myName, onMatched }) {
                 )}
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
-                <p className="text-gray-400 text-xs font-bold mb-2">👥 Arkadaşlarınla Özel Masa</p>
-                <button onClick={createPrivateTable} disabled={!canAfford} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm mb-3 disabled:opacity-40">
-                    Özel Masa Kur ({stakeLabel} bahis)
+                <p className="text-gray-400 text-xs font-bold mb-2">👥 Masa Kur (Arkadaşlarınla)</p>
+
+                <label className="block text-gray-500 text-[11px] font-bold mb-1">Puan Bahsi (1'den istediğin kadar)</label>
+                <input type="number" min="0" value={privateBetAmount} onChange={e => setPrivateBetAmount(e.target.value)}
+                    placeholder="Örn. 250" className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
+                {interest && parsedPrivateBet > interest.walletPoints && (
+                    <p className="text-red-400 text-[11px] mb-2">Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</p>
+                )}
+
+                <label className="flex items-center gap-2 text-gray-400 text-xs font-bold mt-2 mb-2">
+                    <input type="checkbox" checked={wagerRating} onChange={e => setWagerRating(e.target.checked)} />
+                    Ayrıca derece de bahse girsin
+                </label>
+                {wagerRating && (
+                    <>
+                        <input type="number" min="0" max="5" step="0.01" value={privateRatingAmount} onChange={e => setPrivateRatingAmount(e.target.value)}
+                            placeholder="Örn. 0.25" className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
+                        {interest && parsedPrivateRating > interest.skillRating && (
+                            <p className="text-red-400 text-[11px] mb-2">Bu kadar dereceye sahip değilsin ({interest.skillRating?.toFixed(2)}).</p>
+                        )}
+                    </>
+                )}
+
+                <label className="block text-gray-500 text-[11px] font-bold mt-2 mb-1">Rakip Derece Aralığı (isteğe bağlı — sadece bu aralıktaki oyuncular katılabilir)</label>
+                <div className="flex gap-2 mb-3">
+                    <input type="number" min="0" max="5" step="0.01" value={ratingRangeMin} onChange={e => setRatingRangeMin(e.target.value)}
+                        placeholder="Min (örn. 1.50)" className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
+                    <input type="number" min="0" max="5" step="0.01" value={ratingRangeMax} onChange={e => setRatingRangeMax(e.target.value)}
+                        placeholder="Max (örn. 2.50)" className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
+                </div>
+
+                <button onClick={createPrivateTable} disabled={!canAffordPrivate} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm mb-3 disabled:opacity-40">
+                    Masa Kur ({parsedPrivateBet} puan{parsedPrivateRating > 0 ? ` + ${parsedPrivateRating.toFixed(2)} derece` : ''} bahis)
                 </button>
                 <div className="flex gap-2">
                     <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="Masa Kodu"
