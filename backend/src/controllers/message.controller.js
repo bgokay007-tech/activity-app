@@ -17,6 +17,27 @@ async function getOrCreateConversation(user1Id, user2Id) {
     });
 }
 
+async function isConversationMuted(userId, conversationId) {
+    const mute = await prisma.conversationMute.findUnique({
+        where: { userId_conversationId: { userId, conversationId } },
+    });
+    if (!mute) return false;
+    return mute.mutedUntil === null || mute.mutedUntil > new Date();
+}
+
+async function sendPushNotification(pushToken, title, body) {
+    if (!pushToken?.startsWith('ExponentPushToken')) return;
+    try {
+        await axios.post('https://exp.host/--/api/v2/push/send', {
+            to: pushToken,
+            title,
+            body,
+            sound: 'default',
+            data: { type: 'MESSAGE' },
+        }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
+    } catch { /* push failure is non-critical */ }
+}
+
 export const getConversations = async (req, res, next) => {
     try {
         const conversations = await prisma.conversation.findMany({
@@ -39,14 +60,77 @@ export const getConversations = async (req, res, next) => {
         }) : [];
         const unreadMap = Object.fromEntries(unreadCounts.map(u => [u.conversationId, u._count.id]));
 
-        const result = conversations.map(c => ({
-            ...c,
-            other: c.user1Id === req.userId ? c.user2 : c.user1,
-            lastMessage: c.messages[0] || null,
-            unreadCount: unreadMap[c.id] || 0,
-        }));
+        const mutes = conversations.length ? await prisma.conversationMute.findMany({
+            where: { userId: req.userId, conversationId: { in: conversations.map(c => c.id) } },
+        }) : [];
+        const muteMap = Object.fromEntries(mutes.map(m => [m.conversationId, m]));
+
+        const now = new Date();
+        const result = conversations.map(c => {
+            const mute = muteMap[c.id];
+            const isMuted = !!mute && (mute.mutedUntil === null || mute.mutedUntil > now);
+            return {
+                ...c,
+                other: c.user1Id === req.userId ? c.user2 : c.user1,
+                lastMessage: c.messages[0] || null,
+                unreadCount: unreadMap[c.id] || 0,
+                isMuted,
+                mutedUntil: mute?.mutedUntil || null,
+            };
+        });
 
         res.json(result);
+    } catch (error) { next(error); }
+};
+
+// Sohbeti sessize al — hours verilirse o kadar süreyle, verilmezse süresiz.
+export const muteConversation = async (req, res, next) => {
+    try {
+        const { conversationId } = req.params;
+        const { hours } = req.body;
+        const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+        if (!conv || (conv.user1Id !== req.userId && conv.user2Id !== req.userId))
+            return res.status(403).json({ message: 'Forbidden' });
+
+        const mutedUntil = hours ? new Date(Date.now() + Number(hours) * 3600 * 1000) : null;
+        const mute = await prisma.conversationMute.upsert({
+            where: { userId_conversationId: { userId: req.userId, conversationId } },
+            create: { userId: req.userId, conversationId, mutedUntil },
+            update: { mutedUntil },
+        });
+        res.json(mute);
+    } catch (error) { next(error); }
+};
+
+export const unmuteConversation = async (req, res, next) => {
+    try {
+        const { conversationId } = req.params;
+        await prisma.conversationMute.deleteMany({ where: { userId: req.userId, conversationId } });
+        res.json({ message: 'Unmuted' });
+    } catch (error) { next(error); }
+};
+
+// Sohbetin içine girmeden, listeden "okundu" olarak işaretle — kullanıcı bunu
+// bilinçli seçtiği için gerçekten görüldü sayılır, karşı tarafa da yansır.
+export const markConversationRead = async (req, res, next) => {
+    try {
+        const { conversationId } = req.params;
+        const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+        if (!conv || (conv.user1Id !== req.userId && conv.user2Id !== req.userId))
+            return res.status(403).json({ message: 'Forbidden' });
+
+        const now = new Date();
+        const { count } = await prisma.message.updateMany({
+            where: { conversationId, senderId: { not: req.userId }, read: false },
+            data: { read: true, readAt: now },
+        });
+
+        res.json({ message: 'Marked as read' });
+
+        if (count > 0) {
+            const otherId = conv.user1Id === req.userId ? conv.user2Id : conv.user1Id;
+            emitToUser(otherId, 'messagesRead', { conversationId, readAt: now, readerId: req.userId });
+        }
     } catch (error) { next(error); }
 };
 
@@ -84,28 +168,23 @@ export const getMessages = async (req, res, next) => {
             orderBy: { createdAt: 'asc' },
         });
 
-        // Mark as read
-        await prisma.message.updateMany({
+        // Karşı tarafın mesajı gerçekten görmesi — yani bu uç noktayı (sohbetin içini
+        // açarak) çağırması — "okundu" sayılır, bildirim gelmesi veya soketle anlık
+        // teslim edilmesi değil. readAt, gönderene "X dakika önce görüldü" göstermek için.
+        const now = new Date();
+        const { count } = await prisma.message.updateMany({
             where: { conversationId, senderId: { not: req.userId }, read: false },
-            data: { read: true },
+            data: { read: true, readAt: now },
         });
 
         res.json(messages);
+
+        if (count > 0) {
+            const otherId = conv.user1Id === req.userId ? conv.user2Id : conv.user1Id;
+            emitToUser(otherId, 'messagesRead', { conversationId, readAt: now, readerId: req.userId });
+        }
     } catch (error) { next(error); }
 };
-
-async function sendPushNotification(pushToken, title, body) {
-    if (!pushToken?.startsWith('ExponentPushToken')) return;
-    try {
-        await axios.post('https://exp.host/--/api/v2/push/send', {
-            to: pushToken,
-            title,
-            body,
-            sound: 'default',
-            data: { type: 'MESSAGE' },
-        }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-    } catch { /* push failure is non-critical */ }
-}
 
 export const sendMessage = async (req, res, next) => {
     try {
@@ -121,7 +200,7 @@ export const sendMessage = async (req, res, next) => {
 
         const conv = await getOrCreateConversation(req.userId, receiverId);
 
-        const [message, sender, receiver] = await Promise.all([
+        const [message, sender, receiver, muted] = await Promise.all([
             prisma.message.create({
                 data: {
                     conversationId: conv.id, senderId: req.userId, content: content?.trim() || '',
@@ -138,6 +217,7 @@ export const sendMessage = async (req, res, next) => {
             }),
             prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }),
             prisma.user.findUnique({ where: { id: receiverId }, select: { pushToken: true } }),
+            isConversationMuted(receiverId, conv.id),
         ]);
 
         res.status(201).json({ message, conversationId: conv.id });
@@ -148,14 +228,18 @@ export const sendMessage = async (req, res, next) => {
         emitToUser(receiverId, 'newMessage', socketPayload);
         emitToUser(req.userId, 'newMessage', socketPayload);
 
+        prisma.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } }).catch(() => {});
+
+        // Karşı taraf bu sohbeti sessize almışsa (bkz. muteConversation) ne push ne de
+        // zil bildirimi gönderilir — Mesajlar sekmesindeki okunmamış rozeti yeterlidir.
+        if (muted) return;
+
         const notifBody = content?.trim() ? content.trim().slice(0, 100) : (message.imageUrl ? '📷 Fotoğraf' : message.audioUrl ? '🎤 Sesli mesaj' : '');
         const senderUsername = sender?.username;
 
         if (receiver?.pushToken) {
             sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody);
         }
-
-        prisma.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } }).catch(() => {});
 
         prisma.notification.create({
             data: {

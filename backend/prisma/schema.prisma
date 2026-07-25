@@ -91,6 +91,7 @@ model User {
   tournamentChatNotifyPrefs TournamentChatNotify[]
   conversations1   Conversation[] @relation("convUser1")
   conversations2   Conversation[] @relation("convUser2")
+  conversationMutes ConversationMute[]
   storyViews       StoryView[]
   assessmentVotesCast AssessmentVote[]
   coachListings       CoachListing[]
@@ -1043,8 +1044,25 @@ model Conversation {
   user1     User      @relation("convUser1", fields: [user1Id], references: [id], onDelete: Cascade)
   user2     User      @relation("convUser2", fields: [user2Id], references: [id], onDelete: Cascade)
   messages  Message[]
+  mutes     ConversationMute[]
 
   @@unique([user1Id, user2Id])
+}
+
+// Bir kullanıcının belirli bir sohbeti sessize alması — karşı taraf için ayrı ayrı
+// geçerlidir. mutedUntil null ise süresiz sessize alınmış demektir; ileri bir tarihse
+// o tarihe kadar. Satır yoksa veya mutedUntil geçmişte kaldıysa sessiz değildir.
+model ConversationMute {
+  id             String    @id @default(uuid())
+  userId         String
+  conversationId String
+  mutedUntil     DateTime?
+  createdAt      DateTime  @default(now())
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId])
 }
 
 // BİLDİRİM
@@ -1068,6 +1086,7 @@ model Message {
   senderId       String
   content        String
   read           Boolean      @default(false)
+  readAt         DateTime?    // karşı taraf mesajın içine girip gördüğünde damgalanır
   createdAt      DateTime     @default(now())
 
   // Fotoğraf / sesli mesaj — content boş olabilir, bu durumda medyanın kendisi mesajdır.

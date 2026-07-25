@@ -97,6 +97,73 @@ export default function MessagesScreen({ navigation }) {
         return prefix + body;
     };
 
+    // Sohbetin içine girmeden satırdaki "⋮" ile: sessize al (X saat/süresiz), sesi
+    // aç, okundu işaretle, engelle.
+    const [actionMenu, setActionMenu] = useState(null);
+    const closeActionMenu = () => setActionMenu(null);
+
+    const muteFor = async (hours) => {
+        if (!actionMenu) return;
+        const id = actionMenu.id;
+        try {
+            const { data } = await api.post(`/messages/conversation/${id}/mute`, hours ? { hours } : {});
+            setConversations(prev => prev.map(c => c.id === id ? { ...c, isMuted: true, mutedUntil: data.mutedUntil } : c));
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+        } finally {
+            closeActionMenu();
+        }
+    };
+
+    const unmute = async () => {
+        if (!actionMenu) return;
+        const id = actionMenu.id;
+        try {
+            await api.delete(`/messages/conversation/${id}/mute`);
+            setConversations(prev => prev.map(c => c.id === id ? { ...c, isMuted: false, mutedUntil: null } : c));
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+        } finally {
+            closeActionMenu();
+        }
+    };
+
+    const markRead = async () => {
+        if (!actionMenu) return;
+        const id = actionMenu.id;
+        try {
+            await api.post(`/messages/conversation/${id}/mark-read`);
+            setConversations(prev => prev.map(c => c.id === id ? { ...c, unreadCount: 0 } : c));
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+        } finally {
+            closeActionMenu();
+        }
+    };
+
+    const blockFromList = () => {
+        if (!actionMenu) return;
+        const other = actionMenu.other;
+        closeActionMenu();
+        Alert.alert(
+            'Kullanıcıyı Engelle',
+            `${other?.fullName || other?.username} kullanıcısını engellemek istediğinize emin misiniz?`,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                    text: 'Engelle', style: 'destructive', onPress: async () => {
+                        try {
+                            await api.post(`/friends/block/${other.id}`);
+                            Alert.alert('', 'Kullanıcı engellendi.');
+                        } catch (e) {
+                            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+                        }
+                    },
+                },
+            ],
+        );
+    };
+
     const renderItem = ({ item }) => {
         const other = item.other;
         const last = item.lastMessage;
@@ -111,7 +178,7 @@ export default function MessagesScreen({ navigation }) {
                 <View style={styles.rowContent}>
                     <View style={styles.rowTop}>
                         <Text style={[styles.name, unread && { color: '#fff', fontWeight: '900' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                            {other?.fullName || other?.username}
+                            {item.isMuted ? '🔕 ' : ''}{other?.fullName || other?.username}
                         </Text>
                     </View>
                     <Text style={[styles.lastMsg, unread && { color: '#d1d5db', fontWeight: '600' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -130,6 +197,13 @@ export default function MessagesScreen({ navigation }) {
                         </View>
                     )}
                 </View>
+                <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); setActionMenu(item); }}
+                    style={styles.rowMenuBtn}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Text style={styles.rowMenuText}>⋮</Text>
+                </TouchableOpacity>
             </TouchableOpacity>
         );
     };
@@ -212,6 +286,43 @@ export default function MessagesScreen({ navigation }) {
                     </KeyboardAvoidingView>
                 </View>
             </Modal>
+
+            {/* Satır menüsü: sohbete girmeden sessize al / sesi aç / okundu işaretle / engelle */}
+            <Modal visible={!!actionMenu} animationType="slide" transparent onRequestClose={closeActionMenu}>
+                <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={closeActionMenu}>
+                    <View style={styles.menuBox}>
+                        <Text style={styles.menuTitle}>{actionMenu?.other?.fullName || actionMenu?.other?.username}</Text>
+                        {actionMenu?.isMuted ? (
+                            <TouchableOpacity style={styles.menuRow} onPress={unmute}>
+                                <Text style={styles.menuRowText}>🔊 Sesi Aç</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <>
+                                <TouchableOpacity style={styles.menuRow} onPress={() => muteFor(8)}>
+                                    <Text style={styles.menuRowText}>🔕 8 Saat Sessize Al</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuRow} onPress={() => muteFor(24)}>
+                                    <Text style={styles.menuRowText}>🔕 24 Saat Sessize Al</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuRow} onPress={() => muteFor(null)}>
+                                    <Text style={styles.menuRowText}>🔕 Sonsuza Kadar Sessize Al</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                        {(actionMenu?.unreadCount || 0) > 0 && (
+                            <TouchableOpacity style={styles.menuRow} onPress={markRead}>
+                                <Text style={styles.menuRowText}>✓ Okundu Olarak İşaretle</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity style={styles.menuRow} onPress={blockFromList}>
+                            <Text style={[styles.menuRowText, { color: '#f87171' }]}>🚫 Engelle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.menuRow, { borderBottomWidth: 0 }]} onPress={closeActionMenu}>
+                            <Text style={[styles.menuRowText, { color: colors.textMuted }]}>Vazgeç</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 }
@@ -233,6 +344,13 @@ const styles = StyleSheet.create({
     time: { color: colors.textMuted, fontSize: 11 },
     unreadBadge: { backgroundColor: colors.purple, borderRadius: 10, minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
     unreadBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+    rowMenuBtn: { paddingHorizontal: 6, paddingVertical: 4, marginLeft: 4 },
+    rowMenuText: { color: colors.textMuted, fontSize: 20, fontWeight: '900' },
+    menuOverlay: { flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' },
+    menuBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 30, paddingHorizontal: 17 },
+    menuTitle: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 },
+    menuRow: { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.border + '50' },
+    menuRowText: { color: '#fff', fontSize: 15, fontWeight: '700' },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 57 },
     emptyEmoji: { fontSize: 52, marginBottom: 12 },
     emptyText: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 6 },

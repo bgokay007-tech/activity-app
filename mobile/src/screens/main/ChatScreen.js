@@ -18,6 +18,17 @@ function Avatar({ user, size = 36 }) {
     );
 }
 
+function timeAgo(date) {
+    const diffSec = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 1000));
+    if (diffSec < 60) return 'az önce görüldü';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} dakika önce görüldü`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour} saat önce görüldü`;
+    const diffDay = Math.floor(diffHour / 24);
+    return `${diffDay} gün önce görüldü`;
+}
+
 export default function ChatScreen({ route, navigation }) {
     const { conversation: convParam, other: otherProp, rival, equipment, coach } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
@@ -168,6 +179,26 @@ export default function ChatScreen({ route, navigation }) {
             }
         });
         return off;
+    }, []);
+
+    // Karşı taraf sohbetin içine girip mesajları gerçekten görünce (bkz. getMessages'ın
+    // sunucu tarafındaki updateMany) bu olay gelir — gönderdiğimiz mesajları "okundu +
+    // ne zaman" bilgisiyle işaretleyip "X dakika önce görüldü" gösterebilelim diye.
+    useEffect(() => {
+        const off = onSocket('messagesRead', ({ conversationId, readAt }) => {
+            if (conversationId === convIdRef.current) {
+                setMessages(prev => prev.map(m => (m.senderId === myId && !m.read) ? { ...m, read: true, readAt } : m));
+            }
+        });
+        return off;
+    }, [myId]);
+
+    // "X dakika önce görüldü" metni zamanla eskiyeceği için dakikada bir yeniden
+    // render tetiklenir (mesaj/soket olayı beklemeden metin tazelensin diye).
+    const [, forceTick] = useState(0);
+    useEffect(() => {
+        const t = setInterval(() => forceTick(v => v + 1), 60000);
+        return () => clearInterval(t);
     }, []);
 
     // Sadece "İletişime Geç" ile gönderilen İLK mesaj ilan referansı taşır (bkz.
@@ -425,6 +456,14 @@ export default function ChatScreen({ route, navigation }) {
                 />
             )}
 
+            {/* Görüldü bilgisi — sadece son mesajı ben attıysam ve karşı taraf sohbetin
+                içine girip okuduysa (readAt) gösterilir, mesaj ulaştığında değil. */}
+            {(() => {
+                const lastMine = [...messages].reverse().find(m => m.senderId === myId);
+                if (!lastMine?.read || !lastMine?.readAt) return null;
+                return <Text style={styles.seenText}>{timeAgo(lastMine.readAt)}</Text>;
+            })()}
+
             {/* Input */}
             <View style={styles.inputRow}>
                 {isRecording ? (
@@ -539,6 +578,7 @@ const styles = StyleSheet.create({
     audioPlayIcon: { fontSize: 18 },
     audioWave: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#ffffff40' },
     audioDuration: { fontSize: 11, fontWeight: '700' },
+    seenText: { color: colors.textMuted, fontSize: 11, textAlign: 'right', paddingHorizontal: 16, paddingBottom: 4 },
     empty: { alignItems: 'center', paddingTop: 57, gap: 3 },
     emptyName: { color: '#fff', fontWeight: '700', fontSize: 15 },
     emptyHint: { color: colors.textMuted, fontSize: 13 },
