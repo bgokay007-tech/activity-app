@@ -134,6 +134,10 @@ export default function NotificationsScreen({ navigation }) {
             if (!data.category || !data.subCategory || !data.listingId) return;
             navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: 'equipment', openEquipmentId: data.listingId });
         };
+        const goToCoachListing = () => {
+            if (!data.category || !data.subCategory || !data.coachListingId) return;
+            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: 'coaches', openCoachId: data.coachListingId });
+        };
 
         if (type === 'GAME_TABLE_INVITE') {
             const game = data.game === 'batak' ? 'batak' : 'okey';
@@ -151,6 +155,8 @@ export default function NotificationsScreen({ navigation }) {
             socket.emit(`${game}:joinByCode`, { code });
         } else if (type === 'EQUIPMENT_OFFER') {
             goToEquipmentListing();
+        } else if (type === 'MESSAGE' && data.coachListingId) {
+            goToCoachListing();
         } else if (type === 'MESSAGE' && data.listingId) {
             goToEquipmentListing();
         } else if (type === 'MESSAGE') {

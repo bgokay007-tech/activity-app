@@ -56,6 +56,7 @@ export const getMessages = async (req, res, next) => {
             include: {
                 sender: { select: USER_SELECT },
                 equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
+                coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
             },
             orderBy: { createdAt: 'asc' },
         });
@@ -86,7 +87,7 @@ async function sendPushNotification(pushToken, title, body) {
 export const sendMessage = async (req, res, next) => {
     try {
         const { userId: receiverId } = req.params;
-        const { content, equipmentListingId } = req.body;
+        const { content, equipmentListingId, coachListingId } = req.body;
 
         if (!content?.trim()) return res.status(400).json({ message: 'Message cannot be empty' });
 
@@ -99,10 +100,15 @@ export const sendMessage = async (req, res, next) => {
 
         const [message, sender, receiver] = await Promise.all([
             prisma.message.create({
-                data: { conversationId: conv.id, senderId: req.userId, content: content.trim(), ...(equipmentListingId && { equipmentListingId }) },
+                data: {
+                    conversationId: conv.id, senderId: req.userId, content: content.trim(),
+                    ...(equipmentListingId && { equipmentListingId }),
+                    ...(coachListingId && { coachListingId }),
+                },
                 include: {
                     sender: { select: USER_SELECT },
                     equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
+                    coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
                 },
             }),
             prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }),
@@ -138,6 +144,11 @@ export const sendMessage = async (req, res, next) => {
                         listingId: message.equipmentListing.id,
                         category: message.equipmentListing.category,
                         subCategory: message.equipmentListing.subCategory,
+                    }),
+                    ...(message.coachListing && {
+                        coachListingId: message.coachListing.id,
+                        category: message.coachListing.category,
+                        subCategory: message.coachListing.subCategory,
                     }),
                 },
             },

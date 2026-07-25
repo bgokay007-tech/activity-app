@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-    getListings, createListing, updateListing, deleteListing,
+    getListings, getListing, createListing, updateListing, deleteListing,
     requestLesson, getLessonRequests, respondLessonRequest,
     getReviews, submitReview,
 } from '../controllers/coach.controller.js';
@@ -11,6 +11,7 @@ const router = Router();
 
 router.get('/',              authenticate, getListings);
 router.post('/',             authenticate, createListing);
+router.get('/:id',           authenticate, getListing);
 router.post('/:id/report',   authenticate, (req, res, next) => { req.params.type = 'coach'; reportListing(req, res, next); });
 router.patch('/:id',         authenticate, updateListing);
 router.delete('/:id',        authenticate, deleteListing);

@@ -32,6 +32,25 @@ export const getListings = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
+// Sohbet bandı/bildirimden "o ilana git" ile gelindiğinde, ilan mevcut liste
+// görünümünde olmasa bile doğrudan çekip detay modalını açabilmek için.
+export const getListing = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const listing = await prisma.coachListing.findUnique({
+            where: { id },
+            include: { user: { select: USER_SELECT } },
+        });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        const agg = await prisma.coachReview.aggregate({
+            where: { coachListingId: id },
+            _avg: { rating: true },
+            _count: { id: true },
+        });
+        res.json({ ...listing, avgRating: agg._avg.rating, reviewCount: agg._count.id });
+    } catch (err) { next(err); }
+};
+
 // Öğrenci bir antrenöre "ders aldım" ilişkisi kurmak için istek gönderir —
 // antrenör kabul edince öğrenci o antrenöre yorum/yıldız verebilir hale gelir.
 export const requestLesson = async (req, res, next) => {

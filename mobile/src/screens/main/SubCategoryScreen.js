@@ -10144,7 +10144,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
-            openEquipmentId, initialCoachSubTab } = route.params;
+            openEquipmentId, initialCoachSubTab, openCoachId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -10436,6 +10436,46 @@ export default function SubCategoryScreen({ route, navigation }) {
             setLessonRequestsList(prev => prev.filter(r => r.id !== reqId));
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setRespondingLessonReqId(null); }
+    };
+
+    // "İletişime Geç" ile açılan antrenör ilanı detayı — bilgiler/deneyim + o
+    // ilan üzerinden sohbet başlatma girişi burada bir arada gösterilir.
+    const [coachDetailListing, setCoachDetailListing] = useState(null);
+
+    useEffect(() => {
+        if (!openCoachId) return;
+        api.get(`/coaches/${openCoachId}`)
+            .then(({ data }) => {
+                setCoachDetailListing(data);
+                navigation.setParams({ openCoachId: undefined });
+            })
+            .catch(() => { navigation.setParams({ openCoachId: undefined }); });
+    }, [openCoachId]);
+
+    // Bir antrenör ilanı üzerinden "İletişime Geç" ile sohbet açılır — ilan bu
+    // sohbette daha önce hiç referans verilmemişse karşı tarafa net olsun diye
+    // otomatik bir ilk mesaj gönderilir (bkz. openChatWithSeller/equipment).
+    const openChatWithCoach = async (listing) => {
+        const otherId = listing.userId;
+        try {
+            const { data: conv } = await api.get(`/messages/conversation/${otherId}`);
+            const enriched = { ...conv, other: conv.user1Id === myId ? conv.user2 : conv.user1 };
+            try {
+                const { data: history } = await api.get(`/messages/conversation/${conv.id}/messages`);
+                const alreadyReferenced = (history || []).some(m => m.coachListingId === listing.id || m.coachListing?.id === listing.id);
+                if (!alreadyReferenced) {
+                    await api.post(`/messages/send/${otherId}`, {
+                        content: `🎓 Antrenörlük ilanınız hakkında yazıyorum.`,
+                        coachListingId: listing.id,
+                    });
+                }
+            } catch { /* mesaj geçmişi/otomatik mesaj başarısız olsa da sohbeti açmaya devam et */ }
+
+            setCoachDetailListing(null);
+            navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other, coach: listing } });
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
     };
 
     // Referees data — sadece tennis/padel/volleyball'da Antrenörler sekmesinin
@@ -12772,6 +12812,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {c.city && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements}</Text>}
+                                            {c.userId !== myId && (
+                                                <TouchableOpacity
+                                                    onPress={() => setCoachDetailListing(c)}
+                                                    style={{ marginTop:6, paddingVertical:7, borderRadius:8, backgroundColor: cfg.color, alignItems:'center' }}>
+                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>💬 İletişime Geç</Text>
+                                                </TouchableOpacity>
+                                            )}
                                             {c.userId !== myId ? (
                                                 <TouchableOpacity
                                                     onPress={() => reportListing('coaches', c.id)}
@@ -12812,6 +12859,66 @@ export default function SubCategoryScreen({ route, navigation }) {
                         </>
                         );
                     })()}
+
+                    {/* ── İletişime Geç ile açılan antrenör ilanı detayı ── */}
+                    <Modal visible={!!coachDetailListing} animationType="slide" transparent onRequestClose={() => setCoachDetailListing(null)}>
+                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:16, paddingBottom:30, maxHeight:'85%' }}>
+                                <ScrollView showsVerticalScrollIndicator={false}>
+                                    {coachDetailListing && (() => { const c = coachDetailListing; return (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:10 }}>
+                                                <Text style={{ fontSize:28 }}>🎓</Text>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>{c.user?.fullName || c.user?.username}</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:12 }}>{c.credentialLevel}{c.certName ? ` · ${c.certName}` : ''}</Text>
+                                                </View>
+                                            </View>
+                                            {c.reviewCount > 0 && (
+                                                <TouchableOpacity onPress={() => { setCoachDetailListing(null); openReviewModal('coach', c.id, c.user?.fullName || c.user?.username, c.userId === myId); }}>
+                                                    <Text style={{ color:'#facc15', fontSize:13, fontWeight:'700', marginBottom:10 }}>★ {c.avgRating?.toFixed(1)} ({c.reviewCount} değerlendirme) — Yorumları gör</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+                                                {c.individual && <View style={{ backgroundColor:cfg.color+'20', borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:cfg.color, fontSize:12, fontWeight:'700' }}>Bireysel {c.priceIndividual > 0 ? `${c.priceIndividual}₺` : ''}</Text></View>}
+                                                {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>Grup {c.priceGroup > 0 ? `${c.priceGroup}₺ (max ${c.maxGroupSize})` : ''}</Text></View>}
+                                                {c.experience > 0 && <View style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>{c.experience} yıl deneyim</Text></View>}
+                                            </View>
+                                            {(c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
+                                            {(c.days || []).length > 0 && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📆 {c.days.join(', ')}</Text>}
+                                            {c.city && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📍 {c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
+                                            {c.description && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>{c.description}</Text>}
+                                            {c.achievements && <Text style={{ color:'#fbbf24', fontSize:13, marginTop:8, lineHeight:19 }}>🏆 {c.achievements}</Text>}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:12 }}>
+                                                {c.certificateUrl && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>📜 Belge</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                {(c.achievementUrls || []).length > 0 && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(c.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                        <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>🏆 Başarılar ({c.achievementUrls.length})</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                {c.cvUrl && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>📄 CV</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+
+                                            <TouchableOpacity onPress={() => openChatWithCoach(c)} style={{ marginTop:20, backgroundColor: cfg.color, borderRadius:12, paddingVertical:13, alignItems:'center' }}>
+                                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>💬 Mesaj Gönder</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => setCoachDetailListing(null)} style={{ alignItems:'center', marginTop:12 }}>
+                                                <Text style={{ color:colors.textMuted }}>Kapat</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    ); })()}
+                                </ScrollView>
+                            </View>
+                        </View>
+                    </Modal>
 
                     {/* ── Antrenör İlanı Oluştur ── */}
                     <Modal visible={showCreateCoach} animationType="slide" onRequestClose={() => setShowCreateCoach(false)}>

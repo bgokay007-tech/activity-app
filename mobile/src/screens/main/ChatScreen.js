@@ -17,7 +17,7 @@ function Avatar({ user, size = 36 }) {
 }
 
 export default function ChatScreen({ route, navigation }) {
-    const { conversation: convParam, other: otherProp, rival, equipment } = route.params;
+    const { conversation: convParam, other: otherProp, rival, equipment, coach } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const t = useT();
     const [messages, setMessages] = useState([]);
@@ -34,6 +34,11 @@ export default function ChatScreen({ route, navigation }) {
     const openEquipmentListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
         navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'equipment', openEquipmentId: listing.id });
+    };
+
+    const openCoachListing = (listing) => {
+        if (!listing?.category || !listing?.subCategory) return;
+        navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'coaches', openCoachId: listing.id });
     };
 
     const fetchMessages = useCallback(async (id) => {
@@ -126,6 +131,15 @@ export default function ChatScreen({ route, navigation }) {
                             </View>
                         </TouchableOpacity>
                     )}
+                    {item.coachListing && (
+                        <TouchableOpacity style={styles.msgEquipCard} onPress={() => openCoachListing(item.coachListing)} activeOpacity={0.8}>
+                            <View style={[styles.msgEquipImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 16 }}>🎓</Text></View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.msgEquipTitle} numberOfLines={1}>{item.coachListing.credentialLevel}{item.coachListing.certName ? ` · ${item.coachListing.certName}` : ''}</Text>
+                                <Text style={styles.msgEquipPrice}>{item.coachListing.priceIndividual > 0 ? `${item.coachListing.priceIndividual} ₺/saat` : 'Antrenörlük ilanı'}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
                     <Text style={styles.bubbleText}>{item.content}</Text>
                     <Text style={[styles.bubbleTime, isMe ? styles.bubbleTimeMe : styles.bubbleTimeThem]}>
                         {new Date(item.createdAt).toLocaleTimeString(t.dateLocale, { hour: '2-digit', minute: '2-digit' })}
@@ -178,6 +192,18 @@ export default function ChatScreen({ route, navigation }) {
                     <View style={{ flex: 1 }}>
                         <Text style={styles.equipBannerTitle} numberOfLines={1}>{equipment.title}</Text>
                         <Text style={styles.equipBannerPrice}>{equipment.price > 0 ? `${equipment.price} ₺` : 'Fiyat sor'}</Text>
+                    </View>
+                    <Text style={styles.equipBannerArrow}>›</Text>
+                </TouchableOpacity>
+            )}
+
+            {/* Coach Listing Context Banner */}
+            {coach && (
+                <TouchableOpacity style={styles.equipBanner} onPress={() => openCoachListing(coach)} activeOpacity={0.8}>
+                    <View style={[styles.equipBannerImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 20 }}>🎓</Text></View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.equipBannerTitle} numberOfLines={1}>{coach.credentialLevel}{coach.certName ? ` · ${coach.certName}` : ''}</Text>
+                        <Text style={styles.equipBannerPrice}>{coach.priceIndividual > 0 ? `${coach.priceIndividual} ₺/saat` : 'Antrenörlük ilanı'}</Text>
                     </View>
                     <Text style={styles.equipBannerArrow}>›</Text>
                 </TouchableOpacity>

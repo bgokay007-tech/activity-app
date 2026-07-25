@@ -297,6 +297,7 @@ model CoachListing {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   lessonRequests  CoachLessonRequest[]
   reviews         CoachReview[]
+  messages        Message[]
 }
 
 // Öğrencinin antrenörle "ders aldım" ilişkisini kurması — antrenör kabul edince
@@ -1073,6 +1074,11 @@ model Message {
   // olduğunu taşır — sohbet ekranında ilan kartı gösterilir, bildirime tıklanınca ilana gidilir.
   equipmentListingId String?
   equipmentListing   EquipmentListing? @relation(fields: [equipmentListingId], references: [id], onDelete: SetNull)
+
+  // "İletişime Geç" ile bir antrenör ilanı üzerinden başlatılan mesajlar, hangi ilan
+  // hakkında olduğunu taşır — sohbet ekranında ilan kartı gösterilir.
+  coachListingId String?
+  coachListing   CoachListing? @relation(fields: [coachListingId], references: [id], onDelete: SetNull)
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
