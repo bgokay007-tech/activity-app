@@ -58,51 +58,77 @@ function EventCard({ item, myId, onJoin, onOpen, t }) {
     );
 }
 
-// Bir varyantın herkese-açık, henüz dolmamış masalarını satır içinde listeler —
-// seçili sekmenin (variant) içine gömülüdür, `active` (mainTab === 'play') iken canlı abone olur.
-function OpenTablesList({ variant, active, t }) {
+// Bir varyantın herkese-açık, henüz dolmamış masalarını 3'erli satırlar halinde
+// listeler; boş koltuğa "Katıl", seyirciye açıksa "İzle" ile girilir — batak.js'teki
+// BrowseTablesModal ile birebir aynı desen.
+function BrowseTablesModal({ visible, variant, t, onClose, onJoined, onSpectate }) {
     const [tables, setTables] = useState([]);
 
     useEffect(() => {
-        if (!active || !variant) return;
+        if (!visible || !variant) return;
         const socket = getSocket();
         socket?.emit('okey:listTables', { variant });
         const offList = onSocket('okey:tableList', (data) => { if (data.variant === variant) setTables(data.tables || []); });
+        const offErr = onSocket('okey:error', (data) => Alert.alert('', data?.message || 'Bir hata oluştu.'));
         return () => {
-            offList();
+            offList(); offErr();
             getSocket()?.emit('okey:unsubscribeLobby', { variant });
         };
-    }, [active, variant]);
+    }, [visible, variant]);
 
     const join = (tableId) => {
         const socket = getSocket();
         if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
         socket.emit('okey:joinTable', { tableId });
+        onJoined?.(tableId);
+    };
+    const spectate = (tableId) => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('okey:spectateTable', { tableId });
+        onSpectate?.(tableId);
     };
 
-    if (tables.length === 0) {
-        return <Text style={s.emptyText}>{t.okeyBrowseEmpty || 'Şu an açık masa yok'}</Text>;
-    }
-
     return (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%', maxWidth: 320 }}>
-            {tables.map(item => {
-                const filled = item.seats.filter(x => !x.open).length;
-                return (
-                    <View key={item.tableId} style={s.tableCard}>
-                        <Text style={s.tableCardStake}>🪙 {item.betAmount}</Text>
-                        {item.ratingAmount > 0 && <Text style={s.tableCardRating}>⭐ {item.ratingAmount.toFixed(2)}</Text>}
-                        <View style={{ flexDirection: 'row' }}>
-                            {item.seats.filter(x => !x.open).map(x => <Avatar key={x.seat} user={x} size={18} />)}
-                        </View>
-                        <Text style={s.tableCardSeats}>{filled}/4</Text>
-                        <TouchableOpacity style={s.tableCardJoinBtn} onPress={() => join(item.tableId)} activeOpacity={0.85}>
-                            <Text style={s.tableCardJoinBtnText}>{t.okeyJoinBtn || 'Katıl'}</Text>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={s.modalOverlay}>
+                <View style={s.modalBox}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <Text style={s.modalTitle}>{(t[`okeyVariant_${variant}`] || VARIANT_FALLBACK[variant] || '')} — {t.okeyBrowseTitle || 'Açık Masalar'}</Text>
+                        {tables.length === 0 ? (
+                            <Text style={s.emptyText}>{t.okeyBrowseEmpty || 'Şu an açık masa yok'}</Text>
+                        ) : (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                                {tables.map(item => {
+                                    const filled = item.seats.filter(x => !x.open).length;
+                                    return (
+                                        <View key={item.tableId} style={s.tableCard}>
+                                            <Text style={s.tableCardStake}>🪙 {item.betAmount}</Text>
+                                            {item.ratingAmount > 0 && <Text style={s.tableCardRating}>⭐ {item.ratingAmount.toFixed(2)}</Text>}
+                                            <View style={{ flexDirection: 'row' }}>
+                                                {item.seats.filter(x => !x.open).map(x => <Avatar key={x.seat} user={x} size={18} />)}
+                                            </View>
+                                            <Text style={s.tableCardSeats}>{filled}/4</Text>
+                                            <TouchableOpacity style={s.tableCardJoinBtn} onPress={() => join(item.tableId)} activeOpacity={0.85}>
+                                                <Text style={s.tableCardJoinBtnText}>{t.okeyJoinBtn || 'Katıl'}</Text>
+                                            </TouchableOpacity>
+                                            {item.spectatorOpen && (
+                                                <TouchableOpacity style={s.tableCardWatchBtn} onPress={() => spectate(item.tableId)} activeOpacity={0.85}>
+                                                    <Text style={s.tableCardWatchBtnText}>👁️ {t.okeyWatchBtn || 'İzle'}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        )}
+                        <TouchableOpacity onPress={onClose} style={{ alignItems: 'center', marginTop: 14 }}>
+                            <Text style={{ color: colors.textMuted }}>{t.cancelBtn || 'Kapat'}</Text>
                         </TouchableOpacity>
-                    </View>
-                );
-            })}
-        </View>
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
     );
 }
 
@@ -112,7 +138,7 @@ export default function OkeyHomeScreen({ navigation }) {
     const myName = useSelector(s => s.auth.user?.fullName || s.auth.user?.username);
     const [mainTab, setMainTab] = useState('play'); // 'play' | 'events'
     const [createModalOpen, setCreateModalOpen] = useState(false);
-    const [variantTab, setVariantTab] = useState(VARIANTS[0]);
+    const [browseVariant, setBrowseVariant] = useState(null);
     const [joinCode, setJoinCode] = useState('');
 
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
@@ -274,27 +300,27 @@ export default function OkeyHomeScreen({ navigation }) {
                             <Text style={s.createTableBtnText}>🎪 {t.okeyCreateTable || 'Masa Kur'}</Text>
                         </TouchableOpacity>
 
-                        <View style={s.variantTabRow}>
+                        <View style={s.variantGrid}>
                             {VARIANTS.map(v => (
-                                <TouchableOpacity key={v} onPress={() => setVariantTab(v)}
-                                    style={[s.variantTabBtn, variantTab === v && s.variantTabBtnActive]} activeOpacity={0.85}>
-                                    <Text
-                                        style={[s.variantTabBtnText, variantTab === v && s.variantTabBtnTextActive]}
-                                        numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
-                                    >
-                                        {t[`okeyVariant_${v}`] || VARIANT_FALLBACK[v]}
-                                    </Text>
+                                <TouchableOpacity key={v} style={s.variantBtn} onPress={() => setBrowseVariant(v)} activeOpacity={0.8}>
+                                    <Text style={s.variantBtnText}>{t[`okeyVariant_${v}`] || VARIANT_FALLBACK[v]}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
-
-                        <OpenTablesList variant={variantTab} active={mainTab === 'play'} t={t} />
 
                         <CreateTableModal
                             visible={createModalOpen}
                             interest={interest}
                             t={t}
                             onClose={() => setCreateModalOpen(false)}
+                        />
+                        <BrowseTablesModal
+                            visible={!!browseVariant}
+                            variant={browseVariant}
+                            t={t}
+                            onClose={() => setBrowseVariant(null)}
+                            onJoined={() => setBrowseVariant(null)}
+                            onSpectate={(tableId) => { setBrowseVariant(null); navigation.navigate('OkeyTable', { tableId, spectating: true }); }}
                         />
 
                         <Text style={s.orText}>{t.okeyOr || 'veya'}</Text>
@@ -423,9 +449,10 @@ function CreateTableModal({ visible, interest, t, onClose }) {
     const [betAmount, setBetAmount] = useState('100');
     const [wagerRating, setWagerRating] = useState(false);
     const [ratingAmount, setRatingAmount] = useState('0.10');
+    const [spectatorOpen, setSpectatorOpen] = useState(false);
 
     useEffect(() => {
-        if (visible) { setStep('variant'); setVariant(null); setDifficultyConfirmed(false); }
+        if (visible) { setStep('variant'); setVariant(null); setDifficultyConfirmed(false); setSpectatorOpen(false); }
     }, [visible]);
 
     const isTeam = variant === 'esli_klasik' || variant === 'esli_101';
@@ -450,12 +477,12 @@ function CreateTableModal({ visible, interest, t, onClose }) {
         socket.emit('okey:createPrivateTable', {
             betAmount: parsedBet, ratingAmount: parsedRating,
             ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
-            variant, listed: true,
+            variant, listed: true, spectatorOpen,
         });
         onClose();
     };
 
-    const BACK = { opponent: 'variant', difficulty: 'opponent', range: 'opponent', stake: 'range', rating: 'stake' };
+    const BACK = { opponent: 'variant', difficulty: 'opponent', range: 'opponent', stake: 'range', rating: 'stake', spectator: 'rating' };
     const back = () => setStep(BACK[step] || 'variant');
 
     return (
@@ -555,6 +582,19 @@ function CreateTableModal({ visible, interest, t, onClose }) {
                                         )}
                                     </>
                                 )}
+                                <TouchableOpacity style={s.submitBtn} onPress={() => setStep('spectator')} activeOpacity={0.85}>
+                                    <Text style={s.submitBtnText}>→ {t.okeySpectatorOpen || 'Seyirciye açık'}</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {step === 'spectator' && (
+                            <>
+                                <TouchableOpacity style={s.checkboxRow} onPress={() => setSpectatorOpen(v => !v)} activeOpacity={0.8}>
+                                    <View style={[s.checkbox, spectatorOpen && s.checkboxChecked]}>{spectatorOpen && <Text style={s.checkboxMark}>✓</Text>}</View>
+                                    <Text style={s.checkboxLabel}>{t.okeySpectatorOpen || 'Seyirciye açık'}</Text>
+                                </TouchableOpacity>
+                                <Text style={s.spectatorHint}>{t.okeySpectatorOpenHint || 'Oyuncular dışındakiler masayı izleyebilir ama kapalı taşları asla göremez'}</Text>
                                 <Text style={s.payoutHint}>{isTeam ? (t.okeyPayoutTeam || 'Kazanan takım potun tamamını alır, aralarında %50-%50 paylaşır.') : (t.okeyPayoutSolo || '1. %75 alır, 2. amorti (koyduğunu geri alır), 3. ve 4. bahsini kaybeder.')}</Text>
                                 <TouchableOpacity style={[s.findBtn, { alignItems: 'center' }, !canAfford && { opacity: 0.4 }]} onPress={createTable} disabled={!canAfford} activeOpacity={0.85}>
                                     <Text style={s.findBtnText}>{t.okeyCreateTable || 'Masayı Kur'} ({parsedBet} puan{parsedRating > 0 ? ` + ${parsedRating.toFixed(2)} derece` : ''})</Text>
@@ -614,16 +654,15 @@ const s = StyleSheet.create({
 
     createTableBtn: { backgroundColor: colors.amber || '#f59e0b', borderRadius: 16, paddingVertical: 14, width: '100%', maxWidth: 320, alignItems: 'center', marginTop: 4 },
     createTableBtnText: { color: '#111827', fontSize: 15, fontWeight: '900' },
-    variantTabRow: { flexDirection: 'row', flexWrap: 'wrap', width: '100%', maxWidth: 320, gap: 8, marginTop: 16, marginBottom: 12 },
-    variantTabBtn: { width: '48%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
-    variantTabBtnActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
-    variantTabBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '800', textAlign: 'center' },
-    variantTabBtnTextActive: { color: colors.purpleLight || colors.purple },
+    variantGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%', maxWidth: 320, gap: 8, marginTop: 10 },
+    variantBtn: { width: '48%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+    variantBtnText: { color: '#fff', fontSize: 12, fontWeight: '800', textAlign: 'center' },
     variantOption: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 8 },
     variantOptionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
     difficultyConfirmedRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.purple, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14 },
     difficultyConfirmedText: { color: '#fff', fontSize: 13, fontWeight: '800' },
     difficultyChangeText: { color: colors.purpleLight || colors.purple, fontSize: 11, fontWeight: '700' },
+    spectatorHint: { color: colors.textMuted, fontSize: 11, marginTop: 4, marginBottom: 8 },
     payoutHint: { color: '#fbbf24', fontSize: 11, fontWeight: '700', backgroundColor: '#f59e0b1a', borderRadius: 10, padding: 10, marginBottom: 14 },
     tableCard: { width: '31%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 8, alignItems: 'center', gap: 4, marginBottom: 10 },
     tableCardStake: { color: '#fbbf24', fontSize: 13, fontWeight: '900' },
@@ -631,6 +670,8 @@ const s = StyleSheet.create({
     tableCardSeats: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
     tableCardJoinBtn: { width: '100%', backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 6, alignItems: 'center', marginTop: 2 },
     tableCardJoinBtnText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+    tableCardWatchBtn: { width: '100%', backgroundColor: colors.surface, borderRadius: 8, paddingVertical: 6, alignItems: 'center', marginTop: 4 },
+    tableCardWatchBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '800' },
     inputWarn: { color: '#f87171', fontSize: 11, marginBottom: 6, textAlign: 'center' },
     freeInput: { width: '100%', maxWidth: 280, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 4 },
     checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4 },

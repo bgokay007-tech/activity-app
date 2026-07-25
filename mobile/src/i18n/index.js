@@ -351,6 +351,9 @@ const en = {
     okeyPayoutSolo: '1st takes 75%, 2nd breaks even, 3rd & 4th lose their stake.',
     okeyPayoutTeam: 'The winning team takes the whole pot, split 50/50 between partners.',
     okeyBack: 'Back', okeyTableCode: 'Table Code',
+    okeyBrowseTitle: 'Open Tables', okeyWatchBtn: '👁️ Watch', okeySpectating: "You're spectating",
+    okeySpectatorOpen: 'Open to spectators',
+    okeySpectatorOpenHint: 'Non-players can watch the table but never see hidden tiles',
 
     tavlaTitle: '🎲 Backgammon', tavlaTabPlay: '🎲 Play Backgammon', tavlaTabEvents: '📋 Backgammon Listings',
     tavlaPlayTitle: 'Real-Time Backgammon', tavlaPlayDesc: 'Get matched into a 2-player table and play live backgammon in the app.',
@@ -1496,6 +1499,9 @@ const tr = {
     okeyPayoutSolo: '1. %75 alır, 2. amorti (koyduğunu geri alır), 3. ve 4. bahsini kaybeder.',
     okeyPayoutTeam: 'Kazanan takım potun tamamını alır, aralarında %50-%50 paylaşır.',
     okeyBack: 'Geri', okeyTableCode: 'Masa Kodu',
+    okeyBrowseTitle: 'Açık Masalar', okeyWatchBtn: '👁️ İzle', okeySpectating: 'İzliyorsun',
+    okeySpectatorOpen: 'Seyirciye açık',
+    okeySpectatorOpenHint: 'Oyuncular dışındakiler masayı izleyebilir ama kapalı taşları asla göremez',
 
     tavlaTitle: '🎲 Tavla', tavlaTabPlay: '🎲 Tavla Oyna', tavlaTabEvents: '📋 Tavla İlanı',
     tavlaPlayTitle: 'Gerçek Zamanlı Tavla', tavlaPlayDesc: '2 kişilik masaya otomatik eşleşerek uygulama içinde canlı Tavla oyna.',

@@ -295,6 +295,7 @@ function publicState(table) {
         ratingRangeMax: table.ratingRangeMax ?? null,
         variant: table.variant || 'klasik',
         listed: !!table.listed,
+        spectatorOpen: !!table.spectatorOpen,
         isTeamGame: !!table.isTeamGame,
         phase: table.phase,
         seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, open: !!s.open, handCount: table.hands[s.seat]?.length ?? 0 })),
@@ -701,7 +702,7 @@ function tryMatch(io) {
 // odasında 3 açık koltuğa arkadaş davet edebilir, masa kodunu paylaşabilir, veya
 // (listed:true ise) masa o varyantın herkese-açık lobi ızgarasında görünür. 4. kişi
 // katılınca (kod ile veya lobiden) normal 'playing' akışına geçilir.
-function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax, variant = 'klasik', listed = false) {
+function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax, variant = 'klasik', listed = false, spectatorOpen = false) {
     const id = `ok_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     let code = genCode();
     while (codeToTableId.has(code)) code = genCode();
@@ -713,6 +714,7 @@ function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeM
         ratingRangeMax: ratingRangeMax ?? null,
         variant,
         listed: !!listed,
+        spectatorOpen: !!spectatorOpen,
         isTeamGame: variant === 'esli_klasik' || variant === 'esli_101',
         leftEarly: [false, false, false, false],
         seats: [
@@ -806,6 +808,7 @@ function listOpenListedTables(variant) {
             ratingAmount: table.ratingAmount || 0,
             ratingRangeMin: table.ratingRangeMin ?? null,
             ratingRangeMax: table.ratingRangeMax ?? null,
+            spectatorOpen: !!table.spectatorOpen,
             isTeamGame: !!table.isTeamGame,
             seats: table.seats.map(s => ({ seat: s.seat, userId: s.userId, username: s.username, avatar: s.avatar, open: s.open })),
             openSeatCount: table.seats.filter(s => s.open).length,
@@ -867,7 +870,7 @@ export function registerOkeyHandlers(io, socket) {
         }
     });
 
-    socket.on('okey:createPrivateTable', async ({ betAmount, ratingAmount = 0, ratingRangeMin = null, ratingRangeMax = null, variant = 'klasik', listed = false } = {}) => {
+    socket.on('okey:createPrivateTable', async ({ betAmount, ratingAmount = 0, ratingRangeMin = null, ratingRangeMax = null, variant = 'klasik', listed = false, spectatorOpen = false } = {}) => {
         if (!verifiedUserId) return socket.emit('okey:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId) || isUserQueued(verifiedUserId)) return socket.emit('okey:error', { message: 'Zaten bir masadasın' });
         if (!isValidPrivateStake(betAmount, ratingAmount)) return socket.emit('okey:error', { message: 'Geçersiz bahis miktarı' });
@@ -878,7 +881,7 @@ export function registerOkeyHandlers(io, socket) {
         if (interest.walletPoints <= 0) return socket.emit('okey:error', { code: 'INSUFFICIENT_POINTS', message: 'Puanın bitti, bahisli masalara giremezsin.' });
         if (interest.walletPoints < betAmount) return socket.emit('okey:error', { code: 'INSUFFICIENT_POINTS', message: 'Yetersiz puan bakiyesi.' });
         if (interest.skillRating < ratingAmount) return socket.emit('okey:error', { code: 'INSUFFICIENT_RATING', message: 'Yetersiz derece.' });
-        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax, variant, listed);
+        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax, variant, listed, spectatorOpen);
     });
 
     // Varyant bazlı herkese-açık masa lobisi: ızgarayı görüntülemek için abone
@@ -906,6 +909,19 @@ export function registerOkeyHandlers(io, socket) {
         if (table.ratingRangeMax != null && interest.skillRating > table.ratingRangeMax) return socket.emit('okey:error', { code: 'RATING_OUT_OF_RANGE', message: `Bu masaya katılmak için en fazla ${table.ratingRangeMax.toFixed(2)} derecen olabilir.` });
         try { joinTableById(io, { userId: verifiedUserId, username, avatar, socket }, tableId); }
         catch (e) { socket.emit('okey:error', { message: e.message }); }
+    });
+
+    socket.on('okey:spectateTable', ({ tableId } = {}) => {
+        if (!verifiedUserId) return socket.emit('okey:error', { message: 'Oturum doğrulanamadı' });
+        const table = tables.get(tableId);
+        if (!table) return socket.emit('okey:error', { message: 'Masa artık yok' });
+        if (!table.spectatorOpen) return socket.emit('okey:error', { message: 'Bu masa seyirciye açık değil' });
+        socket.join(`okey:${tableId}`);
+        socket.emit('okey:state', publicState(table));
+    });
+
+    socket.on('okey:leaveSpectate', ({ tableId } = {}) => {
+        if (tableId) socket.leave(`okey:${tableId}`);
     });
 
     socket.on('okey:joinByCode', async ({ code } = {}) => {
