@@ -214,7 +214,8 @@ function PersonalInfoModal({ user, onClose, onSave }) {
     );
 }
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball']);
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'batak']);
+const WAGERED_GAMES = new Set(['okey', 'batak']);
 
 function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
     const [categories, setCategories] = useState([]);
@@ -222,7 +223,7 @@ function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
     const [loadingId, setLoadingId] = useState(null);
     useEffect(() => { api.get('/interests/categories').then(({ data }) => setCategories(data.categories || [])); }, []);
     const addedMap = {};
-    currentInterests.forEach(i => { addedMap[`${i.category}__${i.subCategory}`] = i.id; });
+    currentInterests.forEach(i => { addedMap[`${i.category}__${i.subCategory}`] = i; });
     const handleAdd = async (category, subCategory) => {
         const key = `${category}__${subCategory}`;
         setLoadingId(key);
@@ -230,10 +231,27 @@ function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
         catch (err) { console.error(err); }
         finally { setLoadingId(null); }
     };
-    const handleRemove = async (interestId, category, subCategory) => {
+    // Okey/Batak gibi puanlı oyunlar (ve 3+ maç oynanmış herhangi bir branş)
+    // backend'de tamamen silinemiyor (puan/geçmiş sıfırlama istismarını
+    // engellemek için) — bu durumda sessizce başarısız olmak yerine kullanıcıya
+    // "gizle" seçeneği sunuluyor (gizlenen branş tekrar eklenince puanı aynen geri gelir).
+    const handleRemove = async (interest, category, subCategory) => {
         const key = `${category}__${subCategory}`;
+        const matchCount = (interest.wins || 0) + (interest.losses || 0);
+        const isWagered = category === 'GAMES' && WAGERED_GAMES.has(subCategory);
+        if (isWagered || matchCount >= 3) {
+            const msg = isWagered
+                ? 'Puanlı oyun aktiviteleri tamamen silinemez, sadece gizlenebilir. Tekrar eklediğinde puanın aynen geri gelir. Gizlemek ister misin?'
+                : `Bu branşta ${matchCount} maç oynadığın için tamamen silinemez, sadece gizlenebilir. Tekrar eklediğinde puanın aynen geri gelir. Gizlemek ister misin?`;
+            if (!confirm(msg)) return;
+            setLoadingId(key);
+            try { await api.patch(`/interests/${interest.id}/hide`); onRemove(interest.id); }
+            catch (err) { console.error(err); }
+            finally { setLoadingId(null); }
+            return;
+        }
         setLoadingId(key);
-        try { await api.delete(`/interests/${interestId}`); onRemove(interestId); }
+        try { await api.delete(`/interests/${interest.id}`); onRemove(interest.id); }
         catch (err) { console.error(err); }
         finally { setLoadingId(null); }
     };
@@ -258,8 +276,8 @@ function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
                         <div className="grid grid-cols-2 gap-2">
                             {activeCat.subCategories.map(sub => {
                                 const key = `${activeCategory}__${sub.id}`;
-                                const existingId = addedMap[key];
-                                const isAdded = !!existingId;
+                                const existingInterest = addedMap[key];
+                                const isAdded = !!existingInterest;
                                 const isLoading = loadingId === key;
                                 const cfg = CATEGORY_CONFIG[activeCategory];
                                 const enabled = ENABLED_SUBS.has(sub.id);
@@ -272,7 +290,7 @@ function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
                                         {!enabled ? (
                                             <span className="text-gray-500 text-[10px] font-bold ml-2 flex-shrink-0 bg-gray-700/60 px-2 py-0.5 rounded-full">🔧</span>
                                         ) : isAdded ? (
-                                            <button onClick={() => handleRemove(existingId, activeCategory, sub.id)} disabled={isLoading}
+                                            <button onClick={() => handleRemove(existingInterest, activeCategory, sub.id)} disabled={isLoading}
                                                 className="text-red-400 hover:text-red-300 text-xs font-bold ml-2 flex-shrink-0 disabled:opacity-50">
                                                 {isLoading ? '...' : '✕'}
                                             </button>
@@ -1120,6 +1138,17 @@ function ProfilePage() {
     const [showInfoModal, setShowInfoModal] = useState(false);
     const [showActivityModal, setShowActivityModal] = useState(false);
     const [assessmentTarget, setAssessmentTarget] = useState(null); // {id, subCategory, categoryColor}
+
+    // Batak/Okey gibi oyunlar "aktivite ekle" akışını buraya yönlendiriyor ki
+    // ekleme profil üzerinden olsun ve seviye testi (assessment) hiç atlanmasın.
+    useEffect(() => {
+        if (searchParams.get('openActivities')) {
+            setShowActivityModal(true);
+            const next = new URLSearchParams(searchParams);
+            next.delete('openActivities');
+            setSearchParams(next, { replace: true });
+        }
+    }, []);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [createType, setCreateType] = useState('POST');
     const [viewingContent, setViewingContent] = useState(null);

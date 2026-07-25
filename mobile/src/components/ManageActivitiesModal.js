@@ -18,6 +18,11 @@ const ENABLED_SUBS = new Set([
     'fps', 'rpg', 'strategy', 'sports_games', 'moba', 'battle_royale', 'simulation', 'puzzle', 'racing', 'card_games', 'okey', 'batak',
 ]);
 
+// Puanlı (bahisli) oyunlar — geçmiş maç sayısına bakılmaksızın tamamen
+// silinemez (puan/geçmiş sıfırlayıp yeniden anket doldurma istismarını
+// engellemek için), sadece gizlenebilir.
+const WAGERED_GAMES = new Set(['okey', 'batak']);
+
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
@@ -92,13 +97,17 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
 
     // 3+ mac oynanmis branslar tamamen silinemez (puan/gecmis sifirlayip yeniden anket
     // doldurma istismarini engellemek icin) - onun yerine gizlenir, tekrar eklenince
-    // puan/gecmis aynen geri gelir.
+    // puan/gecmis aynen geri gelir. Puanli oyunlar (okey/batak) icin bu kural mac
+    // sayisina bakilmaksizin gecerlidir (hic oynanmamis olsa bile).
     const handleRemove = (interest, category, subCategory) => {
         const matchCount = (interest.wins || 0) + (interest.losses || 0);
-        if (matchCount >= 3) {
+        const isWagered = category === 'GAMES' && WAGERED_GAMES.has(subCategory);
+        if (isWagered || matchCount >= 3) {
             Alert.alert(
                 t.hideInsteadTitle || 'Branş Silinemez',
-                t.hideInsteadMsg || `Bu branşta ${matchCount} maç oynadınız, puan/geçmişiniz kaybolmasın diye tamamen silinemez. Bunun yerine gizleyebilirsiniz — tekrar eklediğinizde puanınız aynen geri gelir.`,
+                isWagered
+                    ? (t.hideInsteadWageredMsg || 'Puanlı oyun aktiviteleri tamamen silinemez, sadece gizlenebilir. Tekrar eklediğinizde puanınız aynen geri gelir.')
+                    : (t.hideInsteadMsg || `Bu branşta ${matchCount} maç oynadınız, puan/geçmişiniz kaybolmasın diye tamamen silinemez. Bunun yerine gizleyebilirsiniz — tekrar eklediğinizde puanınız aynen geri gelir.`),
                 [
                     { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
                     { text: t.hideBtn || 'Gizle', style: 'destructive', onPress: () => doHide(interest.id, category, subCategory) },

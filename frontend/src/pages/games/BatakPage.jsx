@@ -461,8 +461,8 @@ function BatakLobby({ myName, onMatched, onSpectate }) {
     const [ratingRangeMax, setRatingRangeMax] = useState('');
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
     const [interest, setInterest] = useState(undefined);
-    const [addingActivity, setAddingActivity] = useState(false);
     const navigatedRef = useRef(false);
+    const navigate = useNavigate();
 
     const loadInterest = () => {
         api.get('/interests/my')
@@ -470,14 +470,6 @@ function BatakLobby({ myName, onMatched, onSpectate }) {
             .catch(() => setInterest(null));
     };
     useEffect(() => { loadInterest(); }, []);
-
-    const addActivity = () => {
-        setAddingActivity(true);
-        api.post('/interests/add', { category: 'GAMES', subCategory: 'batak' })
-            .then(loadInterest)
-            .catch(() => alert('Aktivite eklenemedi, tekrar deneyin.'))
-            .finally(() => setAddingActivity(false));
-    };
 
     useEffect(() => { getSocket()?.emit('batak:setUsername', myName); }, [myName]);
 
@@ -540,10 +532,10 @@ function BatakLobby({ myName, onMatched, onSpectate }) {
             <div className="max-w-md mx-auto">
                 <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center">
                     <p className="text-5xl mb-3">🃏</p>
-                    <p className="text-white font-bold mb-2">Batak oynamak için önce bu oyunu aktivite olarak ekle</p>
-                    <p className="text-gray-400 text-xs mb-4">Eklediğinde 2000 puanla başlarsın. Bu aktiviteyi daha sonra silemezsin, sadece gizleyebilirsin.</p>
-                    <button onClick={addActivity} disabled={addingActivity} className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl disabled:opacity-50">
-                        {addingActivity ? '...' : 'Aktivitelerime Ekle ve Başla (2000 puan)'}
+                    <p className="text-white font-bold mb-2">Batak oynamak için önce bu oyunu profilinden aktivite olarak ekle</p>
+                    <p className="text-gray-400 text-xs mb-4">Eklerken kısa bir seviye testi yapılır ve derece puanın ona göre belirlenir, 2000 puanla başlarsın. Bu aktiviteyi daha sonra silemezsin, sadece gizleyebilirsin.</p>
+                    <button onClick={() => navigate('/profile?openActivities=1')} className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl">
+                        Profilime Git ve Ekle
                     </button>
                 </div>
             </div>

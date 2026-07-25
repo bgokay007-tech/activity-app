@@ -93,7 +93,6 @@ export default function BatakHomeScreen({ navigation }) {
 
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
     const [interest, setInterest] = useState(undefined);
-    const [addingActivity, setAddingActivity] = useState(false);
     const navigatedRef = useRef(false);
 
     const loadInterest = useCallback(() => {
@@ -102,14 +101,10 @@ export default function BatakHomeScreen({ navigation }) {
             .catch(() => setInterest(null));
     }, []);
     useEffect(() => { loadInterest(); }, [loadInterest]);
-
-    const addActivity = () => {
-        setAddingActivity(true);
-        api.post('/interests/add', { category: 'GAMES', subCategory: 'batak' })
-            .then(loadInterest)
-            .catch(() => Alert.alert('', 'Aktivite eklenemedi, tekrar deneyin.'))
-            .finally(() => setAddingActivity(false));
-    };
+    // Aktivite ekleme artık profildeki "Aktivitelerimi Yönet" akışından
+    // yapılıyor (seviye testi hiç atlanmasın diye) - oradan geri dönünce
+    // durum güncellensin diye ekran her odaklanınca yeniden yükleniyor.
+    useFocusEffect(useCallback(() => { loadInterest(); }, [loadInterest]));
 
     useEffect(() => {
         const socket = getSocket();
@@ -318,10 +313,10 @@ export default function BatakHomeScreen({ navigation }) {
                 ) : interest === null ? (
                     <View style={s.playWrap}>
                         <Text style={s.playEmoji}>🃏</Text>
-                        <Text style={s.playTitle}>Batak oynamak için önce bu oyunu aktivite olarak ekle</Text>
-                        <Text style={s.playDesc}>Eklediğinde 2000 puanla başlarsın. Bu aktiviteyi daha sonra silemezsin, sadece gizleyebilirsin.</Text>
-                        <TouchableOpacity style={s.findBtn} onPress={addActivity} disabled={addingActivity} activeOpacity={0.85}>
-                            <Text style={s.findBtnText}>{addingActivity ? '...' : 'Aktivitelerime Ekle ve Başla (2000 puan)'}</Text>
+                        <Text style={s.playTitle}>Batak oynamak için önce bu oyunu profilinden aktivite olarak ekle</Text>
+                        <Text style={s.playDesc}>Eklerken kısa bir seviye testi yapılır ve derece puanın ona göre belirlenir, 2000 puanla başlarsın. Bu aktiviteyi daha sonra silemezsin, sadece gizleyebilirsin.</Text>
+                        <TouchableOpacity style={s.findBtn} onPress={() => navigation.navigate('Profile', { openManageActivities: true })} activeOpacity={0.85}>
+                            <Text style={s.findBtnText}>Profilime Git ve Ekle</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (

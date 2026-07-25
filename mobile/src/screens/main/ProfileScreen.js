@@ -2126,6 +2126,15 @@ export default function ProfileScreen({ route, navigation }) {
         }
     }, [route?.params?.openTournamentPermissions]);
 
+    // Batak/Okey gibi oyunlar "aktivite ekle" akışını buraya yönlendiriyor ki
+    // ekleme profil üzerinden olsun ve seviye testi (assessment) hiç atlanmasın.
+    useEffect(() => {
+        if (route?.params?.openManageActivities) {
+            setManageOpen(true);
+            navigation.setParams({ openManageActivities: undefined });
+        }
+    }, [route?.params?.openManageActivities]);
+
     const handlePermApprove = async (userId) => {
         try {
             await api.patch(`/admin/tournament-permissions/${userId}/approve`);
