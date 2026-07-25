@@ -311,6 +311,10 @@ const en = {
     batakPayoutSolo: '1st takes 75%, 2nd breaks even, 3rd & 4th lose their stake.',
     batakPayoutTeam: 'The winning team takes the whole pot, split 50/50 between partners.',
     batakBack: 'Back', batakJoinBtn: 'Join', batakWatchBtn: '👁️ Watch', batakSpectating: "You're spectating",
+    batakTabTurnuva: 'Tournament', batakTabMedya: 'Media',
+    batakTournamentTitle: 'Batak Tournament', batakTournamentComingSoon: 'This section will be active soon.',
+    batakShareMediaBtn: '+ Share', batakNoMedia: 'No media shared yet.',
+    batakMediaLoadError: 'Could not load media.', batakMediaShareError: 'Could not share.',
 
     okeyTitle: '🀄 Okey', okeyTabPlay: '🎮 Play Okey', okeyTabEvents: '📋 Okey Listings',
     okeyPlayTitle: 'Real-Time Okey', okeyPlayDesc: 'Get matched into a 4-player table and play live Okey in the app.',
@@ -1452,6 +1456,10 @@ const tr = {
     batakPayoutSolo: '1. %75 alır, 2. amorti (koyduğunu geri alır), 3. ve 4. bahsini kaybeder.',
     batakPayoutTeam: 'Kazanan takım potun tamamını alır, aralarında %50-%50 paylaşır.',
     batakBack: 'Geri', batakJoinBtn: 'Katıl', batakWatchBtn: '👁️ İzle', batakSpectating: 'İzliyorsun',
+    batakTabTurnuva: 'Turnuva', batakTabMedya: 'Medya',
+    batakTournamentTitle: 'Batak Turnuvası', batakTournamentComingSoon: 'Bu bölüm yakında aktif olacak.',
+    batakShareMediaBtn: '+ Paylaş', batakNoMedia: 'Henüz medya paylaşılmamış.',
+    batakMediaLoadError: 'Medya yüklenemedi.', batakMediaShareError: 'Paylaşılamadı.',
 
     okeyTitle: '🀄 Okey', okeyTabPlay: '🎮 Okey Oyna', okeyTabEvents: '📋 Okey İlanı',
     okeyPlayTitle: 'Gerçek Zamanlı Okey', okeyPlayDesc: '4 kişilik masaya otomatik eşleşerek uygulama içinde canlı Okey oyna.',

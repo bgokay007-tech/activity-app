@@ -1,19 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, FlatList,
+    View, Text, TextInput, TouchableOpacity, FlatList, Image,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, ScrollView,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import useT from '../../hooks/useT';
 import { getSocket, onSocket } from '../../services/socket';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
+import Avatar from '../../components/Avatar';
 
 const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
 const VARIANT_FALLBACK = { ihaleli: 'İhaleli Batak', esli_ihaleli: 'Eşli İhaleli Batak', herkes_kendine: 'Herkes Kendine Batak', gomme: 'Gömmeli Batak' };
 const DIFFICULTIES = [['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor']];
+const noEmojiStr = (str) => (str || '').replace(/^\S+\s+/, '');
 
 function fmtDate(d) {
     if (!d) return null;
@@ -61,7 +64,7 @@ export default function BatakHomeScreen({ navigation }) {
     const t = useT();
     const myId = useSelector(s => s.auth.user?.id);
     const myName = useSelector(s => s.auth.user?.fullName || s.auth.user?.username);
-    const [mainTab, setMainTab] = useState('play'); // 'play' | 'events'
+    const [mainTab, setMainTab] = useState('play'); // 'play' | 'events' | 'turnuva' | 'medya'
     const [createModalOpen, setCreateModalOpen] = useState(false);
 
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
@@ -171,6 +174,83 @@ export default function BatakHomeScreen({ navigation }) {
         navigation.navigate('SubCategory', { category: 'GAMES', sub: 'batak', initialTab: 'rivals', highlightRivalId: item.id });
     };
 
+    // ── Varyant lobisi: seçilen varyantın herkese açık masaları, sayfanın kendi
+    // içinde (ayrı ekrana geçmeden) hemen altında listelenir ──────────────────
+    const [selectedVariant, setSelectedVariant] = useState(null);
+    const [lobbyTables, setLobbyTables] = useState([]);
+
+    useEffect(() => {
+        if (!selectedVariant) { setLobbyTables([]); return; }
+        const socket = getSocket();
+        socket?.emit('batak:listTables', { variant: selectedVariant });
+        const offList = onSocket('batak:tableList', (data) => { if (data.variant === selectedVariant) setLobbyTables(data.tables || []); });
+        return () => {
+            offList();
+            getSocket()?.emit('batak:unsubscribeLobby', { variant: selectedVariant });
+        };
+    }, [selectedVariant]);
+
+    const toggleVariant = (v) => setSelectedVariant(sv => sv === v ? null : v);
+
+    const joinLobbyTable = (tableId) => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('batak:joinTable', { tableId });
+    };
+    const spectateLobbyTable = (tableId) => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('batak:spectateTable', { tableId });
+        navigation.navigate('BatakTable', { tableId, spectating: true });
+    };
+
+    // ── Batak Medyası ────────────────────────────────────────────────────────
+    const [batakMedia, setBatakMedia] = useState([]);
+    const [mediaLoading, setMediaLoading] = useState(false);
+    const [mediaLoaded, setMediaLoaded] = useState(false);
+    const [uploadingMedia, setUploadingMedia] = useState(false);
+
+    const loadBatakMedia = useCallback(async () => {
+        setMediaLoading(true);
+        try {
+            const { data } = await api.get('/posts', { params: { category: 'GAMES', subCategory: 'batak', mediaOnly: true, limit: 50 } });
+            setBatakMedia(Array.isArray(data) ? data : (data.posts || []));
+        } catch (e) {
+            Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.batakMediaLoadError || 'Medya yüklenemedi.');
+        } finally {
+            setMediaLoading(false);
+            setMediaLoaded(true);
+        }
+    }, [t]);
+
+    useEffect(() => {
+        if (mainTab === 'medya' && !mediaLoaded) loadBatakMedia();
+    }, [mainTab, mediaLoaded, loadBatakMedia]);
+
+    const shareBatakMedia = async () => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return Alert.alert('', t.galleryPermission || 'Galeri izni gerekli');
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
+        if (result.canceled || !result.assets?.[0]) return;
+        const asset = result.assets[0];
+        const isVideo = asset.type === 'video';
+        setUploadingMedia(true);
+        try {
+            const form = new FormData();
+            form.append('file', { uri: asset.uri, name: isVideo ? 'batak-media.mp4' : 'batak-media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
+            const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            await api.post('/posts', {
+                category: 'GAMES', subCategory: 'batak', type: 'POST', content: '',
+                ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
+            });
+            loadBatakMedia();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.batakMediaShareError || 'Paylaşılamadı.');
+        } finally {
+            setUploadingMedia(false);
+        }
+    };
+
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
@@ -183,12 +263,14 @@ export default function BatakHomeScreen({ navigation }) {
 
             <View style={s.mainTabRow}>
                 {[
-                    { id: 'play',   label: t.batakTabPlay   || '🎮 Batak Oyna' },
-                    { id: 'events', label: t.batakTabEvents || '📋 Batak İlanı' },
+                    { id: 'play',    label: noEmojiStr(t.batakTabPlay   || '🎮 Batak Oyna') },
+                    { id: 'events',  label: noEmojiStr(t.batakTabEvents || '📋 Batak İlanı') },
+                    { id: 'turnuva', label: t.batakTabTurnuva || 'Turnuva' },
+                    { id: 'medya',   label: t.batakTabMedya   || 'Medya' },
                 ].map(tb => (
                     <TouchableOpacity key={tb.id} onPress={() => setMainTab(tb.id)}
                         style={[s.mainTabBtn, mainTab === tb.id && s.mainTabBtnActive]}>
-                        <Text style={[s.mainTabBtnText, mainTab === tb.id && s.mainTabBtnTextActive]}>{tb.label}</Text>
+                        <Text style={[s.mainTabBtnText, mainTab === tb.id && s.mainTabBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{tb.label}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -206,22 +288,54 @@ export default function BatakHomeScreen({ navigation }) {
                         </TouchableOpacity>
                     </View>
                 ) : (
-                    <ScrollView contentContainerStyle={s.playWrap} showsVerticalScrollIndicator={false}>
-                        <View style={{ flexDirection: 'row', gap: 14 }}>
-                            <Text style={s.balanceText}>🪙 {interest.walletPoints} puan</Text>
-                            <Text style={s.ratingBalanceText}>⭐ {interest.skillRating?.toFixed(2)} derece</Text>
+                    <ScrollView contentContainerStyle={s.playWrapTop} showsVerticalScrollIndicator={false}>
+                        <View style={s.masaKurRow}>
+                            <TouchableOpacity style={s.createTableBtnSmall} onPress={() => setCreateModalOpen(true)} activeOpacity={0.85}>
+                                <Text style={s.createTableBtnSmallText}>🎪 {t.batakCreateTable || 'Masa Kur'}</Text>
+                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <Text style={s.balanceText}>🪙 {interest.walletPoints}</Text>
+                                <Text style={s.ratingBalanceText}>⭐ {interest.skillRating?.toFixed(2)}</Text>
+                            </View>
                         </View>
 
-                        <TouchableOpacity style={s.createTableBtn} onPress={() => setCreateModalOpen(true)} activeOpacity={0.85}>
-                            <Text style={s.createTableBtnText}>🎪 {t.batakCreateTable || 'Masa Kur'}</Text>
-                        </TouchableOpacity>
-                        <View style={s.variantGrid}>
+                        <View style={s.variantRow}>
                             {VARIANTS.map(v => (
-                                <TouchableOpacity key={v} style={s.variantBtn} onPress={() => navigation.navigate('BatakLobby', { variant: v })} activeOpacity={0.8}>
-                                    <Text style={s.variantBtnText}>{t[`batakVariant_${v}`] || VARIANT_FALLBACK[v]}</Text>
+                                <TouchableOpacity key={v} style={[s.variantBtn, selectedVariant === v && s.variantBtnActive]} onPress={() => toggleVariant(v)} activeOpacity={0.8}>
+                                    <Text style={[s.variantBtnText, selectedVariant === v && s.variantBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t[`batakVariant_${v}`] || VARIANT_FALLBACK[v]}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
+
+                        {selectedVariant && (
+                            lobbyTables.length === 0 ? (
+                                <Text style={s.emptyText}>{t.batakBrowseEmpty || 'Şu an açık masa yok'}</Text>
+                            ) : (
+                                <View style={s.tableGrid}>
+                                    {lobbyTables.map(item => {
+                                        const filled = item.seats.filter(x => !x.open).length;
+                                        return (
+                                            <View key={item.tableId} style={s.tableCard}>
+                                                <Text style={s.tableCardStake}>🪙 {item.betAmount}</Text>
+                                                {item.ratingAmount > 0 && <Text style={s.tableCardRating}>⭐ {item.ratingAmount.toFixed(2)}</Text>}
+                                                <View style={{ flexDirection: 'row' }}>
+                                                    {item.seats.filter(x => !x.open).map(x => <Avatar key={x.seat} user={x} size={16} />)}
+                                                </View>
+                                                <Text style={s.tableCardSeats}>{filled}/4</Text>
+                                                <TouchableOpacity style={s.tableCardJoinBtn} onPress={() => joinLobbyTable(item.tableId)} activeOpacity={0.85}>
+                                                    <Text style={s.tableCardJoinBtnText}>{t.batakJoinBtn || 'Katıl'}</Text>
+                                                </TouchableOpacity>
+                                                {item.spectatorOpen && (
+                                                    <TouchableOpacity style={s.tableCardWatchBtn} onPress={() => spectateLobbyTable(item.tableId)} activeOpacity={0.85}>
+                                                        <Text style={s.tableCardWatchBtnText}>👁️ {t.batakWatchBtn || 'İzle'}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            )
+                        )}
 
                         <CreateTableModal
                             visible={createModalOpen}
@@ -231,7 +345,7 @@ export default function BatakHomeScreen({ navigation }) {
                         />
                     </ScrollView>
                 )
-            ) : (
+            ) : mainTab === 'events' ? (
                 <>
                     <View style={s.smallCreateRow}>
                         <TouchableOpacity style={s.smallCreateBtn} onPress={() => setShowCreateEvent(true)}>
@@ -321,6 +435,40 @@ export default function BatakHomeScreen({ navigation }) {
                             </View>
                         </View>
                     </Modal>
+                </>
+            ) : mainTab === 'turnuva' ? (
+                <View style={s.playWrap}>
+                    <Text style={s.playEmoji}>🏆</Text>
+                    <Text style={s.playTitle}>{t.batakTournamentTitle || 'Batak Turnuvası'}</Text>
+                    <Text style={s.playDesc}>{t.batakTournamentComingSoon || 'Bu bölüm yakında aktif olacak.'}</Text>
+                </View>
+            ) : (
+                <>
+                    <View style={s.smallCreateRow}>
+                        <TouchableOpacity style={s.smallCreateBtn} onPress={shareBatakMedia} disabled={uploadingMedia}>
+                            <Text style={s.smallCreateBtnText}>{uploadingMedia ? '…' : (t.batakShareMediaBtn || '+ Paylaş')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {mediaLoading ? (
+                        <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />
+                    ) : (
+                        <FlatList
+                            data={batakMedia}
+                            keyExtractor={item => item.id}
+                            numColumns={3}
+                            contentContainerStyle={s.mediaGrid}
+                            ListEmptyComponent={mediaLoaded ? <Text style={s.emptyText}>{t.batakNoMedia || 'Henüz medya paylaşılmamış.'}</Text> : null}
+                            renderItem={({ item }) => (
+                                <View style={s.mediaThumbWrap}>
+                                    {item.videoUrl ? (
+                                        <View style={[s.mediaThumb, s.rowArtFallback]}><Text style={{ fontSize: 20 }}>🎬</Text></View>
+                                    ) : (
+                                        <Image source={{ uri: item.imageUrl }} style={s.mediaThumb} />
+                                    )}
+                                </View>
+                            )}
+                        />
+                    )}
                 </>
             )}
         </View>
@@ -471,15 +619,17 @@ const s = StyleSheet.create({
     backBtnText: { color: colors.textSecondary, fontSize: 26, fontWeight: '300' },
     title: { color: '#fff', fontSize: 17, fontWeight: '900' },
 
-    mainTabRow: { flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginTop: 12, marginBottom: 4 },
-    mainTabBtn: { flex: 1, borderRadius: 20, paddingVertical: 9, alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    mainTabRow: { flexDirection: 'row', paddingHorizontal: 12, gap: 3, marginTop: 12, marginBottom: 4 },
+    mainTabBtn: { flex: 1, borderRadius: 14, paddingVertical: 7, alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     mainTabBtnActive: { backgroundColor: colors.purple, borderColor: colors.purple },
-    mainTabBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '800' },
+    mainTabBtnText: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
     mainTabBtnTextActive: { color: '#fff' },
 
     playWrap: { flexGrow: 1, alignItems: 'center', paddingTop: 50, paddingHorizontal: 30, paddingBottom: 40 },
-    balanceText: { color: '#fbbf24', fontSize: 15, fontWeight: '900', marginBottom: 10 },
-    ratingBalanceText: { color: '#38bdf8', fontSize: 15, fontWeight: '900', marginBottom: 10 },
+    playWrapTop: { flexGrow: 1, paddingTop: 14, paddingHorizontal: 14, paddingBottom: 40 },
+    masaKurRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    balanceText: { color: '#fbbf24', fontSize: 13, fontWeight: '900' },
+    ratingBalanceText: { color: '#38bdf8', fontSize: 13, fontWeight: '900' },
     playEmoji: { fontSize: 64, marginBottom: 12 },
     playTitle: { color: '#fff', fontSize: 20, fontWeight: '900', textAlign: 'center' },
     playDesc: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 19 },
@@ -496,9 +646,22 @@ const s = StyleSheet.create({
 
     createTableBtn: { backgroundColor: colors.amber || '#f59e0b', borderRadius: 16, paddingVertical: 14, width: '100%', maxWidth: 320, alignItems: 'center', marginTop: 4 },
     createTableBtnText: { color: '#111827', fontSize: 15, fontWeight: '900' },
-    variantGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%', maxWidth: 320, gap: 8, marginTop: 10 },
-    variantBtn: { width: '48%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-    variantBtnText: { color: '#fff', fontSize: 12, fontWeight: '800', textAlign: 'center' },
+    createTableBtnSmall: { backgroundColor: colors.amber || '#f59e0b', borderRadius: 12, paddingVertical: 9, paddingHorizontal: 16 },
+    createTableBtnSmallText: { color: '#111827', fontSize: 12, fontWeight: '900' },
+    variantRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+    variantBtn: { flex: 1, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center' },
+    variantBtnActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    variantBtnText: { color: '#fff', fontSize: 10, fontWeight: '800', textAlign: 'center' },
+    variantBtnTextActive: { color: colors.purpleLight || colors.purple },
+    tableGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    tableCard: { width: '23%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 6, alignItems: 'center', gap: 3, marginBottom: 8 },
+    tableCardStake: { color: '#fbbf24', fontSize: 11, fontWeight: '900' },
+    tableCardRating: { color: '#38bdf8', fontSize: 9, fontWeight: '700' },
+    tableCardSeats: { color: colors.textMuted, fontSize: 9, fontWeight: '700' },
+    tableCardJoinBtn: { width: '100%', backgroundColor: colors.purple, borderRadius: 6, paddingVertical: 5, alignItems: 'center', marginTop: 2 },
+    tableCardJoinBtnText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+    tableCardWatchBtn: { width: '100%', backgroundColor: colors.surface, borderRadius: 6, paddingVertical: 5, alignItems: 'center', marginTop: 3 },
+    tableCardWatchBtnText: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
     variantOption: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14 },
     variantOptionActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
     variantOptionText: { color: '#fff', fontSize: 13, fontWeight: '800' },
@@ -523,6 +686,11 @@ const s = StyleSheet.create({
 
     list: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 30 },
     emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 30 },
+
+    mediaGrid: { padding: 4 },
+    mediaThumbWrap: { flex: 1 / 3, aspectRatio: 1, padding: 2 },
+    mediaThumb: { width: '100%', height: '100%', borderRadius: 6, backgroundColor: colors.surface2 },
+    rowArtFallback: { alignItems: 'center', justifyContent: 'center' },
 
     eventCard: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
     eventOwner: { color: '#fff', fontSize: 12, fontWeight: '800', flex: 1 },
