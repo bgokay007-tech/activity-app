@@ -69,14 +69,17 @@ export default function MessagesScreen({ navigation }) {
         load();
     }, [load]));
 
-    // Yeni mesaj gelince konuşmaları güncelle
+    // Yeni mesaj gelince konuşmaları güncelle — okunmamış sayacı da (karşı taraftan
+    // geldiyse) sohbete girene kadar burada artmaya devam etsin diye anlık artırılır.
     useEffect(() => {
         const off = onSocket('newMessage', ({ message, conversationId }) => {
             setConversations(prev => {
                 const exists = prev.find(c => c.id === conversationId);
                 if (exists) {
                     return prev
-                        .map(c => c.id === conversationId ? { ...c, lastMessage: message } : c)
+                        .map(c => c.id === conversationId
+                            ? { ...c, lastMessage: message, unreadCount: message.senderId !== myId ? (c.unreadCount || 0) + 1 : c.unreadCount }
+                            : c)
                         .sort((a, b) => new Date(b.lastMessage?.createdAt || b.updatedAt) - new Date(a.lastMessage?.createdAt || a.updatedAt));
                 }
                 // Yeni konuşma — tam listeyi yenile
@@ -85,37 +88,47 @@ export default function MessagesScreen({ navigation }) {
             });
         });
         return off;
-    }, [load]);
+    }, [load, myId]);
+
+    const lastMessagePreview = (last) => {
+        if (!last) return t.noMsgYet;
+        const prefix = last.senderId === myId ? (t.youPrefix || 'Sen: ') : '';
+        const body = last.content || (last.imageUrl ? '📷 Fotoğraf' : last.audioUrl ? '🎤 Sesli mesaj' : '');
+        return prefix + body;
+    };
 
     const renderItem = ({ item }) => {
         const other = item.other;
         const last = item.lastMessage;
-        const unread = last && last.senderId !== myId && !last.read;
+        const unreadCount = item.unreadCount || 0;
+        const unread = unreadCount > 0;
         return (
             <TouchableOpacity
                 style={styles.row}
                 onPress={() => navigation.navigate('Chat', { conversation: item, other })}
             >
-                <View style={{ position: 'relative' }}>
-                    <Avatar user={other} />
-                    {unread && (
-                        <View style={{ position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.purple, borderWidth: 2, borderColor: colors.bg }} />
-                    )}
-                </View>
+                <Avatar user={other} />
                 <View style={styles.rowContent}>
                     <View style={styles.rowTop}>
                         <Text style={[styles.name, unread && { color: '#fff', fontWeight: '900' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {other?.fullName || other?.username}
                         </Text>
-                        {last && (
-                            <Text style={styles.time}>
-                                {new Date(last.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                            </Text>
-                        )}
                     </View>
                     <Text style={[styles.lastMsg, unread && { color: '#d1d5db', fontWeight: '600' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                        {last ? (last.senderId === myId ? (t.youPrefix || 'Sen: ') : '') + last.content : t.noMsgYet}
+                        {lastMessagePreview(last)}
                     </Text>
+                </View>
+                <View style={styles.rowRight}>
+                    {last && (
+                        <Text style={styles.time}>
+                            {new Date(last.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                    )}
+                    {unread && (
+                        <View style={styles.unreadBadge}>
+                            <Text style={styles.unreadBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                        </View>
+                    )}
                 </View>
             </TouchableOpacity>
         );
@@ -215,8 +228,11 @@ const styles = StyleSheet.create({
     rowContent: { flex: 1 },
     rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
     name: { color: '#cbd5e1', fontWeight: '700', fontSize: 14, flex: 1 },
-    time: { color: colors.textMuted, fontSize: 11, marginLeft: 8 },
     lastMsg: { color: colors.textMuted, fontSize: 12 },
+    rowRight: { alignItems: 'flex-end', gap: 5, marginLeft: 8 },
+    time: { color: colors.textMuted, fontSize: 11 },
+    unreadBadge: { backgroundColor: colors.purple, borderRadius: 10, minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+    unreadBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 57 },
     emptyEmoji: { fontSize: 52, marginBottom: 12 },
     emptyText: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 6 },
