@@ -1920,7 +1920,18 @@ export const getTournamentMatches = async (req, res, next) => {
             };
         });
 
-        res.json({ matches, myTeamId: myTeam?.id || null, teams: teamsEnriched, playerRatings });
+        // Joker turnuva boyunca oyuncu/takım başına 1 kez kullanılabilir — istemci bunu
+        // bilerek joker butonunu, oyuncunun ZATEN kullandığı maç dışındaki diğer bekleyen
+        // maçlarda göstermeyi bıraksın (useJoker'daki `myParticipants.some(p => p.jokerUsed)`
+        // sunucu kontrolüyle aynı kaynak).
+        const myUserIds = myTeam ? [myTeam.player1Id, myTeam.player2Id] : [req.userId];
+        const myJokerParticipants = await prisma.tournamentParticipant.findMany({
+            where: { tournamentId: id, userId: { in: myUserIds }, status: 'ACCEPTED' },
+            select: { jokerUsed: true },
+        });
+        const myJokerUsed = myJokerParticipants.some(p => p.jokerUsed);
+
+        res.json({ matches, myTeamId: myTeam?.id || null, teams: teamsEnriched, playerRatings, myJokerUsed });
     } catch (e) { next(e); }
 };
 

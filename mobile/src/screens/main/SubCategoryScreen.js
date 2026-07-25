@@ -609,6 +609,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setLocalJoinRequests(joinRequests.filter(r => r.id !== jrId));
         try {
             const res = await api.patch(`/rivals/join/${jrId}`, { action: 'accept' });
+            // Üst listenin ne zaman/nasıl yenileneceğine bağlı kalmadan, açık modal
+            // API'nin döndürdüğü güncel veriyle anında senkronize edilir — onRefresh()
+            // sadece liste rozetleri/sayaçları için ayrıca çağrılmaya devam eder.
+            if (res.data?.request) {
+                setLocalJoinRequests(Array.isArray(res.data.request.joinRequests) ? res.data.request.joinRequests : []);
+                if (Array.isArray(res.data.request.participants)) setLocalParticipants(res.data.request.participants);
+            }
             if (res.data?.lateAccept) {
                 // İstek 1 saatten eskiyse hemen katılımcıya dönüşmez — karşı taraftan son
                 // onay istenir ve bu isteği bekleyen listeden kaldırır. Bilgilendirmeden
@@ -6547,6 +6554,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const demoStop = useRef(false);
     const [tournMatches, setTournMatches] = useState([]);
     const [myTeamId, setMyTeamId] = useState(null); // Çiftler Rekabetçi: maçlarda p1Id/p2Id benim değil takımımın id'si
+    const [tournMyJokerUsed, setTournMyJokerUsed] = useState(false); // joker turnuva boyunca 1 kez -- zaten kullanıldıysa diğer maçlarda buton gösterilmesin
     const [tournTeams, setTournTeams] = useState([]); // Çiftler Rekabetçi: takım id -> avgRating (skorlanmamış maçlarda da puan göstermek için)
     const [tournPlayerRatings, setTournPlayerRatings] = useState({}); // userId -> güncel bireysel skillRating (backend'den canlı)
     const [matchesError, setMatchesError] = useState(false); // /matches isteği başarısız oldu — "maç yok" ile karıştırılmasın
@@ -6978,6 +6986,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const matches = Array.isArray(data?.matches) ? data.matches : [];
             setTournMatches(matches);
             setMyTeamId(data?.myTeamId || null);
+            setTournMyJokerUsed(!!data?.myJokerUsed);
             setTournTeams(Array.isArray(data?.teams) ? data.teams : []);
             setTournPlayerRatings(data?.playerRatings || {});
             return matches;
@@ -7713,7 +7722,23 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 : (roundKeys.length > 0 ? `${roundKeys[roundKeys.length - 1].phase}|${roundKeys[roundKeys.length - 1].round}` : null);
                             const [activePhase, activeRoundStr] = (activeKey || '').split('|');
                             const activeRound = parseInt(activeRoundStr);
-                            const rMatches = tournMatches.filter(m => m.phase === activePhase && m.round === activeRound);
+                            // Bir önceki turdan joker'le sarkmış (hâlâ PENDING, deadline'ı o turun
+                            // modundan farklı) maçlar, kendi turunun sekmesinde göründüğü gibi ayrıca
+                            // bu turun sekmesinin de EN SONUNA "sarkan maç" olarak eklenir — böylece
+                            // bu turu oynayanlar hâlâ bitmemiş önceki tur maçını da görebilir.
+                            const prevKey = `${activePhase}|${activeRound - 1}`;
+                            const prevModeDeadline = roundDefaultDeadline[prevKey];
+                            const carriedOverMatches = (activeRound > 1 && prevModeDeadline)
+                                ? tournMatches
+                                    .filter(m => m.phase === activePhase && m.round === activeRound - 1
+                                        && m.status === 'PENDING' && m.deadline
+                                        && new Date(m.deadline).getTime() !== prevModeDeadline)
+                                    .map(m => ({ ...m, _carriedOverFromRound: activeRound - 1 }))
+                                : [];
+                            const rMatches = [
+                                ...tournMatches.filter(m => m.phase === activePhase && m.round === activeRound),
+                                ...carriedOverMatches,
+                            ];
 
                             return (
                                 <>
@@ -7747,6 +7772,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             return (
                                                 <View key={match.id} style={{ width: isEntering ? '100%' : ((item.type === '2' || item.type === '4') ? '48.5%' : '31.5%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
                                                         <View style={{ flex:1 }}>
+                                                            {match._carriedOverFromRound != null && (
+                                                                <Text style={{ color:'#c084fc', fontSize:8, fontWeight:'800', marginBottom:2 }}>
+                                                                    🃏 Joker'den sarkan — Tur {match._carriedOverFromRound} maçı
+                                                                </Text>
+                                                            )}
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
                                                                 const setsRow = isDone && mSets.length > 0 && (
@@ -7884,6 +7914,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
                                                                 const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
                                                                 if (myJokerRequested) return null;
+                                                                // Joker turnuva boyunca 1 kez kullanılır — başka bir maçta zaten
+                                                                // kullandıysam bu maçta da göstermeye gerek yok (karşılıklı onay
+                                                                // hariç: rakip BU maçta joker istediyse onaylama hakkım hâlâ ayrı).
+                                                                if (!otherJokerRequested && tournMyJokerUsed) return null;
                                                                 const jokerLabel = otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker';
                                                                 const confirmMsg = otherJokerRequested
                                                                     ? 'Rakibiniz joker kullanarak süreyi zaten 7 gün uzattı. Onaylarsanız karşılıklı sayılır — süre tekrar uzamaz ama iki tarafın da joker hakkı tükenmez. Emin misiniz?'
