@@ -10,6 +10,11 @@ import api from '../../services/api';
 import useT from '../../hooks/useT';
 import { getSocket, onSocket } from '../../services/socket';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
+import Avatar from '../../components/Avatar';
+
+const VARIANTS = ['klasik', 'esli_klasik', '101', 'esli_101'];
+const VARIANT_FALLBACK = { klasik: 'Klasik Okey', esli_klasik: 'Eşli Klasik Okey', '101': '101', esli_101: 'Eşli 101' };
+const DIFFICULTIES = [['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor'], ['expert', 'Çok Zor']];
 
 function fmtDate(d) {
     if (!d) return null;
@@ -53,26 +58,63 @@ function EventCard({ item, myId, onJoin, onOpen, t }) {
     );
 }
 
+// Bir varyantın herkese-açık, henüz dolmamış masalarını satır içinde listeler —
+// seçili sekmenin (variant) içine gömülüdür, `active` (mainTab === 'play') iken canlı abone olur.
+function OpenTablesList({ variant, active, t }) {
+    const [tables, setTables] = useState([]);
+
+    useEffect(() => {
+        if (!active || !variant) return;
+        const socket = getSocket();
+        socket?.emit('okey:listTables', { variant });
+        const offList = onSocket('okey:tableList', (data) => { if (data.variant === variant) setTables(data.tables || []); });
+        return () => {
+            offList();
+            getSocket()?.emit('okey:unsubscribeLobby', { variant });
+        };
+    }, [active, variant]);
+
+    const join = (tableId) => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('okey:joinTable', { tableId });
+    };
+
+    if (tables.length === 0) {
+        return <Text style={s.emptyText}>{t.okeyBrowseEmpty || 'Şu an açık masa yok'}</Text>;
+    }
+
+    return (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%', maxWidth: 320 }}>
+            {tables.map(item => {
+                const filled = item.seats.filter(x => !x.open).length;
+                return (
+                    <View key={item.tableId} style={s.tableCard}>
+                        <Text style={s.tableCardStake}>🪙 {item.betAmount}</Text>
+                        {item.ratingAmount > 0 && <Text style={s.tableCardRating}>⭐ {item.ratingAmount.toFixed(2)}</Text>}
+                        <View style={{ flexDirection: 'row' }}>
+                            {item.seats.filter(x => !x.open).map(x => <Avatar key={x.seat} user={x} size={18} />)}
+                        </View>
+                        <Text style={s.tableCardSeats}>{filled}/4</Text>
+                        <TouchableOpacity style={s.tableCardJoinBtn} onPress={() => join(item.tableId)} activeOpacity={0.85}>
+                            <Text style={s.tableCardJoinBtnText}>{t.okeyJoinBtn || 'Katıl'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                );
+            })}
+        </View>
+    );
+}
+
 export default function OkeyHomeScreen({ navigation }) {
     const t = useT();
     const myId = useSelector(s => s.auth.user?.id);
     const myName = useSelector(s => s.auth.user?.fullName || s.auth.user?.username);
     const [mainTab, setMainTab] = useState('play'); // 'play' | 'events'
-
-    // ── Okey Oyna: eşleştirme ──────────────────────────────────────────────
-    const [searching, setSearching] = useState(false);
-    const [queuePos, setQueuePos] = useState(null);
-    const [difficulty, setDifficulty] = useState('medium');
+    const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [variantTab, setVariantTab] = useState(VARIANTS[0]);
     const [joinCode, setJoinCode] = useState('');
-    const [betAmount, setBetAmount] = useState(100);
-    const [ratingAmount, setRatingAmount] = useState(0);
-    // Özel masa: serbest miktar — kurucu 1'den istediği kadar puan girebilir (kim
-    // katılacağını zaten kod/davetle kendisi belirlediği için sabit kademeye gerek yok.
-    const [privateBetAmount, setPrivateBetAmount] = useState('100');
-    const [wagerRating, setWagerRating] = useState(false);
-    const [privateRatingAmount, setPrivateRatingAmount] = useState('0.10');
-    const [ratingRangeMin, setRatingRangeMin] = useState('');
-    const [ratingRangeMax, setRatingRangeMax] = useState('');
+
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
     const [interest, setInterest] = useState(undefined);
     const [addingActivity, setAddingActivity] = useState(false);
@@ -99,60 +141,23 @@ export default function OkeyHomeScreen({ navigation }) {
     }, [myName]);
 
     useEffect(() => {
-        const offQueued = onSocket('okey:queued', (data) => setQueuePos(data.position));
         const offMatched = onSocket('okey:matched', (data) => {
             if (navigatedRef.current) return;
             const mySeat = data.seats.find(s => s.userId === myId);
             if (!mySeat) return;
             navigatedRef.current = true;
-            setSearching(false);
             navigation.navigate('OkeyTable', { tableId: data.tableId });
         });
         const offError = onSocket('okey:error', (data) => {
-            setSearching(false);
             if (data?.code === 'ACTIVITY_REQUIRED') { setInterest(null); return; }
             if (data?.code === 'INSUFFICIENT_POINTS' || data?.code === 'INSUFFICIENT_RATING') { loadInterest(); }
             Alert.alert('', data?.message || (t.okeyError || 'Bir hata oluştu.'));
         });
-        return () => { offQueued(); offMatched(); offError(); };
+        return () => { offMatched(); offError(); };
     }, [myId, navigation, t, loadInterest]);
 
     useFocusEffect(useCallback(() => { navigatedRef.current = false; }, []));
 
-    const startSearch = () => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        setSearching(true);
-        setQueuePos(null);
-        socket.emit('okey:findMatch', { betAmount, ratingAmount });
-    };
-
-    const cancelSearch = () => {
-        getSocket()?.emit('okey:cancelFindMatch');
-        setSearching(false);
-        setQueuePos(null);
-    };
-
-    const startVsBots = () => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('okey:playVsBots', { difficulty });
-    };
-
-    const parsedPrivateBet = Math.max(0, Math.floor(Number(privateBetAmount) || 0));
-    const parsedPrivateRating = wagerRating ? Math.max(0, Number(privateRatingAmount) || 0) : 0;
-    const parsedRangeMin = ratingRangeMin.trim() === '' ? null : Number(ratingRangeMin);
-    const parsedRangeMax = ratingRangeMax.trim() === '' ? null : Number(ratingRangeMax);
-    const canAffordPrivate = interest && interest.walletPoints >= parsedPrivateBet && interest.skillRating >= parsedPrivateRating && (parsedPrivateBet > 0 || parsedPrivateRating > 0);
-
-    const createPrivateTable = () => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('okey:createPrivateTable', {
-            betAmount: parsedPrivateBet, ratingAmount: parsedPrivateRating,
-            ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
-        });
-    };
     const joinByCode = () => {
         const socket = getSocket();
         if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
@@ -264,151 +269,49 @@ export default function OkeyHomeScreen({ navigation }) {
                             <Text style={s.balanceText}>🪙 {interest.walletPoints} puan</Text>
                             <Text style={s.ratingBalanceText}>⭐ {interest.skillRating?.toFixed(2)} derece</Text>
                         </View>
-                        <Text style={s.playEmoji}>🀄</Text>
-                        <Text style={s.playTitle}>{t.okeyPlayTitle || 'Gerçek Zamanlı Okey'}</Text>
-                        <Text style={s.playDesc}>{t.okeyPlayDesc || '4 kişilik masaya otomatik eşleşerek uygulama içinde canlı Okey oyna.'}</Text>
 
-                        {searching ? (
-                            <View style={{ alignItems: 'center', marginTop: 30 }}>
-                                <ActivityIndicator size="large" color={colors.purple} />
-                                <Text style={s.searchingText}>
-                                    {t.okeySearching || 'Rakip aranıyor...'}{queuePos ? ` (${queuePos}/4)` : ''}
-                                </Text>
-                                <TouchableOpacity onPress={cancelSearch} style={s.cancelBtn}>
-                                    <Text style={s.cancelBtnText}>{t.cancelBtn || 'Vazgeç'}</Text>
+                        <TouchableOpacity style={s.createTableBtn} onPress={() => setCreateModalOpen(true)} activeOpacity={0.85}>
+                            <Text style={s.createTableBtnText}>🎪 {t.okeyCreateTable || 'Masa Kur'}</Text>
+                        </TouchableOpacity>
+
+                        <View style={s.variantTabRow}>
+                            {VARIANTS.map(v => (
+                                <TouchableOpacity key={v} onPress={() => setVariantTab(v)}
+                                    style={[s.variantTabBtn, variantTab === v && s.variantTabBtnActive]} activeOpacity={0.85}>
+                                    <Text
+                                        style={[s.variantTabBtnText, variantTab === v && s.variantTabBtnTextActive]}
+                                        numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
+                                    >
+                                        {t[`okeyVariant_${v}`] || VARIANT_FALLBACK[v]}
+                                    </Text>
                                 </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <>
-                                <Text style={s.difficultyLabel}>Puan Bahsi</Text>
-                                <View style={s.difficultyRow}>
-                                    {[0, 50, 100, 250, 500].map(amount => (
-                                        <TouchableOpacity key={amount}
-                                            style={[s.difficultyChip, betAmount === amount && s.difficultyChipActive, interest.walletPoints < amount && { opacity: 0.3 }]}
-                                            onPress={() => setBetAmount(amount)} activeOpacity={0.8} disabled={interest.walletPoints < amount}>
-                                            <Text style={[s.difficultyChipText, betAmount === amount && s.difficultyChipTextActive]}>{amount === 0 ? 'Yok' : amount}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
+                            ))}
+                        </View>
 
-                                <Text style={s.difficultyLabel}>Derece Bahsi</Text>
-                                <View style={s.difficultyRow}>
-                                    {[0, 0.10, 0.25, 0.50].map(amount => (
-                                        <TouchableOpacity key={amount}
-                                            style={[s.difficultyChip, ratingAmount === amount && s.ratingChipActive, interest.skillRating < amount && { opacity: 0.3 }]}
-                                            onPress={() => setRatingAmount(amount)} activeOpacity={0.8} disabled={interest.skillRating < amount}>
-                                            <Text style={[s.difficultyChipText, ratingAmount === amount && s.difficultyChipTextActive]}>{amount === 0 ? 'Yok' : amount.toFixed(2)}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
+                        <OpenTablesList variant={variantTab} active={mainTab === 'play'} t={t} />
 
-                                <TouchableOpacity
-                                    style={[s.findBtn, (interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)) && { opacity: 0.4 }]}
-                                    onPress={startSearch} activeOpacity={0.85}
-                                    disabled={interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)}>
-                                    <Text style={s.findBtnText}>{t.okeyFindMatch || '🔍 Rakip Ara'} ({betAmount} puan{ratingAmount > 0 ? ` + ${ratingAmount.toFixed(2)} derece` : ''})</Text>
-                                </TouchableOpacity>
+                        <CreateTableModal
+                            visible={createModalOpen}
+                            interest={interest}
+                            t={t}
+                            onClose={() => setCreateModalOpen(false)}
+                        />
 
-                                <Text style={s.orText}>{t.okeyOr || 'veya'}</Text>
-
-                                <Text style={s.difficultyLabel}>{t.okeyDifficultyLabel || 'Bot Zorluğu'} (puansız)</Text>
-                                <View style={s.difficultyRow}>
-                                    {[
-                                        { id: 'easy',   label: t.okeyDifficultyEasy   || 'Kolay' },
-                                        { id: 'medium', label: t.okeyDifficultyMedium || 'Orta' },
-                                        { id: 'hard',   label: t.okeyDifficultyHard   || 'Zor' },
-                                        { id: 'expert', label: t.okeyDifficultyExpert || 'Çok Zor' },
-                                    ].map(d => (
-                                        <TouchableOpacity key={d.id}
-                                            style={[s.difficultyChip, difficulty === d.id && s.difficultyChipActive]}
-                                            onPress={() => setDifficulty(d.id)} activeOpacity={0.8}>
-                                            <Text style={[s.difficultyChipText, difficulty === d.id && s.difficultyChipTextActive]}>{d.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                                <TouchableOpacity style={s.botBtn} onPress={startVsBots} activeOpacity={0.85}>
-                                    <Text style={s.botBtnText}>{t.okeyPlayVsBots || '🤖 Botlarla Oyna'}</Text>
-                                </TouchableOpacity>
-
-                                <Text style={s.orText}>{t.okeyOr || 'veya'}</Text>
-
-                                <Text style={s.difficultyLabel}>{'👥 Masa Kur (Arkadaşlarınla)'}</Text>
-
-                                <Text style={s.inputLabel}>Puan Bahsi (1'den istediğin kadar)</Text>
-                                <TextInput
-                                    value={privateBetAmount}
-                                    onChangeText={setPrivateBetAmount}
-                                    placeholder="Örn. 250"
-                                    placeholderTextColor={colors.textMuted}
-                                    keyboardType="numeric"
-                                    style={s.freeInput}
-                                />
-                                {parsedPrivateBet > interest.walletPoints && (
-                                    <Text style={s.inputWarn}>Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</Text>
-                                )}
-
-                                <TouchableOpacity style={s.checkboxRow} onPress={() => setWagerRating(v => !v)} activeOpacity={0.8}>
-                                    <View style={[s.checkbox, wagerRating && s.checkboxChecked]}>{wagerRating && <Text style={s.checkboxMark}>✓</Text>}</View>
-                                    <Text style={s.checkboxLabel}>Ayrıca derece de bahse girsin</Text>
-                                </TouchableOpacity>
-                                {wagerRating && (
-                                    <>
-                                        <TextInput
-                                            value={privateRatingAmount}
-                                            onChangeText={setPrivateRatingAmount}
-                                            placeholder="Örn. 0.25"
-                                            placeholderTextColor={colors.textMuted}
-                                            keyboardType="numeric"
-                                            style={s.freeInput}
-                                        />
-                                        {parsedPrivateRating > interest.skillRating && (
-                                            <Text style={s.inputWarn}>Bu kadar dereceye sahip değilsin ({interest.skillRating?.toFixed(2)}).</Text>
-                                        )}
-                                    </>
-                                )}
-
-                                <Text style={s.inputLabel}>Rakip Derece Aralığı (isteğe bağlı — sadece bu aralıktaki oyuncular katılabilir)</Text>
-                                <View style={{ flexDirection: 'row', gap: 8, width: '100%', maxWidth: 280 }}>
-                                    <TextInput
-                                        value={ratingRangeMin}
-                                        onChangeText={setRatingRangeMin}
-                                        placeholder="Min (1.50)"
-                                        placeholderTextColor={colors.textMuted}
-                                        keyboardType="numeric"
-                                        style={[s.freeInput, { flex: 1 }]}
-                                    />
-                                    <TextInput
-                                        value={ratingRangeMax}
-                                        onChangeText={setRatingRangeMax}
-                                        placeholder="Max (2.50)"
-                                        placeholderTextColor={colors.textMuted}
-                                        keyboardType="numeric"
-                                        style={[s.freeInput, { flex: 1 }]}
-                                    />
-                                </View>
-
-                                <TouchableOpacity
-                                    style={[s.privateBtn, !canAffordPrivate && { opacity: 0.4 }]}
-                                    onPress={createPrivateTable} activeOpacity={0.85}
-                                    disabled={!canAffordPrivate}>
-                                    <Text style={s.privateBtnText}>Masa Kur ({parsedPrivateBet} puan{parsedPrivateRating > 0 ? ` + ${parsedPrivateRating.toFixed(2)} derece` : ''})</Text>
-                                </TouchableOpacity>
-                                <View style={s.joinCodeRow}>
-                                    <TextInput
-                                        value={joinCode}
-                                        onChangeText={v => setJoinCode(v.toUpperCase())}
-                                        placeholder={t.okeyTableCode || 'Masa Kodu'}
-                                        placeholderTextColor={colors.textMuted}
-                                        autoCapitalize="characters"
-                                        maxLength={5}
-                                        style={s.joinCodeInput}
-                                    />
-                                    <TouchableOpacity style={s.joinCodeBtn} onPress={joinByCode} activeOpacity={0.85}>
-                                        <Text style={s.joinCodeBtnText}>{t.okeyJoinBtn || 'Katıl'}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </>
-                        )}
+                        <Text style={s.orText}>{t.okeyOr || 'veya'}</Text>
+                        <View style={s.joinCodeRow}>
+                            <TextInput
+                                value={joinCode}
+                                onChangeText={v => setJoinCode(v.toUpperCase())}
+                                placeholder={t.okeyTableCode || 'Masa Kodu'}
+                                placeholderTextColor={colors.textMuted}
+                                autoCapitalize="characters"
+                                maxLength={5}
+                                style={s.joinCodeInput}
+                            />
+                            <TouchableOpacity style={s.joinCodeBtn} onPress={joinByCode} activeOpacity={0.85}>
+                                <Text style={s.joinCodeBtnText}>{t.okeyJoinBtn || 'Katıl'}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </ScrollView>
                 )
             ) : (
@@ -507,6 +410,173 @@ export default function OkeyHomeScreen({ navigation }) {
     );
 }
 
+// Adım adım (geri dönülebilir) masa kurma sihirbazı: varyant -> online/bot ->
+// (bot ise zorluk, online ise derece aralığı -> puan bahsi -> ekstra derece bahsi) -> masayı kur.
+// Online yolla kurulan masa her zaman `listed:true` — ilgili varyant sekmesinde herkese görünür.
+function CreateTableModal({ visible, interest, t, onClose }) {
+    const [step, setStep] = useState('variant');
+    const [variant, setVariant] = useState(null);
+    const [difficulty, setDifficulty] = useState('medium');
+    const [difficultyConfirmed, setDifficultyConfirmed] = useState(false);
+    const [ratingRangeMin, setRatingRangeMin] = useState('');
+    const [ratingRangeMax, setRatingRangeMax] = useState('');
+    const [betAmount, setBetAmount] = useState('100');
+    const [wagerRating, setWagerRating] = useState(false);
+    const [ratingAmount, setRatingAmount] = useState('0.10');
+
+    useEffect(() => {
+        if (visible) { setStep('variant'); setVariant(null); setDifficultyConfirmed(false); }
+    }, [visible]);
+
+    const isTeam = variant === 'esli_klasik' || variant === 'esli_101';
+    const parsedBet = Math.max(0, Math.floor(Number(betAmount) || 0));
+    const parsedRating = wagerRating ? Math.max(0, Number(ratingAmount) || 0) : 0;
+    const parsedRangeMin = ratingRangeMin.trim() === '' ? null : Number(ratingRangeMin);
+    const parsedRangeMax = ratingRangeMax.trim() === '' ? null : Number(ratingRangeMax);
+    const canAfford = interest && interest.walletPoints >= parsedBet && interest.skillRating >= parsedRating && parsedBet > 0;
+
+    const goVariant = (v) => { setVariant(v); setStep('opponent'); };
+    const goOpponent = (kind) => setStep(kind === 'bot' ? 'difficulty' : 'range');
+
+    const startVsBots = () => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('okey:playVsBots', { difficulty });
+        onClose();
+    };
+    const createTable = () => {
+        const socket = getSocket();
+        if (!socket) return Alert.alert('', t.okeyNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
+        socket.emit('okey:createPrivateTable', {
+            betAmount: parsedBet, ratingAmount: parsedRating,
+            ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
+            variant, listed: true,
+        });
+        onClose();
+    };
+
+    const BACK = { opponent: 'variant', difficulty: 'opponent', range: 'opponent', stake: 'range', rating: 'stake' };
+    const back = () => setStep(BACK[step] || 'variant');
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={s.modalOverlay}>
+                <View style={s.modalBox}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <Text style={s.modalTitle}>{t.okeyCreateTable || 'Masa Kur'}</Text>
+
+                        {step === 'variant' && (
+                            <>
+                                <Text style={s.fieldLabel}>{t.okeyStepChooseVariant || 'Oyun türünü seç'}</Text>
+                                {VARIANTS.map(v => (
+                                    <TouchableOpacity key={v} style={s.variantOption} onPress={() => goVariant(v)} activeOpacity={0.85}>
+                                        <Text style={s.variantOptionText}>{t[`okeyVariant_${v}`] || VARIANT_FALLBACK[v]}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </>
+                        )}
+
+                        {step === 'opponent' && (
+                            <>
+                                <Text style={s.fieldLabel}>{t.okeyStepChooseOpponent || 'Rakip türünü seç'}</Text>
+                                <TouchableOpacity style={[s.privateBtn, { alignItems: 'center' }]} onPress={() => goOpponent('online')} activeOpacity={0.85}>
+                                    <Text style={s.privateBtnText}>🌐 {t.okeyOnlinePlayers || 'Online Oyuncular'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[s.botBtn, { marginTop: 10, alignItems: 'center' }]} onPress={() => goOpponent('bot')} activeOpacity={0.85}>
+                                    <Text style={s.botBtnText}>🤖 {t.okeyVsBot || 'Botla Oyna'}</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {step === 'difficulty' && (
+                            <>
+                                <Text style={s.fieldLabel}>{t.okeyStepDifficulty || 'Zorluk seç'}</Text>
+                                {difficultyConfirmed ? (
+                                    <TouchableOpacity style={s.difficultyConfirmedRow} onPress={() => setDifficultyConfirmed(false)} activeOpacity={0.85}>
+                                        <Text style={s.difficultyConfirmedText}>
+                                            {(t.okeyDifficultySelected || 'Zorluk: {level}').replace('{level}', DIFFICULTIES.find(([k]) => k === difficulty)?.[1])} ✓
+                                        </Text>
+                                        <Text style={s.difficultyChangeText}>{t.okeyChange || 'değiştir'}</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <View style={s.difficultyRow}>
+                                        {DIFFICULTIES.map(([k, label]) => (
+                                            <TouchableOpacity key={k}
+                                                style={[s.difficultyChip, difficulty === k && s.difficultyChipActive]}
+                                                onPress={() => { setDifficulty(k); setDifficultyConfirmed(true); }} activeOpacity={0.8}>
+                                                <Text style={[s.difficultyChipText, difficulty === k && s.difficultyChipTextActive]}>{label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+                                <TouchableOpacity style={[s.botBtn, { marginTop: 12, alignItems: 'center' }]} onPress={startVsBots} activeOpacity={0.85}>
+                                    <Text style={s.botBtnText}>🤖 {t.okeyStartVsBots || 'Botlarla Başla'}</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {step === 'range' && (
+                            <>
+                                <Text style={s.fieldLabel}>{t.okeyRatingRange || 'Rakip Derece Aralığı (isteğe bağlı)'}</Text>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <TextInput value={ratingRangeMin} onChangeText={setRatingRangeMin} placeholder="Min" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={[s.freeInput, { flex: 1 }]} />
+                                    <TextInput value={ratingRangeMax} onChangeText={setRatingRangeMax} placeholder="Max" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={[s.freeInput, { flex: 1 }]} />
+                                </View>
+                                <TouchableOpacity style={s.submitBtn} onPress={() => setStep('stake')} activeOpacity={0.85}>
+                                    <Text style={s.submitBtnText}>→ {t.okeyStake || 'Masaya Konacak Puan'}</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {step === 'stake' && (
+                            <>
+                                <Text style={s.fieldLabel}>{t.okeyStake || 'Masaya Konacak Puan'}</Text>
+                                <TextInput value={betAmount} onChangeText={setBetAmount} placeholder="Örn. 250" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={s.freeInput} />
+                                {interest && parsedBet > interest.walletPoints && (
+                                    <Text style={s.inputWarn}>Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</Text>
+                                )}
+                                <TouchableOpacity style={[s.submitBtn, parsedBet <= 0 && { opacity: 0.4 }]} onPress={() => setStep('rating')} disabled={parsedBet <= 0} activeOpacity={0.85}>
+                                    <Text style={s.submitBtnText}>→ {t.okeyExtraRating || 'Ayrıca derece de bahse girsin'}</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {step === 'rating' && (
+                            <>
+                                <TouchableOpacity style={s.checkboxRow} onPress={() => setWagerRating(v => !v)} activeOpacity={0.8}>
+                                    <View style={[s.checkbox, wagerRating && s.checkboxChecked]}>{wagerRating && <Text style={s.checkboxMark}>✓</Text>}</View>
+                                    <Text style={s.checkboxLabel}>{t.okeyExtraRating || 'Ayrıca derece de bahse girsin'}</Text>
+                                </TouchableOpacity>
+                                {wagerRating && (
+                                    <>
+                                        <TextInput value={ratingAmount} onChangeText={setRatingAmount} placeholder="Örn. 0.25" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={s.freeInput} />
+                                        {interest && parsedRating > interest.skillRating && (
+                                            <Text style={s.inputWarn}>Bu kadar dereceye sahip değilsin ({interest.skillRating?.toFixed(2)}).</Text>
+                                        )}
+                                    </>
+                                )}
+                                <Text style={s.payoutHint}>{isTeam ? (t.okeyPayoutTeam || 'Kazanan takım potun tamamını alır, aralarında %50-%50 paylaşır.') : (t.okeyPayoutSolo || '1. %75 alır, 2. amorti (koyduğunu geri alır), 3. ve 4. bahsini kaybeder.')}</Text>
+                                <TouchableOpacity style={[s.findBtn, { alignItems: 'center' }, !canAfford && { opacity: 0.4 }]} onPress={createTable} disabled={!canAfford} activeOpacity={0.85}>
+                                    <Text style={s.findBtnText}>{t.okeyCreateTable || 'Masayı Kur'} ({parsedBet} puan{parsedRating > 0 ? ` + ${parsedRating.toFixed(2)} derece` : ''})</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {step !== 'variant' && (
+                            <TouchableOpacity onPress={back} style={{ alignItems: 'center', marginTop: 14 }}>
+                                <Text style={{ color: colors.textMuted }}>‹ {t.okeyBack || 'Geri'}</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity onPress={onClose} style={{ alignItems: 'center', marginTop: 10 }}>
+                            <Text style={{ color: colors.textMuted }}>{t.cancelBtn || 'Vazgeç'}</Text>
+                        </TouchableOpacity>
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.bg },
     header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 14, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border },
@@ -528,16 +598,12 @@ const s = StyleSheet.create({
     playDesc: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 19 },
     findBtn: { backgroundColor: colors.purple, borderRadius: 16, paddingVertical: 16, paddingHorizontal: 40, marginTop: 34 },
     findBtnText: { color: '#fff', fontSize: 16, fontWeight: '900' },
-    searchingText: { color: colors.textSecondary, fontSize: 14, marginTop: 14, fontWeight: '700' },
-    cancelBtn: { marginTop: 16, paddingVertical: 8, paddingHorizontal: 20 },
-    cancelBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
 
     orText: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginTop: 22, marginBottom: 14 },
     difficultyLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 },
     difficultyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     difficultyChip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     difficultyChipActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
-    ratingChipActive: { backgroundColor: '#0ea5e922', borderColor: '#38bdf8' },
     difficultyChipText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
     difficultyChipTextActive: { color: colors.purpleLight || colors.purple },
     botBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.purple, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 34, marginTop: 18 },
@@ -545,7 +611,26 @@ const s = StyleSheet.create({
 
     privateBtn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 30, marginTop: 4 },
     privateBtnText: { color: '#fff', fontSize: 14, fontWeight: '900' },
-    inputLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 8, marginBottom: 4, textAlign: 'center', maxWidth: 280 },
+
+    createTableBtn: { backgroundColor: colors.amber || '#f59e0b', borderRadius: 16, paddingVertical: 14, width: '100%', maxWidth: 320, alignItems: 'center', marginTop: 4 },
+    createTableBtnText: { color: '#111827', fontSize: 15, fontWeight: '900' },
+    variantTabRow: { flexDirection: 'row', flexWrap: 'wrap', width: '100%', maxWidth: 320, gap: 8, marginTop: 16, marginBottom: 12 },
+    variantTabBtn: { width: '48%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+    variantTabBtnActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    variantTabBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '800', textAlign: 'center' },
+    variantTabBtnTextActive: { color: colors.purpleLight || colors.purple },
+    variantOption: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 8 },
+    variantOptionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+    difficultyConfirmedRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.purple, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14 },
+    difficultyConfirmedText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    difficultyChangeText: { color: colors.purpleLight || colors.purple, fontSize: 11, fontWeight: '700' },
+    payoutHint: { color: '#fbbf24', fontSize: 11, fontWeight: '700', backgroundColor: '#f59e0b1a', borderRadius: 10, padding: 10, marginBottom: 14 },
+    tableCard: { width: '31%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 8, alignItems: 'center', gap: 4, marginBottom: 10 },
+    tableCardStake: { color: '#fbbf24', fontSize: 13, fontWeight: '900' },
+    tableCardRating: { color: '#38bdf8', fontSize: 10, fontWeight: '700' },
+    tableCardSeats: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
+    tableCardJoinBtn: { width: '100%', backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 6, alignItems: 'center', marginTop: 2 },
+    tableCardJoinBtnText: { color: '#fff', fontSize: 11, fontWeight: '800' },
     inputWarn: { color: '#f87171', fontSize: 11, marginBottom: 6, textAlign: 'center' },
     freeInput: { width: '100%', maxWidth: 280, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 4 },
     checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4 },
