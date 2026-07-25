@@ -31,6 +31,12 @@ export default function ChatScreen({ route, navigation }) {
 
     const other = otherProp || convParam?.other;
 
+    // "coach" route param yalnızca "İletişime Geç" ile sohbeti başlatan tarafta
+    // olur — karşı taraf sohbeti Mesajlar listesinden veya bildirimden açtığında
+    // bu parametreyi almaz. Banner'ı, hangi taraf açarsa açsın görünsün diye
+    // mesaj geçmişindeki ilan referansından da (varsa) türetiyoruz.
+    const coachListingCtx = coach || [...messages].reverse().find(m => m.coachListing)?.coachListing || null;
+
     const openEquipmentListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
         navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'equipment', openEquipmentId: listing.id });
@@ -197,13 +203,13 @@ export default function ChatScreen({ route, navigation }) {
                 </TouchableOpacity>
             )}
 
-            {/* Coach Listing Context Banner */}
-            {coach && (
-                <TouchableOpacity style={styles.equipBanner} onPress={() => openCoachListing(coach)} activeOpacity={0.8}>
+            {/* Coach Listing Context Banner — hem başlatan hem karşı tarafta görünür */}
+            {coachListingCtx && (
+                <TouchableOpacity style={styles.equipBanner} onPress={() => openCoachListing(coachListingCtx)} activeOpacity={0.8}>
                     <View style={[styles.equipBannerImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 20 }}>🎓</Text></View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.equipBannerTitle} numberOfLines={1}>{coach.credentialLevel}{coach.certName ? ` · ${coach.certName}` : ''}</Text>
-                        <Text style={styles.equipBannerPrice}>{coach.priceIndividual > 0 ? `${coach.priceIndividual} ₺/saat` : 'Antrenörlük ilanı'}</Text>
+                        <Text style={styles.equipBannerTitle} numberOfLines={1}>{coachListingCtx.credentialLevel}{coachListingCtx.certName ? ` · ${coachListingCtx.certName}` : ''}</Text>
+                        <Text style={styles.equipBannerPrice}>{coachListingCtx.priceIndividual > 0 ? `${coachListingCtx.priceIndividual} ₺/saat` : 'Antrenörlük ilanı hakkında'}</Text>
                     </View>
                     <Text style={styles.equipBannerArrow}>›</Text>
                 </TouchableOpacity>
