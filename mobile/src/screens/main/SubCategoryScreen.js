@@ -7929,9 +7929,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             const matchDeadlineTime = new Date(match.deadline).getTime();
                                                             if (!roundDefaultTime || matchDeadlineTime === roundDefaultTime) return null;
                                                             const md = new Date(match.deadline);
+                                                            const extLabel = match.phase === 'PLAYOFF' ? "🩹 Maç Yarıda Kaldı" : '🃏 Joker';
                                                             return (
                                                                 <Text style={{ color:'#c084fc', fontSize:8, fontWeight:'700', marginTop:2 }}>
-                                                                    🃏 Joker — Yeni bitiş: {fmtD(md)} {fmtT(md)}
+                                                                    {extLabel} — Yeni bitiş: {fmtD(md)} {fmtT(md)}
                                                                 </Text>
                                                             );
                                                         })()}
@@ -7952,10 +7953,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 // kullandıysam bu maçta da göstermeye gerek yok (karşılıklı onay
                                                                 // hariç: rakip BU maçta joker istediyse onaylama hakkım hâlâ ayrı).
                                                                 if (!otherJokerRequested && tournMyJokerUsed) return null;
-                                                                const jokerLabel = otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker';
-                                                                const confirmMsg = otherJokerRequested
-                                                                    ? 'Rakibiniz joker kullanarak süreyi zaten 7 gün uzattı. Onaylarsanız karşılıklı sayılır — süre tekrar uzamaz ama iki tarafın da joker hakkı tükenmez. Emin misiniz?'
-                                                                    : 'Joker hakkınızı bu maç için kullanmak istediğinizden emin misiniz? Süre 7 gün uzatılacak ve joker hakkınız tükenecek.';
+                                                                // Play-off (çeyrek/yarı final/final) maçlarında aynı mekanik "maç yarıda
+                                                                // kaldı, ek süre" olarak sunulur — grup turundaki jokerle birebir aynı
+                                                                // hak/limit, sadece etiket/metin bağlama göre değişir.
+                                                                const isPlayoffMatch = match.phase === 'PLAYOFF';
+                                                                const jokerLabel = isPlayoffMatch
+                                                                    ? (otherJokerRequested ? '🩹 Karşılıklı Ek Süre' : '🩹 Maç Yarıda Kaldı')
+                                                                    : (otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker');
+                                                                const confirmMsg = isPlayoffMatch
+                                                                    ? (otherJokerRequested
+                                                                        ? 'Rakibiniz "maç yarıda kaldı" diyerek süreyi zaten 7 gün uzattı. Onaylarsanız karşılıklı sayılır — süre tekrar uzamaz ama iki tarafın da ek süre hakkı tükenmez. Emin misiniz?'
+                                                                        : 'Maçın yarıda kaldığını belirtip ek süre talep etmek istediğinizden emin misiniz? Süre 7 gün uzatılacak ve ek süre hakkınız tükenecek.')
+                                                                    : (otherJokerRequested
+                                                                        ? 'Rakibiniz joker kullanarak süreyi zaten 7 gün uzattı. Onaylarsanız karşılıklı sayılır — süre tekrar uzamaz ama iki tarafın da joker hakkı tükenmez. Emin misiniz?'
+                                                                        : 'Joker hakkınızı bu maç için kullanmak istediğinizden emin misiniz? Süre 7 gün uzatılacak ve joker hakkınız tükenecek.');
                                                                 return (
                                                                     <TouchableOpacity
                                                                         onPress={() => Alert.alert(jokerLabel, confirmMsg, [
@@ -7964,9 +7975,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                                 try {
                                                                                     const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/joker`);
                                                                                     await fetchMatches();
-                                                                                    Alert.alert('🃏 Joker', data.message);
+                                                                                    Alert.alert(isPlayoffMatch ? '🩹 Ek Süre' : '🃏 Joker', data.message);
                                                                                 } catch (e) {
-                                                                                    Alert.alert('Hata', e?.response?.data?.message || 'Joker kullanılamadı.');
+                                                                                    Alert.alert('Hata', e?.response?.data?.message || 'İşlem yapılamadı.');
                                                                                 }
                                                                             }},
                                                                         ])}

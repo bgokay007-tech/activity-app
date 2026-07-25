@@ -183,6 +183,22 @@ function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYO
     return all;
 }
 
+// Play-off maçları da grup turları gibi 7 gün süre alır — ama sonraki turların
+// (çeyrek final → yarı final → final) rakipleri kura anında belli olmadığı için
+// (TBD slot olarak oluşturulurlar), deadline ancak her iki taraf da atanıp maç
+// gerçekten OYNANABİLİR hale geldiğinde verilir (yoksa süre daha kimse belli
+// değilken işlemeye başlardı).
+async function markPlayoffMatchReadyDeadline(matchId) {
+    const m = await prisma.tournamentMatch.findUnique({
+        where: { id: matchId }, select: { p1Id: true, p2Id: true, deadline: true, status: true },
+    });
+    if (m && m.status === 'PENDING' && m.p1Id && m.p2Id && !m.deadline) {
+        const deadline = new Date();
+        deadline.setDate(deadline.getDate() + 7);
+        await prisma.tournamentMatch.update({ where: { id: matchId }, data: { deadline } });
+    }
+}
+
 /** Deterministic, fair last-resort tiebreaker: a stable hash of (tournamentId + playerId)
  *  acts like a transparent, reproducible kura (lot draw) when all real stats are tied —
  *  nobody is systematically favored, and the result doesn't shift on every reload. */
@@ -2079,7 +2095,11 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                     })()).sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
 
                 if (topPlayers.length >= 2) {
-                    const playoffData = singleElimMatches(topPlayers, id, maxRound + 1, 'PLAYOFF');
+                    // Round 1 (ilk play-off turu): rakipler kura anında belli, 7 gün süre hemen verilir.
+                    const round1Deadline = new Date();
+                    round1Deadline.setDate(round1Deadline.getDate() + 7);
+                    const playoffData = singleElimMatches(topPlayers, id, maxRound + 1, 'PLAYOFF')
+                        .map(m => m.round === maxRound + 1 ? { ...m, deadline: round1Deadline } : m);
                     await prisma.tournamentMatch.createMany({ data: playoffData });
 
                     const playoffByes = await prisma.tournamentMatch.findMany({
@@ -2092,6 +2112,10 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                             where: { tournamentId: id, round: bye.round + 1, matchIndex: Math.floor(bye.matchIndex / 2), phase: 'PLAYOFF' },
                             data: slot === 'p1' ? { p1Id: bye.winnerId, p1Name: winnerName } : { p2Id: bye.winnerId, p2Name: winnerName },
                         });
+                        const nextRow = await prisma.tournamentMatch.findFirst({
+                            where: { tournamentId: id, round: bye.round + 1, matchIndex: Math.floor(bye.matchIndex / 2), phase: 'PLAYOFF' },
+                        });
+                        if (nextRow) await markPlayoffMatchReadyDeadline(nextRow.id);
                     }
                 }
                 }
@@ -2423,6 +2447,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     where: { id: nextMatch.id },
                     data: slot === 'p1' ? { p1Id: winnerId, p1Name: winnerName } : { p2Id: winnerId, p2Name: winnerName },
                 });
+                await markPlayoffMatchReadyDeadline(nextMatch.id);
             }
         }
 
@@ -2550,6 +2575,13 @@ export const useJoker = async (req, res, next) => {
         const otherJokerRequested = isP1 ? match.p2JokerRequested : match.p1JokerRequested;
         const newDeadline = new Date(match.deadline || new Date());
         newDeadline.setDate(newDeadline.getDate() + 7);
+        // Play-off (çeyrek/yarı final/final) maçlarında aynı mekanik "maç yarıda kaldı,
+        // ek süre" olarak sunulur — grup turundaki "joker" ile birebir aynı hak/limit,
+        // sadece kullanıcıya gösterilen metin bağlama göre değişir.
+        const isPlayoff = match.phase === 'PLAYOFF';
+        const alreadyUsedMsg = isPlayoff
+            ? (isTeamTournament ? 'Takımınız ek süre hakkını daha önce kullandı.' : 'Ek süre hakkınızı daha önce kullandınız.')
+            : (isTeamTournament ? 'Takımınız joker hakkını daha önce kullandı.' : 'Joker hakkınızı daha önce kullandınız.');
 
         const emitMatchUpdate = async () => {
             const allMatches = await prisma.tournamentMatch.findMany({
@@ -2568,7 +2600,7 @@ export const useJoker = async (req, res, next) => {
             // süre tekrar +7 EKLENMEZ (toplam hep +7 kalır) ve iki tarafın da joker hakkı geri verilir/korunur.
             // Onay hakkı kendi başına turnuva boyunca oyuncu/takım başına 1 kez kullanılabilir.
             if (myParticipants.some(p => p.mutualJokerUsed)) {
-                return res.status(400).json({ message: 'Karşılıklı joker onay hakkınızı bu turnuvada daha önce kullandınız.' });
+                return res.status(400).json({ message: `Karşılıklı ${isPlayoff ? 'ek süre' : 'joker'} onay hakkınızı bu turnuvada daha önce kullandınız.` });
             }
             await prisma.$transaction([
                 prisma.tournamentMatch.update({
@@ -2585,12 +2617,12 @@ export const useJoker = async (req, res, next) => {
                 })),
             ]);
             await emitMatchUpdate();
-            return res.json({ mutual: true, message: 'Karşılıklı joker onaylandı — süre +7 gün (tekrar eklenmedi), iki tarafın da joker hakkı tükenmedi.', deadline: match.deadline });
+            return res.json({ mutual: true, message: `Karşılıklı ${isPlayoff ? 'ek süre' : 'joker'} onaylandı — süre +7 gün (tekrar eklenmedi), iki tarafın da hakkı tükenmedi.`, deadline: match.deadline });
         } else {
             if (myParticipants.some(p => p.jokerUsed)) {
-                return res.status(400).json({ message: isTeamTournament ? 'Takımınız joker hakkını daha önce kullandı.' : 'Joker hakkınızı daha önce kullandınız.' });
+                return res.status(400).json({ message: alreadyUsedMsg });
             }
-            // Tek joker: +7 gün, joker tükenir (Çiftler Rekabetçi'de takımın HER İKİ üyesi için de tükenir)
+            // Tek joker/ek süre: +7 gün, hak tükenir (Çiftler Rekabetçi'de takımın HER İKİ üyesi için de tükenir)
             const field = isP1 ? 'p1JokerRequested' : 'p2JokerRequested';
             await prisma.$transaction([
                 prisma.tournamentMatch.update({
@@ -2603,7 +2635,7 @@ export const useJoker = async (req, res, next) => {
                 })),
             ]);
             await emitMatchUpdate();
-            return res.json({ mutual: false, message: 'Joker hakkınız kullanıldı — deadline 7 gün uzatıldı.', deadline: newDeadline });
+            return res.json({ mutual: false, message: `${isPlayoff ? 'Ek süre hakkınız' : 'Joker hakkınız'} kullanıldı — deadline 7 gün uzatıldı.`, deadline: newDeadline });
         }
     } catch (e) { next(e); }
 };

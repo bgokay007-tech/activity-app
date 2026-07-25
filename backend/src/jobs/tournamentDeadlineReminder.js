@@ -53,8 +53,11 @@ async function checkAndNotifyUpcomingDeadlines() {
         const now = new Date();
         const horizon = new Date(now.getTime() + (WINDOWS[0].hours + 1) * 3600 * 1000);
 
+        // GROUP ve PLAYOFF (çeyrek/yarı final/final) maçları da 7 gün deadline alıyor —
+        // ikisine de hatırlatma gönderilir (PLAYOFF'ta süre dolunca otomatik berabere
+        // sayılmaz, bu yüzden mesaj metni aşağıda faza göre farklılaştırılıyor).
         const matches = await prisma.tournamentMatch.findMany({
-            where: { status: 'PENDING', phase: 'GROUP', deadline: { gt: now, lte: horizon } },
+            where: { status: 'PENDING', phase: { in: ['GROUP', 'PLAYOFF'] }, deadline: { gt: now, lte: horizon } },
         });
         if (matches.length === 0) return;
 
@@ -87,11 +90,14 @@ async function checkAndNotifyUpcomingDeadlines() {
                     sentKeys.add(key);
                     sentCount++;
 
+                    const deadlineConsequence = match.phase === 'PLAYOFF'
+                        ? 'Süre dolduğunda maç otomatik sonuçlanmaz — turnuva sahibiyle iletişime geçmezseniz eleme gecikebilir.'
+                        : 'Süre dolduğunda maç otomatik olarak berabere sayılacaktır.';
                     createNotification(
                         userId,
                         'TOURNAMENT_MATCH_DEADLINE_WARNING',
                         `⏳ Maçınıza ${w.label} kaldı`,
-                        `${tournament.name}: ${match.p1Name || '?'} - ${match.p2Name || '?'} maçını oynamak için ${w.label} kaldı. Süre dolduğunda maç otomatik olarak berabere sayılacaktır.`,
+                        `${tournament.name}: ${match.p1Name || '?'} - ${match.p2Name || '?'} maçını oynamak için ${w.label} kaldı. ${deadlineConsequence}`,
                         { tournamentId: tournament.id, matchId: match.id, window: w.key, category: tournament.category, subCategory: tournament.subCategory }
                     ).catch(() => {});
                 }
