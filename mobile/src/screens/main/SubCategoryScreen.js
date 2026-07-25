@@ -919,13 +919,19 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     {isSelected && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'900', marginLeft:4 }}>✓</Text>}
                                                     {isTarget  && <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'900', marginLeft:4 }}>⇄</Text>}
                                                 </View>
-                                                {!locked && isOwner && !swapSlot && onRemove && (
-                                                    <TouchableOpacity onPress={onRemove} style={{ marginTop:2 }}>
-                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                                {!locked && isOwner && !swapSlot && item.teamFlexibility !== 'STRICT' && (
-                                                    <Text style={{ color:'#f59e0b44', fontSize:8, marginTop:2 }}>↕ taşımak için basılı tut</Text>
+                                                {!locked && isOwner && !swapSlot && (onRemove || item.teamFlexibility !== 'STRICT') && (
+                                                    <View style={{ flexDirection:'row', gap:8, marginTop:2 }}>
+                                                        {item.teamFlexibility !== 'STRICT' && (
+                                                            <TouchableOpacity onPress={() => handleSlotTap(slot)}>
+                                                                <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>⇄ Taşı</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                        {onRemove && (
+                                                            <TouchableOpacity onPress={onRemove}>
+                                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
                                                 )}
                                             </View>
                                         ) : (
@@ -4928,10 +4934,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
     const [showEloWarning, setShowEloWarning] = useState(false);
     const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
-    // Düzenlemede mevcut bir DOUBLE ilan açılırken, panel format butonuna hiç
-    // dokunmadan baştan erişilebilir olsun diye (format kilidi sadece matchType
-    // değişimini engeller, cinsiyet/teamFlexibility ayarlarını değil).
-    const [showDoubleOptions, setShowDoubleOptions] = useState(() => !!(editItem && editItem.matchType === 'DOUBLE'));
+    // Panel varsayılan kapalı — düzenlemede de format (Çiftli) chip'ine tıklanınca
+    // açılıp kapanabiliyor (format kilidi sadece matchType değişimini engelliyor,
+    // panelin kendisini değil).
+    const [showDoubleOptions, setShowDoubleOptions] = useState(false);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
     // "Değiştir"e basılınca kort alanları hemen temizlenir ama eski rezervasyon
