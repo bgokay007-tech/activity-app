@@ -1013,7 +1013,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             </View>
                                         )}
                                         {acceptedOthers.length === 0 && !pendingPartnerInvite && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
-                                        {isOwner && acceptedOthers.length > 0 && (
+                                        {isOwner && acceptedOthers.length > 0 && item.teamFlexibility !== 'STRICT' && (
                                             <TouchableOpacity onPress={() => setShowTeamCards(true)} style={{ marginTop:6, alignSelf:'flex-start', backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
                                                 <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ Takımları Düzenle</Text>
                                             </TouchableOpacity>
