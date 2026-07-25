@@ -10,7 +10,6 @@ import api from '../../services/api';
 import useT from '../../hooks/useT';
 import { getSocket, onSocket } from '../../services/socket';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
-import Avatar from '../../components/Avatar';
 
 const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
 const VARIANT_FALLBACK = { ihaleli: 'İhaleli Batak', esli_ihaleli: 'Eşli İhaleli Batak', herkes_kendine: 'Herkes Kendine Batak', gomme: 'Gömmeli Batak' };
@@ -328,14 +327,13 @@ export default function BatakHomeScreen({ navigation }) {
     );
 }
 
-// Adım adım (geri dönülebilir) masa kurma sihirbazı: varyant -> online/bot ->
-// (bot ise zorluk, online ise derece aralığı -> puan bahsi -> ekstra derece
-// bahsi -> seyirciye açık) -> masayı kur.
+// Tüm masa kurma ayarları (oyun türü, rakip türü, zorluk/derece aralığı,
+// puan bahsi, ekstra derece bahsi, seyirciye açıklık) tek modalda birlikte
+// gösterilir — adım adım sihirbaz yerine tek ekranda ayarlanıp kurulur.
 function CreateTableModal({ visible, interest, t, onClose }) {
-    const [step, setStep] = useState('variant');
-    const [variant, setVariant] = useState(null);
+    const [variant, setVariant] = useState('ihaleli');
+    const [opponentKind, setOpponentKind] = useState('online');
     const [difficulty, setDifficulty] = useState('medium');
-    const [difficultyConfirmed, setDifficultyConfirmed] = useState(false);
     const [ratingRangeMin, setRatingRangeMin] = useState('');
     const [ratingRangeMax, setRatingRangeMax] = useState('');
     const [betAmount, setBetAmount] = useState('100');
@@ -344,7 +342,11 @@ function CreateTableModal({ visible, interest, t, onClose }) {
     const [spectatorOpen, setSpectatorOpen] = useState(false);
 
     useEffect(() => {
-        if (visible) { setStep('variant'); setVariant(null); setDifficultyConfirmed(false); setSpectatorOpen(false); }
+        if (visible) {
+            setVariant('ihaleli'); setOpponentKind('online'); setDifficulty('medium');
+            setRatingRangeMin(''); setRatingRangeMax(''); setBetAmount('100');
+            setWagerRating(false); setRatingAmount('0.10'); setSpectatorOpen(false);
+        }
     }, [visible]);
 
     const isTeam = variant === 'esli_ihaleli';
@@ -353,9 +355,6 @@ function CreateTableModal({ visible, interest, t, onClose }) {
     const parsedRangeMin = ratingRangeMin.trim() === '' ? null : Number(ratingRangeMin);
     const parsedRangeMax = ratingRangeMax.trim() === '' ? null : Number(ratingRangeMax);
     const canAfford = interest && interest.walletPoints >= parsedBet && interest.skillRating >= parsedRating && parsedBet > 0;
-
-    const goVariant = (v) => { setVariant(v); setStep('opponent'); };
-    const goOpponent = (kind) => setStep(kind === 'bot' ? 'difficulty' : 'range');
 
     const startVsBots = () => {
         const socket = getSocket();
@@ -374,9 +373,6 @@ function CreateTableModal({ visible, interest, t, onClose }) {
         onClose();
     };
 
-    const BACK = { opponent: 'variant', difficulty: 'opponent', range: 'opponent', stake: 'range', rating: 'stake', spectator: 'rating' };
-    const back = () => setStep(BACK[step] || 'variant');
-
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={s.modalOverlay}>
@@ -384,84 +380,55 @@ function CreateTableModal({ visible, interest, t, onClose }) {
                     <ScrollView showsVerticalScrollIndicator={false}>
                         <Text style={s.modalTitle}>{t.batakCreateTable || 'Masa Kur'}</Text>
 
-                        {step === 'variant' && (
-                            <>
-                                <Text style={s.fieldLabel}>{t.batakStepChooseVariant || 'Oyun türünü seç'}</Text>
-                                {VARIANTS.map(v => (
-                                    <TouchableOpacity key={v} style={s.variantOption} onPress={() => goVariant(v)} activeOpacity={0.85}>
-                                        <Text style={s.variantOptionText}>{t[`batakVariant_${v}`] || VARIANT_FALLBACK[v]}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </>
-                        )}
-
-                        {step === 'opponent' && (
-                            <>
-                                <Text style={s.fieldLabel}>{t.batakStepChooseOpponent || 'Rakip türünü seç'}</Text>
-                                <TouchableOpacity style={[s.privateBtn, { alignItems: 'center' }]} onPress={() => goOpponent('online')} activeOpacity={0.85}>
-                                    <Text style={s.privateBtnText}>🌐 {t.batakOnlinePlayers || 'Online Oyuncular'}</Text>
+                        <Text style={s.fieldLabel}>{t.batakStepChooseVariant || 'Oyun türü'}</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                            {VARIANTS.map(v => (
+                                <TouchableOpacity key={v} style={[s.variantOption, variant === v && s.variantOptionActive]} onPress={() => setVariant(v)} activeOpacity={0.85}>
+                                    <Text style={[s.variantOptionText, variant === v && s.variantOptionTextActive]}>{t[`batakVariant_${v}`] || VARIANT_FALLBACK[v]}</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={[s.botBtn, { marginTop: 10, alignItems: 'center' }]} onPress={() => goOpponent('bot')} activeOpacity={0.85}>
-                                    <Text style={s.botBtnText}>🤖 {t.batakVsBot || 'Botla Oyna'}</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
+                            ))}
+                        </View>
 
-                        {step === 'difficulty' && (
+                        <Text style={s.fieldLabel}>{t.batakStepChooseOpponent || 'Rakip türü'}</Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                            <TouchableOpacity style={[s.oppChip, opponentKind === 'online' && s.oppChipActive]} onPress={() => setOpponentKind('online')} activeOpacity={0.85}>
+                                <Text style={[s.oppChipText, opponentKind === 'online' && s.oppChipTextActive]}>🌐 {t.batakOnlinePlayers || 'Online Oyuncular'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[s.oppChip, opponentKind === 'bot' && s.oppChipActive]} onPress={() => setOpponentKind('bot')} activeOpacity={0.85}>
+                                <Text style={[s.oppChipText, opponentKind === 'bot' && s.oppChipTextActive]}>🤖 {t.batakVsBot || 'Botla Oyna'}</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {opponentKind === 'bot' ? (
                             <>
-                                <Text style={s.fieldLabel}>{t.batakStepDifficulty || 'Zorluk seç'}</Text>
-                                {difficultyConfirmed ? (
-                                    <TouchableOpacity style={s.difficultyConfirmedRow} onPress={() => setDifficultyConfirmed(false)} activeOpacity={0.85}>
-                                        <Text style={s.difficultyConfirmedText}>
-                                            {(t.batakDifficultySelected || 'Zorluk: {level}').replace('{level}', DIFFICULTIES.find(([k]) => k === difficulty)?.[1])} ✓
-                                        </Text>
-                                        <Text style={s.difficultyChangeText}>{t.batakChange || 'değiştir'}</Text>
-                                    </TouchableOpacity>
-                                ) : (
-                                    <View style={s.difficultyRow}>
-                                        {DIFFICULTIES.map(([k, label]) => (
-                                            <TouchableOpacity key={k}
-                                                style={[s.difficultyChip, difficulty === k && s.difficultyChipActive]}
-                                                onPress={() => { setDifficulty(k); setDifficultyConfirmed(true); }} activeOpacity={0.8}>
-                                                <Text style={[s.difficultyChipText, difficulty === k && s.difficultyChipTextActive]}>{label}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                )}
+                                <Text style={s.fieldLabel}>{t.batakStepDifficulty || 'Zorluk'}</Text>
+                                <View style={s.difficultyRow}>
+                                    {DIFFICULTIES.map(([k, label]) => (
+                                        <TouchableOpacity key={k}
+                                            style={[s.difficultyChip, difficulty === k && s.difficultyChipActive]}
+                                            onPress={() => setDifficulty(k)} activeOpacity={0.8}>
+                                            <Text style={[s.difficultyChipText, difficulty === k && s.difficultyChipTextActive]}>{label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
                                 <TouchableOpacity style={[s.botBtn, { marginTop: 12, alignItems: 'center' }]} onPress={startVsBots} activeOpacity={0.85}>
                                     <Text style={s.botBtnText}>🤖 {t.batakStartVsBots || 'Botlarla Başla'}</Text>
                                 </TouchableOpacity>
                             </>
-                        )}
-
-                        {step === 'range' && (
+                        ) : (
                             <>
                                 <Text style={s.fieldLabel}>{t.batakRatingRange || 'Rakip Derece Aralığı (isteğe bağlı)'}</Text>
                                 <View style={{ flexDirection: 'row', gap: 8 }}>
                                     <TextInput value={ratingRangeMin} onChangeText={setRatingRangeMin} placeholder="Min" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={[s.freeInput, { flex: 1 }]} />
                                     <TextInput value={ratingRangeMax} onChangeText={setRatingRangeMax} placeholder="Max" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={[s.freeInput, { flex: 1 }]} />
                                 </View>
-                                <TouchableOpacity style={s.submitBtn} onPress={() => setStep('stake')} activeOpacity={0.85}>
-                                    <Text style={s.submitBtnText}>→ {t.batakStake || 'Masaya Konacak Puan'}</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
 
-                        {step === 'stake' && (
-                            <>
                                 <Text style={s.fieldLabel}>{t.batakStake || 'Masaya Konacak Puan'}</Text>
                                 <TextInput value={betAmount} onChangeText={setBetAmount} placeholder="Örn. 250" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={s.freeInput} />
                                 {interest && parsedBet > interest.walletPoints && (
                                     <Text style={s.inputWarn}>Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</Text>
                                 )}
-                                <TouchableOpacity style={[s.submitBtn, parsedBet <= 0 && { opacity: 0.4 }]} onPress={() => setStep('rating')} disabled={parsedBet <= 0} activeOpacity={0.85}>
-                                    <Text style={s.submitBtnText}>→ {t.batakExtraRating || 'Ayrıca derece de bahse girsin'}</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
 
-                        {step === 'rating' && (
-                            <>
                                 <TouchableOpacity style={s.checkboxRow} onPress={() => setWagerRating(v => !v)} activeOpacity={0.8}>
                                     <View style={[s.checkbox, wagerRating && s.checkboxChecked]}>{wagerRating && <Text style={s.checkboxMark}>✓</Text>}</View>
                                     <Text style={s.checkboxLabel}>{t.batakExtraRating || 'Ayrıca derece de bahse girsin'}</Text>
@@ -474,14 +441,7 @@ function CreateTableModal({ visible, interest, t, onClose }) {
                                         )}
                                     </>
                                 )}
-                                <TouchableOpacity style={s.submitBtn} onPress={() => setStep('spectator')} activeOpacity={0.85}>
-                                    <Text style={s.submitBtnText}>→ {t.batakSpectatorOpen || 'Seyirciye açık'}</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
 
-                        {step === 'spectator' && (
-                            <>
                                 <TouchableOpacity style={s.checkboxRow} onPress={() => setSpectatorOpen(v => !v)} activeOpacity={0.8}>
                                     <View style={[s.checkbox, spectatorOpen && s.checkboxChecked]}>{spectatorOpen && <Text style={s.checkboxMark}>✓</Text>}</View>
                                     <Text style={s.checkboxLabel}>{t.batakSpectatorOpen || 'Seyirciye açık'}</Text>
@@ -494,86 +454,8 @@ function CreateTableModal({ visible, interest, t, onClose }) {
                             </>
                         )}
 
-                        {step !== 'variant' && (
-                            <TouchableOpacity onPress={back} style={{ alignItems: 'center', marginTop: 14 }}>
-                                <Text style={{ color: colors.textMuted }}>‹ {t.batakBack || 'Geri'}</Text>
-                            </TouchableOpacity>
-                        )}
-                        <TouchableOpacity onPress={onClose} style={{ alignItems: 'center', marginTop: 10 }}>
-                            <Text style={{ color: colors.textMuted }}>{t.cancelBtn || 'Vazgeç'}</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
-// Bir varyantın herkese-açık, henüz dolmamış masalarını 3'erli satırlar
-// halinde listeler; boş koltuğa "Katıl", seyirciye açıksa "İzle" ile girilir.
-function BrowseTablesModal({ visible, variant, t, onClose, onJoined, onSpectate }) {
-    const [tables, setTables] = useState([]);
-
-    useEffect(() => {
-        if (!visible || !variant) return;
-        const socket = getSocket();
-        socket?.emit('batak:listTables', { variant });
-        const offList = onSocket('batak:tableList', (data) => { if (data.variant === variant) setTables(data.tables || []); });
-        const offErr = onSocket('batak:error', (data) => Alert.alert('', data?.message || 'Bir hata oluştu.'));
-        return () => {
-            offList(); offErr();
-            getSocket()?.emit('batak:unsubscribeLobby', { variant });
-        };
-    }, [visible, variant]);
-
-    const join = (tableId) => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('batak:joinTable', { tableId });
-        onJoined?.(tableId);
-    };
-    const spectate = (tableId) => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('batak:spectateTable', { tableId });
-        onSpectate?.(tableId);
-    };
-
-    return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-            <View style={s.modalOverlay}>
-                <View style={s.modalBox}>
-                    <ScrollView showsVerticalScrollIndicator={false}>
-                        <Text style={s.modalTitle}>{(t[`batakVariant_${variant}`] || VARIANT_FALLBACK[variant] || '')} — {t.batakBrowseTitle || 'Açık Masalar'}</Text>
-                        {tables.length === 0 ? (
-                            <Text style={s.emptyText}>{t.batakBrowseEmpty || 'Şu an açık masa yok'}</Text>
-                        ) : (
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                                {tables.map(item => {
-                                    const filled = item.seats.filter(x => !x.open).length;
-                                    return (
-                                        <View key={item.tableId} style={s.tableCard}>
-                                            <Text style={s.tableCardStake}>🪙 {item.betAmount}</Text>
-                                            {item.ratingAmount > 0 && <Text style={s.tableCardRating}>⭐ {item.ratingAmount.toFixed(2)}</Text>}
-                                            <View style={{ flexDirection: 'row' }}>
-                                                {item.seats.filter(x => !x.open).map(x => <Avatar key={x.seat} user={x} size={18} />)}
-                                            </View>
-                                            <Text style={s.tableCardSeats}>{filled}/4</Text>
-                                            <TouchableOpacity style={s.tableCardJoinBtn} onPress={() => join(item.tableId)} activeOpacity={0.85}>
-                                                <Text style={s.tableCardJoinBtnText}>{t.batakJoinBtn || 'Katıl'}</Text>
-                                            </TouchableOpacity>
-                                            {item.spectatorOpen && (
-                                                <TouchableOpacity style={s.tableCardWatchBtn} onPress={() => spectate(item.tableId)} activeOpacity={0.85}>
-                                                    <Text style={s.tableCardWatchBtnText}>👁️ {t.batakWatchBtn || 'İzle'}</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    );
-                                })}
-                            </View>
-                        )}
                         <TouchableOpacity onPress={onClose} style={{ alignItems: 'center', marginTop: 14 }}>
-                            <Text style={{ color: colors.textMuted }}>{t.cancelBtn || 'Kapat'}</Text>
+                            <Text style={{ color: colors.textMuted }}>{t.cancelBtn || 'Vazgeç'}</Text>
                         </TouchableOpacity>
                     </ScrollView>
                 </View>
@@ -603,45 +485,30 @@ const s = StyleSheet.create({
     playDesc: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 19 },
     findBtn: { backgroundColor: colors.purple, borderRadius: 16, paddingVertical: 16, paddingHorizontal: 40, marginTop: 34 },
     findBtnText: { color: '#fff', fontSize: 16, fontWeight: '900' },
-    searchingText: { color: colors.textSecondary, fontSize: 14, marginTop: 14, fontWeight: '700' },
-    cancelBtn: { marginTop: 16, paddingVertical: 8, paddingHorizontal: 20 },
-    cancelBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
 
-    orText: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginTop: 22, marginBottom: 14 },
-    difficultyLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 },
     difficultyRow: { flexDirection: 'row', gap: 8 },
     difficultyChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     difficultyChipActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
-    ratingChipActive: { backgroundColor: '#0ea5e922', borderColor: '#38bdf8' },
     difficultyChipText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
     difficultyChipTextActive: { color: colors.purpleLight || colors.purple },
     botBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.purple, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 34, marginTop: 18 },
     botBtnText: { color: colors.purpleLight || colors.purple, fontSize: 15, fontWeight: '900' },
-
-    privateBtn: { backgroundColor: colors.purple, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 30, marginTop: 4 },
-    privateBtnText: { color: '#fff', fontSize: 14, fontWeight: '900' },
 
     createTableBtn: { backgroundColor: colors.amber || '#f59e0b', borderRadius: 16, paddingVertical: 14, width: '100%', maxWidth: 320, alignItems: 'center', marginTop: 4 },
     createTableBtnText: { color: '#111827', fontSize: 15, fontWeight: '900' },
     variantGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%', maxWidth: 320, gap: 8, marginTop: 10 },
     variantBtn: { width: '48%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
     variantBtnText: { color: '#fff', fontSize: 12, fontWeight: '800', textAlign: 'center' },
-    variantOption: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 8 },
-    variantOptionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-    difficultyConfirmedRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.purple, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14 },
-    difficultyConfirmedText: { color: '#fff', fontSize: 13, fontWeight: '800' },
-    difficultyChangeText: { color: colors.purpleLight || colors.purple, fontSize: 11, fontWeight: '700' },
+    variantOption: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14 },
+    variantOptionActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    variantOptionText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    variantOptionTextActive: { color: colors.purpleLight || colors.purple },
+    oppChip: { flex: 1, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
+    oppChipActive: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    oppChipText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    oppChipTextActive: { color: colors.purpleLight || colors.purple },
     spectatorHint: { color: colors.textMuted, fontSize: 11, marginTop: 4, marginBottom: 8 },
     payoutHint: { color: '#fbbf24', fontSize: 11, fontWeight: '700', backgroundColor: '#f59e0b1a', borderRadius: 10, padding: 10, marginBottom: 14 },
-    tableCard: { width: '31%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 8, alignItems: 'center', gap: 4, marginBottom: 10 },
-    tableCardStake: { color: '#fbbf24', fontSize: 13, fontWeight: '900' },
-    tableCardRating: { color: '#38bdf8', fontSize: 10, fontWeight: '700' },
-    tableCardSeats: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
-    tableCardJoinBtn: { width: '100%', backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 6, alignItems: 'center', marginTop: 2 },
-    tableCardJoinBtnText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-    tableCardWatchBtn: { width: '100%', backgroundColor: colors.surface, borderRadius: 8, paddingVertical: 6, alignItems: 'center', marginTop: 4 },
-    tableCardWatchBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '800' },
-    inputLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 8, marginBottom: 4, textAlign: 'center', maxWidth: 280 },
     inputWarn: { color: '#f87171', fontSize: 11, marginBottom: 6, textAlign: 'center' },
     freeInput: { width: '100%', maxWidth: 280, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 4 },
     checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4 },
@@ -649,10 +516,6 @@ const s = StyleSheet.create({
     checkboxChecked: { backgroundColor: colors.purple, borderColor: colors.purple },
     checkboxMark: { color: '#fff', fontSize: 12, fontWeight: '900' },
     checkboxLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
-    joinCodeRow: { flexDirection: 'row', gap: 8, marginTop: 10, width: '100%', maxWidth: 280 },
-    joinCodeInput: { flex: 1, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 2, textAlign: 'center' },
-    joinCodeBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center' },
-    joinCodeBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
     smallCreateRow: { paddingHorizontal: 12, paddingTop: 10, alignItems: 'flex-end' },
     smallCreateBtn: { backgroundColor: colors.purple, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 7 },
