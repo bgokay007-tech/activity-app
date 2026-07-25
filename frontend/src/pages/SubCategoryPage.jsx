@@ -398,6 +398,12 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isVolleyball = sub === 'volleyball';
     const isEdit = !!editItem;
+    // Format (tekli/çiftler) sadece hiç katılımcı/partner kabul edilmemişse
+    // değiştirilebilir — backend de aynı kuralı uyguluyor.
+    const editHasParticipants = isEdit && (
+        (Array.isArray(editItem.participants) && editItem.participants.length > 0) ||
+        (Array.isArray(editItem.senderTeam) && editItem.senderTeam.length > 0)
+    );
 
     const [form, setForm] = useState(() => {
         if (editItem) {
@@ -759,10 +765,12 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     minRating: form.minRating !== '' ? form.minRating : null,
                     maxRating: form.maxRating !== '' ? form.maxRating : null,
                     matchMode: form.matchMode,
+                    matchType: form.matchType,
                     genderReq: form.genderReq,
                     partnerGenderReq: form.partnerGenderReq,
                     opp1GenderReq: form.opp1GenderReq,
                     opp2GenderReq: form.opp2GenderReq,
+                    teamFlexibility: form.teamFlexibility,
                     venueId: form.venueId || null,
                     venueCourtId: form.venueCourtId || null,
                     venueReservationId,
@@ -773,6 +781,9 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     refereePayment: form.refereeRequested && form.refereePayment ? form.refereePayment : null,
                 };
                 const { data } = await api.patch(`/rivals/${editItem.id}`, payload);
+                if (data?.matchTypeLocked) {
+                    alert('Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemedi — önce katılımcıları çıkarabilirsin. Diğer değişiklikler kaydedildi.');
+                }
                 onSubmit(data, true);
             } catch (err) {
                 console.error(err);
@@ -889,9 +900,12 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         { value: 'SINGLE', icon: '🎾', label: t('rival.single_label'), desc: '1 vs 1' },
                         { value: 'DOUBLE', icon: '🎾🎾', label: t('rival.double_label'), desc: '2 vs 2' },
                     ].map(opt => (
-                        <button key={opt.value} type="button" disabled={isEdit}
-                            onClick={() => !isEdit && setForm(f => ({ ...f, matchType: opt.value }))}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition ${form.matchType === opt.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <button key={opt.value} type="button" disabled={editHasParticipants}
+                            onClick={() => {
+                                if (editHasParticipants) return alert('Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
+                                setForm(f => ({ ...f, matchType: opt.value }));
+                            }}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition ${form.matchType === opt.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${editHasParticipants ? 'opacity-50 cursor-not-allowed' : ''}`}>
                             <span className="text-xl">{opt.icon}</span>
                             <div><p className="font-bold text-sm">{opt.label}</p><p className="text-xs opacity-70">{opt.desc}</p></div>
                         </button>
@@ -1652,7 +1666,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 </div>
             )}
 
-            {needsPartner && !isEdit && (
+            {needsPartner && (
                 <label className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-3 cursor-pointer">
                     <input type="checkbox" checked={form.teamFlexibility === 'STRICT'}
                         onChange={e => setForm(f => ({ ...f, teamFlexibility: e.target.checked ? 'STRICT' : 'FLEXIBLE' }))}

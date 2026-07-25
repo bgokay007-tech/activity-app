@@ -677,7 +677,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     // DOUBLE: iki slot arasında oyuncu taşı (seç + taşı)
     const handleSlotTap = async (slot) => {
-        if (!isOwner || item.teamFlexibility === 'STRICT') return;
+        if (!isOwner) return;
+        if (item.teamFlexibility === 'STRICT') {
+            Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
+            return;
+        }
         if (!swapSlot) { setSwapSlot(slot); return; }
         if (swapSlot === slot) { setSwapSlot(null); return; }
         const s1 = swapSlot; const s2 = slot;
@@ -2425,7 +2429,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
 
     const handleSwapTap = (slot) => {
-        if (match.teamFlexibility === 'STRICT') return;
+        if (match.teamFlexibility === 'STRICT') {
+            Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
+            return;
+        }
         if (!swapSlot) { setSwapSlot(slot); return; }
         if (swapSlot === slot) { setSwapSlot(null); return; }
         const s1 = swapSlot;
@@ -2935,7 +2942,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         const partner = senderTeamArr[0] || null;
                         const opp1 = participantsArr[0] || null;
                         const opp2 = participantsArr[1] || null;
-                        const locked = match.teamFlexibility === 'STRICT';
                         const SLOT_LABEL = { partner: t.cardParticipantLabel(1), opp1: t.cardParticipantLabel(2), opp2: t.cardParticipantLabel(3) };
                         const mkSlot = (slot, p, color) => {
                             const isSel = swapSlot === slot;
@@ -2947,7 +2953,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         player={p}
                                         color={color}
                                         label={SLOT_LABEL[slot]}
-                                        disabled={locked}
                                         isSelected={isSel}
                                         isTarget={isTgt}
                                         onTap={handleSwapTap}
@@ -4789,6 +4794,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const isPadel     = sub === 'padel';
     const teamSizes   = isFootball ? FOOTBALL_SIZES : isVolleyball ? VOLLEYBALL_SIZES : [];
     const cfg         = getConfig(sub);
+    // Format (tekli/çiftler) sadece hiç katılımcı/partner kabul edilmemişse
+    // değiştirilebilir — aksi halde participants/senderTeam dizisinin şekli
+    // (kim hangi slotta) uyumsuz kalır (backend de aynı kuralı uyguluyor).
+    const editHasParticipants = !!editItem && (
+        (Array.isArray(editItem.participants) && editItem.participants.length > 0) ||
+        (Array.isArray(editItem.senderTeam) && editItem.senderTeam.length > 0)
+    );
 
     const INIT = {
         matchType: isPadel ? 'DOUBLE' : 'SINGLE', teamSize: isFootball ? 5 : isVolleyball ? 6 : 1,
@@ -4916,7 +4928,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
     const [showEloWarning, setShowEloWarning] = useState(false);
     const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
-    const [showDoubleOptions, setShowDoubleOptions] = useState(false);
+    // Düzenlemede mevcut bir DOUBLE ilan açılırken, panel format butonuna hiç
+    // dokunmadan baştan erişilebilir olsun diye (format kilidi sadece matchType
+    // değişimini engeller, cinsiyet/teamFlexibility ayarlarını değil).
+    const [showDoubleOptions, setShowDoubleOptions] = useState(() => !!(editItem && editItem.matchType === 'DOUBLE'));
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
     // "Değiştir"e basılınca kort alanları hemen temizlenir ama eski rezervasyon
@@ -5198,14 +5213,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 isCourtReserved: f.courtReserved,
                 surface: f.surface || null,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? f.courtFeePerPerson : null,
-                ...((sub === 'tennis' || sub === 'padel') && { genderReq: f.genderReq }),
+                ...((sub === 'tennis' || sub === 'padel') && { genderReq: f.genderReq, matchType: f.matchType }),
                 ...((sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' && {
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
+                    teamFlexibility: f.teamFlexibility,
                 }),
                 ...(['tennis', 'padel', 'volleyball'].includes(sub) && {
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
                 }),
+            }).then(res => {
+                // Backend katılımcı olduğu için formatı sessizce yoksaydıysa haber ver.
+                if (res.data?.matchTypeLocked) {
+                    Alert.alert('Format Değiştirilemedi', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemedi — önce katılımcıları çıkarabilirsin. Diğer değişiklikler kaydedildi.');
+                }
             });
             onCreated();
             onClose();
@@ -5413,8 +5434,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.formatLabel}</Text>
                                             <View style={{ flexDirection:'row', gap:3 }}>
                                                 {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
-                                                    <TouchableOpacity key={fmt.id} disabled={!!editItem} onPress={() => {
-                                                        if (editItem) return; // düzenlemede format (tekli/çiftler) değiştirilemez
+                                                    <TouchableOpacity key={fmt.id} onPress={() => {
+                                                        if (fmt.id === f.matchType) { if (fmt.id === 'DOUBLE') setShowDoubleOptions(v => !v); return; }
+                                                        if (editHasParticipants) {
+                                                            Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
+                                                            return;
+                                                        }
                                                         if (fmt.id === 'DOUBLE') setShowDoubleOptions(true);
                                                         if (fmt.id === 'SINGLE') setInviteTarget('singleOpp');
                                                         setF(p => ({
@@ -5426,7 +5451,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 : p.courtFeePerPerson,
                                                         }));
                                                     }}
-                                                        style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive, editItem && { opacity:0.5 }]}>
+                                                        style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive, editHasParticipants && { opacity:0.5 }]}>
                                                         <Text style={[s.chipBtnText, { fontSize:11, textAlign:'center' }, f.matchType===fmt.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{fmt.label}</Text>
                                                     </TouchableOpacity>
                                                 ))}
@@ -6019,8 +6044,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <View style={{ marginBottom:10, gap:8 }}>
                                                 {/* Takım Arkadaşı Cinsiyeti */}
                                                 <GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti'} field="partnerGenderReq" />
-                                                {/* Partneri Seç — Takım Arkadaşı'nın altında, kendi satırında */}
-                                                {!isTeamSport && (
+                                                {/* Partneri Seç — Takım Arkadaşı'nın altında, kendi satırında.
+                                                    Düzenlemede gizli: backend partnerInviteId'yi düzenlemede kabul etmiyor. */}
+                                                {!isTeamSport && !editItem && (
                                                     f.partner ? (
                                                         <TouchableOpacity onPress={() => set('partner', null)}
                                                             style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
@@ -6038,7 +6064,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 <View style={{ gap:8 }}>
                                                     <View style={{ gap:4 }}>
                                                         <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
-                                                        {f.opp1Invite ? (
+                                                        {/* Davet Et düzenlemede gizli: backend opp1InviteId'yi düzenlemede kabul etmiyor. */}
+                                                        {!editItem && (f.opp1Invite ? (
                                                             <TouchableOpacity onPress={() => set('opp1Invite', null)}
                                                                 style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.opp1Invite.fullName || f.opp1Invite.username}</Text>
@@ -6049,11 +6076,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
                                                                 <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteSendBtn}</Text>
                                                             </TouchableOpacity>
-                                                        )}
+                                                        ))}
                                                     </View>
                                                     <View style={{ gap:4 }}>
                                                         <GenderRow label={t.opp2GenderLabel || 'Rakip 2 Cinsiyeti'} field="opp2GenderReq" />
-                                                        {f.opp2Invite ? (
+                                                        {/* Davet Et düzenlemede gizli: backend opp2InviteId'yi düzenlemede kabul etmiyor. */}
+                                                        {!editItem && (f.opp2Invite ? (
                                                             <TouchableOpacity onPress={() => set('opp2Invite', null)}
                                                                 style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.opp2Invite.fullName || f.opp2Invite.username}</Text>
@@ -6064,7 +6092,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
                                                                 <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteSendBtn}</Text>
                                                             </TouchableOpacity>
-                                                        )}
+                                                        ))}
                                                     </View>
                                                 </View>
                                             </View>

@@ -563,7 +563,18 @@ export const updateRivalRequest = async (req, res, next) => {
 
         const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
-                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, refereeRequested, refereePayment } = req.body;
+                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, refereeRequested, refereePayment,
+                teamFlexibility, matchType } = req.body;
+
+        // matchType (tekli/çiftli) sadece hiç katılımcı/partner kabul edilmemişse
+        // değiştirilebilir — aksi halde participants/senderTeam dizisinin şekli
+        // (kim hangi slotta) uyumsuz kalır. teamFlexibility ise katılımcı dizisinin
+        // şeklini etkilemez (sadece takas izni), o yüzden her zaman değiştirilebilir.
+        const hasParticipants = (Array.isArray(rival.participants) && rival.participants.length > 0)
+            || (Array.isArray(rival.senderTeam) && rival.senderTeam.length > 0);
+        const matchTypeRequested = matchType !== undefined && matchType.toUpperCase() !== rival.matchType;
+        const matchTypeLocked = matchTypeRequested && hasParticipants;
+        const applyMatchType = matchTypeRequested && !hasParticipants;
 
         const updated = await prisma.activityRequest.update({
             where: { id },
@@ -593,6 +604,11 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
                 ...(refereeRequested !== undefined && { refereeRequested: !!refereeRequested }),
                 ...(refereePayment !== undefined && { refereePayment: refereePayment || null }),
+                ...(teamFlexibility !== undefined && ['FLEXIBLE', 'STRICT'].includes(teamFlexibility) && { teamFlexibility }),
+                ...(applyMatchType && {
+                    matchType: matchType.toUpperCase(),
+                    ...(matchType.toUpperCase() === 'SINGLE' && { partnerGenderReq: null, opp1GenderReq: null, opp2GenderReq: null }),
+                }),
             },
             include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } } },
         });
@@ -644,7 +660,7 @@ export const updateRivalRequest = async (req, res, next) => {
         }
 
         broadcast('rivalUpdate', updated);
-        res.json(updated);
+        res.json(matchTypeLocked ? { ...updated, matchTypeLocked: true } : updated);
     } catch (error) { next(error); }
 };
 
