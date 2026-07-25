@@ -1,6 +1,8 @@
 ﻿import { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Image, Modal } from 'react-native';
 import { useSelector } from 'react-redux';
+import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
@@ -29,6 +31,21 @@ export default function ChatScreen({ route, navigation }) {
     const convIdRef = useRef(convParam?.id || null);
     const pollRef = useRef(null);
 
+    // Engelle / Şikayet Et
+    const [blocking, setBlocking] = useState(false);
+    const [reportModalVisible, setReportModalVisible] = useState(false);
+    const [reportReason, setReportReason] = useState('');
+    const [reportSubmitting, setReportSubmitting] = useState(false);
+
+    // Fotoğraf / sesli mesaj
+    const [uploadingMedia, setUploadingMedia] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordSeconds, setRecordSeconds] = useState(0);
+    const recordingRef = useRef(null);
+    const recordTimerRef = useRef(null);
+    const [playingId, setPlayingId] = useState(null);
+    const soundRef = useRef(null);
+
     const other = otherProp || convParam?.other;
 
     // "coach" route param yalnızca "İletişime Geç" ile sohbeti başlatan tarafta
@@ -45,6 +62,60 @@ export default function ChatScreen({ route, navigation }) {
     const openCoachListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
         navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'coaches', openCoachId: listing.id });
+    };
+
+    const openOptionsMenu = () => {
+        if (!other?.id) return;
+        Alert.alert(
+            other?.fullName || other?.username || '',
+            undefined,
+            [
+                { text: '🚫 Engelle', style: 'destructive', onPress: confirmBlock },
+                { text: '🚩 Şikayet Et', onPress: () => { setReportReason(''); setReportModalVisible(true); } },
+                { text: 'Vazgeç', style: 'cancel' },
+            ],
+        );
+    };
+
+    const confirmBlock = () => {
+        Alert.alert(
+            'Kullanıcıyı Engelle',
+            `${other?.fullName || other?.username} kullanıcısını engellemek istediğinize emin misiniz? Engellediğinizde birbirinize mesaj gönderemezsiniz.`,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                    text: 'Engelle', style: 'destructive', onPress: async () => {
+                        setBlocking(true);
+                        try {
+                            await api.post(`/friends/block/${other.id}`);
+                            Alert.alert('', 'Kullanıcı engellendi.');
+                            navigation.goBack();
+                        } catch (e) {
+                            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+                        } finally {
+                            setBlocking(false);
+                        }
+                    },
+                },
+            ],
+        );
+    };
+
+    const submitReport = async () => {
+        if (!reportReason.trim()) return;
+        setReportSubmitting(true);
+        try {
+            await api.post('/users/me/support-messages', {
+                message: `🚩 Kullanıcı şikayeti: @${other?.username} (${other?.id})\nSebep: ${reportReason.trim()}`,
+            });
+            setReportModalVisible(false);
+            setReportReason('');
+            Alert.alert('', 'Şikayetiniz iletildi, ekibimiz inceleyecek.');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Şikayet gönderilemedi.');
+        } finally {
+            setReportSubmitting(false);
+        }
     };
 
     const fetchMessages = useCallback(async (id) => {
@@ -99,24 +170,131 @@ export default function ChatScreen({ route, navigation }) {
         return off;
     }, []);
 
+    // Bir antrenör ilanı bağlamında açılan sohbette, karşı tarafın hangi ilan hakkında
+    // yazıldığını her zaman görebilmesi için TÜM mesajlar (sadece ilki değil) ilan
+    // referansını taşır — bkz. coachListingCtx tabanlı banner. Metin, fotoğraf ve sesli
+    // mesajların hepsi bu ortak gönderim fonksiyonunu kullanır.
+    const sendPayload = async (payload) => {
+        const { data } = await api.post(`/messages/send/${other?.id}`, {
+            ...payload,
+            ...(coachListingCtx?.id && { coachListingId: coachListingCtx.id }),
+        });
+        // Sunucu bu mesaji "newMessage" socket olayiyla gonderene de geri yansitiyor;
+        // o olay burada olusan cevaptan once ulasmis olabilir, bu yuzden id'ye gore
+        // dedup yapmadan eklersek ayni mesaj iki kez listelenebilir.
+        setMessages(prev => prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message]);
+        setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+    };
+
     const send = async () => {
         if (!input.trim() || sending) return;
         const text = input.trim();
         setInput('');
         setSending(true);
         try {
-            const { data } = await api.post(`/messages/send/${other?.id}`, { content: text });
-            // Sunucu bu mesaji "newMessage" socket olayiyla gonderene de geri yansitiyor;
-            // o olay burada olusan cevaptan once ulasmis olabilir, bu yuzden id'ye gore
-            // dedup yapmadan eklersek ayni mesaj iki kez listelenebilir.
-            setMessages(prev => prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message]);
-            setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+            await sendPayload({ content: text });
         } catch (e) {
             console.warn(e?.message);
             Alert.alert('Hata', e?.response?.data?.message || 'Mesaj gönderilemedi');
         }
         finally { setSending(false); }
     };
+
+    const pickAndSendImage = async () => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+        if (result.canceled || !result.assets?.[0]) return;
+        const asset = result.assets[0];
+        setUploadingMedia(true);
+        try {
+            const form = new FormData();
+            form.append('file', { uri: asset.uri, name: 'chat-photo.jpg', type: 'image/jpeg' });
+            const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            await sendPayload({ content: '', imageUrl: uploadData.url });
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Fotoğraf gönderilemedi');
+        } finally {
+            setUploadingMedia(false);
+        }
+    };
+
+    const startRecording = async () => {
+        try {
+            const perm = await Audio.requestPermissionsAsync();
+            if (!perm.granted) return Alert.alert('', 'Mikrofon izni gerekli');
+            await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+            const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+            recordingRef.current = recording;
+            setIsRecording(true);
+            setRecordSeconds(0);
+            recordTimerRef.current = setInterval(() => setRecordSeconds(s => s + 1), 1000);
+        } catch (e) {
+            Alert.alert('', 'Ses kaydı başlatılamadı');
+        }
+    };
+
+    const cancelRecording = async () => {
+        clearInterval(recordTimerRef.current);
+        setIsRecording(false);
+        try {
+            await recordingRef.current?.stopAndUnloadAsync();
+        } catch { /* zaten durmuş olabilir */ }
+        recordingRef.current = null;
+    };
+
+    const stopRecordingAndSend = async () => {
+        clearInterval(recordTimerRef.current);
+        setIsRecording(false);
+        const recording = recordingRef.current;
+        recordingRef.current = null;
+        if (!recording) return;
+        try {
+            await recording.stopAndUnloadAsync();
+            const uri = recording.getURI();
+            const duration = recordSeconds;
+            if (!uri || duration < 1) return;
+            setUploadingMedia(true);
+            const form = new FormData();
+            form.append('file', { uri, name: 'chat-voice.m4a', type: 'audio/m4a' });
+            const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            await sendPayload({ content: '', audioUrl: uploadData.url, audioDuration: Math.round(uploadData.duration || duration) });
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Sesli mesaj gönderilemedi');
+        } finally {
+            setUploadingMedia(false);
+        }
+    };
+
+    const playAudio = async (item) => {
+        try {
+            if (playingId === item.id) {
+                await soundRef.current?.stopAsync();
+                setPlayingId(null);
+                return;
+            }
+            if (soundRef.current) {
+                await soundRef.current.unloadAsync();
+                soundRef.current = null;
+            }
+            await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+            const { sound } = await Audio.Sound.createAsync({ uri: item.audioUrl }, { shouldPlay: true });
+            soundRef.current = sound;
+            setPlayingId(item.id);
+            sound.setOnPlaybackStatusUpdate((status) => {
+                if (status.didJustFinish) setPlayingId(null);
+            });
+        } catch {
+            Alert.alert('', 'Sesli mesaj oynatılamadı');
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            clearInterval(recordTimerRef.current);
+            soundRef.current?.unloadAsync().catch(() => {});
+        };
+    }, []);
 
     const renderMessage = ({ item }) => {
         const isMe = item.senderId === myId;
@@ -146,7 +324,19 @@ export default function ChatScreen({ route, navigation }) {
                             </View>
                         </TouchableOpacity>
                     )}
-                    <Text style={styles.bubbleText}>{item.content}</Text>
+                    {item.imageUrl && (
+                        <Image source={{ uri: item.imageUrl }} style={styles.msgImage} resizeMode="cover" />
+                    )}
+                    {item.audioUrl && (
+                        <TouchableOpacity style={styles.audioRow} onPress={() => playAudio(item)} activeOpacity={0.8}>
+                            <Text style={styles.audioPlayIcon}>{playingId === item.id ? '⏸' : '▶️'}</Text>
+                            <View style={styles.audioWave} />
+                            <Text style={[styles.audioDuration, isMe ? styles.bubbleTimeMe : styles.bubbleTimeThem]}>
+                                {item.audioDuration ? `${Math.floor(item.audioDuration / 60)}:${String(item.audioDuration % 60).padStart(2, '0')}` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                    {!!item.content && <Text style={styles.bubbleText}>{item.content}</Text>}
                     <Text style={[styles.bubbleTime, isMe ? styles.bubbleTimeMe : styles.bubbleTimeThem]}>
                         {new Date(item.createdAt).toLocaleTimeString(t.dateLocale, { hour: '2-digit', minute: '2-digit' })}
                     </Text>
@@ -167,6 +357,9 @@ export default function ChatScreen({ route, navigation }) {
                     <Text style={styles.headerName}>{other?.fullName || other?.username}</Text>
                     <Text style={styles.headerSub}>{other?.username}</Text>
                 </View>
+                <TouchableOpacity onPress={openOptionsMenu} disabled={blocking} style={styles.headerMenuBtn}>
+                    <Text style={styles.headerMenuText}>⋮</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Activity Context Banner */}
@@ -238,19 +431,72 @@ export default function ChatScreen({ route, navigation }) {
 
             {/* Input */}
             <View style={styles.inputRow}>
-                <TextInput
-                    style={styles.input}
-                    value={input}
-                    onChangeText={setInput}
-                    placeholder={t.chatInputPh}
-                    placeholderTextColor={colors.textMuted}
-                    multiline
-                    onSubmitEditing={send}
-                />
-                <TouchableOpacity style={[styles.sendBtn, (!input.trim() || sending) && styles.sendBtnDisabled]} onPress={send} disabled={!input.trim() || sending}>
-                    <Text style={styles.sendText}>{sending ? '...' : '➤'}</Text>
-                </TouchableOpacity>
+                {isRecording ? (
+                    <>
+                        <TouchableOpacity onPress={cancelRecording} style={styles.mediaBtn}>
+                            <Text style={styles.mediaBtnText}>✕</Text>
+                        </TouchableOpacity>
+                        <View style={styles.recordingIndicator}>
+                            <Text>🔴</Text>
+                            <Text style={styles.recordingTime}>{Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, '0')}</Text>
+                        </View>
+                        <TouchableOpacity style={styles.sendBtn} onPress={stopRecordingAndSend} disabled={uploadingMedia}>
+                            <Text style={styles.sendText}>{uploadingMedia ? '...' : '➤'}</Text>
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                    <>
+                        <TouchableOpacity onPress={pickAndSendImage} disabled={uploadingMedia} style={styles.mediaBtn}>
+                            <Text style={styles.mediaBtnText}>📷</Text>
+                        </TouchableOpacity>
+                        <TextInput
+                            style={styles.input}
+                            value={input}
+                            onChangeText={setInput}
+                            placeholder={t.chatInputPh}
+                            placeholderTextColor={colors.textMuted}
+                            multiline
+                            onSubmitEditing={send}
+                        />
+                        {input.trim() ? (
+                            <TouchableOpacity style={[styles.sendBtn, sending && styles.sendBtnDisabled]} onPress={send} disabled={sending}>
+                                <Text style={styles.sendText}>{sending ? '...' : '➤'}</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity onPress={startRecording} disabled={uploadingMedia} style={styles.mediaBtn}>
+                                <Text style={styles.mediaBtnText}>🎤</Text>
+                            </TouchableOpacity>
+                        )}
+                    </>
+                )}
             </View>
+
+            {/* Şikayet Et */}
+            <Modal visible={reportModalVisible} animationType="slide" transparent onRequestClose={() => setReportModalVisible(false)}>
+                <View style={styles.reportOverlay}>
+                    <View style={styles.reportBox}>
+                        <Text style={styles.reportTitle}>🚩 Kullanıcıyı Şikayet Et</Text>
+                        <Text style={styles.reportHint}>Uygunsuz içerik (cinsel içerikli fotoğraf, küfür/argo, taciz vb.) için sebep belirtin, ekibimiz inceleyecek.</Text>
+                        <TextInput
+                            style={styles.reportInput}
+                            value={reportReason}
+                            onChangeText={setReportReason}
+                            placeholder="Şikayet sebebinizi yazın..."
+                            placeholderTextColor={colors.textMuted}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            style={[styles.reportSubmitBtn, (!reportReason.trim() || reportSubmitting) && styles.sendBtnDisabled]}
+                            onPress={submitReport}
+                            disabled={!reportReason.trim() || reportSubmitting}>
+                            <Text style={styles.reportSubmitText}>{reportSubmitting ? '...' : 'Şikayeti Gönder'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setReportModalVisible(false)} style={{ alignItems: 'center', marginTop: 10 }}>
+                            <Text style={{ color: colors.textMuted }}>Vazgeç</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
@@ -265,6 +511,8 @@ const styles = StyleSheet.create({
     headerInfo: { flex: 1 },
     headerName: { color: '#fff', fontWeight: '700', fontSize: 14 },
     headerSub: { color: colors.textMuted, fontSize: 11 },
+    headerMenuBtn: { paddingHorizontal: 8, paddingVertical: 4 },
+    headerMenuText: { color: colors.textSecondary, fontSize: 22, fontWeight: '900' },
     rivalBanner: { backgroundColor: '#7c3aed18', borderBottomWidth: 1, borderBottomColor: '#7c3aed40', paddingHorizontal: 13, paddingVertical: 7, gap: 3 },
     rivalBannerLabel: { color: '#a78bfa', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     rivalBannerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
@@ -290,6 +538,11 @@ const styles = StyleSheet.create({
     bubbleTime: { fontSize: 10, marginTop: 4 },
     bubbleTimeMe: { color: '#d8b4fe' },
     bubbleTimeThem: { color: colors.textMuted },
+    msgImage: { width: 190, height: 190, borderRadius: 12, marginBottom: 4 },
+    audioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 150, paddingVertical: 3 },
+    audioPlayIcon: { fontSize: 18 },
+    audioWave: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#ffffff40' },
+    audioDuration: { fontSize: 11, fontWeight: '700' },
     empty: { alignItems: 'center', paddingTop: 57, gap: 3 },
     emptyName: { color: '#fff', fontWeight: '700', fontSize: 15 },
     emptyHint: { color: colors.textMuted, fontSize: 13 },
@@ -298,4 +551,15 @@ const styles = StyleSheet.create({
     sendBtn: { backgroundColor: colors.purple, borderRadius: 20, width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
     sendBtnDisabled: { opacity: 0.4 },
     sendText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+    mediaBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
+    mediaBtnText: { fontSize: 18 },
+    recordingIndicator: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 14, height: 40, borderWidth: 1, borderColor: colors.border },
+    recordingTime: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    reportOverlay: { flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' },
+    reportBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: 30 },
+    reportTitle: { color: '#fff', fontSize: 16, fontWeight: '900', marginBottom: 8 },
+    reportHint: { color: colors.textMuted, fontSize: 12, marginBottom: 12, lineHeight: 17 },
+    reportInput: { minHeight: 80, textAlignVertical: 'top', backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 12, paddingVertical: 10 },
+    reportSubmitBtn: { marginTop: 12, backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+    reportSubmitText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 });

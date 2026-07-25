@@ -2503,6 +2503,9 @@ export default function ProfileScreen({ route, navigation }) {
                 {/* Right */}
                 {isOwnProfile ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <TouchableOpacity onPress={() => navigation.navigate('BlockedUsers')} style={s.logoutBtn}>
+                            <Text style={s.logoutText}>🚫 Engellenenler</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={openSupport} style={s.logoutBtn}>
                             <Text style={s.logoutText}>💬 Destek</Text>
                         </TouchableOpacity>

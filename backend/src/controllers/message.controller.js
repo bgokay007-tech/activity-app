@@ -32,14 +32,37 @@ export const getConversations = async (req, res, next) => {
             orderBy: { updatedAt: 'desc' },
         });
 
+        const unreadCounts = conversations.length ? await prisma.message.groupBy({
+            by: ['conversationId'],
+            where: { conversationId: { in: conversations.map(c => c.id) }, senderId: { not: req.userId }, read: false },
+            _count: { id: true },
+        }) : [];
+        const unreadMap = Object.fromEntries(unreadCounts.map(u => [u.conversationId, u._count.id]));
+
         const result = conversations.map(c => ({
             ...c,
             other: c.user1Id === req.userId ? c.user2 : c.user1,
             lastMessage: c.messages[0] || null,
-            unreadCount: 0,
+            unreadCount: unreadMap[c.id] || 0,
         }));
 
         res.json(result);
+    } catch (error) { next(error); }
+};
+
+// Alt sekme rozeti (📩) için tüm sohbetlerdeki toplam okunmamış mesaj sayısı —
+// bildirim rozetiyle aynı desende (bkz. notification.controller.js), hafif ve
+// sık pollanabilir bir uç nokta.
+export const getUnreadMessageCount = async (req, res, next) => {
+    try {
+        const count = await prisma.message.count({
+            where: {
+                senderId: { not: req.userId },
+                read: false,
+                conversation: { OR: [{ user1Id: req.userId }, { user2Id: req.userId }] },
+            },
+        });
+        res.json({ unreadCount: count });
     } catch (error) { next(error); }
 };
 
@@ -87,9 +110,9 @@ async function sendPushNotification(pushToken, title, body) {
 export const sendMessage = async (req, res, next) => {
     try {
         const { userId: receiverId } = req.params;
-        const { content, equipmentListingId, coachListingId } = req.body;
+        const { content, equipmentListingId, coachListingId, imageUrl, audioUrl, audioDuration } = req.body;
 
-        if (!content?.trim()) return res.status(400).json({ message: 'Message cannot be empty' });
+        if (!content?.trim() && !imageUrl && !audioUrl) return res.status(400).json({ message: 'Message cannot be empty' });
 
         const blocked = await prisma.block.findFirst({
             where: { OR: [{ blockerId: req.userId, blockedId: receiverId }, { blockerId: receiverId, blockedId: req.userId }] },
@@ -101,9 +124,11 @@ export const sendMessage = async (req, res, next) => {
         const [message, sender, receiver] = await Promise.all([
             prisma.message.create({
                 data: {
-                    conversationId: conv.id, senderId: req.userId, content: content.trim(),
+                    conversationId: conv.id, senderId: req.userId, content: content?.trim() || '',
                     ...(equipmentListingId && { equipmentListingId }),
                     ...(coachListingId && { coachListingId }),
+                    ...(imageUrl && { imageUrl }),
+                    ...(audioUrl && { audioUrl, audioDuration: Number(audioDuration) || null }),
                 },
                 include: {
                     sender: { select: USER_SELECT },
@@ -123,7 +148,7 @@ export const sendMessage = async (req, res, next) => {
         emitToUser(receiverId, 'newMessage', socketPayload);
         emitToUser(req.userId, 'newMessage', socketPayload);
 
-        const notifBody = content.trim().slice(0, 100);
+        const notifBody = content?.trim() ? content.trim().slice(0, 100) : (message.imageUrl ? '📷 Fotoğraf' : message.audioUrl ? '🎤 Sesli mesaj' : '');
         const senderUsername = sender?.username;
 
         if (receiver?.pushToken) {

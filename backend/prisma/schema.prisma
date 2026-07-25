@@ -1070,6 +1070,11 @@ model Message {
   read           Boolean      @default(false)
   createdAt      DateTime     @default(now())
 
+  // Fotoğraf / sesli mesaj — content boş olabilir, bu durumda medyanın kendisi mesajdır.
+  imageUrl       String?
+  audioUrl       String?
+  audioDuration  Int?         // saniye
+
   // Bir ekipman ilanı üzerinden "Sohbet Aç" ile başlatılan mesajlar, hangi ilan hakkında
   // olduğunu taşır — sohbet ekranında ilan kartı gösterilir, bildirime tıklanınca ilana gidilir.
   equipmentListingId String?

@@ -106,6 +106,7 @@ import MessagesScreen from '../screens/main/MessagesScreen';
 import ChatScreen from '../screens/main/ChatScreen';
 import NotificationsScreen from '../screens/main/NotificationsScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
+import BlockedUsersScreen from '../screens/main/BlockedUsersScreen';
 import UserPostsScreen from '../screens/main/UserPostsScreen';
 import CreatePostScreen from '../screens/main/CreatePostScreen';
 import VenueSearchScreen from '../screens/main/VenueSearchScreen';
@@ -189,6 +190,7 @@ function ProfileStackNav() {
             <ProfileStack.Screen name="MyProfile" component={ProfileScreen} />
             <ProfileStack.Screen name="SubCategory" component={SubCategoryScreen} />
             <ProfileStack.Screen name="Profile" component={ProfileScreen} />
+            <ProfileStack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
             <ProfileStack.Screen name="UserPosts" component={UserPostsScreen} />
             <ProfileStack.Screen name="CreatePost" component={CreatePostScreen} />
             <ProfileStack.Screen name="BusinessHome" component={BusinessHomeScreen} />
@@ -250,6 +252,7 @@ function AppTabs() {
     const unreadNotifs = useSelector(s => s.notifications.unreadCount);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
+    const messagesPollRef = useRef(null);
     const shownNotifIdsRef = useRef(new Set());
 
     // Fetch unread count from backend — source of truth
@@ -266,6 +269,15 @@ function AppTabs() {
         } catch { /* silent */ }
     }, [dispatch]);
 
+    // Mesajlar sekmesi rozeti de aynı "sunucu = tek doğru kaynak" desenini izler —
+    // daha önce bu state hiç güncellenmiyordu, rozet asla görünmüyordu.
+    const syncMessagesBadge = useCallback(async () => {
+        try {
+            const { data } = await api.get('/messages/unread-count');
+            setUnreadMessages(data.unreadCount || 0);
+        } catch { /* silent */ }
+    }, []);
+
     // Poll every 30s — keeps badge in sync with server after mark-all-read
     useEffect(() => {
         const t = setTimeout(syncBadge, 2000);
@@ -273,7 +285,13 @@ function AppTabs() {
         return () => { clearTimeout(t); clearInterval(pollRef.current); };
     }, [syncBadge]);
 
-    // Socket connection — instant badge increment on new notification
+    useEffect(() => {
+        const t = setTimeout(syncMessagesBadge, 2000);
+        messagesPollRef.current = setInterval(syncMessagesBadge, 30000);
+        return () => { clearTimeout(t); clearInterval(messagesPollRef.current); };
+    }, [syncMessagesBadge]);
+
+    // Socket connection — instant badge increment on new notification/message
     useEffect(() => {
         if (!userId) return;
         connectSocket(userId);
@@ -287,7 +305,10 @@ function AppTabs() {
                 }).catch(() => {});
             }
         });
-        return () => { off(); disconnectSocket(); };
+        const offMsg = onSocket('newMessage', ({ message }) => {
+            if (message?.senderId && message.senderId !== userId) setUnreadMessages(c => c + 1);
+        });
+        return () => { off(); offMsg(); disconnectSocket(); };
     }, [userId, dispatch]);
 
     return (
