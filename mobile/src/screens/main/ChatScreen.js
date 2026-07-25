@@ -170,15 +170,11 @@ export default function ChatScreen({ route, navigation }) {
         return off;
     }, []);
 
-    // Bir antrenör ilanı bağlamında açılan sohbette, karşı tarafın hangi ilan hakkında
-    // yazıldığını her zaman görebilmesi için TÜM mesajlar (sadece ilki değil) ilan
-    // referansını taşır — bkz. coachListingCtx tabanlı banner. Metin, fotoğraf ve sesli
-    // mesajların hepsi bu ortak gönderim fonksiyonunu kullanır.
+    // Sadece "İletişime Geç" ile gönderilen İLK mesaj ilan referansı taşır (bkz.
+    // openChatWithCoach) — üstteki banner geçmişteki o tek mesajdan türetildiği için
+    // sohbet normal aktıkça her mesaja tekrar tekrar ilan kartı eklemeye gerek yok.
     const sendPayload = async (payload) => {
-        const { data } = await api.post(`/messages/send/${other?.id}`, {
-            ...payload,
-            ...(coachListingCtx?.id && { coachListingId: coachListingCtx.id }),
-        });
+        const { data } = await api.post(`/messages/send/${other?.id}`, payload);
         // Sunucu bu mesaji "newMessage" socket olayiyla gonderene de geri yansitiyor;
         // o olay burada olusan cevaptan once ulasmis olabilir, bu yuzden id'ye gore
         // dedup yapmadan eklersek ayni mesaj iki kez listelenebilir.
