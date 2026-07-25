@@ -665,5 +665,46 @@
     "reject": "❌ Reddet",
     "reject_reason_prompt": "Red nedeni (isteğe bağlı):",
     "loading": "Yükleniyor..."
+  },
+  "batak": {
+    "createTable": "Masa Kur",
+    "browseTitle": "Açık Masalar",
+    "variant": {
+      "ihaleli": "İhaleli Batak",
+      "esli_ihaleli": "Eşli İhaleli Batak",
+      "herkes_kendine": "Herkes Kendine Batak",
+      "gomme": "Gömmeli Batak"
+    },
+    "step": {
+      "chooseVariant": "Oyun türünü seç",
+      "chooseOpponent": "Rakip türünü seç",
+      "onlinePlayers": "Online Oyuncular",
+      "vsBot": "Botla Oyna",
+      "difficulty": "Zorluk seç",
+      "difficultySelected": "Zorluk: {{level}}",
+      "change": "değiştir",
+      "ratingRange": "Rakip Derece Aralığı (isteğe bağlı)",
+      "ratingRangeHint": "Sadece bu aralıktaki oyuncular katılabilir",
+      "stake": "Masaya Konacak Puan",
+      "stakeHint": "1'den istediğin kadar",
+      "extraRating": "Ayrıca derece de bahse girsin",
+      "spectatorOpen": "Seyirciye açık",
+      "spectatorOpenHint": "Oyuncular dışındakiler masayı izleyebilir ama kapalı kartları asla göremez",
+      "back": "Geri",
+      "create": "Masayı Kur",
+      "startVsBots": "Botlarla Başla"
+    },
+    "payout": {
+      "solo": "1. %75 alır, 2. amorti (koyduğunu geri alır), 3. ve 4. bahsini kaybeder.",
+      "team": "Kazanan takım potun tamamını alır, aralarında %50-%50 paylaşır."
+    },
+    "browse": {
+      "join": "Katıl",
+      "watch": "👁️ İzle",
+      "empty": "Şu an açık masa yok",
+      "createOne": "Sen kur",
+      "seats": "{{filled}}/4 dolu"
+    },
+    "spectating": "İzliyorsun"
   }
 }

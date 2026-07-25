@@ -24,6 +24,11 @@ const codeToTableId = new Map(); // özel masa paylaşım kodu -> tableId
 const BET_AMOUNTS = [0, 50, 100, 250, 500];       // puan bahis kademeleri (0 = puan bahsi yok)
 const RATING_AMOUNTS = [0, 0.10, 0.25, 0.50];     // derece (skillRating) bahis kademeleri (0 = derece bahsi yok)
 
+// Herkese açık masa kategorileri — bu sürümde 4'ü de aynı ihale motoruyla oynanır,
+// "esli_ihaleli" dışındakilerde kural farkı yok (sadece kategori/lobi ayrımı için).
+const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
+function isValidVariant(v) { return VARIANTS.includes(v); }
+
 function queueKey(betAmount, ratingAmount) { return `${betAmount}:${ratingAmount}`; }
 function getQueue(betAmount, ratingAmount) {
     const key = queueKey(betAmount, ratingAmount);
@@ -96,13 +101,28 @@ async function chargeStakes(table) {
 // kazanan olamazlar, hatta skorları iyi olsa bile.
 function computePayouts(table) {
     if ((!table.betAmount || table.betAmount <= 0) && (!table.ratingAmount || table.ratingAmount <= 0)) return null;
-    const ranking = table.seats
-        .map(s => ({ seat: s.seat, effective: table.leftEarly[s.seat] ? -Infinity : table.scores[s.seat] }))
-        .sort((a, b) => b.effective - a.effective || a.seat - b.seat);
     const pointPot = (table.betAmount || 0) * 4;
     const ratingPot = (table.ratingAmount || 0) * 4;
     const points = [0, 0, 0, 0];
     const rating = [0, 0, 0, 0];
+
+    // Eşli İhaleli Batak: koltuklar takım (0+2 / 1+3), kazanan takım potun
+    // tamamını alır ve aralarında yarı yarıya paylaşır.
+    if (table.isTeamGame) {
+        const eff = seat => table.leftEarly[seat] ? -Infinity : table.scores[seat];
+        const teamAScore = eff(0) + eff(2);
+        const teamBScore = eff(1) + eff(3);
+        const winners = teamAScore >= teamBScore ? [0, 2] : [1, 3];
+        winners.forEach(seat => {
+            points[seat] = Math.floor(pointPot / 2);
+            rating[seat] = Math.round(ratingPot / 2 * 100) / 100;
+        });
+        return { points, rating };
+    }
+
+    const ranking = table.seats
+        .map(s => ({ seat: s.seat, effective: table.leftEarly[s.seat] ? -Infinity : table.scores[s.seat] }))
+        .sort((a, b) => b.effective - a.effective || a.seat - b.seat);
     if (ranking[0]) {
         points[ranking[0].seat] = Math.floor(pointPot * 3 / 4);
         rating[ranking[0].seat] = Math.round(ratingPot * 3 / 4 * 100) / 100;
@@ -160,6 +180,10 @@ function publicState(table) {
         ratingAmount: table.ratingAmount || 0,
         ratingRangeMin: table.ratingRangeMin ?? null,
         ratingRangeMax: table.ratingRangeMax ?? null,
+        variant: table.variant || 'ihaleli',
+        listed: !!table.listed,
+        spectatorOpen: !!table.spectatorOpen,
+        isTeamGame: !!table.isTeamGame,
         seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, open: !!s.open, handCount: table.hands[s.seat]?.length ?? 0 })),
         dealerIndex: table.dealerIndex,
         turn: table.phase === 'bidding' ? table.biddingTurn : table.phase === 'playing' ? table.turn : null,
@@ -535,10 +559,11 @@ function tryMatch(io) {
     }
 }
 
-// ── Özel masa (arkadaşla oyna) — kuyruğa girmez, kurucu bekleme odasında 3 açık
-// koltuğa arkadaş davet edebilir veya masa kodunu paylaşabilir. 4. kişi katılınca
-// (kod ile veya davet kabulüyle) normal 'bidding' akışına geçilir.
-function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax) {
+// ── Özel masa (arkadaşla oyna / herkese açık masa) — kuyruğa girmez, kurucu
+// bekleme odasında 3 açık koltuğa arkadaş davet edebilir, masa kodunu
+// paylaşabilir, veya (listed:true ise) masa o varyantın herkese-açık lobi
+// ızgarasında görünür. 4. kişi katılınca normal 'bidding' akışına geçilir.
+function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax, variant = 'ihaleli', listed = false, spectatorOpen = false) {
     const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     let code = genCode();
     while (codeToTableId.has(code)) code = genCode();
@@ -548,6 +573,10 @@ function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeM
         ratingAmount: ratingAmount || 0,
         ratingRangeMin: ratingRangeMin ?? null,
         ratingRangeMax: ratingRangeMax ?? null,
+        variant,
+        listed: !!listed,
+        spectatorOpen: !!spectatorOpen,
+        isTeamGame: variant === 'esli_ihaleli',
         leftEarly: [false, false, false, false],
         seats: [
             { seat: 0, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false, open: false },
@@ -571,13 +600,12 @@ function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeM
         seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar, seat: s.seat, isBot: s.isBot, open: s.open })),
     });
     broadcastState(io, table);
+    if (table.listed) emitLobbySnapshot(io, table.variant);
     return table;
 }
 
-function joinTableByCode(io, joiner, code) {
-    const tableId = codeToTableId.get(String(code || '').trim().toUpperCase());
-    const table = tableId && tables.get(tableId);
-    if (!table) throw new Error('Kod geçersiz veya masa artık yok');
+// `joinTableByCode` ve `joinTableById` ortak koltuk-doldurma çekirdeği.
+function joinTableCore(io, joiner, table) {
     if (table.phase !== 'waiting') throw new Error('Bu masa artık katılıma kapalı');
     if (userTableMap.has(joiner.userId)) throw new Error('Zaten bir masadasın');
     const openSeat = table.seats.find(s => s.open);
@@ -606,7 +634,49 @@ function joinTableByCode(io, joiner, code) {
     } else {
         broadcastState(io, table);
     }
+    if (table.listed) emitLobbySnapshot(io, table.variant);
     return table;
+}
+
+function joinTableByCode(io, joiner, code) {
+    const tableId = codeToTableId.get(String(code || '').trim().toUpperCase());
+    const table = tableId && tables.get(tableId);
+    if (!table) throw new Error('Kod geçersiz veya masa artık yok');
+    return joinTableCore(io, joiner, table);
+}
+
+function joinTableById(io, joiner, tableId) {
+    const table = tables.get(tableId);
+    if (!table) throw new Error('Masa artık yok');
+    return joinTableCore(io, joiner, table);
+}
+
+// ── Varyant bazlı herkese-açık masa lobisi — sadece `listed:true` ve hâlâ
+// boş koltuğu olan bekleyen masalar listelenir. `batak-lobby:<variant>` odasına
+// katılan istemciler masa kurulunca/dolununca/katılım olunca canlı güncellenir.
+function listOpenListedTables(variant) {
+    const result = [];
+    for (const table of tables.values()) {
+        if (table.variant !== variant || !table.listed || table.phase !== 'waiting') continue;
+        if (!table.seats.some(s => s.open)) continue;
+        result.push({
+            tableId: table.id,
+            variant: table.variant,
+            betAmount: table.betAmount || 0,
+            ratingAmount: table.ratingAmount || 0,
+            ratingRangeMin: table.ratingRangeMin ?? null,
+            ratingRangeMax: table.ratingRangeMax ?? null,
+            spectatorOpen: !!table.spectatorOpen,
+            isTeamGame: !!table.isTeamGame,
+            seats: table.seats.map(s => ({ seat: s.seat, userId: s.userId, username: s.username, avatar: s.avatar, open: s.open })),
+            openSeatCount: table.seats.filter(s => s.open).length,
+        });
+    }
+    return result;
+}
+
+function emitLobbySnapshot(io, variant) {
+    io.to(`batak-lobby:${variant}`).emit('batak:tableList', { variant, tables: listOpenListedTables(variant) });
 }
 
 export function registerBatakHandlers(io, socket) {
@@ -657,17 +727,18 @@ export function registerBatakHandlers(io, socket) {
         }
     });
 
-    socket.on('batak:createPrivateTable', async ({ betAmount, ratingAmount = 0, ratingRangeMin = null, ratingRangeMax = null } = {}) => {
+    socket.on('batak:createPrivateTable', async ({ betAmount, ratingAmount = 0, ratingRangeMin = null, ratingRangeMax = null, variant = 'ihaleli', listed = false, spectatorOpen = false } = {}) => {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId) || isUserQueued(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
         if (!isValidPrivateStake(betAmount, ratingAmount)) return socket.emit('batak:error', { message: 'Geçersiz bahis miktarı' });
         if (!isValidRatingRange(ratingRangeMin, ratingRangeMax)) return socket.emit('batak:error', { message: 'Geçersiz derece aralığı' });
+        if (!isValidVariant(variant)) return socket.emit('batak:error', { message: 'Geçersiz oyun türü' });
         const interest = await getGameInterest(verifiedUserId);
         if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
         if (interest.walletPoints <= 0) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Puanın bitti, bahisli masalara giremezsin.' });
         if (interest.walletPoints < betAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Yetersiz puan bakiyesi.' });
         if (interest.skillRating < ratingAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_RATING', message: 'Yetersiz derece.' });
-        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax);
+        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax, variant, listed, spectatorOpen);
     });
 
     socket.on('batak:joinByCode', async ({ code } = {}) => {
@@ -684,6 +755,47 @@ export function registerBatakHandlers(io, socket) {
         if (table.ratingRangeMax != null && interest.skillRating > table.ratingRangeMax) return socket.emit('batak:error', { code: 'RATING_OUT_OF_RANGE', message: `Bu masaya katılmak için en fazla ${table.ratingRangeMax.toFixed(2)} derecen olabilir.` });
         try { joinTableByCode(io, { userId: verifiedUserId, username, avatar, socket }, code); }
         catch (e) { socket.emit('batak:error', { message: e.message }); }
+    });
+
+    // Varyant bazlı herkese-açık masa lobisi: ızgarayı görüntülemek için abone
+    // olunur (canlı güncellenir), ID ile katılınır, seyirciye-açık masalar
+    // izlenebilir (eller asla gönderilmez, publicState zaten seyirci-güvenli).
+    socket.on('batak:listTables', ({ variant } = {}) => {
+        if (!isValidVariant(variant)) return socket.emit('batak:error', { message: 'Geçersiz oyun türü' });
+        socket.join(`batak-lobby:${variant}`);
+        socket.emit('batak:tableList', { variant, tables: listOpenListedTables(variant) });
+    });
+
+    socket.on('batak:unsubscribeLobby', ({ variant } = {}) => {
+        if (isValidVariant(variant)) socket.leave(`batak-lobby:${variant}`);
+    });
+
+    socket.on('batak:joinTable', async ({ tableId } = {}) => {
+        if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
+        const table = tables.get(tableId);
+        if (!table) return socket.emit('batak:error', { message: 'Masa artık yok' });
+        const interest = await getGameInterest(verifiedUserId);
+        if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
+        if (interest.walletPoints <= 0) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Puanın bitti, bahisli masalara giremezsin.' });
+        if (table.betAmount > 0 && interest.walletPoints < table.betAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Bu masaya katılmak için yeterli puanın yok.' });
+        if (table.ratingAmount > 0 && interest.skillRating < table.ratingAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_RATING', message: 'Bu masaya katılmak için yeterli derecen yok.' });
+        if (table.ratingRangeMin != null && interest.skillRating < table.ratingRangeMin) return socket.emit('batak:error', { code: 'RATING_OUT_OF_RANGE', message: `Bu masaya katılmak için en az ${table.ratingRangeMin.toFixed(2)} derecen olmalı.` });
+        if (table.ratingRangeMax != null && interest.skillRating > table.ratingRangeMax) return socket.emit('batak:error', { code: 'RATING_OUT_OF_RANGE', message: `Bu masaya katılmak için en fazla ${table.ratingRangeMax.toFixed(2)} derecen olabilir.` });
+        try { joinTableById(io, { userId: verifiedUserId, username, avatar, socket }, tableId); }
+        catch (e) { socket.emit('batak:error', { message: e.message }); }
+    });
+
+    socket.on('batak:spectateTable', ({ tableId } = {}) => {
+        if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
+        const table = tables.get(tableId);
+        if (!table) return socket.emit('batak:error', { message: 'Masa artık yok' });
+        if (!table.spectatorOpen) return socket.emit('batak:error', { message: 'Bu masa seyirciye açık değil' });
+        socket.join(`batak:${tableId}`);
+        socket.emit('batak:state', publicState(table));
+    });
+
+    socket.on('batak:leaveSpectate', ({ tableId } = {}) => {
+        if (tableId) socket.leave(`batak:${tableId}`);
     });
 
     socket.on('batak:inviteFriend', async ({ tableId, userId: targetUserId } = {}) => {

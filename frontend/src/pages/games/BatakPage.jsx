@@ -3,8 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Navbar from '../../components/Navbar';
 import Avatar from '../../components/Avatar';
+import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import { connectSocket, getSocket, onSocket } from '../../services/socket';
+import CreateTableModal from '../../components/batak/CreateTableModal';
+import BrowseTablesModal from '../../components/batak/BrowseTablesModal';
+
+const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
 
 const SUIT_SYMBOL = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const SUIT_COLOR = { S: '#111827', C: '#111827', H: '#dc2626', D: '#dc2626' };
@@ -43,7 +48,7 @@ function CardBack({ small }) {
 
 // Özel masa bekleme odası — kurucu 3. koltuğu bir arkadaşıyla doldurana kadar burada
 // bekler: masa kodunu paylaşabilir veya doğrudan arkadaş listesinden davet gönderebilir.
-function WaitingRoom({ state, myId, tableId, onExit }) {
+function WaitingRoom({ state, myId, tableId, onExit, spectating = false }) {
     const [friends, setFriends] = useState([]);
     const [loadingFriends, setLoadingFriends] = useState(true);
     const [onlineIds, setOnlineIds] = useState(new Set());
@@ -72,14 +77,19 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
 
     return (
         <div className="max-w-md mx-auto">
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center mb-4">
-                <p className="text-gray-400 text-xs font-bold mb-2">Masa Kodu</p>
-                <p className="text-white text-3xl font-black tracking-[0.3em] mb-3">{state.code}</p>
-                <button onClick={copyCode} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-xs">
-                    {copied ? '✓ Kopyalandı' : 'Kodu Kopyala'}
-                </button>
-                <p className="text-gray-500 text-[11px] mt-3">Bu kodu paylaşarak arkadaşların masaya katılabilir.</p>
-            </div>
+            {spectating && (
+                <p className="text-amber-300 text-xs font-bold text-center mb-3">👁️ İzliyorsun — masa dolana kadar bekleniyor</p>
+            )}
+            {!spectating && (
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center mb-4">
+                    <p className="text-gray-400 text-xs font-bold mb-2">Masa Kodu</p>
+                    <p className="text-white text-3xl font-black tracking-[0.3em] mb-3">{state.code}</p>
+                    <button onClick={copyCode} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-xs">
+                        {copied ? '✓ Kopyalandı' : 'Kodu Kopyala'}
+                    </button>
+                    <p className="text-gray-500 text-[11px] mt-3">Bu kodu paylaşarak arkadaşların masaya katılabilir.</p>
+                </div>
+            )}
 
             <div className="flex gap-1.5 mb-4">
                 {state.seats.map(seat => (
@@ -99,6 +109,7 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
                 ))}
             </div>
 
+            {!spectating && (
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
                 <p className="text-gray-400 text-xs font-bold mb-2">Arkadaşlarını Davet Et</p>
                 {loadingFriends ? (
@@ -127,13 +138,14 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
                     </div>
                 )}
             </div>
+            )}
 
-            <button onClick={onExit} className="w-full bg-gray-800 border border-gray-700 text-gray-300 font-bold py-2.5 rounded-xl text-sm">Masadan Ayrıl</button>
+            <button onClick={onExit} className="w-full bg-gray-800 border border-gray-700 text-gray-300 font-bold py-2.5 rounded-xl text-sm">{spectating ? 'İzlemeyi Bırak' : 'Masadan Ayrıl'}</button>
         </div>
     );
 }
 
-function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
+function BatakBoard({ tableId, myId, onExit, onActiveWagerChange, spectating = false }) {
     const [state, setState] = useState(null);
     const [hand, setHand] = useState([]);
     const [roundEnd, setRoundEnd] = useState(null);
@@ -159,26 +171,27 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     useEffect(() => () => { if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current); }, []);
 
     useEffect(() => {
-        getSocket()?.emit('batak:getState', { tableId });
+        getSocket()?.emit(spectating ? 'batak:spectateTable' : 'batak:getState', { tableId });
         const offState = onSocket('batak:state', (data) => { if (data.tableId === tableId) { setState(data); if (data.phase !== 'roundEnd') setRoundEnd(null); } });
         const offHand = onSocket('batak:hand', (data) => setHand(data.hand || []));
         const offRoundEnd = onSocket('batak:roundEnd', (data) => setRoundEnd(data));
         const offGameEnd = onSocket('batak:gameEnd', (data) => setGameEnd(data));
         const offErr = onSocket('batak:error', (data) => alert(data?.message || 'Bir hata oluştu.'));
         return () => { offState(); offHand(); offRoundEnd(); offGameEnd(); offErr(); };
-    }, [tableId]);
+    }, [tableId, spectating]);
 
     useEffect(() => {
-        const leave = () => getSocket()?.emit('batak:leaveTable', { tableId });
+        const leave = () => getSocket()?.emit(spectating ? 'batak:leaveSpectate' : 'batak:leaveTable', { tableId });
         return leave;
-    }, [tableId]);
+    }, [tableId, spectating]);
 
     // Bahisli bir el aktif oynanırken (bekleme odası/oyun bitmiş değilken) üst bileşene
-    // haber veriliyor ki sekme kapatma/geri gitmede uyarı gösterilebilsin.
+    // haber veriliyor ki sekme kapatma/geri gitmede uyarı gösterilebilsin. Seyirci için
+    // hiçbir bahis riski yok, bu uyarı hiç tetiklenmez.
     useEffect(() => {
-        const active = !!(state && (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'waiting' && state.phase !== 'finished');
+        const active = !spectating && !!(state && (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'waiting' && state.phase !== 'finished');
         onActiveWagerChange?.(active);
-    }, [state?.betAmount, state?.phase, onActiveWagerChange]);
+    }, [state?.betAmount, state?.phase, onActiveWagerChange, spectating]);
     useEffect(() => () => onActiveWagerChange?.(false), [onActiveWagerChange]);
 
     const leadSuit = state?.leadSuit;
@@ -191,15 +204,16 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     if (!state) return <p className="text-gray-500 text-sm text-center py-16">Masaya bağlanılıyor...</p>;
 
     if (state.phase === 'waiting') {
-        return <WaitingRoom state={state} myId={myId} tableId={tableId} onExit={() => { getSocket()?.emit('batak:leaveTable', { tableId }); onExit(); }} />;
+        return <WaitingRoom state={state} myId={myId} tableId={tableId} spectating={spectating} onExit={() => { getSocket()?.emit(spectating ? 'batak:leaveSpectate' : 'batak:leaveTable', { tableId }); onExit(); }} />;
     }
 
     const mySeatInfo = state.seats.find(seat => seat.userId === myId);
+    const isSpectator = spectating || !mySeatInfo;
     const mySeat = mySeatInfo ? mySeatInfo.seat : 0;
     const order = [mySeat, (mySeat + 1) % 4, (mySeat + 2) % 4, (mySeat + 3) % 4];
     const [bottomSeat, leftSeat, topSeat, rightSeat] = order;
     const seatByIdx = (seat) => state.seats.find(x => x.seat === seat) || {};
-    const isMyTurn = state.turn === mySeat;
+    const isMyTurn = !isSpectator && state.turn === mySeat;
     // publicState yalnızca 'bidding'/'playing' fazlarında `turn` alanını dolduruyor;
     // 'choosingTrump' fazında sırası gelen highestBidder'dır — koltuk vurgusu için
     // üç fazı da kapsayan ayrı bir "aktif koltuk" hesaplanıyor.
@@ -215,9 +229,9 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
         getSocket()?.emit('batak:playCard', { tableId, card });
     };
     const goBack = () => {
-        const isActiveWager = (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'finished';
+        const isActiveWager = !isSpectator && (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'finished';
         if (isActiveWager && !confirm(LEAVE_WARNING)) return;
-        getSocket()?.emit('batak:leaveTable', { tableId });
+        getSocket()?.emit(isSpectator ? 'batak:leaveSpectate' : 'batak:leaveTable', { tableId });
         onExit();
     };
     const bidOptions = Array.from({ length: 13 - state.highestBid }, (_, i) => state.highestBid + 1 + i);
@@ -229,8 +243,11 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                 @keyframes cardPopIn { 0% { transform: scale(0.4); opacity: 0; } 65% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
             `}</style>
             <div className="flex items-center justify-between mb-2">
-                <button onClick={goBack} className="text-white text-sm">‹ Ayrıl</button>
-                <p className="text-white text-sm font-bold">El {state.roundNumber}/{state.totalRounds}</p>
+                <button onClick={goBack} className="text-white text-sm">{isSpectator ? '‹ İzlemeyi Bırak' : '‹ Ayrıl'}</button>
+                <p className="text-white text-sm font-bold">
+                    El {state.roundNumber}/{state.totalRounds}
+                    {isSpectator && <span className="ml-2 text-amber-300 font-normal">👁️ İzliyorsun</span>}
+                </p>
                 {state.trumpSuit ? (
                     <div className="bg-white/90 rounded-lg px-2.5 py-1">
                         <span className="font-black text-sm" style={{ color: SUIT_COLOR[state.trumpSuit] }}>Koz: {SUIT_SYMBOL[state.trumpSuit]}</span>
@@ -283,15 +300,15 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                 </div>
             </div>
 
-            <div className={`text-center mt-2 rounded-xl py-2 transition ${(isMyTurn || (state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? 'bg-amber-500/20' : ''}`}>
-                <p className={(isMyTurn || (state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? 'text-amber-300 font-black' : 'text-amber-300/80 text-xs font-bold'}
-                    style={(isMyTurn || (state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? { fontSize: '1rem' } : undefined}>
+            <div className={`text-center mt-2 rounded-xl py-2 transition ${(isMyTurn || (!isSpectator && state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? 'bg-amber-500/20' : ''}`}>
+                <p className={(isMyTurn || (!isSpectator && state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? 'text-amber-300 font-black' : 'text-amber-300/80 text-xs font-bold'}
+                    style={(isMyTurn || (!isSpectator && state.phase === 'choosingTrump' && state.highestBidder === mySeat)) ? { fontSize: '1rem' } : undefined}>
                     {state.phase === 'bidding' && (
                         <>{isMyTurn ? 'Sıra sende — ihale ver veya pas geç' : `${seatByIdx(state.turn).username} ihale veriyor...`}
                             {state.highestBid > 0 ? `  ·  En yüksek: ${state.highestBid} (${seatByIdx(state.highestBidder).username})` : ''}</>
                     )}
                     {state.phase === 'choosingTrump' && (
-                        state.highestBidder === mySeat ? 'Koz seç' : `${seatByIdx(state.highestBidder).username} koz seçiyor...`
+                        (!isSpectator && state.highestBidder === mySeat) ? 'Koz seç' : `${seatByIdx(state.highestBidder).username} koz seçiyor...`
                     )}
                     {state.phase === 'playing' && (isMyTurn ? 'Sıra sende' : `${seatByIdx(state.turn).username} oynuyor...`)}
                 </p>
@@ -307,7 +324,7 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                 </div>
             )}
 
-            {state.phase === 'choosingTrump' && state.highestBidder === mySeat && (
+            {!isSpectator && state.phase === 'choosingTrump' && state.highestBidder === mySeat && (
                 <div className="flex justify-center gap-3 mt-3">
                     {['S', 'H', 'D', 'C'].map(suit => (
                         <button key={suit} onClick={() => chooseTrump(suit)} className="bg-white/90 rounded-xl w-12 h-12 flex items-center justify-center text-2xl font-black" style={{ color: SUIT_COLOR[suit] }}>
@@ -356,7 +373,7 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                                     {gameEnd.payouts?.rating?.[seat.seat] > 0 && <span className="text-sky-400 font-bold"> (+{gameEnd.payouts.rating[seat.seat].toFixed(2)} derece)</span>}
                                 </p>
                             ))}
-                        {gameEnd.payouts && gameEnd.payouts.points[mySeat] === 0 && gameEnd.payouts.rating[mySeat] === 0 && (state.betAmount > 0 || state.ratingAmount > 0) && (
+                        {!isSpectator && gameEnd.payouts && gameEnd.payouts.points[mySeat] === 0 && gameEnd.payouts.rating[mySeat] === 0 && (state.betAmount > 0 || state.ratingAmount > 0) && (
                             <p className="text-red-400 text-xs text-center mt-2">Bahis puanını/dereceni kaybettin.</p>
                         )}
                         <button onClick={goBack} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl mt-4">Geri Dön</button>
@@ -370,7 +387,10 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange }) {
 const BET_TIERS = [50, 100, 250, 500];
 const RATING_TIERS = [0, 0.10, 0.25, 0.50];
 
-function BatakLobby({ myName, onMatched }) {
+function BatakLobby({ myName, onMatched, onSpectate }) {
+    const { t } = useTranslation();
+    const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [browseVariant, setBrowseVariant] = useState(null);
     const [searching, setSearching] = useState(false);
     const [queuePos, setQueuePos] = useState(null);
     const [difficulty, setDifficulty] = useState('medium');
@@ -484,6 +504,29 @@ function BatakLobby({ myName, onMatched }) {
                 <span className="text-amber-400 font-black text-lg">🪙 {interest.walletPoints} <span className="text-gray-500 text-xs font-normal">puan</span></span>
                 <span className="text-sky-400 font-black text-lg">⭐ {interest.skillRating?.toFixed(2)} <span className="text-gray-500 text-xs font-normal">derece</span></span>
             </div>
+
+            <button onClick={() => setCreateModalOpen(true)}
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black py-3.5 rounded-2xl mb-3 text-sm">
+                🎪 {t('batak.createTable')}
+            </button>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+                {VARIANTS.map(v => (
+                    <button key={v} onClick={() => setBrowseVariant(v)}
+                        className="bg-gray-900 border border-gray-800 hover:border-purple-500 text-white font-bold px-3 py-2.5 rounded-xl text-xs transition">
+                        {t(`batak.variant.${v}`)}
+                    </button>
+                ))}
+            </div>
+
+            {createModalOpen && (
+                <CreateTableModal interest={interest} onClose={() => setCreateModalOpen(false)} />
+            )}
+            {browseVariant && (
+                <BrowseTablesModal variant={browseVariant} onClose={() => setBrowseVariant(null)}
+                    onJoined={() => setBrowseVariant(null)}
+                    onSpectate={(tableId) => { setBrowseVariant(null); onSpectate?.(tableId); }} />
+            )}
+
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center mb-4">
                 <p className="text-5xl mb-3">🃏</p>
                 <p className="text-gray-400 text-xs font-bold mb-2">Puan Bahsi</p>
@@ -591,7 +634,9 @@ function BatakPage() {
         } catch { return user?.id || null; }
     })();
     const [tableId, setTableId] = useState(null);
+    const [spectating, setSpectating] = useState(false);
     const [activeWager, setActiveWager] = useState(false);
+    const exitTable = () => { setTableId(null); setSpectating(false); };
 
     useEffect(() => { if (myId) connectSocket(myId); }, [myId]);
 
@@ -612,8 +657,8 @@ function BatakPage() {
             <Navbar onBack={handleBack} title="Batak" />
             <div className="px-4 py-6">
                 {tableId
-                    ? <BatakBoard tableId={tableId} myId={myId} onExit={() => setTableId(null)} onActiveWagerChange={setActiveWager} />
-                    : <BatakLobby myName={user?.fullName || user?.username || 'Oyuncu'} onMatched={setTableId} />}
+                    ? <BatakBoard tableId={tableId} myId={myId} onExit={exitTable} onActiveWagerChange={setActiveWager} spectating={spectating} />
+                    : <BatakLobby myName={user?.fullName || user?.username || 'Oyuncu'} onMatched={setTableId} onSpectate={(id) => { setSpectating(true); setTableId(id); }} />}
             </div>
         </div>
     );

@@ -665,5 +665,46 @@
     "reject": "❌ Reject",
     "reject_reason_prompt": "Rejection reason (optional):",
     "loading": "Loading..."
+  },
+  "batak": {
+    "createTable": "Set Up a Table",
+    "browseTitle": "Open Tables",
+    "variant": {
+      "ihaleli": "Auction Batak",
+      "esli_ihaleli": "Paired Auction Batak",
+      "herkes_kendine": "Everyone For Themselves",
+      "gomme": "Buried Batak"
+    },
+    "step": {
+      "chooseVariant": "Choose a game type",
+      "chooseOpponent": "Choose opponent type",
+      "onlinePlayers": "Online Players",
+      "vsBot": "Play vs Bot",
+      "difficulty": "Choose difficulty",
+      "difficultySelected": "Difficulty: {{level}}",
+      "change": "change",
+      "ratingRange": "Opponent Rating Range (optional)",
+      "ratingRangeHint": "Only players within this range can join",
+      "stake": "Table Stake (points)",
+      "stakeHint": "Any amount from 1 upward",
+      "extraRating": "Also wager rating",
+      "spectatorOpen": "Open to spectators",
+      "spectatorOpenHint": "Non-players can watch the table but never see hidden cards",
+      "back": "Back",
+      "create": "Set Up Table",
+      "startVsBots": "Start vs Bots"
+    },
+    "payout": {
+      "solo": "1st takes 75%, 2nd breaks even, 3rd & 4th lose their stake.",
+      "team": "The winning team takes the whole pot, split 50/50 between partners."
+    },
+    "browse": {
+      "join": "Join",
+      "watch": "👁️ Watch",
+      "empty": "No open tables right now",
+      "createOne": "Set one up",
+      "seats": "{{filled}}/4 seated"
+    },
+    "spectating": "You're spectating"
   }
 }

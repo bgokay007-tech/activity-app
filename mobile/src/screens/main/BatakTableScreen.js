@@ -59,7 +59,7 @@ function CardBack({ small }) {
 
 // Özel masa bekleme odası — kurucu 3. koltuğu bir arkadaşıyla doldurana kadar burada
 // bekler: masa kodunu paylaşabilir veya doğrudan arkadaş listesinden davet gönderebilir.
-function BatakWaitingRoom({ state, myId, tableId, onExit }) {
+function BatakWaitingRoom({ state, myId, tableId, onExit, spectating = false }) {
     const [friends, setFriends] = useState([]);
     const [loadingFriends, setLoadingFriends] = useState(true);
     const [onlineIds, setOnlineIds] = useState(new Set());
@@ -86,11 +86,16 @@ function BatakWaitingRoom({ state, myId, tableId, onExit }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <ScrollView contentContainerStyle={{ padding: 16 }}>
-                <View style={s.waitCodeBox}>
-                    <Text style={s.waitCodeLabel}>Masa Kodu</Text>
-                    <Text style={s.waitCodeValue}>{state.code}</Text>
-                    <Text style={s.waitCodeHint}>Bu kodu paylaşarak arkadaşların masaya katılabilir.</Text>
-                </View>
+                {spectating && (
+                    <Text style={{ color: '#fbbf24', fontWeight: '800', textAlign: 'center', marginBottom: 12 }}>👁️ İzliyorsun — masa dolana kadar bekleniyor</Text>
+                )}
+                {!spectating && (
+                    <View style={s.waitCodeBox}>
+                        <Text style={s.waitCodeLabel}>Masa Kodu</Text>
+                        <Text style={s.waitCodeValue}>{state.code}</Text>
+                        <Text style={s.waitCodeHint}>Bu kodu paylaşarak arkadaşların masaya katılabilir.</Text>
+                    </View>
+                )}
 
                 <View style={s.waitSeatRow}>
                     {state.seats.map(seat => (
@@ -110,6 +115,7 @@ function BatakWaitingRoom({ state, myId, tableId, onExit }) {
                     ))}
                 </View>
 
+                {!spectating && (
                 <View style={s.waitInviteBox}>
                     <Text style={s.waitInviteTitle}>Arkadaşlarını Davet Et</Text>
                     {loadingFriends ? (
@@ -143,9 +149,10 @@ function BatakWaitingRoom({ state, myId, tableId, onExit }) {
                         })
                     )}
                 </View>
+                )}
 
                 <TouchableOpacity style={s.waitLeaveBtn} onPress={onExit}>
-                    <Text style={s.waitLeaveBtnText}>Masadan Ayrıl</Text>
+                    <Text style={s.waitLeaveBtnText}>{spectating ? 'İzlemeyi Bırak' : 'Masadan Ayrıl'}</Text>
                 </TouchableOpacity>
             </ScrollView>
         </View>
@@ -154,7 +161,7 @@ function BatakWaitingRoom({ state, myId, tableId, onExit }) {
 
 export default function BatakTableScreen({ route, navigation }) {
     const t = useT();
-    const { tableId } = route.params;
+    const { tableId, spectating = false } = route.params;
     const myId = useSelector(x => x.auth.user?.id);
 
     const [state, setState] = useState(null);
@@ -182,8 +189,8 @@ export default function BatakTableScreen({ route, navigation }) {
 
     useFocusEffect(useCallback(() => {
         const socket = getSocket();
-        socket?.emit('batak:getState', { tableId });
-    }, [tableId]));
+        socket?.emit(spectating ? 'batak:spectateTable' : 'batak:getState', { tableId });
+    }, [tableId, spectating]));
 
     useEffect(() => {
         const offState = onSocket('batak:state', (data) => {
@@ -199,15 +206,16 @@ export default function BatakTableScreen({ route, navigation }) {
     }, [tableId, t]);
 
     const leaveTable = useCallback(() => {
-        getSocket()?.emit('batak:leaveTable', { tableId });
-    }, [tableId]);
+        getSocket()?.emit(spectating ? 'batak:leaveSpectate' : 'batak:leaveTable', { tableId });
+    }, [tableId, spectating]);
 
     useEffect(() => () => leaveTable(), [leaveTable]);
 
     // Bahisli bir el aktif oynanırken (bekleme odası/oyun bitmiş değilken) geri
-    // gidilmeye/başka ekrana geçilmeye çalışılırsa uyarı gösterilir.
+    // gidilmeye/başka ekrana geçilmeye çalışılırsa uyarı gösterilir. Seyirci için
+    // hiçbir bahis riski yok, bu uyarı hiç tetiklenmez.
     useEffect(() => {
-        const isActiveWager = !!(state && (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'waiting' && state.phase !== 'finished');
+        const isActiveWager = !spectating && !!(state && (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'waiting' && state.phase !== 'finished');
         if (!isActiveWager) return;
         const unsub = navigation.addListener('beforeRemove', (e) => {
             e.preventDefault();
@@ -241,15 +249,16 @@ export default function BatakTableScreen({ route, navigation }) {
     }
 
     if (state.phase === 'waiting') {
-        return <BatakWaitingRoom state={state} myId={myId} tableId={tableId} onExit={() => { leaveTable(); navigation.goBack(); }} />;
+        return <BatakWaitingRoom state={state} myId={myId} tableId={tableId} spectating={spectating} onExit={() => { leaveTable(); navigation.goBack(); }} />;
     }
 
     const mySeatInfo = state.seats.find(seat => seat.userId === myId);
+    const isSpectator = spectating || !mySeatInfo;
     const mySeat = mySeatInfo ? mySeatInfo.seat : 0;
     const order = [mySeat, (mySeat + 1) % 4, (mySeat + 2) % 4, (mySeat + 3) % 4];
     const [bottomSeat, leftSeat, topSeat, rightSeat] = order;
     const seatByIdx = (seat) => state.seats.find(x => x.seat === seat) || {};
-    const isMyTurn = state.turn === mySeat;
+    const isMyTurn = !isSpectator && state.turn === mySeat;
     // publicState yalnızca 'bidding'/'playing' fazlarında `turn` alanını dolduruyor;
     // 'choosingTrump' fazında sırası gelen kişi highestBidder'dır — koltuk vurgusu
     // (Fix 4) için üç fazı da kapsayan ayrı bir "aktif koltuk" hesaplanıyor.
@@ -277,7 +286,10 @@ export default function BatakTableScreen({ route, navigation }) {
                 <TouchableOpacity onPress={goBack} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
                 </TouchableOpacity>
-                <Text style={s.roundText}>{t.batakRound || 'El'} {state.roundNumber}/{state.totalRounds}</Text>
+                <Text style={s.roundText}>
+                    {t.batakRound || 'El'} {state.roundNumber}/{state.totalRounds}
+                    {isSpectator ? ` · 👁️ ${t.batakSpectating || 'İzliyorsun'}` : ''}
+                </Text>
                 {state.trumpSuit ? (
                     <View style={s.trumpBadge}>
                         <Text style={[s.trumpBadgeText, { color: SUIT_COLOR[state.trumpSuit] }]}>{t.batakTrump || 'Koz'}: {SUIT_SYMBOL[state.trumpSuit]}</Text>
@@ -329,7 +341,7 @@ export default function BatakTableScreen({ route, navigation }) {
             </View>
 
             {/* Durum satırı */}
-            <View style={[s.statusRow, activeSeat === mySeat && s.statusRowActive]}>
+            <View style={[s.statusRow, !isSpectator && activeSeat === mySeat && s.statusRowActive]}>
                 {state.phase === 'bidding' && (
                     <Text style={[s.statusText, isMyTurn && s.statusTextActive]}>
                         {isMyTurn ? (t.batakYourBid || 'Sıra sende — ihale ver veya pas geç')
@@ -338,8 +350,8 @@ export default function BatakTableScreen({ route, navigation }) {
                     </Text>
                 )}
                 {state.phase === 'choosingTrump' && (
-                    <Text style={[s.statusText, state.highestBidder === mySeat && s.statusTextActive]}>
-                        {state.highestBidder === mySeat ? (t.batakChooseTrump || 'Koz seç')
+                    <Text style={[s.statusText, !isSpectator && state.highestBidder === mySeat && s.statusTextActive]}>
+                        {(!isSpectator && state.highestBidder === mySeat) ? (t.batakChooseTrump || 'Koz seç')
                             : `${seatByIdx(state.highestBidder).username} ${t.batakChoosingTrump || 'koz seçiyor...'}`}
                     </Text>
                 )}
@@ -368,7 +380,7 @@ export default function BatakTableScreen({ route, navigation }) {
             )}
 
             {/* Koz seçimi */}
-            {state.phase === 'choosingTrump' && state.highestBidder === mySeat && (
+            {!isSpectator && state.phase === 'choosingTrump' && state.highestBidder === mySeat && (
                 <View style={s.trumpRow}>
                     {['S', 'H', 'D', 'C'].map(suit => (
                         <TouchableOpacity key={suit} style={s.trumpChip} onPress={() => chooseTrump(suit)}>
@@ -428,7 +440,7 @@ export default function BatakTableScreen({ route, navigation }) {
                                     {gameEnd.payouts?.rating?.[seat.seat] > 0 && <Text style={s.ratingPayoutText}> (+{gameEnd.payouts.rating[seat.seat].toFixed(2)} derece)</Text>}
                                 </Text>
                             ))}
-                        {gameEnd && gameEnd.payouts && gameEnd.payouts.points[mySeat] === 0 && gameEnd.payouts.rating[mySeat] === 0 && (state.betAmount > 0 || state.ratingAmount > 0) && (
+                        {!isSpectator && gameEnd && gameEnd.payouts && gameEnd.payouts.points[mySeat] === 0 && gameEnd.payouts.rating[mySeat] === 0 && (state.betAmount > 0 || state.ratingAmount > 0) && (
                             <Text style={s.lossText}>Bahis puanını/dereceni kaybettin.</Text>
                         )}
                         <TouchableOpacity style={s.modalBtn} onPress={goBack}>
