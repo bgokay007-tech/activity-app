@@ -169,7 +169,7 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
         const DURATIONS = [60, 90, 120, 150, 180];
         return (
             <div className="w-52 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
-                <p className="text-white font-bold text-sm mb-2">{court.name}</p>
+                <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({VB_SLOT_TYPE_LABEL[data.type] || data.type})</span></p>
                 <div className="space-y-2 max-h-72 overflow-y-auto">
                     {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">Boş pencere yok</p>}
                     {windows.map((w, i) => {
@@ -209,8 +209,7 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
     const slots = data.slots || [];
     return (
         <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
-            <p className="text-white font-bold text-sm mb-1">{court.name}</p>
-            <p className="text-gray-600 text-[10px] mb-2">{VB_SLOT_TYPE_LABEL[data.type] || data.type}</p>
+            <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({VB_SLOT_TYPE_LABEL[data.type] || data.type})</span></p>
             <div className="space-y-1.5 max-h-72 overflow-y-auto">
                 {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">Slot yok</p>}
                 {slots.map(s => {
