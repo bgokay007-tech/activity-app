@@ -1967,8 +1967,13 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
             dynamicRoundDeadlinePassed = Date.now() >= nominalDeadline.getTime();
         }
 
-        if (currentRoundDone || dynamicRoundDeadlinePassed) {
-            const maxRound = Math.max(...allGroupMatches.map(m => m.round));
+        const maxRound = Math.max(...allGroupMatches.map(m => m.round));
+        // Joker gevşemesi sayesinde bir sonraki tur ZATEN kurulmuş olabilir (bu maç, o sırada
+        // hâlâ PENDING kalan eski bir turun "sarkan" maçıydı — match.round burada maxRound'dan
+        // KÜÇÜK olur). Böyle bir durumda bu maçın şimdi tamamlanması yeni bir tur ÜRETMEMELİ,
+        // çünkü sonraki tur zaten var; sadece aşağıdaki "hiç PENDING kalmadı mı" (turnuva
+        // otomatik tamamlama) kontrolüne düşmesi yeterli.
+        if ((currentRoundDone || dynamicRoundDeadlinePassed) && match.round === maxRound) {
             const sideCount = isTeamTournament ? new Set(allGroupMatches.flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean)).size : tournament.participants.length;
             // type '2' ve '3': tüm turlar başta pre-generate edilir (full round-robin /
             // rastgele kura), asla 3'e cap'lenmez ve dinamik tur üretilmez.
