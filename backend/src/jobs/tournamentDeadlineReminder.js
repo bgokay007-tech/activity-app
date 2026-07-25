@@ -2,6 +2,13 @@ import prisma from '../config/prisma.js';
 import { createNotification } from '../controllers/notification.controller.js';
 import { advanceTournamentAfterMatch } from '../controllers/tournament.controller.js';
 
+// tournament.controller.js'teki advanceTournamentAfterMatch, tip '1' turnuvalarda bir turun
+// deadline'ı geçtiğinde joker'li tek bir açık maçı beklemeden bir sonraki grup turunu kurar —
+// ama bu fonksiyon sadece bir MAÇ tamamlandığında reaktif olarak çağrılıyor. Bir turdaki son
+// açık maç joker'liyse (kendi deadline'ı hâlâ gelecekte) başka hiçbir maç tamamlanmayacağı için
+// bu kontrol bir daha asla tetiklenmeyebilir. Bu job periyodik olarak "tıkanmış" turları tarayıp
+// aynı fonksiyonu senkron bir maç olmadan da tetikler.
+
 // Deadline'a kalan süreye göre gönderilecek hatırlatma pencereleri (büyükten küçüğe).
 const WINDOWS = [
     { key: '3d', hours: 72, label: '3 gün' },
@@ -171,11 +178,53 @@ async function autoDrawExpiredMatches() {
     }
 }
 
+/** Tip '1' turnuvalarda mevcut grup turunda hâlâ PENDING maç varsa (muhtemelen joker'le
+ *  uzatılmış), advanceTournamentAfterMatch'i senkron bir maç tamamlanması olmadan tekrar
+ *  çağırır — fonksiyonun kendi içindeki dynamicRoundDeadlinePassed kontrolü, turun orijinal
+ *  deadline'ı gerçekten geçmediyse zaten hiçbir şey yapmaz (no-op), o yüzden burada ekstra
+ *  bir deadline kontrolüne gerek yok. */
+async function advanceStuckDynamicRounds() {
+    try {
+        const tournaments = await prisma.tournament.findMany({
+            where: { status: 'IN_PROGRESS', type: '1' },
+            include: {
+                participants: {
+                    where: { status: 'ACCEPTED' },
+                    include: { user: { select: { id: true, username: true, fullName: true } } },
+                },
+            },
+        });
+        if (tournaments.length === 0) return;
+
+        for (const tournament of tournaments) {
+            try {
+                const groupMatches = await prisma.tournamentMatch.findMany({
+                    where: { tournamentId: tournament.id, phase: 'GROUP' },
+                    select: { round: true, status: true },
+                });
+                if (groupMatches.length === 0) continue;
+                const maxRound = Math.max(...groupMatches.map(m => m.round));
+                const hasPending = groupMatches.some(m => m.round === maxRound && m.status === 'PENDING');
+                if (!hasPending) continue;
+
+                await advanceTournamentAfterMatch(tournament, { round: maxRound, phase: 'GROUP' }, false, false);
+            } catch (tErr) {
+                console.error(`[tournamentDeadlineReminder] advanceStuckDynamicRounds failed for tournament ${tournament.id}:`, tErr.message);
+            }
+        }
+    } catch (err) {
+        console.error('[tournamentDeadlineReminder] advanceStuckDynamicRounds error:', err.message);
+    }
+}
+
 export function startTournamentDeadlineReminderJob() {
     checkAndNotifyUpcomingDeadlines();
     autoDrawExpiredMatches();
+    advanceStuckDynamicRounds();
     setInterval(checkAndNotifyUpcomingDeadlines, 30 * 60 * 1000); // every 30 minutes
     setInterval(autoDrawExpiredMatches, 15 * 60 * 1000); // every 15 minutes
+    setInterval(advanceStuckDynamicRounds, 15 * 60 * 1000); // every 15 minutes
     console.log('⏳ Tournament match deadline reminder job started (every 30 min)');
     console.log('🤝 Tournament match auto-draw job started (every 15 min)');
+    console.log('🔓 Tournament stuck-round unblock job started (every 15 min)');
 }

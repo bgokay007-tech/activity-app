@@ -1942,7 +1942,21 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
         const currentRoundMatches = allGroupMatches.filter(m => m.round === match.round);
         const currentRoundDone = currentRoundMatches.every(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT');
 
-        if (currentRoundDone) {
+        // Tip '1' (dinamik tur üretimi): bir maç joker ile uzatılıp bu turun ORİJİNAL
+        // (joker'siz) deadline'ı geçtiyse, tek bir açık maç yüzünden herkesin bir sonraki
+        // grup turunu beklemesi saçma — bu turun deadline'ı geçince güncel derecelerle bir
+        // sonraki tur kurulur; joker'li maç kendi deadline'ında bağımsız sonuçlanmaya devam
+        // eder ("aynı kişiyle iki kez maç yok" kuralı PENDING maçları da "oynanmış eşleşme"
+        // sayıp zaten koruyor). Play-off'a geçilen SON tur bu gevşemeden ETKİLENMEZ —
+        // aşağıdaki playoff dalı ayrıca gerçek/tam bitişi (currentRoundDone) arar.
+        let dynamicRoundDeadlinePassed = false;
+        if (!currentRoundDone && tournament.type === '1') {
+            const nominalDeadline = new Date(tournamentBaseDate(tournament));
+            nominalDeadline.setDate(nominalDeadline.getDate() + match.round * 7);
+            dynamicRoundDeadlinePassed = Date.now() >= nominalDeadline.getTime();
+        }
+
+        if (currentRoundDone || dynamicRoundDeadlinePassed) {
             const maxRound = Math.max(...allGroupMatches.map(m => m.round));
             const sideCount = isTeamTournament ? new Set(allGroupMatches.flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean)).size : tournament.participants.length;
             // type '2' ve '3': tüm turlar başta pre-generate edilir (full round-robin /
@@ -1972,7 +1986,10 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                 if (nextRoundMatches.length > 0) {
                     await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
                 }
-            } else if (groupPhaseFullyDone && !existingPlayoff && !nextRoundAlreadyExists) {
+            } else if (currentRoundDone && groupPhaseFullyDone && !existingPlayoff && !nextRoundAlreadyExists) {
+                // Play-off'a geçiş joker gevşemesinden ETKİLENMEZ — son tur her zaman tam
+                // bitmeyi bekler (currentRoundDone yukarıdaki gevşetilmiş dynamicRoundDeadlinePassed
+                // değil, gerçek/tam bitiş).
                 // Tüm GROUP turları bitti → playoff oluştur (ELO sıralaması + averaj tiebreaker)
                 const players = isTeamTournament
                     ? (await prisma.tournamentTeam.findMany({ where: { tournamentId: id } })).map(t => ({
