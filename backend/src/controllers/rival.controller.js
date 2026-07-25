@@ -653,7 +653,7 @@ export const createRivalRequest = async (req, res, next) => {
     try {
         const {
             category, subCategory, message, level, levelDetail,
-            location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
+            location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
             venueId, venueCourtId, venueReservationId,
             isCourtReserved, flexibleSchedule, matchDate, matchTime,
             matchType = 'SINGLE', matchMode = 'PRACTICE', teamFlexibility = 'FLEXIBLE',
@@ -706,6 +706,7 @@ export const createRivalRequest = async (req, res, next) => {
                 level,
                 levelDetail,
                 location,
+                district: district || null,
                 ...(ticketUrl && { ticketUrl }),
                 courtName: resolvedCourtName,
                 courtAddress,
@@ -928,6 +929,7 @@ export const createRivalRequest = async (req, res, next) => {
                             name: courtName,
                             address: courtAddress || null,
                             city: location,
+                            district: district || null,
                             sport,
                             lat: courtLat ? Number(courtLat) : null,
                             lng: courtLng ? Number(courtLng) : null,

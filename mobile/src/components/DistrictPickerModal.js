@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Modal, View, Text, TextInput, FlatList,
     TouchableOpacity, StyleSheet, ActivityIndicator,
@@ -6,74 +6,48 @@ import {
 import api from '../services/api';
 import colors from '../theme/colors';
 
-const TR_PROVINCES = [
-    'Adana','Adıyaman','Afyonkarahisar','Ağrı','Aksaray','Amasya','Ankara','Antalya',
-    'Ardahan','Artvin','Aydın','Balıkesir','Bartın','Batman','Bayburt','Bilecik',
-    'Bingöl','Bitlis','Bolu','Burdur','Bursa','Çanakkale','Çankırı','Çorum',
-    'Denizli','Diyarbakır','Düzce','Edirne','Elazığ','Erzincan','Erzurum','Eskişehir',
-    'Gaziantep','Giresun','Gümüşhane','Hakkari','Hatay','Iğdır','Isparta','İstanbul',
-    'İzmir','Kahramanmaraş','Karabük','Karaman','Kars','Kastamonu','Kayseri','Kilis',
-    'Kırıkkale','Kırklareli','Kırşehir','Kocaeli','Konya','Kütahya','Malatya','Manisa',
-    'Mardin','Mersin','Muğla','Muş','Nevşehir','Niğde','Ordu','Osmaniye','Rize',
-    'Sakarya','Samsun','Siirt','Sinop','Sivas','Şanlıurfa','Şırnak','Tekirdağ',
-    'Tokat','Trabzon','Tunceli','Uşak','Van','Yalova','Yozgat','Zonguldak',
-];
-
-const LOCAL_LIST = TR_PROVINCES.map(p => ({ label: p, value: p }));
-
-// `provinceOnly` (Batak ilan formundaki iki aşamalı il->ilçe akışı için): true
-// olduğunda canlı arama sonuçları sadece il seviyesine indirgenir (aynı ile ait
-// birden fazla ilçe satırı varsa tekilleştirilir) — statik `LOCAL_LIST` zaten
-// sadece il olduğu için o kısım değişmiyor.
-export default function CityPickerModal({ visible, onClose, onSelect, currentValue, onNearMe, nearMeLoading, provinceOnly = false }) {
+// `CityPickerModal`'ın ilçe sürümü — sabit bir liste yok (ilçeler sabit/eksiksiz
+// bir veri seti değil), sadece seçilen `province`'a bağlı `GET /cities?q=&province=`
+// canlı araması var. Hiç eşleşme yoksa yazılan metin "olarak ekle" satırıyla
+// doğrudan seçilebilir (yeni ilçe, ilan gönderilirken PENDING olarak `POST /cities`
+// ile kaydedilip admin onayına gider — mevcut il/ilçe crowd-source akışıyla aynı).
+export default function DistrictPickerModal({ visible, onClose, onSelect, currentValue, province }) {
     const [query, setQuery] = useState('');
-    const [results, setResults] = useState(LOCAL_LIST);
+    const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (!visible) return;
         setQuery('');
-        setResults(LOCAL_LIST);
+        setResults([]);
     }, [visible]);
 
     useEffect(() => {
+        if (!province) return;
         const q = query.trim();
-        if (!q) { setResults(LOCAL_LIST); return; }
-
+        setLoading(true);
         const timer = setTimeout(async () => {
-            setLoading(true);
             try {
-                const r = await api.get(`/cities?q=${encodeURIComponent(q)}`);
-                if (r.data.length > 0) {
-                    if (provinceOnly) {
-                        const provinces = [...new Set(r.data.map(c => c.province))];
-                        setResults(provinces.map(p => ({ label: p, value: p })));
-                    } else {
-                        setResults(r.data.map(c => ({
-                            label: c.district ? `${c.province} / ${c.district}` : c.province,
-                            value: c.district ? `${c.province} / ${c.district}` : c.province,
-                        })));
-                    }
-                } else {
-                    const ql = q.toLowerCase();
-                    setResults(LOCAL_LIST.filter(c => c.label.toLowerCase().includes(ql)));
-                }
+                const r = await api.get('/cities', { params: { q, province } });
+                setResults((r.data || []).filter(c => c.district).map(c => ({ label: c.district, value: c.district })));
             } catch {
-                const ql = q.toLowerCase();
-                setResults(LOCAL_LIST.filter(c => c.label.toLowerCase().includes(ql)));
+                setResults([]);
             } finally {
                 setLoading(false);
             }
         }, 300);
         return () => clearTimeout(timer);
-    }, [query]);
+    }, [query, province]);
+
+    const trimmedQuery = query.trim();
+    const exactMatch = results.some(r => r.value.toLowerCase() === trimmedQuery.toLowerCase());
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={s.overlay}>
                 <View style={s.sheet}>
                     <View style={s.header}>
-                        <Text style={s.title}>{provinceOnly ? 'İl Seç' : 'Şehir Seç'}</Text>
+                        <Text style={s.title}>İlçe Seç</Text>
                         <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                             <Text style={s.closeBtn}>✕</Text>
                         </TouchableOpacity>
@@ -82,7 +56,7 @@ export default function CityPickerModal({ visible, onClose, onSelect, currentVal
                         style={s.search}
                         value={query}
                         onChangeText={setQuery}
-                        placeholder={provinceOnly ? 'İl ara...' : 'İl veya ilçe ara...'}
+                        placeholder="İlçe ara..."
                         placeholderTextColor={colors.textMuted}
                         autoFocus
                     />
@@ -91,15 +65,13 @@ export default function CityPickerModal({ visible, onClose, onSelect, currentVal
                         data={results}
                         keyExtractor={(item, i) => `${item.value}-${i}`}
                         keyboardShouldPersistTaps="handled"
-                        ListHeaderComponent={onNearMe && !query.trim() ? (
-                            <TouchableOpacity
-                                style={s.item}
-                                onPress={onNearMe}
-                                disabled={nearMeLoading}
-                            >
-                                <Text style={[s.itemText, { color: colors.purple, fontWeight: '700' }]}>📡 Yakınımdaki</Text>
-                                {nearMeLoading && <ActivityIndicator size="small" color={colors.purple} />}
+                        ListHeaderComponent={trimmedQuery && !exactMatch ? (
+                            <TouchableOpacity style={s.item} onPress={() => { onSelect(trimmedQuery); onClose(); }}>
+                                <Text style={[s.itemText, { color: colors.purple, fontWeight: '700' }]}>＋ "{trimmedQuery}" olarak ekle</Text>
                             </TouchableOpacity>
+                        ) : null}
+                        ListEmptyComponent={!loading && !trimmedQuery ? (
+                            <Text style={s.emptyText}>İlçe adını yazmaya başla...</Text>
                         ) : null}
                         renderItem={({ item }) => {
                             const active = currentValue === item.value;
@@ -161,4 +133,5 @@ const s = StyleSheet.create({
     itemActive: { backgroundColor: colors.purple + '18' },
     itemText: { color: colors.text, fontSize: 15 },
     itemTextActive: { color: colors.purple, fontWeight: '600' },
+    emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', padding: 20 },
 });

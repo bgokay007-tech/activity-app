@@ -59,7 +59,7 @@ export const getAllCourts = async (req, res, next) => {
 
 export const searchCourts = async (req, res, next) => {
     try {
-        const { city, sport, surface, indoor } = req.query;
+        const { city, sport, surface, indoor, verifiedOnly } = req.query;
         const name = req.query.name || req.query.q;
 
         const courtWhere = {
@@ -68,6 +68,7 @@ export const searchCourts = async (req, res, next) => {
             sport: sport || undefined,
             surface: surface || undefined,
             indoor: indoor === 'true' ? true : indoor === 'false' ? false : undefined,
+            ...(verifiedOnly === 'true' ? { verified: true } : {}),
         };
 
         const [courts, venues] = await Promise.all([
@@ -260,17 +261,18 @@ export const getPendingCourts = async (req, res, next) => {
 export const verifyCourt = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, address, city, sport, surface } = req.body; // admin can correct fields before approving
+        const { name, address, city, district, sport, surface } = req.body; // admin can correct fields before approving
         const court = await prisma.court.update({
             where: { id },
             data: {
                 verified: true,
                 pending: false,
-                ...(name    && { name }),
-                ...(address && { address }),
-                ...(city    && { city }),
-                ...(sport   && { sport }),
-                ...(surface && { surface }),
+                ...(name     && { name }),
+                ...(address  && { address }),
+                ...(city     && { city }),
+                ...(district !== undefined && { district: district || null }),
+                ...(sport    && { sport }),
+                ...(surface  && { surface }),
             },
         });
         res.json(court);

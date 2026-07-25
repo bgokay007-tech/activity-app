@@ -380,6 +380,7 @@ function VenuesPanel() {
                     <div className="grid grid-cols-2 gap-2">
                         <div><label className="text-gray-500 text-xs block mb-1">Name</label>{field(court.id, 'name', 'Venue name', court.name)}</div>
                         <div><label className="text-gray-500 text-xs block mb-1">City</label>{field(court.id, 'city', 'City', court.city)}</div>
+                        <div><label className="text-gray-500 text-xs block mb-1">District</label>{field(court.id, 'district', 'District', court.district)}</div>
                         <div className="col-span-2"><label className="text-gray-500 text-xs block mb-1">Address</label>{field(court.id, 'address', 'Address', court.address)}</div>
                         <div>
                             <label className="text-gray-500 text-xs block mb-1">Zemin</label>

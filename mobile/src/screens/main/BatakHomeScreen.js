@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, FlatList, Image,
+    View, Text, TextInput, TouchableOpacity, FlatList, Image, Linking,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, ScrollView,
 } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -11,6 +11,9 @@ import api from '../../services/api';
 import useT from '../../hooks/useT';
 import { getSocket, onSocket } from '../../services/socket';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
+import CityPickerModal from '../../components/CityPickerModal';
+import DistrictPickerModal from '../../components/DistrictPickerModal';
+import VenueNameAutocomplete from '../../components/VenueNameAutocomplete';
 import Avatar from '../../components/Avatar';
 
 const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
@@ -21,6 +24,21 @@ const noEmojiStr = (str) => (str || '').replace(/^\S+\s+/, '');
 function fmtDate(d) {
     if (!d) return null;
     return d.toISOString().slice(0, 10);
+}
+
+// VenueDetailScreen.js'teki maps-linki deseninin aynısı: kesin koordinat
+// (courtLat/courtLng) varsa onunla, yoksa mekan adı+ilçe+il+açık adres
+// metniyle Google Maps araması açılır — yeni bir geocoding servisi gerekmez.
+function openMapsForItem(item) {
+    let url;
+    if (item.courtLat && item.courtLng) {
+        url = `https://maps.google.com/?q=${item.courtLat},${item.courtLng}`;
+    } else {
+        const parts = [item.courtName, item.district, item.location, item.courtAddress].filter(Boolean);
+        if (parts.length === 0) return;
+        url = `https://maps.google.com/?q=${encodeURIComponent(parts.join(', '))}`;
+    }
+    Linking.openURL(url);
 }
 
 function EventCard({ item, myId, onJoin, onOpen, t }) {
@@ -34,10 +52,16 @@ function EventCard({ item, myId, onJoin, onOpen, t }) {
                 <Text style={s.eventCount}>👥 {participantCount}</Text>
             </View>
             {item.message ? <Text style={s.eventMessage} numberOfLines={3}>{item.message}</Text> : null}
-            <View style={s.eventMetaRow}>
-                {item.courtName ? <Text style={s.eventMeta}>📍 {item.courtName}</Text> : null}
-                {item.location ? <Text style={s.eventMeta}>🏙️ {item.location}</Text> : null}
-            </View>
+            {(item.courtName || item.location) ? (
+                <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); openMapsForItem(item); }} activeOpacity={0.7}>
+                    <View style={s.eventMetaRow}>
+                        {item.courtName ? <Text style={[s.eventMeta, s.eventMetaLink]}>📍 {item.courtName}</Text> : null}
+                        {item.district ? <Text style={s.eventMeta}>{item.district}</Text> : null}
+                        {item.location ? <Text style={s.eventMeta}>🏙️ {item.location}</Text> : null}
+                    </View>
+                    {item.courtAddress ? <Text style={s.eventMeta}>{item.courtAddress}</Text> : null}
+                </TouchableOpacity>
+            ) : null}
             {(item.matchDate || item.matchTime) ? (
                 <Text style={s.eventMeta}>
                     📅 {item.matchDate ? fmtDate(new Date(item.matchDate)) : (t.batakFlexibleDate || 'Esnek tarih')}{item.matchTime ? ` · ${item.matchTime}` : ''}
@@ -117,8 +141,11 @@ export default function BatakHomeScreen({ navigation }) {
     const [showCreateEvent, setShowCreateEvent] = useState(false);
     const [creatingEvent, setCreatingEvent] = useState(false);
     const [showEventDatePicker, setShowEventDatePicker] = useState(false);
-    const EVENT_INIT = { message: '', venueName: '', city: '', date: null, time: '' };
+    const [showEventCityPicker, setShowEventCityPicker] = useState(false);
+    const [showEventDistrictPicker, setShowEventDistrictPicker] = useState(false);
+    const EVENT_INIT = { message: '', venueName: '', city: '', district: '', courtAddress: '', courtLat: null, courtLng: null, date: null, time: '' };
     const [eventForm, setEventForm] = useState(EVENT_INIT);
+    const [venueLocked, setVenueLocked] = useState(false);
 
     const loadEvents = useCallback(async () => {
         setEventsLoading(true);
@@ -141,17 +168,27 @@ export default function BatakHomeScreen({ navigation }) {
         if (!eventForm.message.trim()) return Alert.alert('', t.batakEventMsgRequired || 'Açıklama girin.');
         setCreatingEvent(true);
         try {
+            // İl+ilçe henüz kayıtlı listede yoksa (yeni yazılmış olabilir) sessizce
+            // mevcut crowd-source akışına eklenir — kayıtlıysa upsert no-op'tur.
+            if (eventForm.city.trim() && eventForm.district.trim()) {
+                api.post('/cities', { province: eventForm.city.trim(), district: eventForm.district.trim() }).catch(() => {});
+            }
             await api.post('/rivals', {
                 category: 'GAMES', subCategory: 'batak',
                 message: eventForm.message.trim(),
                 courtName: eventForm.venueName.trim() || undefined,
                 location: eventForm.city.trim() || undefined,
+                district: eventForm.district.trim() || undefined,
+                courtAddress: eventForm.courtAddress.trim() || undefined,
+                courtLat: eventForm.courtLat || undefined,
+                courtLng: eventForm.courtLng || undefined,
                 flexibleSchedule: !eventForm.date,
                 matchDate: eventForm.date ? eventForm.date.toISOString() : undefined,
-                matchTime: eventForm.time.trim() || undefined,
+                matchTime: eventForm.date ? (eventForm.time.trim() || undefined) : undefined,
             });
             setShowCreateEvent(false);
             setEventForm(EVENT_INIT);
+            setVenueLocked(false);
             loadEvents();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.batakEventCreateError || 'İlan oluşturulamadı.');
@@ -381,21 +418,56 @@ export default function BatakHomeScreen({ navigation }) {
                                     />
 
                                     <Text style={s.fieldLabel}>{t.batakVenueLabel || 'Mekan / Yer'}</Text>
-                                    <TextInput
-                                        value={eventForm.venueName}
-                                        onChangeText={v => setEventForm(f => ({ ...f, venueName: v }))}
-                                        placeholder={t.batakVenuePh || 'Ör: Kadıköy Kıraathane'}
-                                        placeholderTextColor={colors.textMuted}
-                                        style={s.modalInput}
-                                    />
+                                    {venueLocked ? (
+                                        <TouchableOpacity style={[s.modalInput, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
+                                            onPress={() => { setVenueLocked(false); }}>
+                                            <Text style={{ color: '#fff', flex: 1 }} numberOfLines={1}>{eventForm.venueName}</Text>
+                                            <Text style={{ color: colors.purpleLight || colors.purple, fontSize: 12, fontWeight: '700' }}>{t.batakVenueChange || 'Değiştir'}</Text>
+                                        </TouchableOpacity>
+                                    ) : (
+                                        <VenueNameAutocomplete
+                                            value={eventForm.venueName}
+                                            onChangeText={v => setEventForm(f => ({ ...f, venueName: v }))}
+                                            sport="batak"
+                                            placeholder={t.batakVenuePh || 'Ör: Kadıköy Kıraathane'}
+                                            onSelect={(court) => {
+                                                setEventForm(f => ({
+                                                    ...f,
+                                                    venueName: court.name,
+                                                    city: court.city || f.city,
+                                                    district: court.district || f.district,
+                                                    courtAddress: court.address || f.courtAddress,
+                                                    courtLat: court.lat ?? f.courtLat,
+                                                    courtLng: court.lng ?? f.courtLng,
+                                                }));
+                                                setVenueLocked(true);
+                                            }}
+                                        />
+                                    )}
 
-                                    <Text style={s.fieldLabel}>{t.batakCityLabel || 'Şehir'}</Text>
+                                    <Text style={s.fieldLabel}>{t.batakCityLabel || 'İl'}</Text>
+                                    <TouchableOpacity style={s.modalInput} onPress={() => setShowEventCityPicker(true)} disabled={venueLocked}>
+                                        <Text style={{ color: eventForm.city ? '#fff' : colors.textMuted }}>
+                                            {eventForm.city || (t.batakCityPh || 'İl seç')}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <Text style={s.fieldLabel}>{t.batakDistrictLabel || 'İlçe'}</Text>
+                                    <TouchableOpacity style={[s.modalInput, !eventForm.city && { opacity: 0.4 }]}
+                                        onPress={() => eventForm.city && setShowEventDistrictPicker(true)} disabled={venueLocked || !eventForm.city}>
+                                        <Text style={{ color: eventForm.district ? '#fff' : colors.textMuted }}>
+                                            {eventForm.district || (t.batakDistrictPh || 'İlçe seç')}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <Text style={s.fieldLabel}>{t.batakAddressLabel || 'Açık Adres'}</Text>
                                     <TextInput
-                                        value={eventForm.city}
-                                        onChangeText={v => setEventForm(f => ({ ...f, city: v }))}
-                                        placeholder={t.batakCityPh || 'Ör: İstanbul'}
+                                        value={eventForm.courtAddress}
+                                        onChangeText={v => setEventForm(f => ({ ...f, courtAddress: v }))}
+                                        placeholder={t.batakAddressPh || 'Sokak, bina no, kat vb.'}
                                         placeholderTextColor={colors.textMuted}
                                         style={s.modalInput}
+                                        editable={!venueLocked}
                                     />
 
                                     <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -407,22 +479,38 @@ export default function BatakHomeScreen({ navigation }) {
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={s.fieldLabel}>{t.batakTimeLabel || 'Saat'}</Text>
-                                            <TextInput
-                                                value={eventForm.time}
-                                                onChangeText={v => setEventForm(f => ({ ...f, time: v }))}
-                                                placeholder="20:00"
-                                                placeholderTextColor={colors.textMuted}
-                                                style={s.modalInput}
-                                            />
-                                        </View>
+                                        {eventForm.date ? (
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={s.fieldLabel}>{t.batakTimeLabel || 'Saat'}</Text>
+                                                <TextInput
+                                                    value={eventForm.time}
+                                                    onChangeText={v => setEventForm(f => ({ ...f, time: v }))}
+                                                    placeholder="20:00"
+                                                    placeholderTextColor={colors.textMuted}
+                                                    style={s.modalInput}
+                                                />
+                                            </View>
+                                        ) : null}
                                     </View>
                                     <CalendarPickerModal
                                         visible={showEventDatePicker}
                                         value={eventForm.date}
                                         onSelect={(d) => { setEventForm(f => ({ ...f, date: d })); setShowEventDatePicker(false); }}
                                         onClose={() => setShowEventDatePicker(false)}
+                                    />
+                                    <CityPickerModal
+                                        visible={showEventCityPicker}
+                                        provinceOnly
+                                        currentValue={eventForm.city}
+                                        onSelect={(v) => setEventForm(f => ({ ...f, city: v, district: '' }))}
+                                        onClose={() => setShowEventCityPicker(false)}
+                                    />
+                                    <DistrictPickerModal
+                                        visible={showEventDistrictPicker}
+                                        province={eventForm.city}
+                                        currentValue={eventForm.district}
+                                        onSelect={(v) => setEventForm(f => ({ ...f, district: v }))}
+                                        onClose={() => setShowEventDistrictPicker(false)}
                                     />
 
                                     <TouchableOpacity style={s.submitBtn} onPress={submitEvent} disabled={creatingEvent}>
@@ -698,6 +786,7 @@ const s = StyleSheet.create({
     eventMessage: { color: colors.text, fontSize: 13, marginTop: 6, lineHeight: 18 },
     eventMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
     eventMeta: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
+    eventMetaLink: { color: colors.purpleLight || colors.purple, fontWeight: '700', textDecorationLine: 'underline' },
     joinBtn: { backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 8, alignItems: 'center', marginTop: 8 },
     joinBtnDisabled: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
     joinBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },

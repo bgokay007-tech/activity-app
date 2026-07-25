@@ -593,6 +593,7 @@ model ActivityRequest {
   message         String?
   level           String?
   location        String?
+  district        String?
   ticketUrl       String?   // Sanat kategorisi (tiyatro/müzik/sinema vb.) için gerçek bilet satış sayfası linki
   courtName       String?
   courtAddress    String?
@@ -962,6 +963,7 @@ model Court {
   name        String
   address     String?
   city        String
+  district    String?
   country     String?
   lat         Float?
   lng         Float?
