@@ -18,17 +18,46 @@ const RANK_LABEL = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
 function rankLabel(card) { const rank = parseInt(card.slice(0, -1), 10); return RANK_LABEL[rank] || String(rank); }
 function cardSuit(card) { return card.slice(-1); }
 
-function PlayingCard({ card, small, disabled, rejected, popIn, onClick }) {
+// `draggable` olduğunda basılı tutup sürüklemek elindeki kartları yeniden
+// sıralar (sadece görsel tercih, sunucuya hiçbir şey gönderilmez); küçük bir
+// hareket eşiğinin (8px) altında kalan basışlar hâlâ tıklama gibi davranıp
+// `onClick`'i (kartı oyna) tetikler.
+function PlayingCard({ card, small, disabled, rejected, popIn, onClick, draggable, onReorderOver }) {
     const suit = cardSuit(card);
     const sizeCls = small ? 'w-8 h-11' : 'w-10 h-14';
+    const dragRef = useRef({ moved: false, startX: 0, startY: 0 });
+
+    const handlePointerDown = (e) => {
+        if (!draggable) return;
+        dragRef.current = { moved: false, startX: e.clientX, startY: e.clientY };
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+    };
+    const handlePointerMove = (e) => {
+        if (!draggable) return;
+        const d = dragRef.current;
+        const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+        if (!d.moved && Math.hypot(dx, dy) > 8) d.moved = true;
+        if (!d.moved) return;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const targetCard = el?.closest('[data-card-id]')?.getAttribute('data-card-id');
+        if (targetCard && targetCard !== card) onReorderOver?.(card, targetCard);
+    };
+    const handlePointerUp = () => {
+        if (draggable && dragRef.current.moved) { dragRef.current.moved = false; return; }
+        onClick?.(card);
+    };
+
     return (
-        <button onClick={onClick ? () => onClick(card) : undefined}
+        <button data-card-id={card}
+            onClick={draggable ? undefined : (onClick ? () => onClick(card) : undefined)}
+            onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}
             className={`${sizeCls} rounded-md flex flex-col items-center justify-center border-2 flex-shrink-0 transition-all duration-150 ${rejected ? 'animate-[batakShake_0.4s_ease-in-out]' : ''} ${popIn ? 'animate-[cardPopIn_0.28s_ease-out]' : ''}`}
             style={{
                 background: 'linear-gradient(180deg, #fffdf8 0%, #f3e8cf 100%)',
                 borderColor: rejected ? '#ef4444' : '#d6c6a1',
                 boxShadow: '0 2px 0 #b8a276, 0 3px 5px rgba(0,0,0,.35)',
                 opacity: disabled ? 0.35 : 1, cursor: onClick ? 'pointer' : 'default',
+                touchAction: draggable ? 'none' : undefined, userSelect: draggable ? 'none' : undefined,
             }}>
             <span className={`font-black leading-none ${small ? 'text-[10px]' : 'text-xs'}`} style={{ color: SUIT_COLOR[suit], textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{rankLabel(card)}</span>
             <span className={`font-black leading-none ${small ? 'text-xs' : 'text-base'}`} style={{ color: SUIT_COLOR[suit], textShadow: '0 1px 0 rgba(255,255,255,.5)' }}>{SUIT_SYMBOL[suit]}</span>
@@ -148,6 +177,30 @@ function WaitingRoom({ state, myId, tableId, onExit, spectating = false }) {
 function BatakBoard({ tableId, myId, onExit, onActiveWagerChange, spectating = false }) {
     const [state, setState] = useState(null);
     const [hand, setHand] = useState([]);
+    // Elin görsel sırası — sunucudan gelen `hand` (oyun mantığı için tek doğru
+    // kaynak) sırasından bağımsız: oyuncu kartlarını sürükleyerek kendine göre
+    // dizebilsin diye ayrıca tutuluyor, sadece yeni gelen/oynanan kartlar için
+    // senkronlanıyor (mevcut kartların elle verilmiş sırası korunur).
+    const [handOrder, setHandOrder] = useState([]);
+    useEffect(() => {
+        setHandOrder(prev => {
+            const kept = prev.filter(c => hand.includes(c));
+            const keptSet = new Set(kept);
+            const added = hand.filter(c => !keptSet.has(c));
+            return [...kept, ...added];
+        });
+    }, [hand]);
+    const reorderHand = (fromCard, toCard) => {
+        setHandOrder(prev => {
+            const from = prev.indexOf(fromCard);
+            const to = prev.indexOf(toCard);
+            if (from === -1 || to === -1 || from === to) return prev;
+            const next = [...prev];
+            const [moved] = next.splice(from, 1);
+            next.splice(to, 0, moved);
+            return next;
+        });
+    };
     const [roundEnd, setRoundEnd] = useState(null);
     const [gameEnd, setGameEnd] = useState(null);
     const [hint, setHint] = useState('');
@@ -335,11 +388,13 @@ function BatakBoard({ tableId, myId, onExit, onActiveWagerChange, spectating = f
             )}
 
             <div className="flex flex-wrap justify-center gap-1.5 mt-4 pb-2">
-                {hand.map(card => (
+                {handOrder.map(card => (
                     <PlayingCard key={card} card={card}
                         disabled={!(state.phase === 'playing' && isMyTurn && legalCards.includes(card))}
                         rejected={rejectedCard === card}
-                        onClick={playCard} />
+                        onClick={playCard}
+                        draggable={!isSpectator}
+                        onReorderOver={reorderHand} />
                 ))}
             </div>
 

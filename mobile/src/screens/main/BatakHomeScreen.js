@@ -64,22 +64,7 @@ export default function BatakHomeScreen({ navigation }) {
     const myName = useSelector(s => s.auth.user?.fullName || s.auth.user?.username);
     const [mainTab, setMainTab] = useState('play'); // 'play' | 'events'
     const [createModalOpen, setCreateModalOpen] = useState(false);
-    const [browseVariant, setBrowseVariant] = useState(null);
 
-    // ── Batak Oyna: eşleştirme ──────────────────────────────────────────────
-    const [searching, setSearching] = useState(false);
-    const [queuePos, setQueuePos] = useState(null);
-    const [difficulty, setDifficulty] = useState('medium');
-    const [joinCode, setJoinCode] = useState('');
-    const [betAmount, setBetAmount] = useState(100);
-    const [ratingAmount, setRatingAmount] = useState(0);
-    // Özel masa: serbest miktar — kurucu 1'den istediği kadar puan girebilir (kim
-    // katılacağını zaten kod/davetle kendisi belirlediği için sabit kademeye gerek yok.
-    const [privateBetAmount, setPrivateBetAmount] = useState('100');
-    const [wagerRating, setWagerRating] = useState(false);
-    const [privateRatingAmount, setPrivateRatingAmount] = useState('0.10');
-    const [ratingRangeMin, setRatingRangeMin] = useState('');
-    const [ratingRangeMax, setRatingRangeMax] = useState('');
     // undefined: bakiye/aktivite yükleniyor, null: aktivite henüz eklenmemiş, obje: eklenmiş
     const [interest, setInterest] = useState(undefined);
     const [addingActivity, setAddingActivity] = useState(false);
@@ -106,66 +91,22 @@ export default function BatakHomeScreen({ navigation }) {
     }, [myName]);
 
     useEffect(() => {
-        const offQueued = onSocket('batak:queued', (data) => setQueuePos(data.position));
         const offMatched = onSocket('batak:matched', (data) => {
             if (navigatedRef.current) return;
             const mySeat = data.seats.find(s => s.userId === myId);
             if (!mySeat) return;
             navigatedRef.current = true;
-            setSearching(false);
             navigation.navigate('BatakTable', { tableId: data.tableId });
         });
         const offError = onSocket('batak:error', (data) => {
-            setSearching(false);
             if (data?.code === 'ACTIVITY_REQUIRED') { setInterest(null); return; }
             if (data?.code === 'INSUFFICIENT_POINTS' || data?.code === 'INSUFFICIENT_RATING') { loadInterest(); }
             Alert.alert('', data?.message || (t.batakError || 'Bir hata oluştu.'));
         });
-        return () => { offQueued(); offMatched(); offError(); };
+        return () => { offMatched(); offError(); };
     }, [myId, navigation, t, loadInterest]);
 
     useFocusEffect(useCallback(() => { navigatedRef.current = false; }, []));
-
-    const startSearch = () => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        setSearching(true);
-        setQueuePos(null);
-        socket.emit('batak:findMatch', { betAmount, ratingAmount });
-    };
-
-    const cancelSearch = () => {
-        getSocket()?.emit('batak:cancelFindMatch');
-        setSearching(false);
-        setQueuePos(null);
-    };
-
-    const startVsBots = () => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('batak:playVsBots', { difficulty });
-    };
-
-    const parsedPrivateBet = Math.max(0, Math.floor(Number(privateBetAmount) || 0));
-    const parsedPrivateRating = wagerRating ? Math.max(0, Number(privateRatingAmount) || 0) : 0;
-    const parsedRangeMin = ratingRangeMin.trim() === '' ? null : Number(ratingRangeMin);
-    const parsedRangeMax = ratingRangeMax.trim() === '' ? null : Number(ratingRangeMax);
-    const canAffordPrivate = interest && interest.walletPoints >= parsedPrivateBet && interest.skillRating >= parsedPrivateRating && (parsedPrivateBet > 0 || parsedPrivateRating > 0);
-
-    const createPrivateTable = () => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('batak:createPrivateTable', {
-            betAmount: parsedPrivateBet, ratingAmount: parsedPrivateRating,
-            ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
-        });
-    };
-    const joinByCode = () => {
-        const socket = getSocket();
-        if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        if (!joinCode.trim()) return;
-        socket.emit('batak:joinByCode', { code: joinCode.trim() });
-    };
 
     // ── Batak İlanı ──────────────────────────────────────────────────────────
     const [events, setEvents] = useState([]);
@@ -277,7 +218,7 @@ export default function BatakHomeScreen({ navigation }) {
                         </TouchableOpacity>
                         <View style={s.variantGrid}>
                             {VARIANTS.map(v => (
-                                <TouchableOpacity key={v} style={s.variantBtn} onPress={() => setBrowseVariant(v)} activeOpacity={0.8}>
+                                <TouchableOpacity key={v} style={s.variantBtn} onPress={() => navigation.navigate('BatakLobby', { variant: v })} activeOpacity={0.8}>
                                     <Text style={s.variantBtnText}>{t[`batakVariant_${v}`] || VARIANT_FALLBACK[v]}</Text>
                                 </TouchableOpacity>
                             ))}
@@ -289,159 +230,6 @@ export default function BatakHomeScreen({ navigation }) {
                             t={t}
                             onClose={() => setCreateModalOpen(false)}
                         />
-                        <BrowseTablesModal
-                            visible={!!browseVariant}
-                            variant={browseVariant}
-                            t={t}
-                            onClose={() => setBrowseVariant(null)}
-                            onJoined={() => setBrowseVariant(null)}
-                            onSpectate={(tableId) => { setBrowseVariant(null); navigation.navigate('BatakTable', { tableId, spectating: true }); }}
-                        />
-
-                        <Text style={s.playEmoji}>🃏</Text>
-                        <Text style={s.playTitle}>{t.batakPlayTitle || 'Gerçek Zamanlı Batak'}</Text>
-                        <Text style={s.playDesc}>{t.batakPlayDesc || '4 kişilik masaya otomatik eşleşerek uygulama içinde canlı Batak oyna.'}</Text>
-
-                        {searching ? (
-                            <View style={{ alignItems: 'center', marginTop: 30 }}>
-                                <ActivityIndicator size="large" color={colors.purple} />
-                                <Text style={s.searchingText}>
-                                    {t.batakSearching || 'Rakip aranıyor...'}{queuePos ? ` (${queuePos}/4)` : ''}
-                                </Text>
-                                <TouchableOpacity onPress={cancelSearch} style={s.cancelBtn}>
-                                    <Text style={s.cancelBtnText}>{t.cancelBtn || 'Vazgeç'}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <>
-                                <Text style={s.difficultyLabel}>Puan Bahsi</Text>
-                                <View style={s.difficultyRow}>
-                                    {[0, 50, 100, 250, 500].map(amount => (
-                                        <TouchableOpacity key={amount}
-                                            style={[s.difficultyChip, betAmount === amount && s.difficultyChipActive, interest.walletPoints < amount && { opacity: 0.3 }]}
-                                            onPress={() => setBetAmount(amount)} activeOpacity={0.8} disabled={interest.walletPoints < amount}>
-                                            <Text style={[s.difficultyChipText, betAmount === amount && s.difficultyChipTextActive]}>{amount === 0 ? 'Yok' : amount}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                <Text style={s.difficultyLabel}>Derece Bahsi</Text>
-                                <View style={s.difficultyRow}>
-                                    {[0, 0.10, 0.25, 0.50].map(amount => (
-                                        <TouchableOpacity key={amount}
-                                            style={[s.difficultyChip, ratingAmount === amount && s.ratingChipActive, interest.skillRating < amount && { opacity: 0.3 }]}
-                                            onPress={() => setRatingAmount(amount)} activeOpacity={0.8} disabled={interest.skillRating < amount}>
-                                            <Text style={[s.difficultyChipText, ratingAmount === amount && s.difficultyChipTextActive]}>{amount === 0 ? 'Yok' : amount.toFixed(2)}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                <TouchableOpacity
-                                    style={[s.findBtn, (interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)) && { opacity: 0.4 }]}
-                                    onPress={startSearch} activeOpacity={0.85}
-                                    disabled={interest.walletPoints < betAmount || interest.skillRating < ratingAmount || (betAmount === 0 && ratingAmount === 0)}>
-                                    <Text style={s.findBtnText}>{t.batakFindMatch || '🔍 Rakip Ara'} ({betAmount} puan{ratingAmount > 0 ? ` + ${ratingAmount.toFixed(2)} derece` : ''})</Text>
-                                </TouchableOpacity>
-
-                                <Text style={s.orText}>{t.batakOr || 'veya'}</Text>
-
-                                <Text style={s.difficultyLabel}>{t.batakDifficultyLabel || 'Bot Zorluğu'} (puansız)</Text>
-                                <View style={s.difficultyRow}>
-                                    {[
-                                        { id: 'easy',   label: t.batakDifficultyEasy   || 'Kolay' },
-                                        { id: 'medium', label: t.batakDifficultyMedium || 'Orta' },
-                                        { id: 'hard',   label: t.batakDifficultyHard   || 'Zor' },
-                                    ].map(d => (
-                                        <TouchableOpacity key={d.id}
-                                            style={[s.difficultyChip, difficulty === d.id && s.difficultyChipActive]}
-                                            onPress={() => setDifficulty(d.id)} activeOpacity={0.8}>
-                                            <Text style={[s.difficultyChipText, difficulty === d.id && s.difficultyChipTextActive]}>{d.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                                <TouchableOpacity style={s.botBtn} onPress={startVsBots} activeOpacity={0.85}>
-                                    <Text style={s.botBtnText}>{t.batakPlayVsBots || '🤖 Botlarla Oyna'}</Text>
-                                </TouchableOpacity>
-
-                                <Text style={s.orText}>{t.batakOr || 'veya'}</Text>
-
-                                <Text style={s.difficultyLabel}>{'👥 Masa Kur (Arkadaşlarınla)'}</Text>
-
-                                <Text style={s.inputLabel}>Puan Bahsi (1'den istediğin kadar)</Text>
-                                <TextInput
-                                    value={privateBetAmount}
-                                    onChangeText={setPrivateBetAmount}
-                                    placeholder="Örn. 250"
-                                    placeholderTextColor={colors.textMuted}
-                                    keyboardType="numeric"
-                                    style={s.freeInput}
-                                />
-                                {parsedPrivateBet > interest.walletPoints && (
-                                    <Text style={s.inputWarn}>Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</Text>
-                                )}
-
-                                <TouchableOpacity style={s.checkboxRow} onPress={() => setWagerRating(v => !v)} activeOpacity={0.8}>
-                                    <View style={[s.checkbox, wagerRating && s.checkboxChecked]}>{wagerRating && <Text style={s.checkboxMark}>✓</Text>}</View>
-                                    <Text style={s.checkboxLabel}>Ayrıca derece de bahse girsin</Text>
-                                </TouchableOpacity>
-                                {wagerRating && (
-                                    <>
-                                        <TextInput
-                                            value={privateRatingAmount}
-                                            onChangeText={setPrivateRatingAmount}
-                                            placeholder="Örn. 0.25"
-                                            placeholderTextColor={colors.textMuted}
-                                            keyboardType="numeric"
-                                            style={s.freeInput}
-                                        />
-                                        {parsedPrivateRating > interest.skillRating && (
-                                            <Text style={s.inputWarn}>Bu kadar dereceye sahip değilsin ({interest.skillRating?.toFixed(2)}).</Text>
-                                        )}
-                                    </>
-                                )}
-
-                                <Text style={s.inputLabel}>Rakip Derece Aralığı (isteğe bağlı — sadece bu aralıktaki oyuncular katılabilir)</Text>
-                                <View style={{ flexDirection: 'row', gap: 8, width: '100%', maxWidth: 280 }}>
-                                    <TextInput
-                                        value={ratingRangeMin}
-                                        onChangeText={setRatingRangeMin}
-                                        placeholder="Min (1.50)"
-                                        placeholderTextColor={colors.textMuted}
-                                        keyboardType="numeric"
-                                        style={[s.freeInput, { flex: 1 }]}
-                                    />
-                                    <TextInput
-                                        value={ratingRangeMax}
-                                        onChangeText={setRatingRangeMax}
-                                        placeholder="Max (2.50)"
-                                        placeholderTextColor={colors.textMuted}
-                                        keyboardType="numeric"
-                                        style={[s.freeInput, { flex: 1 }]}
-                                    />
-                                </View>
-
-                                <TouchableOpacity
-                                    style={[s.privateBtn, !canAffordPrivate && { opacity: 0.4 }]}
-                                    onPress={createPrivateTable} activeOpacity={0.85}
-                                    disabled={!canAffordPrivate}>
-                                    <Text style={s.privateBtnText}>Masa Kur ({parsedPrivateBet} puan{parsedPrivateRating > 0 ? ` + ${parsedPrivateRating.toFixed(2)} derece` : ''})</Text>
-                                </TouchableOpacity>
-                                <View style={s.joinCodeRow}>
-                                    <TextInput
-                                        value={joinCode}
-                                        onChangeText={v => setJoinCode(v.toUpperCase())}
-                                        placeholder={t.batakTableCode || 'Masa Kodu'}
-                                        placeholderTextColor={colors.textMuted}
-                                        autoCapitalize="characters"
-                                        maxLength={5}
-                                        style={s.joinCodeInput}
-                                    />
-                                    <TouchableOpacity style={s.joinCodeBtn} onPress={joinByCode} activeOpacity={0.85}>
-                                        <Text style={s.joinCodeBtnText}>{t.batakJoinBtn || 'Katıl'}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </>
-                        )}
                     </ScrollView>
                 )
             ) : (

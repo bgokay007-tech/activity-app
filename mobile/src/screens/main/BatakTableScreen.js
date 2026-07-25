@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView, Animated, ActivityIndicator, PanResponder } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
@@ -46,6 +46,50 @@ function PlayingCard({ card, small, disabled, rejected, onPress }) {
             <Text style={[s.cardRank, small && s.cardRankSmall, { color: SUIT_COLOR[suit] }]}>{rankLabel(card)}</Text>
             <Text style={[s.cardSuit, small && s.cardSuitSmall, { color: SUIT_COLOR[suit] }]}>{SUIT_SYMBOL[suit]}</Text>
         </Wrap>
+    );
+}
+
+// Elimdeki bir kartı basılı tutup sürükleyerek kendime göre sıralayabilmek için:
+// hareket bir eşiği (6px) aşarsa sürükleme sayılır ve yatay kaydırma miktarı
+// kart genişliğine bölünerek kaç "slot" kaydığı hesaplanır (sadece görsel
+// tercih, sunucuya hiçbir şey gönderilmez); eşiğin altında kalan dokunuşlar
+// hâlâ tıklama gibi davranıp `onPress`'i (kartı oyna) tetikler.
+const CARD_SLOT_WIDTH = 44;
+function DraggableHandCard({ card, index, total, disabled, rejected, onPress, onReorder }) {
+    const pan = useRef(new Animated.Value(0)).current;
+    const meta = useRef({ index, total, onPress, onReorder, startIndex: index, moved: false });
+    meta.current.index = index;
+    meta.current.total = total;
+    meta.current.onPress = onPress;
+    meta.current.onReorder = onReorder;
+
+    const panResponder = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+            meta.current.startIndex = meta.current.index;
+            meta.current.moved = false;
+            pan.setValue(0);
+        },
+        onPanResponderMove: (evt, gestureState) => {
+            if (Math.abs(gestureState.dx) > 6 || Math.abs(gestureState.dy) > 6) meta.current.moved = true;
+            pan.setValue(gestureState.dx);
+            const deltaSlots = Math.round(gestureState.dx / CARD_SLOT_WIDTH);
+            const targetIndex = Math.min(meta.current.total - 1, Math.max(0, meta.current.startIndex + deltaSlots));
+            if (targetIndex !== meta.current.index) meta.current.onReorder(meta.current.index, targetIndex);
+        },
+        onPanResponderRelease: () => {
+            Animated.spring(pan, { toValue: 0, useNativeDriver: true, speed: 20 }).start();
+            if (!meta.current.moved) meta.current.onPress();
+        },
+        onPanResponderTerminate: () => {
+            Animated.spring(pan, { toValue: 0, useNativeDriver: true, speed: 20 }).start();
+        },
+    })).current;
+
+    return (
+        <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateX: pan }] }}>
+            <PlayingCard card={card} disabled={disabled} rejected={rejected} />
+        </Animated.View>
     );
 }
 
@@ -166,6 +210,28 @@ export default function BatakTableScreen({ route, navigation }) {
 
     const [state, setState] = useState(null);
     const [hand, setHand] = useState([]);
+    // Elin görsel sırası — sunucudan gelen `hand` (oyun mantığı için tek doğru
+    // kaynak) sırasından bağımsız: oyuncu kartlarını sürükleyerek kendine göre
+    // dizebilsin diye ayrıca tutuluyor, sadece yeni gelen/oynanan kartlar için
+    // senkronlanıyor (mevcut kartların elle verilmiş sırası korunur).
+    const [handOrder, setHandOrder] = useState([]);
+    useEffect(() => {
+        setHandOrder(prev => {
+            const kept = prev.filter(c => hand.includes(c));
+            const keptSet = new Set(kept);
+            const added = hand.filter(c => !keptSet.has(c));
+            return [...kept, ...added];
+        });
+    }, [hand]);
+    const reorderHand = useCallback((fromIndex, toIndex) => {
+        setHandOrder(prev => {
+            if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= prev.length || toIndex >= prev.length) return prev;
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            return next;
+        });
+    }, []);
     const [roundEnd, setRoundEnd] = useState(null);
     const [gameEnd, setGameEnd] = useState(null);
     const [hint, setHint] = useState('');
@@ -392,13 +458,16 @@ export default function BatakTableScreen({ route, navigation }) {
 
             {/* Elim */}
             <View style={s.myHandRow}>
-                {hand.map(card => (
-                    <PlayingCard
+                {handOrder.map((card, index) => (
+                    <DraggableHandCard
                         key={card}
                         card={card}
+                        index={index}
+                        total={handOrder.length}
                         disabled={!(state.phase === 'playing' && isMyTurn && legalCards.includes(card))}
                         rejected={rejectedCard === card}
                         onPress={playCard}
+                        onReorder={reorderHand}
                     />
                 ))}
             </View>

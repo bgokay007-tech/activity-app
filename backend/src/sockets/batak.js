@@ -419,6 +419,10 @@ function applyCard(io, table, seat, card) {
     if (!legal.includes(card)) throw new Error('Renge uymak zorundasın');
 
     hand.splice(hand.indexOf(card), 1);
+    // Herkese açık durum (publicState) sadece handCount taşır, oynayan oyuncunun
+    // kendi istemcisindeki eli güncellemesi için asıl kart listesinin hedefe
+    // gönderilmesi gerekiyor — aksi halde oynanan kart istemcide elde kalmış gibi görünüyor.
+    sendHand(io, table, seat);
     if (table.trick.length === 0) table.leadSuit = cardSuit(card);
     table.trick.push({ seat, card });
 

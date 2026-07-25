@@ -120,6 +120,7 @@ import CinemaHomeScreen from '../screens/main/CinemaHomeScreen';
 import ClassicFilmPlayerScreen from '../screens/main/ClassicFilmPlayerScreen';
 import TheaterHomeScreen from '../screens/main/TheaterHomeScreen';
 import BatakHomeScreen from '../screens/main/BatakHomeScreen';
+import BatakLobbyScreen from '../screens/main/BatakLobbyScreen';
 import BatakTableScreen from '../screens/main/BatakTableScreen';
 import OkeyHomeScreen from '../screens/main/OkeyHomeScreen';
 import OkeyTableScreen from '../screens/main/OkeyTableScreen';
@@ -161,6 +162,7 @@ function HomeStackNav() {
             <HomeStack.Screen name="ClassicFilmPlayer" component={ClassicFilmPlayerScreen} options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
             <HomeStack.Screen name="TheaterHome" component={TheaterHomeScreen} />
             <HomeStack.Screen name="BatakHome" component={BatakHomeScreen} />
+            <HomeStack.Screen name="BatakLobby" component={BatakLobbyScreen} />
             <HomeStack.Screen name="BatakTable" component={BatakTableScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
             <HomeStack.Screen name="OkeyHome" component={OkeyHomeScreen} />
             <HomeStack.Screen name="OkeyTable" component={OkeyTableScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
