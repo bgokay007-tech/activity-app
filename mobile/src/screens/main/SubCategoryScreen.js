@@ -1863,8 +1863,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         <>
         <View style={[s.card, { width:'48%', borderRadius: moderateScale(14), paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, item.flexibleSchedule && { borderColor:'#eab30840' }]}>
 
-            {/* ── Tappable info area → opens detail modal ── */}
-            <TouchableOpacity activeOpacity={0.85} onPress={() => { setDetailVisible(true); onRefresh(); }}>
+            {/* ── Tappable info area → opens detail modal ──
+                 Not: burada ayrıca onRefresh() (tüm liste yenileme) ÇAĞRILMIYOR —
+                 modal zaten kendi içinde tek ilan için taze veri çekiyor
+                 (bkz. RivalDetailModal'daki useEffect), listeyi de yenilemek
+                 gereksiz bir ağ isteği + yeniden render'a (algılanan ~1sn
+                 gecikmeye) yol açıyordu. */}
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)}>
 
                 {/* Avatar + isim/puan + mod/format */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:3 }}>
