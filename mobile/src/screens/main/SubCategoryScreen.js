@@ -392,6 +392,7 @@ const det = StyleSheet.create({
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin }) {
     const insets = useSafeAreaInsets();
     const [localParticipants, setLocalParticipants] = useState(null);
+    const [localSenderTeam, setLocalSenderTeam] = useState(null); // partner slotu — swap-positions sonrası anında güncellensin diye
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
@@ -489,6 +490,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     useEffect(() => {
         setLocalParticipants(null);
+        setLocalSenderTeam(null);
         setLocalJoinRequests(null);
         setLocalGender(null);
         setSwapSlot(null);
@@ -675,7 +677,43 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         );
     };
 
-    // DOUBLE: iki slot arasında oyuncu taşı (seç + taşı)
+    const SLOT_LABELS = { partner: 'Kurucu Takımı (Partner)', opp1: 'Rakip 1', opp2: 'Rakip 2' };
+
+    // Asıl taşıma isteğini backend'e gönderir ve İKİ dizinin de (participants +
+    // senderTeam/partner) anında güncellenmesini sağlar — sadece participants
+    // güncellenip senderTeam'in tam liste yenilenmesini (onRefresh) beklemesi,
+    // oyuncu partner slotuna taşınınca "hiçbir şey olmadı" hissi veriyordu.
+    const movePlayer = async (fromSlot, toSlot) => {
+        try {
+            const { data } = await api.patch(`/rivals/${item.id}/swap-positions`, { slot1: fromSlot, slot2: toSlot });
+            if (Array.isArray(data.participants)) setLocalParticipants(data.participants);
+            if (Array.isArray(data.senderTeam)) setLocalSenderTeam(data.senderTeam);
+            onRefresh();
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+    };
+
+    // "⇄ Taşı" butonuna basılınca: hedefi belirsiz bir dokunuş beklemek yerine
+    // (eskiden bu iki adımlı seç+dokun akışı güvenilir çalışmıyordu), doğrudan
+    // "nereye taşınsın" diye net butonlu bir onay gösterip anında taşıyor.
+    const promptMove = (fromSlot) => {
+        if (!isOwner) return;
+        if (item.teamFlexibility === 'STRICT') {
+            Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
+            return;
+        }
+        const targets = ['partner', 'opp1', 'opp2'].filter(s => s !== fromSlot);
+        Alert.alert(
+            'Oyuncuyu Taşı',
+            'Bu oyuncu nereye taşınsın?',
+            [
+                ...targets.map(s => ({ text: SLOT_LABELS[s], onPress: () => movePlayer(fromSlot, s) })),
+                { text: 'Vazgeç', style: 'cancel' },
+            ]
+        );
+    };
+
+    // DOUBLE: iki slot arasında oyuncu taşı (seç + taşı) — eski tıkla-seç-sonra-
+    // tıkla-tamamla akışı, uzun-basış kısayolu için hâlâ burada duruyor.
     const handleSlotTap = async (slot) => {
         if (!isOwner) return;
         if (item.teamFlexibility === 'STRICT') {
@@ -686,11 +724,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         if (swapSlot === slot) { setSwapSlot(null); return; }
         const s1 = swapSlot; const s2 = slot;
         setSwapSlot(null);
-        try {
-            const { data } = await api.patch(`/rivals/${item.id}/swap-positions`, { slot1: s1, slot2: s2 });
-            if (Array.isArray(data.participants)) setLocalParticipants(data.participants);
-            onRefresh(); // senderTeam (partner) dahil tüm veriyi yenile
-        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        movePlayer(s1, s2);
     };
 
     // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
@@ -888,7 +922,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     <View style={det.section}>
                         <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
                         {item.matchType === 'DOUBLE' ? (() => {
-                            const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+                            const senderTeamArr = localSenderTeam ?? (Array.isArray(item.senderTeam) ? item.senderTeam : []);
                             const allJoinReqs = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
                             const pendingPartnerInvite = allJoinReqs.find(jr => jr.isPartnerInvite && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
 
@@ -932,7 +966,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 {!locked && isOwner && !swapSlot && (onRemove || item.teamFlexibility !== 'STRICT') && (
                                                     <View style={{ flexDirection:'row', gap:8, marginTop:2 }}>
                                                         {item.teamFlexibility !== 'STRICT' && (
-                                                            <TouchableOpacity onPress={() => handleSlotTap(slot)}>
+                                                            <TouchableOpacity onPress={() => promptMove(slot)}>
                                                                 <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>⇄ Taşı</Text>
                                                             </TouchableOpacity>
                                                         )}
