@@ -244,7 +244,11 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
             const gReq = genderSlots[i];
             if (!gReq || gReq === 'MIX') continue;
             const gUser = await prisma.user.findUnique({ where: { id: playersToCheck[i].id }, select: { gender: true } });
-            if (gUser?.gender && gUser.gender !== 'OTHER' && gUser.gender !== gReq) {
+            // Cinsiyeti profilinde belirtilmemiş kullanıcı, cinsiyete özel (MALE/FEMALE)
+            // bir slota uygunluğu doğrulanamadığı için o slota kabul edilmez — önceden
+            // burada "cinsiyet boşsa kontrolü atla" hatası vardı, bu da cinsiyet kısıtlı
+            // slotların fiilen hiç uygulanmamasına yol açıyordu.
+            if (gUser?.gender !== 'OTHER' && gUser?.gender !== gReq) {
                 const label = gReq === 'MALE' ? 'erkek' : 'kadın';
                 return { error: `${i === 0 ? 'Rakip 1' : 'Rakip 2'} slotu için bu ilan yalnızca ${label} oyuncular kabul ediyor.` };
             }
@@ -267,7 +271,9 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
     // katılımcı zaten kabul edilemeyecek durumda.
     const gUser = await prisma.user.findUnique({ where: { id: joinReq.userId }, select: { gender: true } });
     const pg = gUser?.gender;
-    const fits = (gReq) => !pg || pg === 'OTHER' || !gReq || gReq === 'MIX' || pg === gReq;
+    // Cinsiyeti belirtilmemiş kullanıcı MIX olmayan (cinsiyete özel) slotlara uymaz —
+    // sadece MIX slotlar veya kendi cinsiyetiyle eşleşen slotlar için uygun sayılır.
+    const fits = (gReq) => pg === 'OTHER' || !gReq || gReq === 'MIX' || pg === gReq;
 
     const opp1Filled = !!(participants[0] && participants[0].id);
     const opp2Filled = !!(participants[1] && participants[1].id);
@@ -377,7 +383,9 @@ export const swapMatchPositions = async (req, res, next) => {
         const checkGender = async (userId, gReq, slotLabel) => {
             if (!userId || !gReq || gReq === 'MIX') return;
             const u = await prisma.user.findUnique({ where: { id: userId }, select: { gender: true } });
-            if (u?.gender && u.gender !== 'OTHER' && u.gender !== gReq) {
+            // Cinsiyeti belirtilmemiş kullanıcı, cinsiyete özel bir slota uygunluğu
+            // doğrulanamadığı için kabul edilmez (bkz. resolveDoubleAcceptance'daki aynı düzeltme).
+            if (u?.gender !== 'OTHER' && u?.gender !== gReq) {
                 const label = gReq === 'MALE' ? 'erkek' : 'kadın';
                 throw Object.assign(new Error(`${slotLabel} slotu yalnızca ${label} oyuncuları kabul ediyor`), { status: 400 });
             }
@@ -1201,14 +1209,13 @@ export const sendJoinRequest = async (req, res, next) => {
             return res.status(400).json({ message: 'You already sent a request', status: existing.status });
         }
 
-        // Gender restriction check — SINGLE
+        // Gender restriction check — SINGLE. Cinsiyeti profilinde belirtilmemiş kullanıcı,
+        // cinsiyete özel bir ilana uygunluğu doğrulanamadığı için reddedilir (OTHER hariç).
         if (request.matchType === 'SINGLE' && request.genderReq && request.genderReq !== 'MIX') {
             const joiner = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
-            if (joiner?.gender && joiner.gender !== 'OTHER') {
-                if (request.genderReq !== joiner.gender) {
-                    const label = request.genderReq === 'MALE' ? 'erkek' : 'kadın';
-                    return res.status(400).json({ message: `Bu ilan yalnızca ${label} oyuncular için açık.` });
-                }
+            if (joiner?.gender !== 'OTHER' && request.genderReq !== joiner?.gender) {
+                const label = request.genderReq === 'MALE' ? 'erkek' : 'kadın';
+                return res.status(400).json({ message: `Bu ilan yalnızca ${label} oyuncular için açık.` });
             }
         }
         // Gender restriction check — DOUBLE (erken reddet: hiçbir slota uyamıyorsa)
@@ -1217,9 +1224,10 @@ export const sendJoinRequest = async (req, res, next) => {
             const opp2Req = request.opp2GenderReq || 'MIX';
             if (opp1Req !== 'MIX' || opp2Req !== 'MIX') {
                 const joiner = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
-                if (joiner?.gender && joiner.gender !== 'OTHER') {
-                    const canFillOpp1 = opp1Req === 'MIX' || joiner.gender === opp1Req;
-                    const canFillOpp2 = opp2Req === 'MIX' || joiner.gender === opp2Req;
+                if (joiner?.gender !== 'OTHER') {
+                    const g = joiner?.gender;
+                    const canFillOpp1 = opp1Req === 'MIX' || g === opp1Req;
+                    const canFillOpp2 = opp2Req === 'MIX' || g === opp2Req;
                     if (!canFillOpp1 && !canFillOpp2) {
                         return res.status(400).json({ message: 'Cinsiyet kısıtlamaları nedeniyle bu ilana başvuramazsınız.' });
                     }
@@ -1566,7 +1574,7 @@ export const respondToJoin = async (req, res, next) => {
             const pGenderReq = joinReq.rival.partnerGenderReq;
             if (pGenderReq && pGenderReq !== 'MIX') {
                 const pUser = await prisma.user.findUnique({ where: { id: joinReq.userId }, select: { gender: true } });
-                if (pUser?.gender && pUser.gender !== 'OTHER' && pUser.gender !== pGenderReq) {
+                if (pUser?.gender !== 'OTHER' && pUser?.gender !== pGenderReq) {
                     const label = pGenderReq === 'MALE' ? 'erkek' : 'kadın';
                     return res.status(400).json({ message: `Takım Arkadaşı slotu için bu ilan yalnızca ${label} oyuncular kabul ediyor.` });
                 }
