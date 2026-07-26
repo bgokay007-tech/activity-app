@@ -169,6 +169,7 @@ export const getMessages = async (req, res, next) => {
             where: {
                 conversationId,
                 ...(before && { createdAt: { lt: new Date(before) } }),
+                deletions: { none: { userId: req.userId } },
             },
             include: {
                 sender: { select: USER_SELECT },
@@ -280,6 +281,51 @@ export const sendMessage = async (req, res, next) => {
                 },
             },
         }).catch(notifErr => console.log('NOTIF_CREATE_FAIL:', notifErr?.message));
+    } catch (error) { next(error); }
+};
+
+// forEveryone=true: sadece mesajı gönderen kullanabilir, içerik/medya temizlenir,
+// her iki tarafta da "Bu mesaj silindi" yer tutucusu kalır (karşı taraf zaten
+// okumuş olsa bile — bunu engellemiyoruz, sadece istemci tarafında uyarı gösterilir).
+// forEveryone verilmezse ("Benden Sil"): sohbetteki iki taraftan biri de kendi
+// görünümünden silebilir, karşı tarafı etkilemez.
+export const deleteMessage = async (req, res, next) => {
+    try {
+        const { messageId } = req.params;
+        const forEveryone = req.query.forEveryone === 'true';
+
+        const message = await prisma.message.findUnique({
+            where: { id: messageId },
+            include: { conversation: true },
+        });
+        if (!message) return res.status(404).json({ message: 'Mesaj bulunamadı' });
+
+        const conv = message.conversation;
+        if (conv.user1Id !== req.userId && conv.user2Id !== req.userId)
+            return res.status(403).json({ message: 'Forbidden' });
+
+        if (forEveryone) {
+            if (message.senderId !== req.userId)
+                return res.status(403).json({ message: 'Sadece kendi mesajınızı herkesten silebilirsiniz.' });
+
+            await prisma.message.update({
+                where: { id: messageId },
+                data: { deletedForEveryone: true, content: '', imageUrl: null, audioUrl: null, audioDuration: null },
+            });
+
+            const otherId = conv.user1Id === req.userId ? conv.user2Id : conv.user1Id;
+            const payload = { messageId, conversationId: conv.id };
+            emitToUser(otherId, 'messageDeleted', payload);
+            emitToUser(req.userId, 'messageDeleted', payload);
+        } else {
+            await prisma.messageDeletion.upsert({
+                where: { messageId_userId: { messageId, userId: req.userId } },
+                create: { messageId, userId: req.userId },
+                update: {},
+            });
+        }
+
+        res.json({ message: 'Deleted' });
     } catch (error) { next(error); }
 };
 

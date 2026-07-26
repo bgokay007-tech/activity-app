@@ -129,6 +129,67 @@ export default function ChatScreen({ route, navigation }) {
         }
     };
 
+    // Bir mesaja uzun basınca: kendi mesajımsa "Herkesten Sil" (karşı taraf zaten
+    // okuduysa önce uyarı gösterilir, yine de silinebilir) + "Benden Sil"; başkasının
+    // mesajıysa sadece "Benden Sil" (kendi görünümümden kaldırma, karşı tarafı etkilemez).
+    const deleteForMe = async (item) => {
+        try {
+            await api.delete(`/messages/${item.id}`);
+            setMessages(prev => prev.filter(m => m.id !== item.id));
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Mesaj silinemedi.');
+        }
+    };
+
+    const deleteForEveryone = async (item) => {
+        try {
+            await api.delete(`/messages/${item.id}`, { params: { forEveryone: 'true' } });
+            setMessages(prev => prev.map(m => m.id === item.id
+                ? { ...m, deletedForEveryone: true, content: '', imageUrl: null, audioUrl: null, audioDuration: null }
+                : m));
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Mesaj silinemedi.');
+        }
+    };
+
+    const confirmDeleteForEveryone = (item) => {
+        if (item.read) {
+            Alert.alert(
+                'Karşı Taraf Zaten Okudu',
+                'Karşı taraf bu mesajı zaten okumuş, ama yine de mesaj alanından silebilirsiniz.',
+                [
+                    { text: 'Vazgeç', style: 'cancel' },
+                    { text: 'Yine de Sil', style: 'destructive', onPress: () => deleteForEveryone(item) },
+                ],
+            );
+        } else {
+            Alert.alert(
+                'Mesajı Herkesten Sil',
+                'Bu mesaj karşı taraftan da silinecek, artık okuyamayacak.',
+                [
+                    { text: 'Vazgeç', style: 'cancel' },
+                    { text: 'Sil', style: 'destructive', onPress: () => deleteForEveryone(item) },
+                ],
+            );
+        }
+    };
+
+    const openMessageOptions = (item) => {
+        if (item.deletedForEveryone) return;
+        const isMe = item.senderId === myId;
+        const buttons = isMe
+            ? [
+                { text: '🗑️ Herkesten Sil', style: 'destructive', onPress: () => confirmDeleteForEveryone(item) },
+                { text: '🗑️ Benden Sil', onPress: () => deleteForMe(item) },
+                { text: 'Vazgeç', style: 'cancel' },
+            ]
+            : [
+                { text: '🗑️ Benden Sil', onPress: () => deleteForMe(item) },
+                { text: 'Vazgeç', style: 'cancel' },
+            ];
+        Alert.alert('', undefined, buttons);
+    };
+
     // Sohbete her girişte, o an henüz okunmamış olan ilk mesajın üstüne "Yeni
     // Mesajlar" çizgisi çekilir. Bu satır SADECE ilk yüklemede belirlenir (10sn'lik
     // poll'da tekrar hesaplanmaz) — çünkü sunucu bu isteğin içinde mesajları hemen
@@ -254,6 +315,19 @@ export default function ChatScreen({ route, navigation }) {
         });
         return off;
     }, [myId]);
+
+    // "Herkesten Sil" — karşı taraf silse de ben silsem de (başka bir cihazdan)
+    // anında "Bu mesaj silindi" yer tutucusuna dönüşsün diye.
+    useEffect(() => {
+        const off = onSocket('messageDeleted', ({ messageId, conversationId }) => {
+            if (conversationId === convIdRef.current) {
+                setMessages(prev => prev.map(m => m.id === messageId
+                    ? { ...m, deletedForEveryone: true, content: '', imageUrl: null, audioUrl: null, audioDuration: null }
+                    : m));
+            }
+        });
+        return off;
+    }, []);
 
     // "X dakika önce görüldü" metni zamanla eskiyeceği için dakikada bir yeniden
     // render tetiklenir (mesaj/soket olayı beklemeden metin tazelensin diye).
@@ -398,7 +472,15 @@ export default function ChatScreen({ route, navigation }) {
                 )}
                 <View style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowThem]}>
                 {!isMe && <Avatar user={item.sender} size={30} />}
-                <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
+                <TouchableOpacity
+                    onLongPress={() => openMessageOptions(item)}
+                    activeOpacity={0.85}
+                    style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}
+                >
+                    {item.deletedForEveryone ? (
+                        <Text style={styles.deletedText}>🚫 Bu mesaj silindi</Text>
+                    ) : (
+                    <>
                     {item.equipmentListing && (
                         <TouchableOpacity style={styles.msgEquipCard} onPress={() => openEquipmentListing(item.equipmentListing)} activeOpacity={0.8}>
                             {item.equipmentListing.images?.[0] ? (
@@ -434,10 +516,12 @@ export default function ChatScreen({ route, navigation }) {
                         </TouchableOpacity>
                     )}
                     {!!item.content && <Text style={styles.bubbleText}>{item.content}</Text>}
+                    </>
+                    )}
                     <Text style={[styles.bubbleTime, isMe ? styles.bubbleTimeMe : styles.bubbleTimeThem]}>
                         {new Date(item.createdAt).toLocaleTimeString(t.dateLocale, { hour: '2-digit', minute: '2-digit' })}
                     </Text>
-                </View>
+                </TouchableOpacity>
                 </View>
             </>
         );
@@ -656,6 +740,7 @@ const styles = StyleSheet.create({
     bubbleMe: { backgroundColor: colors.purple, borderBottomRightRadius: 4 },
     bubbleThem: { backgroundColor: colors.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
     bubbleText: { color: '#fff', fontSize: 14 },
+    deletedText: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
     bubbleTime: { fontSize: 10, marginTop: 4 },
     bubbleTimeMe: { color: '#d8b4fe' },
     bubbleTimeThem: { color: colors.textMuted },

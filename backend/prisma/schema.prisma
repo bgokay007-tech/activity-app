@@ -92,6 +92,7 @@ model User {
   conversations1   Conversation[] @relation("convUser1")
   conversations2   Conversation[] @relation("convUser2")
   conversationMutes ConversationMute[]
+  messageDeletions MessageDeletion[]
   storyViews       StoryView[]
   assessmentVotesCast AssessmentVote[]
   coachListings       CoachListing[]
@@ -1105,8 +1106,28 @@ model Message {
   coachListingId String?
   coachListing   CoachListing? @relation(fields: [coachListingId], references: [id], onDelete: SetNull)
 
+  // Gönderen "Herkesten Sil" derse true olur — içerik/medya temizlenir, her iki
+  // tarafta da "Bu mesaj silindi" yer tutucusu gösterilir. "Benden Sil" ise bunu
+  // etkilemez, sadece o kullanıcı için MessageDeletion satırı eklenir.
+  deletedForEveryone Boolean @default(false)
+  deletions          MessageDeletion[]
+
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+// Bir kullanıcının bir mesajı sadece kendi görünümünden sildiği ("Benden Sil")
+// durumu — karşı taraf mesajı normal şekilde görmeye devam eder.
+model MessageDeletion {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
 }
 
 // ŞEHİR UYARISI ABONELİĞİ
