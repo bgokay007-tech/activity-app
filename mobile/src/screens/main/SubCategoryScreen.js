@@ -400,6 +400,21 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
     const [showTeamCards, setShowTeamCards] = useState(false);
+    // Oyuncular kartı "Takımları Düzenle"ye basınca kart çevrilir gibi arka
+    // yüzüne (takım düzenleme ızgarası) döner; tekrar çevirince ön yüze
+    // (katılımcı listesi) geri gelir. rotateY 0->90 derece dönerken (kart
+    // "yan"a gelince, en ince görünümdeyken) içerik değişir, sonra 90->0
+    // devam edip düzleşir — bu yüzden ön/arka içeriğin farklı yükseklikte
+    // olması sorun olmuyor (aynı anda sadece biri DOM'da).
+    const flipAnim = useRef(new Animated.Value(0)).current;
+    const toggleTeamCards = (next) => {
+        setSwapSlot(null);
+        Animated.timing(flipAnim, { toValue: 1, duration: 160, useNativeDriver: true }).start(() => {
+            setShowTeamCards(next);
+            Animated.timing(flipAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start();
+        });
+    };
+    const cardRotateY = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] });
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -548,6 +563,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     const isOwner = item.senderId === myId;
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
+    const senderTeamArr = localSenderTeam ?? (Array.isArray(item.senderTeam) ? item.senderTeam : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
     const reqTimeAgo = (dateStr) => {
         if (!dateStr) return '';
@@ -920,9 +936,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                     {/* Oyuncular */}
                     <View style={det.section}>
-                        <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
+                        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                            <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
+                            {item.matchType === 'DOUBLE' && isOwner && !showTeamCards && item.teamFlexibility !== 'STRICT' &&
+                                (senderTeamArr[0]?.id || participants[0]?.id || participants[1]?.id) && (
+                                <TouchableOpacity onPress={() => toggleTeamCards(true)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ Takımları Düzenle</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        <Animated.View style={{ transform: [{ perspective: 800 }, { rotateY: cardRotateY }] }}>
                         {item.matchType === 'DOUBLE' ? (() => {
-                            const senderTeamArr = localSenderTeam ?? (Array.isArray(item.senderTeam) ? item.senderTeam : []);
                             const allJoinReqs = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
                             const pendingPartnerInvite = allJoinReqs.find(jr => jr.isPartnerInvite && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
 
@@ -1063,11 +1087,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             </View>
                                         )}
                                         {acceptedOthers.length === 0 && !pendingPartnerInvite && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
-                                        {isOwner && acceptedOthers.length > 0 && item.teamFlexibility !== 'STRICT' && (
-                                            <TouchableOpacity onPress={() => setShowTeamCards(true)} style={{ marginTop:6, alignSelf:'flex-start', backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
-                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ Takımları Düzenle</Text>
-                                            </TouchableOpacity>
-                                        )}
                                     </View>
                                 );
                             }
@@ -1075,8 +1094,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             return (
                                 <View>
                                     {isOwner && (
-                                        <TouchableOpacity onPress={() => { setSwapSlot(null); setShowTeamCards(false); }} style={{ marginBottom:6, alignSelf:'flex-start' }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>‹ Katılımcı Listesine Dön</Text>
+                                        <TouchableOpacity onPress={() => toggleTeamCards(false)} style={{ marginBottom:6, alignSelf:'flex-start', flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 Çevir</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>· Katılımcı Listesine Dön</Text>
                                         </TouchableOpacity>
                                     )}
                                     {swapSlot && (
@@ -1166,6 +1186,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 ))}
                             </>
                         )}
+                        </Animated.View>
                     </View>
 
                     {/* İstekler — çiftlerde herkes görür (ikili kart + partner davet/kabul),
