@@ -150,38 +150,56 @@ export const getUnreadMessageCount = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// `before` verilmezse sohbetin EN SON `limit` mesajı döner (binlerce mesajlık bir
+// geçmişte bile sohbet her zaman anında en alta/en güncele açılsın diye — tüm
+// geçmişi tek seferde çekmek hem yavaş hem de FlatList'in en alta güvenilir
+// kaydırmasını neredeyse imkansız kılıyordu). `before` bir mesaj createdAt'ı ise
+// ondan önceki `limit` mesaj (eski sayfa, yukarı kaydırınca yüklenir) döner.
 export const getMessages = async (req, res, next) => {
     try {
         const { conversationId } = req.params;
+        const { before } = req.query;
+        const take = Math.min(Number(req.query.limit) || 40, 100);
 
         const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
         if (!conv || (conv.user1Id !== req.userId && conv.user2Id !== req.userId))
             return res.status(403).json({ message: 'Forbidden' });
 
-        const messages = await prisma.message.findMany({
-            where: { conversationId },
+        const page = await prisma.message.findMany({
+            where: {
+                conversationId,
+                ...(before && { createdAt: { lt: new Date(before) } }),
+            },
             include: {
                 sender: { select: USER_SELECT },
                 equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
                 coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
             },
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: 'desc' },
+            take,
         });
+        const messages = page.reverse(); // ekranda eskiden yeniye göstermek için
+        const hasMore = page.length === take;
 
-        // Karşı tarafın mesajı gerçekten görmesi — yani bu uç noktayı (sohbetin içini
-        // açarak) çağırması — "okundu" sayılır, bildirim gelmesi veya soketle anlık
-        // teslim edilmesi değil. readAt, gönderene "X dakika önce görüldü" göstermek için.
-        const now = new Date();
-        const { count } = await prisma.message.updateMany({
-            where: { conversationId, senderId: { not: req.userId }, read: false },
-            data: { read: true, readAt: now },
-        });
+        // Sadece ilk sayfada (before yokken, yani sohbet yeni açıldığında): karşı
+        // tarafın mesajı gerçekten görmesi "okundu" sayılır — mesaj gelince değil.
+        // readAt, gönderene "X dakika önce görüldü" göstermek için. Eski sayfalar
+        // yukarı kaydırılarak yüklenirken bu tekrar tetiklenmez.
+        if (!before) {
+            const now = new Date();
+            const { count } = await prisma.message.updateMany({
+                where: { conversationId, senderId: { not: req.userId }, read: false },
+                data: { read: true, readAt: now },
+            });
 
-        res.json(messages);
+            res.json({ messages, hasMore });
 
-        if (count > 0) {
-            const otherId = conv.user1Id === req.userId ? conv.user2Id : conv.user1Id;
-            emitToUser(otherId, 'messagesRead', { conversationId, readAt: now, readerId: req.userId });
+            if (count > 0) {
+                const otherId = conv.user1Id === req.userId ? conv.user2Id : conv.user1Id;
+                emitToUser(otherId, 'messagesRead', { conversationId, readAt: now, readerId: req.userId });
+            }
+        } else {
+            res.json({ messages, hasMore });
         }
     } catch (error) { next(error); }
 };

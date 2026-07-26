@@ -10615,7 +10615,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const enriched = { ...conv, other: conv.user1Id === myId ? conv.user2 : conv.user1 };
             try {
                 const { data: history } = await api.get(`/messages/conversation/${conv.id}/messages`);
-                const alreadyReferenced = (history || []).some(m => m.coachListingId === listing.id || m.coachListing?.id === listing.id);
+                const alreadyReferenced = (history?.messages || []).some(m => m.coachListingId === listing.id || m.coachListing?.id === listing.id);
                 if (!alreadyReferenced) {
                     await api.post(`/messages/send/${otherId}`, {
                         content: `🎓 Antrenörlük ilanınız hakkında yazıyorum.`,
@@ -11578,7 +11578,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             // yazıldığı karşı tarafa da net olsun diye otomatik bir ilk mesaj gönderilir.
             try {
                 const { data: history } = await api.get(`/messages/conversation/${conv.id}/messages`);
-                const alreadyReferenced = (history || []).some(m => m.equipmentListingId === listing.id || m.equipmentListing?.id === listing.id);
+                const alreadyReferenced = (history?.messages || []).some(m => m.equipmentListingId === listing.id || m.equipmentListing?.id === listing.id);
                 if (!alreadyReferenced) {
                     await api.post(`/messages/send/${otherId}`, {
                         content: isOwnerContactingBidder

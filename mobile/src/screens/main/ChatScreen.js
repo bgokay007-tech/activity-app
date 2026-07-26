@@ -137,18 +137,67 @@ export default function ChatScreen({ route, navigation }) {
     const [unreadDividerId, setUnreadDividerId] = useState(null);
     const dividerSetRef = useRef(false);
 
-    const fetchMessages = useCallback(async (id, isInitial) => {
+    // Sohbet açılırken sadece EN SON ~40 mesaj çekilir — binlerce mesajlık bir
+    // geçmişte bile "en alta inmiş" halde anında açılsın diye (tüm geçmişi tek
+    // seferde çekmek hem yavaş olurdu hem de FlatList'in güvenilir şekilde en alta
+    // kaydırmasını neredeyse imkansız kılardı). Yukarı kaydırınca eski sayfalar
+    // ayrıca yüklenir.
+    const [hasMoreOlder, setHasMoreOlder] = useState(true);
+    const [loadingOlder, setLoadingOlder] = useState(false);
+    const oldestCreatedAtRef = useRef(null);
+    const isPrependingRef = useRef(false);
+
+    const loadInitial = useCallback(async (id) => {
         if (!id) return;
         try {
             const { data } = await api.get(`/messages/conversation/${id}/messages`);
-            if (isInitial && !dividerSetRef.current) {
-                const firstUnread = data.find(m => m.senderId !== myId && !m.read);
+            const list = data.messages || [];
+            if (!dividerSetRef.current) {
+                const firstUnread = list.find(m => m.senderId !== myId && !m.read);
                 if (firstUnread) setUnreadDividerId(firstUnread.id);
                 dividerSetRef.current = true;
             }
-            setMessages(data);
+            setMessages(list);
+            setHasMoreOlder(!!data.hasMore);
+            oldestCreatedAtRef.current = list[0]?.createdAt || null;
         } catch { /* silent — network may be slow */ }
     }, [myId]);
+
+    // Yedek polling (socket yeterliyse nadir çalışır) — sadece en son sayfayı
+    // çekip mevcut listeye EKLER, üstte yukarı kaydırılarak yüklenmiş eski
+    // mesajları asla silmez.
+    const refreshRecent = useCallback(async (id) => {
+        if (!id) return;
+        try {
+            const { data } = await api.get(`/messages/conversation/${id}/messages`);
+            const list = data.messages || [];
+            setMessages(prev => {
+                const existingIds = new Set(prev.map(m => m.id));
+                const merged = [...prev, ...list.filter(m => !existingIds.has(m.id))];
+                merged.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                return merged;
+            });
+        } catch { /* silent */ }
+    }, []);
+
+    const loadOlderMessages = useCallback(async () => {
+        const id = convIdRef.current;
+        if (!id || !hasMoreOlder || loadingOlder || !oldestCreatedAtRef.current) return;
+        setLoadingOlder(true);
+        try {
+            const { data } = await api.get(`/messages/conversation/${id}/messages`, {
+                params: { before: oldestCreatedAtRef.current },
+            });
+            const list = data.messages || [];
+            if (list.length > 0) {
+                oldestCreatedAtRef.current = list[0].createdAt;
+                isPrependingRef.current = true;
+                setMessages(prev => [...list, ...prev]);
+            }
+            setHasMoreOlder(!!data.hasMore);
+        } catch { /* silent */ }
+        finally { setLoadingOlder(false); }
+    }, [hasMoreOlder, loadingOlder]);
 
     useEffect(() => {
         const init = async () => {
@@ -161,7 +210,7 @@ export default function ChatScreen({ route, navigation }) {
                     convIdRef.current = id;
                 }
                 if (id) {
-                    await fetchMessages(id, true);
+                    await loadInitial(id);
                     setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
                 }
             } catch (e) {
@@ -177,7 +226,7 @@ export default function ChatScreen({ route, navigation }) {
 
         // Yedek polling: 10 saniyede bir (socket yeterliyse nadir çalışır)
         pollRef.current = setInterval(() => {
-            fetchMessages(convIdRef.current);
+            refreshRecent(convIdRef.current);
         }, 10000);
 
         return () => clearInterval(pollRef.current);
@@ -467,7 +516,19 @@ export default function ChatScreen({ route, navigation }) {
                     keyExtractor={item => item.id}
                     renderItem={renderMessage}
                     contentContainerStyle={styles.list}
-                    onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
+                    // Eski sayfa üste eklendiğinde (prepend) tek bir contentSizeChange
+                    // "tüketilir" — yoksa maintainVisibleContentPosition'ın koruduğu
+                    // kaydırma konumu her seferinde en alta zıplardı.
+                    onContentSizeChange={() => {
+                        if (isPrependingRef.current) { isPrependingRef.current = false; return; }
+                        flatRef.current?.scrollToEnd({ animated: false });
+                    }}
+                    onScroll={({ nativeEvent }) => {
+                        if (nativeEvent.contentOffset.y < 60) loadOlderMessages();
+                    }}
+                    scrollEventThrottle={200}
+                    maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+                    ListHeaderComponent={loadingOlder ? <ActivityIndicator color={colors.purple} style={{ marginVertical: 10 }} /> : null}
                     ListEmptyComponent={
                         <View style={styles.empty}>
                             <Avatar user={other} size={52} />
