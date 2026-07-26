@@ -1560,9 +1560,11 @@ export default function ProfileScreen({ route, navigation }) {
     const [showActivitiesViewModal, setShowActivitiesViewModal] = useState(false);
     const [friendsList, setFriendsList] = useState([]);
     const [loadingFriendsList, setLoadingFriendsList] = useState(false);
-    const [friendsModalTab, setFriendsModalTab] = useState('friends'); // 'friends' | 'following' | 'followers'
+    const [friendsModalTab, setFriendsModalTab] = useState('friends'); // 'friends' | 'following' | 'followers' | 'blocked'
     const [followingList, setFollowingList] = useState([]);
     const [followersList, setFollowersList] = useState([]);
+    const [blockedList, setBlockedList] = useState([]);
+    const [loadingBlockedList, setLoadingBlockedList] = useState(false);
     const [pendingFollowReqs, setPendingFollowReqs] = useState([]);
     const [loadingFollowLists, setLoadingFollowLists] = useState(false);
 
@@ -1828,9 +1830,31 @@ export default function ProfileScreen({ route, navigation }) {
         finally { setLoadingFollowLists(false); }
     }, [userId, isOwnProfile]);
 
+    const loadBlockedList = useCallback(async () => {
+        setLoadingBlockedList(true);
+        try {
+            const { data } = await api.get('/friends/blocked');
+            setBlockedList(Array.isArray(data) ? data : []);
+        } catch { setBlockedList([]); }
+        finally { setLoadingBlockedList(false); }
+    }, []);
+
+    const handleUnblockUser = (blockedUser) => {
+        Alert.alert('Engeli Kaldır', `${blockedUser.fullName || blockedUser.username} adlı kullanıcının engeli kaldırılsın mı?`, [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Kaldır', onPress: async () => {
+                try {
+                    await api.delete(`/friends/block/${blockedUser.id}`);
+                    setBlockedList(prev => prev.filter(u => u.id !== blockedUser.id));
+                } catch (e) { console.warn(e?.message); }
+            } },
+        ]);
+    };
+
     const switchFriendsModalTab = (tab) => {
         setFriendsModalTab(tab);
-        if (tab !== 'friends') loadFollowTab(tab);
+        if (tab === 'blocked') loadBlockedList();
+        else if (tab !== 'friends') loadFollowTab(tab);
     };
 
     const handleRespondFollowReqInList = async (req, action) => {
@@ -2360,6 +2384,24 @@ export default function ProfileScreen({ route, navigation }) {
         } catch (e) { console.warn(e?.message); }
     };
 
+    // Arkadaşlık isteği reddedilmiş olsa da olmasa da, istemediği kişiyi
+    // doğrudan profilinden engelleyebilir — engellenen kişi artık bu profili göremez.
+    const handleBlockUser = () => {
+        Alert.alert(
+            '🚫 Kullanıcıyı Engelle',
+            `${profile?.fullName || profile?.username} adlı kullanıcıyı engellemek istediğinize emin misiniz? Engellerseniz birbirinizin profilini göremez, mesajlaşamaz, arkadaşlığınız varsa kaldırılır.`,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'Engelle', style: 'destructive', onPress: async () => {
+                    try {
+                        await api.post(`/friends/block/${userId}`);
+                        navigation.goBack();
+                    } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Engellenemedi.'); }
+                } },
+            ]
+        );
+    };
+
     const sendMessage = async () => {
         try {
             const { data: conv } = await api.get(`/messages/conversation/${userId}`);
@@ -2503,9 +2545,6 @@ export default function ProfileScreen({ route, navigation }) {
                 {/* Right */}
                 {isOwnProfile ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <TouchableOpacity onPress={() => navigation.navigate('BlockedUsers')} style={s.logoutBtn}>
-                            <Text style={s.logoutText}>🚫 Engellenenler</Text>
-                        </TouchableOpacity>
                         <TouchableOpacity onPress={openSupport} style={s.logoutBtn}>
                             <Text style={s.logoutText}>💬 Destek</Text>
                         </TouchableOpacity>
@@ -2664,6 +2703,12 @@ export default function ProfileScreen({ route, navigation }) {
                     {/* Action buttons */}
                     {!isOwnProfile && (
                         <View style={s.actionRow}>
+                            <TouchableOpacity
+                                onPress={handleBlockUser}
+                                style={{ flex: 0, width: 40, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 10, alignItems: 'center' }}
+                            >
+                                <Text style={s.actionBtnText}>🚫</Text>
+                            </TouchableOpacity>
                             {friendStatus?.status === 'PENDING' && !friendStatus.isSender ? (
                                 <>
                                     <TouchableOpacity style={[s.actionBtn, s.actionBtnActive]} onPress={() => handleRespondFriendRequest('accept')}>
@@ -3566,6 +3611,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 { key:'friends', label:'Arkadaşlar' },
                                 { key:'following', label:'Takip Ettiklerim' },
                                 { key:'followers', label:'Takipçilerim' },
+                                ...(isOwnProfile ? [{ key:'blocked', label:'Engellenen Kullanıcılar' }] : []),
                             ].map(tab => (
                                 <TouchableOpacity
                                     key={tab.key}
@@ -3684,6 +3730,32 @@ export default function ProfileScreen({ route, navigation }) {
                                         ))}
                                     </>
                                 )
+                            )}
+
+                            {friendsModalTab === 'blocked' && (
+                                loadingBlockedList ? (
+                                    <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                                ) : blockedList.length === 0 ? (
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz kimseyi engellemedin</Text>
+                                ) : blockedList.map(u => (
+                                    <View key={u.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                        <View style={{ flex:1, flexDirection:'row', alignItems:'center' }}>
+                                            {u.avatar
+                                                ? <Image source={{ uri: u.avatar }} style={{ width:40, height:40, borderRadius:20, marginRight:10 }} />
+                                                : <View style={{ width:40, height:40, borderRadius:20, marginRight:10, backgroundColor: colors.purple + '30', alignItems:'center', justifyContent:'center' }}>
+                                                    <Text style={{ color: colors.purple, fontWeight:'800' }}>{(u.username?.[0] || '?').toUpperCase()}</Text>
+                                                  </View>
+                                            }
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>{u.username}</Text>
+                                            </View>
+                                        </View>
+                                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleUnblockUser(u)}>
+                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Engeli Kaldır</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))
                             )}
                         </ScrollView>
                     </View>

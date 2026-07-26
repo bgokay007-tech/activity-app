@@ -195,6 +195,39 @@ export const getBlockList = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Mesaj engeli — tam Block'tan farklı, sadece mesajlaşmayı durdurur; arkadaşlık/
+// takip/arama/profil görüntüleme etkilenmez.
+export const blockMessages = async (req, res, next) => {
+    try {
+        const { userId: blockedId } = req.params;
+        if (blockedId === req.userId) return res.status(400).json({ message: 'Cannot block yourself' });
+        const block = await prisma.messageBlock.upsert({
+            where: { blockerId_blockedId: { blockerId: req.userId, blockedId } },
+            create: { blockerId: req.userId, blockedId },
+            update: {},
+        });
+        res.json(block);
+    } catch (error) { next(error); }
+};
+
+export const unblockMessages = async (req, res, next) => {
+    try {
+        const { userId: blockedId } = req.params;
+        await prisma.messageBlock.deleteMany({ where: { blockerId: req.userId, blockedId } });
+        res.json({ message: 'Unblocked' });
+    } catch (error) { next(error); }
+};
+
+export const getMessageBlockList = async (req, res, next) => {
+    try {
+        const blocks = await prisma.messageBlock.findMany({
+            where: { blockerId: req.userId },
+            include: { blocked: { select: FRIEND_SELECT } },
+        });
+        res.json(blocks.map(b => b.blocked));
+    } catch (error) { next(error); }
+};
+
 export const getFriendshipStatus = async (req, res, next) => {
     try {
         const { userId } = req.params;
@@ -214,12 +247,22 @@ export const getFriendshipStatus = async (req, res, next) => {
                 ],
             },
         });
+        const msgBlock = await prisma.messageBlock.findFirst({
+            where: {
+                OR: [
+                    { blockerId: req.userId, blockedId: userId },
+                    { blockerId: userId, blockedId: req.userId },
+                ],
+            },
+        });
         res.json({
             status: friendship?.status || null,
             isSender: friendship?.senderId === req.userId,
             friendshipId: friendship?.id || null,
             isBlocked: !!block,
             blockedByMe: block?.blockerId === req.userId,
+            isMessageBlocked: !!msgBlock,
+            messageBlockedByMe: msgBlock?.blockerId === req.userId,
         });
     } catch (error) { next(error); }
 };

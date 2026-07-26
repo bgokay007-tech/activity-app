@@ -217,6 +217,11 @@ export const sendMessage = async (req, res, next) => {
         });
         if (blocked) return res.status(403).json({ message: blocked.blockerId === req.userId ? 'Bu kullanıcıyı engellediniz.' : 'Bu kullanıcı tarafından engellendiniz.' });
 
+        const msgBlocked = await prisma.messageBlock.findFirst({
+            where: { OR: [{ blockerId: req.userId, blockedId: receiverId }, { blockerId: receiverId, blockedId: req.userId }] },
+        });
+        if (msgBlocked) return res.status(403).json({ message: msgBlocked.blockerId === req.userId ? 'Bu kullanıcının mesajlarını engellediniz.' : 'Bu kullanıcı mesajlarınızı engelledi.' });
+
         const conv = await getOrCreateConversation(req.userId, receiverId);
 
         const [message, sender, receiver, muted] = await Promise.all([
@@ -337,6 +342,11 @@ export const getOrStartConversation = async (req, res, next) => {
             where: { OR: [{ blockerId: req.userId, blockedId: userId }, { blockerId: userId, blockedId: req.userId }] },
         });
         if (blocked) return res.status(403).json({ message: blocked.blockerId === req.userId ? 'Bu kullanıcıyı engellediniz.' : 'Bu kullanıcı tarafından engellendiniz.' });
+
+        const msgBlocked = await prisma.messageBlock.findFirst({
+            where: { OR: [{ blockerId: req.userId, blockedId: userId }, { blockerId: userId, blockedId: req.userId }] },
+        });
+        if (msgBlocked) return res.status(403).json({ message: msgBlocked.blockerId === req.userId ? 'Bu kullanıcının mesajlarını engellediniz.' : 'Bu kullanıcı mesajlarınızı engelledi.' });
 
         const conv = await getOrCreateConversation(req.userId, userId);
         res.json(conv);

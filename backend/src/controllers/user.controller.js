@@ -47,6 +47,24 @@ export const getProfile = async (req, res, next) => {
         const isOwner = targetId === req.userId;
         const { isFriend, isFollower } = await getRelation(targetId, req.userId);
 
+        // Engellenen taraf artık diğerinin profilini hiç göremiyor.
+        if (!isOwner) {
+            const block = await prisma.block.findFirst({
+                where: {
+                    OR: [
+                        { blockerId: req.userId, blockedId: targetId },
+                        { blockerId: targetId, blockedId: req.userId },
+                    ],
+                },
+            });
+            if (block) {
+                return res.json({
+                    id: user.id, username: user.username,
+                    avatar: user.avatar, isPublic: false, isPrivate: true,
+                });
+            }
+        }
+
         // Profile-level access check (replaces isPublic gate)
         if (!isOwner) {
             const canAccessProfile = canAccess({

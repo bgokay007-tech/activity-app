@@ -83,16 +83,16 @@ export default function ChatScreen({ route, navigation }) {
 
     const confirmBlock = () => {
         Alert.alert(
-            'Kullanıcıyı Engelle',
-            `${other?.fullName || other?.username} kullanıcısını engellemek istediğinize emin misiniz? Engellediğinizde birbirinize mesaj gönderemezsiniz.`,
+            'Mesajları Engelle',
+            `${other?.fullName || other?.username} adlı kullanıcının mesajlarını engellemek istediğinize emin misiniz? Arkadaşlığınız, takibiniz ve profilinizi görmesi etkilenmez — sadece mesajlaşamazsınız.`,
             [
                 { text: 'Vazgeç', style: 'cancel' },
                 {
                     text: 'Engelle', style: 'destructive', onPress: async () => {
                         setBlocking(true);
                         try {
-                            await api.post(`/friends/block/${other.id}`);
-                            Alert.alert('', 'Kullanıcı engellendi.');
+                            await api.post(`/friends/message-block/${other.id}`);
+                            Alert.alert('', 'Kullanıcının mesajları engellendi.');
                             navigation.goBack();
                         } catch (e) {
                             Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
@@ -686,7 +686,7 @@ export default function ChatScreen({ route, navigation }) {
                 </View>
             </Modal>
 
-            {/* Sohbet başlığı menüsü: Engelle / Şikayet Et */}
+            {/* Sohbet başlığı menüsü: Mesajları Engelle / Şikayet Et */}
             <Modal visible={headerMenuVisible} animationType="fade" transparent onRequestClose={() => setHeaderMenuVisible(false)}>
                 <TouchableOpacity style={styles.actionSheetOverlay} activeOpacity={1} onPress={() => setHeaderMenuVisible(false)}>
                     <View style={styles.actionSheetBox}>
@@ -694,7 +694,7 @@ export default function ChatScreen({ route, navigation }) {
                             style={styles.actionSheetRow}
                             onPress={() => { setHeaderMenuVisible(false); confirmBlock(); }}
                         >
-                            <Text style={[styles.actionSheetRowText, { color: '#f87171' }]}>🚫 Engelle</Text>
+                            <Text style={[styles.actionSheetRowText, { color: '#f87171' }]}>🔇 Mesajları Engelle</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.actionSheetRow}

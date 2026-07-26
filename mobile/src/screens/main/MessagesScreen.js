@@ -30,6 +30,32 @@ export default function MessagesScreen({ navigation }) {
     const [supportText, setSupportText] = useState('');
     const [supportSending, setSupportSending] = useState(false);
 
+    // Mesajları engellenenler — tam Block'tan farklı, sadece mesajlaşmayı durdurur
+    const [msgBlockedOpen, setMsgBlockedOpen] = useState(false);
+    const [msgBlockedList, setMsgBlockedList] = useState([]);
+    const [msgBlockedLoading, setMsgBlockedLoading] = useState(false);
+
+    const openMsgBlocked = () => {
+        setMsgBlockedOpen(true);
+        setMsgBlockedLoading(true);
+        api.get('/friends/message-blocked')
+            .then(r => setMsgBlockedList(Array.isArray(r.data) ? r.data : []))
+            .catch(() => setMsgBlockedList([]))
+            .finally(() => setMsgBlockedLoading(false));
+    };
+
+    const unblockMessages = (user) => {
+        Alert.alert('Engeli Kaldır', `${user.fullName || user.username} adlı kullanıcının mesaj engeli kaldırılsın mı?`, [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Kaldır', onPress: async () => {
+                try {
+                    await api.delete(`/friends/message-block/${user.id}`);
+                    setMsgBlockedList(prev => prev.filter(u => u.id !== user.id));
+                } catch (e) { Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.'); }
+            } },
+        ]);
+    };
+
     const loadSupportMessages = () => {
         setSupportLoading(true);
         api.get('/users/me/support-messages')
@@ -149,15 +175,15 @@ export default function MessagesScreen({ navigation }) {
         const other = actionMenu.other;
         closeActionMenu();
         Alert.alert(
-            'Kullanıcıyı Engelle',
-            `${other?.fullName || other?.username} kullanıcısını engellemek istediğinize emin misiniz?`,
+            'Mesajları Engelle',
+            `${other?.fullName || other?.username} adlı kullanıcının mesajlarını engellemek istediğinize emin misiniz? Arkadaşlığınız, takibiniz ve profilinizi görmesi etkilenmez — sadece mesajlaşamazsınız.`,
             [
                 { text: 'Vazgeç', style: 'cancel' },
                 {
                     text: 'Engelle', style: 'destructive', onPress: async () => {
                         try {
-                            await api.post(`/friends/block/${other.id}`);
-                            Alert.alert('', 'Kullanıcı engellendi.');
+                            await api.post(`/friends/message-block/${other.id}`);
+                            Alert.alert('', 'Kullanıcının mesajları engellendi.');
                         } catch (e) {
                             Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
                         }
@@ -215,9 +241,14 @@ export default function MessagesScreen({ navigation }) {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.title}>{t.messagesTitle}</Text>
-                <TouchableOpacity onPress={openSupport} style={styles.supportBtn}>
-                    <Text style={styles.supportBtnText}>🆘 Destek</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <TouchableOpacity onPress={openMsgBlocked} style={styles.supportBtn}>
+                        <Text style={styles.supportBtnText}>🚫 Engellenenler</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={openSupport} style={styles.supportBtn}>
+                        <Text style={styles.supportBtnText}>🆘 Destek</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
             {loading ? (
                 <ActivityIndicator color={colors.purple} style={{ marginTop: 40 }} />
@@ -290,6 +321,38 @@ export default function MessagesScreen({ navigation }) {
                 </View>
             </Modal>
 
+            <Modal visible={msgBlockedOpen} animationType="slide" transparent onRequestClose={() => setMsgBlockedOpen(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalBox}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>🚫 Mesajları Engellenenler</Text>
+                            <TouchableOpacity onPress={() => setMsgBlockedOpen(false)}>
+                                <Text style={styles.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                            {msgBlockedLoading ? (
+                                <ActivityIndicator color={colors.purple} style={{ marginVertical: 16 }} />
+                            ) : msgBlockedList.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>Mesajlarını engellediğiniz kimse yok.</Text>
+                            ) : (
+                                msgBlockedList.map(u => (
+                                    <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{u.fullName || u.username}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize: 11 }}>{u.username}</Text>
+                                        </View>
+                                        <TouchableOpacity style={{ backgroundColor: '#dc262620', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: '#dc262650' }} onPress={() => unblockMessages(u)}>
+                                            <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700' }}>Engeli Kaldır</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Satır menüsü: sohbete girmeden sessize al / sesi aç / okundu işaretle / engelle */}
             <Modal visible={!!actionMenu} animationType="slide" transparent onRequestClose={closeActionMenu}>
                 <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={closeActionMenu}>
@@ -321,7 +384,7 @@ export default function MessagesScreen({ navigation }) {
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity style={styles.menuRow} onPress={blockFromList}>
-                            <Text style={[styles.menuRowText, { color: '#f87171' }]}>🚫 Engelle</Text>
+                            <Text style={[styles.menuRowText, { color: '#f87171' }]}>🔇 Mesajları Engelle</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.menuRow, { borderBottomWidth: 0 }]} onPress={closeActionMenu}>
                             <Text style={[styles.menuRowText, { color: colors.textMuted }]}>Vazgeç</Text>

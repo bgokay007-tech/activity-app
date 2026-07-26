@@ -106,7 +106,6 @@ import MessagesScreen from '../screens/main/MessagesScreen';
 import ChatScreen from '../screens/main/ChatScreen';
 import NotificationsScreen from '../screens/main/NotificationsScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
-import BlockedUsersScreen from '../screens/main/BlockedUsersScreen';
 import UserPostsScreen from '../screens/main/UserPostsScreen';
 import CreatePostScreen from '../screens/main/CreatePostScreen';
 import VenueSearchScreen from '../screens/main/VenueSearchScreen';
@@ -190,7 +189,6 @@ function ProfileStackNav() {
             <ProfileStack.Screen name="MyProfile" component={ProfileScreen} />
             <ProfileStack.Screen name="SubCategory" component={SubCategoryScreen} />
             <ProfileStack.Screen name="Profile" component={ProfileScreen} />
-            <ProfileStack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
             <ProfileStack.Screen name="UserPosts" component={UserPostsScreen} />
             <ProfileStack.Screen name="CreatePost" component={CreatePostScreen} />
             <ProfileStack.Screen name="BusinessHome" component={BusinessHomeScreen} />
