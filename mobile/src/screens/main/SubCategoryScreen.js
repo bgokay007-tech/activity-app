@@ -158,19 +158,31 @@ function splitDoublesSlots(pairs, solos, byUserId, maxPlayers) {
     return { mainSlots, waitSlots };
 }
 
-// Opens the device's maps app at the court location, falling back to a Google Maps search
+// Opens the device's maps app at the court location, falling back to a Google Maps search.
+// Kort adına dokunuşlar çoğunlukla ilan kartı/detayı açmaya çalışırken yanlışlıkla
+// oluyor — direkt haritayı açmadan önce son bir kez onay istiyoruz.
 const openCourtMap = (courtName, courtLat, courtLng, courtAddress) => {
-    if (courtLat && courtLng) {
-        const url = Platform.OS === 'ios'
-            ? `maps://?ll=${courtLat},${courtLng}&q=${encodeURIComponent(courtName)}`
-            : `geo:${courtLat},${courtLng}?q=${encodeURIComponent(courtName)}`;
-        Linking.openURL(url).catch(() => {
-            Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${courtLat},${courtLng}`);
-        });
-    } else if (courtAddress || courtName) {
-        const q = encodeURIComponent(courtAddress || courtName);
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`);
-    }
+    const go = () => {
+        if (courtLat && courtLng) {
+            const url = Platform.OS === 'ios'
+                ? `maps://?ll=${courtLat},${courtLng}&q=${encodeURIComponent(courtName)}`
+                : `geo:${courtLat},${courtLng}?q=${encodeURIComponent(courtName)}`;
+            Linking.openURL(url).catch(() => {
+                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${courtLat},${courtLng}`);
+            });
+        } else if (courtAddress || courtName) {
+            const q = encodeURIComponent(courtAddress || courtName);
+            Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`);
+        }
+    };
+    Alert.alert(
+        '📍 Konumu Aç',
+        `${courtName || courtAddress || 'Bu konum'} haritalarda açılsın mı?`,
+        [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Aç', onPress: go },
+        ]
+    );
 };
 
 function Avatar({ name, avatar, size=40, color=colors.purple, onPress }) {
