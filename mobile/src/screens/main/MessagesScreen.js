@@ -97,14 +97,17 @@ export default function MessagesScreen({ navigation }) {
         return prefix + body;
     };
 
-    // Sohbetin içine girmeden satırdaki "⋮" ile: sessize al (X saat/süresiz), sesi
-    // aç, okundu işaretle, engelle.
+    // Sohbetin içine girmeden satırdaki "⋮" ile: sessize al (kullanıcının kendi
+    // girdiği saat, boşsa süresiz — tek satır input, ekstra seçenek satırı yok),
+    // sesi aç, okundu işaretle, engelle.
     const [actionMenu, setActionMenu] = useState(null);
-    const closeActionMenu = () => setActionMenu(null);
+    const [muteHours, setMuteHours] = useState('');
+    const closeActionMenu = () => { setActionMenu(null); setMuteHours(''); };
 
-    const muteFor = async (hours) => {
+    const muteFor = async () => {
         if (!actionMenu) return;
         const id = actionMenu.id;
+        const hours = muteHours.trim() ? Number(muteHours.trim()) : null;
         try {
             const { data } = await api.post(`/messages/conversation/${id}/mute`, hours ? { hours } : {});
             setConversations(prev => prev.map(c => c.id === id ? { ...c, isMuted: true, mutedUntil: data.mutedUntil } : c));
@@ -297,17 +300,20 @@ export default function MessagesScreen({ navigation }) {
                                 <Text style={styles.menuRowText}>🔊 Sesi Aç</Text>
                             </TouchableOpacity>
                         ) : (
-                            <>
-                                <TouchableOpacity style={styles.menuRow} onPress={() => muteFor(8)}>
-                                    <Text style={styles.menuRowText}>🔕 8 Saat Sessize Al</Text>
+                            <View style={[styles.menuRow, styles.muteInputRow]}>
+                                <Text style={styles.menuRowText}>🔕</Text>
+                                <TextInput
+                                    style={styles.muteHoursInput}
+                                    value={muteHours}
+                                    onChangeText={setMuteHours}
+                                    placeholder="Saat (boş = süresiz)"
+                                    placeholderTextColor={colors.textMuted}
+                                    keyboardType="numeric"
+                                />
+                                <TouchableOpacity style={styles.muteApplyBtn} onPress={muteFor}>
+                                    <Text style={styles.muteApplyBtnText}>Sessize Al</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={styles.menuRow} onPress={() => muteFor(24)}>
-                                    <Text style={styles.menuRowText}>🔕 24 Saat Sessize Al</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.menuRow} onPress={() => muteFor(null)}>
-                                    <Text style={styles.menuRowText}>🔕 Sonsuza Kadar Sessize Al</Text>
-                                </TouchableOpacity>
-                            </>
+                            </View>
                         )}
                         {(actionMenu?.unreadCount || 0) > 0 && (
                             <TouchableOpacity style={styles.menuRow} onPress={markRead}>
@@ -351,6 +357,10 @@ const styles = StyleSheet.create({
     menuTitle: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 },
     menuRow: { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.border + '50' },
     menuRowText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    muteInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    muteHoursInput: { flex: 1, backgroundColor: colors.surface2, borderRadius: 8, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 10, paddingVertical: 7 },
+    muteApplyBtn: { backgroundColor: colors.purple, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+    muteApplyBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 57 },
     emptyEmoji: { fontSize: 52, marginBottom: 12 },
     emptyText: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 6 },

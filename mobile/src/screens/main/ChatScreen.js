@@ -129,13 +129,26 @@ export default function ChatScreen({ route, navigation }) {
         }
     };
 
-    const fetchMessages = useCallback(async (id) => {
+    // Sohbete her girişte, o an henüz okunmamış olan ilk mesajın üstüne "Yeni
+    // Mesajlar" çizgisi çekilir. Bu satır SADECE ilk yüklemede belirlenir (10sn'lik
+    // poll'da tekrar hesaplanmaz) — çünkü sunucu bu isteğin içinde mesajları hemen
+    // okundu işaretliyor; bir sonraki girişte onlar zaten "eski" sayılıp çizginin
+    // üstünde kalacak, sadece o andan sonra gelenler çizginin altında yeni sayılacak.
+    const [unreadDividerId, setUnreadDividerId] = useState(null);
+    const dividerSetRef = useRef(false);
+
+    const fetchMessages = useCallback(async (id, isInitial) => {
         if (!id) return;
         try {
             const { data } = await api.get(`/messages/conversation/${id}/messages`);
+            if (isInitial && !dividerSetRef.current) {
+                const firstUnread = data.find(m => m.senderId !== myId && !m.read);
+                if (firstUnread) setUnreadDividerId(firstUnread.id);
+                dividerSetRef.current = true;
+            }
             setMessages(data);
         } catch { /* silent — network may be slow */ }
-    }, []);
+    }, [myId]);
 
     useEffect(() => {
         const init = async () => {
@@ -148,7 +161,7 @@ export default function ChatScreen({ route, navigation }) {
                     convIdRef.current = id;
                 }
                 if (id) {
-                    await fetchMessages(id);
+                    await fetchMessages(id, true);
                     setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
                 }
             } catch (e) {
@@ -326,7 +339,15 @@ export default function ChatScreen({ route, navigation }) {
     const renderMessage = ({ item }) => {
         const isMe = item.senderId === myId;
         return (
-            <View style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowThem]}>
+            <>
+                {item.id === unreadDividerId && (
+                    <View style={styles.newDivider}>
+                        <View style={styles.newDividerLine} />
+                        <Text style={styles.newDividerText}>Yeni Mesajlar</Text>
+                        <View style={styles.newDividerLine} />
+                    </View>
+                )}
+                <View style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowThem]}>
                 {!isMe && <Avatar user={item.sender} size={30} />}
                 <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
                     {item.equipmentListing && (
@@ -368,7 +389,8 @@ export default function ChatScreen({ route, navigation }) {
                         {new Date(item.createdAt).toLocaleTimeString(t.dateLocale, { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                 </View>
-            </View>
+                </View>
+            </>
         );
     };
 
@@ -563,6 +585,9 @@ const styles = StyleSheet.create({
     msgEquipTitle: { color: '#fff', fontSize: 12, fontWeight: '700' },
     msgEquipPrice: { color: '#4ade80', fontSize: 11, fontWeight: '800' },
     list: { paddingHorizontal: 13, paddingVertical: 13, gap: 3 },
+    newDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 10 },
+    newDividerLine: { flex: 1, height: 1, backgroundColor: colors.purple + '60' },
+    newDividerText: { color: colors.purple, fontSize: 11, fontWeight: '800' },
     msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
     msgRowMe: { justifyContent: 'flex-end' },
     msgRowThem: { justifyContent: 'flex-start' },
