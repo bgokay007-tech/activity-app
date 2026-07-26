@@ -6050,9 +6050,24 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <>
                                     <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: 3 }}>
                                         {/* Davete İzin Ver — kapalıyken sadece ilan sahibi oyuncu davet edebilir/
-                                            paylaşabilir; açıkken kabul edilmiş katılımcılar da davet/paylaşım yapabilir. */}
+                                            paylaşabilir; açıkken kabul edilmiş katılımcılar da davet/paylaşım yapabilir.
+                                            Açmadan önce ne işe yaradığını açıklayan bir onay penceresi gösterilir —
+                                            onaylanmazsa kilitli kalır. Kapatmak onay istemez. */}
                                         <TouchableOpacity
-                                            onPress={() => set('participantsCanInvite', !f.participantsCanInvite)}
+                                            onPress={() => {
+                                                if (f.participantsCanInvite) {
+                                                    set('participantsCanInvite', false);
+                                                    return;
+                                                }
+                                                Alert.alert(
+                                                    '🔓 Davete İzin Ver',
+                                                    'Bunu açarsan, ilanına kabul edilen katılımcılar da başka oyuncu davet edebilir ve ilanı paylaşabilir. Kapalı kaldığında bunu sadece sen yapabilirsin.',
+                                                    [
+                                                        { text: 'Vazgeç', style: 'cancel' },
+                                                        { text: 'Aç', onPress: () => set('participantsCanInvite', true) },
+                                                    ]
+                                                );
+                                            }}
                                             style={{ width: moderateScale(34), height: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor: f.participantsCanInvite ? '#22c55e20' : colors.surface2, borderWidth:1, borderColor: f.participantsCanInvite ? '#22c55e70' : colors.border }}
                                         >
                                             <Text style={{ fontSize:13 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
