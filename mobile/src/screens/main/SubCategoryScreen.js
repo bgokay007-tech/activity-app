@@ -3054,6 +3054,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
                     {/* DOUBLE team management */}
                     {match.matchType === 'DOUBLE' && (() => {
+                        // handleSwapTap ile aynı kural: STRICT ilanlarda takas kapalı — ipucu
+                        // metni de bu durumda gösterilmemeli (önceden burada tanımsız "locked"
+                        // değişkenine referans vardı, render anında "Property 'locked' doesn't
+                        // exist" hatasına sebep oluyordu).
+                        const locked = match.teamFlexibility === 'STRICT';
                         const partner = senderTeamArr[0] || null;
                         // DİKKAT: participants[0]=Rakip 1, participants[1]=Rakip 2 sabit konumludur —
                         // önceden boş slotları filtrelenmiş participantsArr üzerinden indexleniyordu,
