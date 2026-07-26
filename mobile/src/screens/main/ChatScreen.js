@@ -75,17 +75,10 @@ export default function ChatScreen({ route, navigation }) {
         navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'coaches', openCoachId: listing.id });
     };
 
+    const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
     const openOptionsMenu = () => {
         if (!other?.id) return;
-        Alert.alert(
-            other?.fullName || other?.username || '',
-            undefined,
-            [
-                { text: '🚫 Engelle', style: 'destructive', onPress: confirmBlock },
-                { text: '🚩 Şikayet Et', onPress: () => { setReportReason(''); setReportModalVisible(true); } },
-                { text: 'Vazgeç', style: 'cancel' },
-            ],
-        );
+        setHeaderMenuVisible(true);
     };
 
     const confirmBlock = () => {
@@ -174,21 +167,14 @@ export default function ChatScreen({ route, navigation }) {
         }
     };
 
+    // Alert.alert boş başlık/mesajla bile büyük, boşluklu bir kutu çiziyordu — sadece
+    // birkaç satır buton için içeriğe göre boyutlanan küçük bir sayfa altı menü yeterli.
+    const [messageOptionsFor, setMessageOptionsFor] = useState(null);
     const openMessageOptions = (item) => {
         if (item.deletedForEveryone) return;
-        const isMe = item.senderId === myId;
-        const buttons = isMe
-            ? [
-                { text: '🗑️ Herkesten Sil', style: 'destructive', onPress: () => confirmDeleteForEveryone(item) },
-                { text: '🗑️ Benden Sil', onPress: () => deleteForMe(item) },
-                { text: 'Vazgeç', style: 'cancel' },
-            ]
-            : [
-                { text: '🗑️ Benden Sil', onPress: () => deleteForMe(item) },
-                { text: 'Vazgeç', style: 'cancel' },
-            ];
-        Alert.alert('', undefined, buttons);
+        setMessageOptionsFor(item);
     };
+    const closeMessageOptions = () => setMessageOptionsFor(null);
 
     // Sohbete her girişte, o an henüz okunmamış olan ilk mesajın üstüne "Yeni
     // Mesajlar" çizgisi çekilir. Bu satır SADECE ilk yüklemede belirlenir (10sn'lik
@@ -699,6 +685,54 @@ export default function ChatScreen({ route, navigation }) {
                     </View>
                 </View>
             </Modal>
+
+            {/* Sohbet başlığı menüsü: Engelle / Şikayet Et */}
+            <Modal visible={headerMenuVisible} animationType="fade" transparent onRequestClose={() => setHeaderMenuVisible(false)}>
+                <TouchableOpacity style={styles.actionSheetOverlay} activeOpacity={1} onPress={() => setHeaderMenuVisible(false)}>
+                    <View style={styles.actionSheetBox}>
+                        <TouchableOpacity
+                            style={styles.actionSheetRow}
+                            onPress={() => { setHeaderMenuVisible(false); confirmBlock(); }}
+                        >
+                            <Text style={[styles.actionSheetRowText, { color: '#f87171' }]}>🚫 Engelle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.actionSheetRow}
+                            onPress={() => { setHeaderMenuVisible(false); setReportReason(''); setReportModalVisible(true); }}
+                        >
+                            <Text style={styles.actionSheetRowText}>🚩 Şikayet Et</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.actionSheetRow, { borderBottomWidth: 0 }]} onPress={() => setHeaderMenuVisible(false)}>
+                            <Text style={[styles.actionSheetRowText, { color: colors.textMuted }]}>Vazgeç</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Mesaj sil menüsü */}
+            <Modal visible={!!messageOptionsFor} animationType="fade" transparent onRequestClose={closeMessageOptions}>
+                <TouchableOpacity style={styles.actionSheetOverlay} activeOpacity={1} onPress={closeMessageOptions}>
+                    <View style={styles.actionSheetBox}>
+                        {messageOptionsFor?.senderId === myId && (
+                            <TouchableOpacity
+                                style={styles.actionSheetRow}
+                                onPress={() => { const item = messageOptionsFor; closeMessageOptions(); confirmDeleteForEveryone(item); }}
+                            >
+                                <Text style={[styles.actionSheetRowText, { color: '#f87171' }]}>🗑️ Herkesten Sil</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                            style={styles.actionSheetRow}
+                            onPress={() => { const item = messageOptionsFor; closeMessageOptions(); deleteForMe(item); }}
+                        >
+                            <Text style={styles.actionSheetRowText}>🗑️ Benden Sil</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.actionSheetRow, { borderBottomWidth: 0 }]} onPress={closeMessageOptions}>
+                            <Text style={[styles.actionSheetRowText, { color: colors.textMuted }]}>Vazgeç</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
@@ -769,4 +803,8 @@ const styles = StyleSheet.create({
     reportInput: { minHeight: 80, textAlignVertical: 'top', backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 12, paddingVertical: 10 },
     reportSubmitBtn: { marginTop: 12, backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
     reportSubmitText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+    actionSheetOverlay: { flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' },
+    actionSheetBox: { backgroundColor: colors.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 20 },
+    actionSheetRow: { paddingVertical: 15, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border + '50' },
+    actionSheetRowText: { color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' },
 });
