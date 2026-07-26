@@ -651,6 +651,8 @@ model ActivityRequest {
   partnerGenderReq String  @default("MIX")  // doubles: partner/teammate gender requirement
   opp1GenderReq    String  @default("MIX")  // doubles: opponent 1 gender requirement
   opp2GenderReq    String  @default("MIX")  // doubles: opponent 2 gender requirement
+  founderTeamName  String?                 // DOUBLE: kurucu takımın (ilan sahibi + partner) isteğe bağlı özel takım adı
+  opponentTeamName String?                 // DOUBLE: rakip takımın (opp1 + opp2) isteğe bağlı özel takım adı
   scheduleProposal    Json?                   // {userId, date, time, location, courtName, proposedAt}
   schedulingDeadline  DateTime?               // 24h after MATCHED for flexible matches
   createdAt       DateTime     @default(now())

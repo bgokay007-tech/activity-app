@@ -2409,7 +2409,9 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
         >
             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                 <View style={{ flex:1, minWidth:0 }}>
-                    <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700' }} numberOfLines={1}>{label}</Text>
+                    {/* Etiket burada değil, kutunun üstündeki ortak satırda (İlan Sahibi/
+                        takım ismi ile birlikte) tek sefer gösteriliyor — önceden burada da
+                        ayrıca gösterildiği için "Katılımcı 1 Katılımcı 1" gibi çift yazıyordu. */}
                     <Text style={{ color, fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {senderAlias(player)}
                     </Text>
@@ -2426,6 +2428,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const t = useT();
     const [showScore, setShowScore] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
+    const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
+    const [savingTeamName, setSavingTeamName] = useState(false);
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
     const [submitting, setSubmitting] = useState(false);
     const [showCantScore, setShowCantScore] = useState(false);
@@ -2563,6 +2567,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
             }},
         ]);
+    };
+
+    const saveTeamName = async () => {
+        if (!teamNameModal) return;
+        setSavingTeamName(true);
+        try {
+            await api.patch(`/rivals/${match.id}/team-name`, { side: teamNameModal.side, name: teamNameModal.value });
+            setTeamNameModal(null);
+            onRefresh();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Hata');
+        } finally {
+            setSavingTeamName(false);
+        }
     };
 
     const addSet    = () => setSets(p => [...p, { my: '', opp: '' }]);
@@ -3069,6 +3087,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         const opp1 = rawParticipants[0] || null;
                         const opp2 = rawParticipants[1] || null;
                         const SLOT_LABEL = { partner: t.cardParticipantLabel(1), opp1: t.cardParticipantLabel(2), opp2: t.cardParticipantLabel(3) };
+                        // Slotta cinsiyet kısıtı varsa etiketin yanında belli olsun.
+                        const genderTag = (req) => req === 'MALE' ? ' ♂' : req === 'FEMALE' ? ' ♀' : '';
+                        // Takım isimleri isteğe bağlı — set edilmişse "{isim} 1"/"{isim} 2", edilmemişse
+                        // eski etiketlere (İlan Sahibi / Katılımcı N) döner. Kurucu tarafı ilan sahibi
+                        // veya partner, rakip tarafı ilan sahibi veya opp1/opp2'den biri değiştirebilir.
+                        const canEditFounder = isOwner || (partner && partner.id === myId);
+                        const canEditOpponent = isOwner || (opp1 && opp1.id === myId) || (opp2 && opp2.id === myId);
+                        const founderLabel1 = match.founderTeamName ? `${match.founderTeamName} 1` : 'İlan Sahibi';
+                        const founderLabel2 = (match.founderTeamName ? `${match.founderTeamName} 2` : SLOT_LABEL.partner) + genderTag(match.partnerGenderReq);
+                        const oppLabel1 = (match.opponentTeamName ? `${match.opponentTeamName} 1` : SLOT_LABEL.opp1) + genderTag(match.opp1GenderReq);
+                        const oppLabel2 = (match.opponentTeamName ? `${match.opponentTeamName} 2` : SLOT_LABEL.opp2) + genderTag(match.opp2GenderReq);
                         const mkSlot = (slot, p, color) => {
                             const isSel = swapSlot === slot;
                             const isTgt = !!swapSlot && swapSlot !== slot;
@@ -3106,7 +3135,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <View style={{ gap:3 }}>
                                     <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
                                         <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
-                                            <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>İlan Sahibi</Text>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                                                <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', flex:1 }} numberOfLines={1}>{founderLabel1}</Text>
+                                                {canEditFounder && (
+                                                    <TouchableOpacity onPress={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })}>
+                                                        <Text style={{ fontSize:9 }}>✎</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
                                             <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, backgroundColor:'#1e293b' }}>
                                                 <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
                                             </View>
@@ -3115,20 +3151,27 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
                                         </View>
                                         <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
-                                            <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>{SLOT_LABEL.opp1}</Text>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                                                <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', flex:1 }} numberOfLines={1}>{oppLabel1}</Text>
+                                                {canEditOpponent && (
+                                                    <TouchableOpacity onPress={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}>
+                                                        <Text style={{ fontSize:9 }}>✎</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
                                             {mkSlot('opp1', opp1, '#fca5a5')}
                                         </View>
                                     </View>
                                     <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
                                         <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
-                                            <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }}>{SLOT_LABEL.partner}</Text>
+                                            <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{founderLabel2}</Text>
                                             {mkSlot('partner', partner, '#c084fc')}
                                         </View>
                                         <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
                                             <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
                                         </View>
                                         <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
-                                            <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }}>{SLOT_LABEL.opp2}</Text>
+                                            <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{oppLabel2}</Text>
                                             {mkSlot('opp2', opp2, '#fca5a5')}
                                         </View>
                                     </View>
@@ -3139,6 +3182,33 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             </View>
                         );
                     })()}
+
+                    {/* Takım ismi düzenle */}
+                    <Modal visible={!!teamNameModal} animationType="fade" transparent onRequestClose={() => setTeamNameModal(null)}>
+                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
+                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
+                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>
+                                    {teamNameModal?.side === 'founder' ? 'Kurucu Takım İsmi' : 'Rakip Takım İsmi'}
+                                </Text>
+                                <TextInput
+                                    value={teamNameModal?.value || ''}
+                                    onChangeText={(v) => setTeamNameModal(p => ({ ...p, value: v }))}
+                                    placeholder="Ör: Şimşekler"
+                                    placeholderTextColor={colors.textMuted}
+                                    maxLength={24}
+                                    style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:14, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
+                                />
+                                <View style={{ flexDirection:'row', gap:8 }}>
+                                    <TouchableOpacity onPress={() => setTeamNameModal(null)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
+                                        <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={saveTeamName} disabled={savingTeamName} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple, opacity: savingTeamName ? 0.6 : 1 }}>
+                                        <Text style={{ color:'#fff', fontWeight:'800' }}>{savingTeamName ? '...' : 'Kaydet'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                    </Modal>
 
                     {/* Non-DOUBLE: owner remove */}
                     {isOwner && match.matchType !== 'DOUBLE' && participantsArr.length > 0 && (

@@ -2807,6 +2807,42 @@ export const cancelRequest = async (req, res, next) => {
 
 // İlan sahibi yanlışlıkla kabul ettiği bir katılımcıyı (1v1'de rakibi, çiftlerde takımın
 // tamamını) listeden çıkarır — ilan tekrar OPEN'a döner, çıkarılan oyuncu(lar)a bildirim gider.
+// DOUBLE maçlarda Yaklaşan Maçlar kartındaki iki takıma (kurucu: ilan sahibi+partner,
+// rakip: opp1+opp2) isteğe bağlı özel bir isim verilebilir — set edilirse "İlan Sahibi"/
+// "Katılımcı N" yerine "{isim} 1" / "{isim} 2" gösterilir. Kurucu tarafı ilan sahibi veya
+// partner, rakip tarafı ilan sahibi veya opp1/opp2'den biri değiştirebilir.
+export const setTeamName = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { side, name } = req.body; // side: 'founder' | 'opponent'
+        if (!['founder', 'opponent'].includes(side)) return res.status(400).json({ message: 'Geçersiz taraf' });
+
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Sadece çiftler maçında takım ismi ayarlanabilir' });
+
+        const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const isOwner = rival.senderId === req.userId;
+        const isFounderSide = isOwner || senderTeamArr.some(p => p?.id === req.userId);
+        const isOpponentSide = isOwner || participants.some(p => p?.id === req.userId);
+        const allowed = side === 'founder' ? isFounderSide : isOpponentSide;
+        if (!allowed) return res.status(403).json({ message: 'Bu takımın ismini değiştiremezsiniz' });
+
+        const trimmed = (name || '').trim().slice(0, 24);
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: side === 'founder'
+                ? { founderTeamName: trimmed || null }
+                : { opponentTeamName: trimmed || null },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+
+        broadcast('rivalUpdate', updated);
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
 export const removeRivalParticipant = async (req, res, next) => {
     try {
         const { id, userId } = req.params;
