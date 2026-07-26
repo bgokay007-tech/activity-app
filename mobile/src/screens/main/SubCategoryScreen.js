@@ -912,10 +912,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {p ? (
                                             <View>
                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                                                    <TouchableOpacity onPress={() => !swapSlot && p.id && navigation.push('Profile', { userId: p.id })} style={{ flex:1 }}>
-                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p.username}</Text>
-                                                    </TouchableOpacity>
+                                                    {/* Taşıma sırasında (swapSlot dolu) bu iç görünüm dokunulabilir DEĞİL —
+                                                        aksi halde isim/kullanıcı adına dokunuş dıştaki "hedefe taşı"
+                                                        onPress'ini hiç tetiklemeden yutuluyordu (iç içe TouchableOpacity). */}
+                                                    {swapSlot ? (
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p.username}</Text>
+                                                        </View>
+                                                    ) : (
+                                                        <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flex:1 }}>
+                                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p.username}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
                                                     {isSelected && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'900', marginLeft:4 }}>✓</Text>}
                                                     {isTarget  && <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'900', marginLeft:4 }}>⇄</Text>}
                                                 </View>
