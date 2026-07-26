@@ -407,7 +407,12 @@ export const swapMatchPositions = async (req, res, next) => {
         await checkGender(newOpp2?.id,    rival.opp2GenderReq,    'Rakip 2');
 
         const newSenderTeam   = newPartner ? [newPartner] : [];
-        const newParticipants = [newOpp1, newOpp2].filter(Boolean);
+        // DİKKAT: participants[0]=opp1, participants[1]=opp2 sabit konumludur (bkz. getP) —
+        // .filter(Boolean) ile boş slotu diziden atmak, kalan oyuncuyu index 0'a kaydırıp
+        // onu yanlışlıkla "Rakip 1" gibi göstermeye/okumaya sebep oluyordu (asıl bug buydu:
+        // birini Rakip 2'ye taşıyınca Rakip 1 boşalırsa, o oyuncu tekrar Rakip 1'e "geri
+        // kaymış" gibi görünüyordu). null'lar korunmalı ki konum anlamı bozulmasın.
+        const newParticipants = [newOpp1, newOpp2];
 
         const updated = await prisma.activityRequest.update({
             where: { id },
@@ -2759,7 +2764,11 @@ export const removeRivalParticipant = async (req, res, next) => {
         if (!inParticipants && !inSenderTeam) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
 
         const removeIds = [userId];
-        const updatedParticipants = inParticipants ? participants.filter(p => !removeIds.includes(p.id)) : participants;
+        // DOUBLE maçlarda participants[0]=Rakip 1, participants[1]=Rakip 2 sabit konumludur
+        // (bkz. swapMatchPositions'daki getP) — .filter() ile çıkarılan slotu diziden atmak,
+        // kalan oyuncuyu index 0'a kaydırıp onu yanlışlıkla Rakip 1 gibi göstermeye/okumaya
+        // sebep oluyordu. Konumu null ile boşaltıp diziyi olduğu gibi bırakıyoruz.
+        const updatedParticipants = inParticipants ? participants.map(p => (removeIds.includes(p?.id) ? null : p)) : participants;
         const updatedSenderTeam   = inSenderTeam  ? senderTeamArr.filter(p => !removeIds.includes(p.id)) : senderTeamArr;
 
         const updated = await prisma.activityRequest.update({

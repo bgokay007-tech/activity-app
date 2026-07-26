@@ -3055,8 +3055,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {/* DOUBLE team management */}
                     {match.matchType === 'DOUBLE' && (() => {
                         const partner = senderTeamArr[0] || null;
-                        const opp1 = participantsArr[0] || null;
-                        const opp2 = participantsArr[1] || null;
+                        // DİKKAT: participants[0]=Rakip 1, participants[1]=Rakip 2 sabit konumludur —
+                        // önceden boş slotları filtrelenmiş participantsArr üzerinden indexleniyordu,
+                        // bu da Rakip 1 boşalınca Rakip 2'deki oyuncunun index 0'a kayıp yanlışlıkla
+                        // "Rakip 1" olarak gösterilmesine sebep oluyordu. Ham diziden (boşluklar
+                        // korunarak) okunmalı.
+                        const rawParticipants = Array.isArray(match.participants) ? match.participants : [];
+                        const opp1 = rawParticipants[0] || null;
+                        const opp2 = rawParticipants[1] || null;
                         const SLOT_LABEL = { partner: t.cardParticipantLabel(1), opp1: t.cardParticipantLabel(2), opp2: t.cardParticipantLabel(3) };
                         const mkSlot = (slot, p, color) => {
                             const isSel = swapSlot === slot;
