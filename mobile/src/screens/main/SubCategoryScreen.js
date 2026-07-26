@@ -4,7 +4,7 @@ import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
-    InteractionManager, PanResponder, Animated,
+    InteractionManager, PanResponder, Animated, BackHandler,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1739,10 +1739,31 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const myInvite = (Array.isArray(item.joinRequests) ? item.joinRequests : []).find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
     const [detailVisible, setDetailVisible] = useState(false);
     const [editVisible, setEditVisible] = useState(false);
+    // Düzenleme, ilan detayından mı yoksa karttaki ✏️ butonundan mı açıldı —
+    // kapatınca (X veya telefonun geri tuşu) sadece detaydan açıldıysa detaya
+    // geri dönülsün diye.
+    const editOpenedFromDetailRef = useRef(false);
+    const closeEdit = () => {
+        setEditVisible(false);
+        if (editOpenedFromDetailRef.current) setTimeout(() => setDetailVisible(true), 300);
+    };
 
     useEffect(() => {
         if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
     }, [autoOpen]);
+
+    // Telefonun geri tuşu (Android donanım/gesture back) varsayılan olarak
+    // ekranın tamamından çıkıp bir önceki sayfaya atıyordu — açık bir modal
+    // varken önce SADECE o modalı kapatması için burada yakalanıyor.
+    useEffect(() => {
+        const onBackPress = () => {
+            if (editVisible) { closeEdit(); return true; }
+            if (detailVisible) { setDetailVisible(false); return true; }
+            return false;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [editVisible, detailVisible]);
 
     // Sunucudan gelen veri local override'ı geçersiz kılar
     useEffect(() => { setLocalJoinStatus(null); }, [item._myJoinStatus]);
@@ -2039,7 +2060,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                         <TouchableOpacity
                             style={[s.cancelBtn, { flex: 0, width: moderateScale(30), paddingHorizontal:0, paddingVertical: moderateScale(4), borderRadius: moderateScale(10), backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
-                            onPress={() => setEditVisible(true)}
+                            onPress={() => { editOpenedFromDetailRef.current = false; setEditVisible(true); }}
                         >
                             <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️</Text>
                         </TouchableOpacity>
@@ -2118,14 +2139,14 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             handleRespondJoin={handleRespondJoin}
             handleWithdraw={() => { setDetailVisible(false); setTimeout(handleWithdraw, 300); }}
             onRefresh={onRefresh}
-            onEdit={() => { setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
+            onEdit={() => { editOpenedFromDetailRef.current = true; setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
             myRefereeListing={refereeListings.find(r => r.userId === myId)}
             onConfirmLateJoin={handleConfirmLateJoin}
         />
         {editVisible && (
             <CreateRivalModal
                 visible
-                onClose={() => setEditVisible(false)}
+                onClose={closeEdit}
                 category={item.category}
                 sub={sub}
                 onCreated={onRefresh}
@@ -4847,8 +4868,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     const buildInitialState = () => {
         if (editItem) {
+            // Not: `venueName` burada BİLEREK ayarlanmıyor — `editItem.courtName` zaten
+            // kaydedilmiş TEK birleşik metin (tesis+kort adı birlikte); `venueName`'i de
+            // aynı değere eşitlersek aşağıdaki `[venueName, name].join(' ')` kullanılan
+            // her yerde (kort adı gösterimi, kaydetme payload'u) isim iki kez yazılıyordu.
             const preCourtObj = editItem.courtName
-                ? { id: null, name: editItem.courtName, venueName: editItem.venueId ? editItem.courtName : undefined, city: editItem.location || '' }
+                ? { id: null, name: editItem.courtName, venueName: undefined, city: editItem.location || '' }
                 : null;
             return {
                 ...INIT,

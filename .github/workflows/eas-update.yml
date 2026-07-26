@@ -24,7 +24,13 @@ jobs:
         working-directory: mobile
         run: npm install --legacy-peer-deps
 
-      - name: EAS Update
+      - name: EAS Update (development)
+        working-directory: mobile
+        run: npx eas-cli@latest update --channel development --message "${{ github.event.head_commit.message }}" --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: EAS Update (preview)
         working-directory: mobile
         run: npx eas-cli@latest update --channel preview --message "${{ github.event.head_commit.message }}" --non-interactive
         env:
