@@ -1701,6 +1701,31 @@ export const respondToJoin = async (req, res, next) => {
         if (lateAccept) {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'AWAITING_JOINER_CONFIRM' } });
             emitToUser(joinReq.userId, 'joinLateAccepted', { rivalId: joinReq.rivalId, requestId });
+
+            // Frontend, normal kabulde olduğu gibi bu yanıttaki `request.joinRequests`'i
+            // doğrudan yerel state'e yazıyor — bunu döndürmezsek istek, optimistik olarak
+            // listeden kaldırıldıktan sonra sadece onRefresh()'in gelmesine bağlı kalıyor
+            // ve ilan sahibine o kişi "kaybolmuş" (aslında ⏳ Son Onay Bekleniyor durumunda)
+            // gibi görünüyordu.
+            const refreshedRival = await prisma.activityRequest.findUnique({
+                where: { id: joinReq.rivalId },
+                include: {
+                    sender: { select: SENDER_SELECT },
+                    joinRequests: {
+                        where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+                        orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
+                        include: {
+                            user: {
+                                select: {
+                                    ...SENDER_SELECT,
+                                    interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } },
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+
             createNotification(
                 joinReq.userId,
                 'JOIN_LATE_ACCEPT',
@@ -1708,7 +1733,7 @@ export const respondToJoin = async (req, res, next) => {
                 `"${joinReq.rival.sender?.username || 'Maç sahibi'}" katılım isteğinizi 1 saat sonra kabul etti. Maça katılmak istiyor musunuz? Onaylayın veya iptal edin.`,
                 { rivalId: joinReq.rivalId, requestId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
-            return res.json({ lateAccept: true, message: 'Joiner re-confirmation required.' });
+            return res.json({ lateAccept: true, message: 'Joiner re-confirmation required.', request: refreshedRival });
         }
 
         // Partner az önce atandıysa artık required=2'ye düşer (senderTeam DB'de henüz
