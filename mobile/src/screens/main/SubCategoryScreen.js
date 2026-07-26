@@ -6048,7 +6048,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             {/* Hakem Talep Et / Davet Et / Ücret — sadece tenis/padel/voleybol, tek satır, aynı yükseklikte */}
                             {['tennis', 'padel', 'volleyball'].includes(sub) && (
                                 <>
-                                    <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: 3 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeRequested && f.refereeInvites.length > 0 ? 6 : 10 }}>
                                         {/* Davete İzin Ver — kapalıyken sadece ilan sahibi oyuncu davet edebilir/
                                             paylaşabilir; açıkken kabul edilmiş katılımcılar da davet/paylaşım yapabilir.
                                             Açmadan önce ne işe yaradığını açıklayan bir onay penceresi gösterilir —
@@ -6101,9 +6101,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             />
                                         )}
                                     </View>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom: f.refereeRequested && f.refereeInvites.length > 0 ? 4 : 10 }}>
-                                        {f.participantsCanInvite ? '🔓 Katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir' : '🔒 Sadece sen oyuncu davet edebilir / ilanı paylaşabilirsin'}
-                                    </Text>
                                     {f.refereeRequested && f.refereeInvites.length > 0 && (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:10 }}>
                                             {f.refereeInvites.map(inv => (
