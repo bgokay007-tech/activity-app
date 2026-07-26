@@ -564,7 +564,7 @@ export const updateRivalRequest = async (req, res, next) => {
         const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, refereeRequested, refereePayment,
-                teamFlexibility, matchType } = req.body;
+                teamFlexibility, matchType, participantsCanInvite } = req.body;
 
         // matchType (tekli/çiftli) sadece hiç katılımcı/partner kabul edilmemişse
         // değiştirilebilir — aksi halde participants/senderTeam dizisinin şekli
@@ -605,6 +605,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(refereeRequested !== undefined && { refereeRequested: !!refereeRequested }),
                 ...(refereePayment !== undefined && { refereePayment: refereePayment || null }),
                 ...(teamFlexibility !== undefined && ['FLEXIBLE', 'STRICT'].includes(teamFlexibility) && { teamFlexibility }),
+                ...(participantsCanInvite !== undefined && { participantsCanInvite: !!participantsCanInvite }),
                 ...(applyMatchType && {
                     matchType: matchType.toUpperCase(),
                     ...(matchType.toUpperCase() === 'SINGLE' && { partnerGenderReq: null, opp1GenderReq: null, opp2GenderReq: null }),
@@ -686,6 +687,7 @@ export const createRivalRequest = async (req, res, next) => {
             opp2GenderReq = 'MIX',
             partnerInviteId, // DOUBLE: partner daveti gönderilecek kullanıcının id'si
             opp1InviteId, opp2InviteId, // DOUBLE: rakip 1 / rakip 2 slotuna doğrudan davet gönderilecek kullanıcı id'leri
+            participantsCanInvite, // true ise kabul edilmiş katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
@@ -759,6 +761,7 @@ export const createRivalRequest = async (req, res, next) => {
                 positions: Array.isArray(positions) ? positions : [],
                 ...(refereePayment && { refereePayment }),
                 refereeRequested: !!refereeRequested,
+                participantsCanInvite: !!participantsCanInvite,
                 ...(minRating !== undefined && minRating !== null && minRating !== '' && { minRating: parseFloat(minRating) }),
                 ...(maxRating !== undefined && maxRating !== null && maxRating !== '' && { maxRating: parseFloat(maxRating) }),
                 ...(courtFeePerPerson !== undefined && courtFeePerPerson !== null && { courtFeePerPerson: parseInt(courtFeePerPerson, 10) }),

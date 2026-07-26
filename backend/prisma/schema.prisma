@@ -612,6 +612,7 @@ model ActivityRequest {
   levelDetail     String?
   matchType       String       @default("SINGLE") // SINGLE | DOUBLE
   teamFlexibility String       @default("FLEXIBLE") // FLEXIBLE | STRICT — Çiftler maçlarda pozisyon değiştirmeye (swap-positions) izin var mı
+  participantsCanInvite Boolean @default(false)     // kabul edilmiş katılımcılar da (ilan sahibi dışında) oyuncu davet edebilir / ilanı paylaşabilir mi
   matchMode       String       @default("PRACTICE") // PRACTICE | COMPETITIVE
   surface         String?                           // for volleyball: BEACH | GRASS | INDOOR
   teamSize        Int          @default(1)          // players per side (1–6 for volleyball)

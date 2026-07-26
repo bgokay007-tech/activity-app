@@ -938,10 +938,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     <View style={det.section}>
                         <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                             <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
-                            {item.matchType === 'DOUBLE' && isOwner && !showTeamCards && item.teamFlexibility !== 'STRICT' &&
+                            {item.matchType === 'DOUBLE' && (isOwner || isParticipant) && showTeamCards && (
+                                <TouchableOpacity onPress={() => toggleTeamCards(false)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 Çevir</Text>
+                                </TouchableOpacity>
+                            )}
+                            {item.matchType === 'DOUBLE' && (isOwner || isParticipant) && !showTeamCards && (isOwner ? item.teamFlexibility !== 'STRICT' : true) &&
                                 (senderTeamArr[0]?.id || participants[0]?.id || participants[1]?.id) && (
                                 <TouchableOpacity onPress={() => toggleTeamCards(true)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ Takımları Düzenle</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ {isOwner ? 'Takımları Düzenle' : 'Takımları Gör'}</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -1093,12 +1098,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                             return (
                                 <View>
-                                    {isOwner && (
-                                        <TouchableOpacity onPress={() => toggleTeamCards(false)} style={{ marginBottom:6, alignSelf:'flex-start', flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 Çevir</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>· Katılımcı Listesine Dön</Text>
-                                        </TouchableOpacity>
-                                    )}
                                     {swapSlot && (
                                         <View style={{ backgroundColor:'#f59e0b18', borderRadius:6, padding:3, marginBottom:6, alignItems:'center' }}>
                                             <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>Taşınacak oyuncu seçildi — hedef slota dokun</Text>
@@ -1439,27 +1438,34 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                     {/* Katıl / İptal aksiyonu */}
                     <View style={{ marginBottom:14 }}>
-                        {/* Sahibi ve maça kabul edilmiş katılımcılar başka oyuncu davet edebilir — Davet Et ve Paylaş yan yana, tek satırda */}
-                        {(((isOwner || isParticipant) && !isFull) || (isOwner || isParticipant || mySentReq === 'ACCEPTED')) && (
-                            <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
-                                {(isOwner || isParticipant) && !isFull && (
-                                    <TouchableOpacity
-                                        style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                        onPress={() => setInviteModalVisible(true)}
-                                    >
-                                        <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
-                                    </TouchableOpacity>
-                                )}
-                                {(isOwner || isParticipant || mySentReq === 'ACCEPTED') && (
-                                    <TouchableOpacity
-                                        style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                        onPress={() => shareRival(item, t)}
-                                    >
-                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        )}
+                        {/* İlan sahibi her zaman oyuncu davet edip paylaşabilir; kabul edilmiş
+                            katılımcılar bunu SADECE sahibi ilanı oluştururken/düzenlerken
+                            "🔓 Davete İzin Ver"i açtıysa yapabilir (item.participantsCanInvite). */}
+                        {(() => {
+                            const otherCanAct = (isParticipant || mySentReq === 'ACCEPTED') && item.participantsCanInvite;
+                            const canInvite = (isOwner || otherCanAct) && !isFull;
+                            const canShare = isOwner || otherCanAct;
+                            return (canInvite || canShare) && (
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
+                                    {canInvite && (
+                                        <TouchableOpacity
+                                            style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                            onPress={() => setInviteModalVisible(true)}
+                                        >
+                                            <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {canShare && (
+                                        <TouchableOpacity
+                                            style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                            onPress={() => shareRival(item, t)}
+                                        >
+                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            );
+                        })()}
                         {isOwner && !isFull && (sub === 'tennis' || sub === 'padel') && (
                             <TouchableOpacity
                                 disabled={seedingDemoRival}
@@ -4929,6 +4935,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         venuePayMethod: 'CASH',
         refereeRequested: false,
         refereePayment: '',
+        participantsCanInvite: false,
     };
 
     const buildInitialState = () => {
@@ -4974,6 +4981,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtMutual: !editItem.courtName && !editItem.venueId,
                 refereeRequested: !!editItem.refereeRequested,
                 refereePayment: editItem.refereePayment || '',
+                participantsCanInvite: !!editItem.participantsCanInvite,
             };
         }
         if (!prefill) return INIT;
@@ -5322,6 +5330,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 ...(['tennis', 'padel', 'volleyball'].includes(sub) && {
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
+                    participantsCanInvite: !!f.participantsCanInvite,
                 }),
             }).then(res => {
                 // Backend katılımcı olduğu için formatı sessizce yoksaydıysa haber ver.
@@ -5439,6 +5448,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 refereeInvites: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
                     ? f.refereeInvites.map(inv => ({ userId: inv.user.id, message: inv.message || undefined, price: inv.price || undefined }))
                     : undefined,
+                participantsCanInvite: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.participantsCanInvite : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
@@ -6038,10 +6048,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             {/* Hakem Talep Et / Davet Et / Ücret — sadece tenis/padel/voleybol, tek satır, aynı yükseklikte */}
                             {['tennis', 'padel', 'volleyball'].includes(sub) && (
                                 <>
-                                    <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeRequested && f.refereeInvites.length > 0 ? 4 : 10 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: 3 }}>
+                                        {/* Davete İzin Ver — kapalıyken sadece ilan sahibi oyuncu davet edebilir/
+                                            paylaşabilir; açıkken kabul edilmiş katılımcılar da davet/paylaşım yapabilir. */}
+                                        <TouchableOpacity
+                                            onPress={() => set('participantsCanInvite', !f.participantsCanInvite)}
+                                            style={{ width: moderateScale(34), height: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor: f.participantsCanInvite ? '#22c55e20' : colors.surface2, borderWidth:1, borderColor: f.participantsCanInvite ? '#22c55e70' : colors.border }}
+                                        >
+                                            <Text style={{ fontSize:13 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
+                                        </TouchableOpacity>
                                         <TouchableOpacity
                                             onPress={() => set('refereeRequested', !f.refereeRequested)}
-                                            style={{ flex: f.refereeRequested ? 1 : undefined, width: f.refereeRequested ? undefined : '100%', height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
+                                            style={{ flex:1, height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
                                         >
                                             <Text style={{ color: f.refereeRequested ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {noEmoji(t.requestRefereeBtn)}
@@ -6068,6 +6086,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             />
                                         )}
                                     </View>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom: f.refereeRequested && f.refereeInvites.length > 0 ? 4 : 10 }}>
+                                        {f.participantsCanInvite ? '🔓 Katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir' : '🔒 Sadece sen oyuncu davet edebilir / ilanı paylaşabilirsin'}
+                                    </Text>
                                     {f.refereeRequested && f.refereeInvites.length > 0 && (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:10 }}>
                                             {f.refereeInvites.map(inv => (
