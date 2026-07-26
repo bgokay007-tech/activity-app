@@ -14,6 +14,7 @@ const TYPE_ICON = {
     RIVAL_ACCEPTED: '✅',
     RIVAL_DECLINED: '❌',
     RIVAL_JOIN_REQUEST: '🙋',
+    RIVAL_REOPENED: '↩️',
     JOIN_LATE_ACCEPT: '⏰',
     MATCH_INVITE: '✉️',
     JOIN_ACCEPTED: '🎉',

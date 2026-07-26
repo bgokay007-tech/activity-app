@@ -199,6 +199,32 @@ const SENDER_SELECT = {
     id: true, username: true, fullName: true, avatar: true, city: true, gender: true,
 };
 
+// Bir maç MATCHED'ten OPEN'a dönünce (katılımcı çıkarıldı/ayrıldı), o ilana daha önce
+// bekleyen istek göndermiş herkese haber verilir — belki artık uygun değillerdir ve
+// isteklerini geri çekmek isterler, ya da tam tersi, artık kabul edilme şansları var.
+async function notifyPendingRequestersOfReopen(rivalId, category, subCategory, excludeUserIds = []) {
+    try {
+        const pending = await prisma.rivalJoinRequest.findMany({
+            where: {
+                rivalId,
+                status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] },
+                userId: { notIn: excludeUserIds },
+            },
+            select: { userId: true },
+        });
+        const uniqueUserIds = [...new Set(pending.map(p => p.userId))];
+        for (const uid of uniqueUserIds) {
+            createNotification(
+                uid,
+                'RIVAL_REOPENED',
+                '↩️ İlan Tekrar Açıldı',
+                'İstek attığınız maç tekrar açık ilanlara geçiş yaptı, isteğiniz kabul edilebilir. Artık uygun değilseniz isteğinizi geri çekebilirsiniz.',
+                { rivalId, category, subCategory }
+            ).catch(() => {});
+        }
+    } catch { /* bildirim gönderimi ilana geri açılma işlemini engellemesin */ }
+}
+
 // DOUBLE: 2 — taraflar artık eşleşmiş çift olarak katılıyor (senderTeam/joiningTeam),
 // tek bir takım katılımı maçı tamamlar (3 ayrı bireysel katılımcı değil). Ancak partner
 // sistemi gelmeden önce oluşturulmuş eski ilanlarda kurucunun senderTeam'i boştur —
@@ -1694,10 +1720,12 @@ export const respondToJoin = async (req, res, next) => {
             updatedParticipants = isTeamJoin ? joiningTeam : [...participants, joinerEntry];
         }
 
-        // 1 saatten geç kabul: yukarıdaki doğrulama geçti (bu istek gerçekten kabul edilebilir),
-        // şimdi joiner'a tekrar onay isteriz — henüz hiçbir şey DB'ye yazılmadı.
+        // Geç kabul: yukarıdaki doğrulama geçti (bu istek gerçekten kabul edilebilir), şimdi
+        // joiner'a tekrar onay isteriz — henüz hiçbir şey DB'ye yazılmadı. İki durumda tetiklenir:
+        // (1) istek 1 saatten eski, (2) bu ilan daha önce MATCHED'ken açılmış (reopenedAt) —
+        // süre farketmeksizin, çünkü başvuranın koşulları o zamandan beri değişmiş olabilir.
         const ONE_HOUR_MS = 60 * 60 * 1000;
-        const lateAccept = Date.now() - new Date(joinReq.createdAt).getTime() > ONE_HOUR_MS;
+        const lateAccept = (Date.now() - new Date(joinReq.createdAt).getTime() > ONE_HOUR_MS) || !!rival.reopenedAt;
         if (lateAccept) {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'AWAITING_JOINER_CONFIRM' } });
             emitToUser(joinReq.userId, 'joinLateAccepted', { rivalId: joinReq.rivalId, requestId });
@@ -1749,6 +1777,9 @@ export const respondToJoin = async (req, res, next) => {
             status: isFull ? 'MATCHED' : 'OPEN',
             receiverId: isFull ? u.id : rival.receiverId,
             ...(isFull && rival.flexibleSchedule && { schedulingDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000) }),
+            // Maç yeniden tam dolduğunda, önceki "boşalmıştı" damgası artık geçerli değil —
+            // sonraki (gelecekte olabilecek) kabuller tekrar normal (süreye bağlı) kurala döner.
+            ...(isFull && { reopenedAt: null }),
             participants: updatedParticipants,
             ...(assignedToPartner && { senderTeam: updatedSenderTeam }),
         };
@@ -2087,6 +2118,7 @@ export const confirmLateJoin = async (req, res, next) => {
                 status: isFull ? 'MATCHED' : 'OPEN',
                 receiverId: isFull ? u.id : rival.receiverId,
                 ...(assignedToPartner && { senderTeam: updatedSenderTeam }),
+                ...(isFull && { reopenedAt: null }),
                 ...(isFull && rival.flexibleSchedule && {
                     schedulingDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000),
                 }),
@@ -2796,6 +2828,8 @@ export const removeRivalParticipant = async (req, res, next) => {
         const updatedParticipants = inParticipants ? participants.map(p => (removeIds.includes(p?.id) ? null : p)) : participants;
         const updatedSenderTeam   = inSenderTeam  ? senderTeamArr.filter(p => !removeIds.includes(p.id)) : senderTeamArr;
 
+        const wasMatched = rival.status === 'MATCHED';
+
         const updated = await prisma.activityRequest.update({
             where: { id },
             data: {
@@ -2809,6 +2843,9 @@ export const removeRivalParticipant = async (req, res, next) => {
                 // kort rezervasyonuyla birlikte ilan sahibinin kendi belirlediği bilgidir,
                 // bir katılımcı çıkarıldı diye kaybolmamalı (kort rezervesi zaten duruyor).
                 ...(rival.flexibleSchedule && { matchDate: null, matchTime: null }),
+                // Maç doluyken açılan bir slot — sonraki kabul (kimi kabul ederse etsin,
+                // süre farketmeksizin) joiner'dan son onay ister (bkz. respondToJoin).
+                ...(wasMatched && { reopenedAt: new Date() }),
             },
             include: { sender: { select: SENDER_SELECT } },
         });
@@ -2831,6 +2868,9 @@ export const removeRivalParticipant = async (req, res, next) => {
                 { rivalId: id, subCategory: rival.subCategory }
             ).catch(() => {});
         }
+        // Maç doluyken bu değişiklik olduysa, ilana bekleyen istek göndermiş
+        // herkese de haber ver — belki artık uygun değillerdir ya da tam tersi.
+        if (wasMatched) notifyPendingRequestersOfReopen(id, rival.category, rival.subCategory, removeIds);
     } catch (error) { next(error); }
 };
 
@@ -2915,12 +2955,18 @@ export const cancelMatch = async (req, res, next) => {
                 where: { id },
                 data: {
                     status: 'OPEN', participants: [], receiverId: null, schedulingDeadline: null,
+                    // Maç doluyken açılan bir slot — sonraki kabul (kimi kabul ederse etsin,
+                    // süre farketmeksizin) joiner'dan son onay ister (bkz. respondToJoin).
+                    reopenedAt: new Date(),
                     ...(request.flexibleSchedule && { matchDate: null, matchTime: null }),
                 },
             });
             const updated = await prisma.activityRequest.findUnique({ where: { id }, include: { sender: { select: SENDER_SELECT } } });
             broadcast('rivalUpdate', updated);
             for (const uid of allPlayerIds) emitToUser(uid, 'rivalUpdate', updated);
+            // İlana bekleyen istek göndermiş herkese de haber ver — belki artık uygun
+            // değillerdir ya da tam tersi, artık kabul edilme şansları var.
+            notifyPendingRequestersOfReopen(id, request.category, request.subCategory, allPlayerIds);
 
             // Re-notify city-alert subscribers that a spot opened back up
             prisma.user.findUnique({ where: { id: request.senderId }, select: { city: true } })

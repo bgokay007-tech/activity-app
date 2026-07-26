@@ -631,6 +631,13 @@ model ActivityRequest {
   minRating       Float?                          // min skill rating to join
   maxRating       Float?                          // max skill rating to join
   status          String       @default("OPEN")   // OPEN | MATCHED | CANCELLED | COMPLETED
+  // Maç MATCHED iken bir katılımcı çıkarılınca/ayrılınca OPEN'a dönerse damgalanır —
+  // bu slot yeniden dolana kadar (MATCHED'e geri dönene kadar) kalıcıdır. Bu süre
+  // boyunca kabul edilen HERHANGİ bir istek, süre farketmeksizin joiner'dan son onay
+  // ister (bkz. respondToJoin'deki lateAccept) — çünkü başvuranın koşulları değişmiş
+  // olabilir. Ayrıca bu ilana bekleyen istek göndermiş olan herkese "ilan tekrar açıldı"
+  // bildirimi gider.
+  reopenedAt      DateTime?
   score           Json?                           // {sets:[{sender:6,opponent:3},...], winner:"sender"|"opponent"}
   scoreStatus     String       @default("NONE")   // NONE | PENDING | CONFIRMED | DISPUTED
   scoreEnteredBy  String?
