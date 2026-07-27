@@ -11001,28 +11001,32 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
     }, []);
 
+    // Skora itiraz — maç arşive düştükten (completedAt) sonraki 48 saat içinde, itirazın
+    // sebebini detaylı yazarak yapılabilir (bkz. appealMatch/appealReasonText modalı aşağıda).
+    const [appealMatch, setAppealMatch] = useState(null);
+    const [appealReasonText, setAppealReasonText] = useState('');
+    const [submittingAppeal, setSubmittingAppeal] = useState(false);
+
     const handleAppeal = useCallback((match) => {
-        Alert.alert(
-            '⚠️ Skora İtiraz Et',
-            'Otomatik onaylanan skora itiraz etmek istediğinizden emin misiniz? Admin konuya el atacak.',
-            [
-                { text: 'Vazgeç', style: 'cancel' },
-                {
-                    text: 'İtiraz Et',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await api.post(`/rivals/${match.id}/appeal-score`, {});
-                            setArchiveRivals(prev => prev.map(m => m.id === match.id ? { ...m, scoreAppeal: true } : m));
-                            Alert.alert('✅ İtiraz İletildi', 'Admin konuya en kısa sürede el atacak.');
-                        } catch (e) {
-                            Alert.alert('Hata', e?.response?.data?.message || 'İtiraz gönderilemedi');
-                        }
-                    }
-                }
-            ]
-        );
+        setAppealReasonText('');
+        setAppealMatch(match);
     }, []);
+
+    const submitAppeal = useCallback(async () => {
+        const reason = appealReasonText.trim();
+        if (!appealMatch || !reason) return;
+        setSubmittingAppeal(true);
+        try {
+            await api.post(`/rivals/${appealMatch.id}/appeal-score`, { reason });
+            setArchiveRivals(prev => prev.map(m => m.id === appealMatch.id ? { ...m, scoreAppeal: true, scoreAppealReason: reason } : m));
+            setAppealMatch(null);
+            Alert.alert('✅ İtiraz İletildi', 'Admin konuya en kısa sürede el atacak.');
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'İtiraz gönderilemedi');
+        } finally {
+            setSubmittingAppeal(false);
+        }
+    }, [appealMatch, appealReasonText]);
 
     // Real-time new comment for upcoming match modal
     useEffect(() => {
@@ -12279,6 +12283,38 @@ export default function SubCategoryScreen({ route, navigation }) {
                 rivalId={peerReviewRivalId}
                 onClose={() => { setPeerReviewRivalId(null); loadArchive(); }}
             />
+
+            <Modal visible={!!appealMatch} animationType="slide" transparent onRequestClose={() => setAppealMatch(null)}>
+                <View style={s.modalOverlay}>
+                    <View style={s.modalBox}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>⚠️ Skora İtiraz Et</Text>
+                            <TouchableOpacity onPress={() => setAppealMatch(null)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>
+                            Otomatik onaylanan skora neden itiraz ettiğinizi detaylı yazın — admin bu açıklamayı okuyup konuya el atacak.
+                        </Text>
+                        <TextInput
+                            style={[s.fieldInput, { height:110, textAlignVertical:'top' }]}
+                            value={appealReasonText}
+                            onChangeText={setAppealReasonText}
+                            placeholder="Örn: Skor yanlış girildi, maç hiç oynanmadı, rakip skoru onaylamadan otomatik onaylandı..."
+                            placeholderTextColor={colors.textMuted}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            onPress={submitAppeal}
+                            disabled={!appealReasonText.trim() || submittingAppeal}
+                            style={{ marginTop:12, backgroundColor: appealReasonText.trim() ? '#f97316' : colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', opacity: submittingAppeal ? 0.6 : 1 }}>
+                            <Text style={{ color: appealReasonText.trim() ? '#fff' : colors.textMuted, fontWeight:'800', fontSize:14 }}>
+                                {submittingAppeal ? '…' : 'İtiraz Et'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
             <CityAlertInfoModal
                 visible={cityAlertInfoTab !== null}
@@ -13866,7 +13902,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         );
                                                     })}
                                                 </View>
-                                                {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && (
+                                                {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
+                                                    && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
                                                     <TouchableOpacity
                                                         onPress={() => handleAppeal(m)}
                                                         style={{ marginTop:4, backgroundColor:'#f9731620', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor:'#f9731650', alignSelf:'flex-start' }}>

@@ -2937,10 +2937,15 @@ export const reportDispute = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+const APPEAL_WINDOW_MS = 48 * 60 * 60 * 1000;
+
 export const appealScore = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { reason } = req.body;
+        const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+        if (!trimmedReason) return res.status(400).json({ message: 'İtiraz için bir açıklama yazmalısınız.' });
+
         const request = await prisma.activityRequest.findUnique({ where: { id } });
         if (!request) return res.status(404).json({ message: 'Maç bulunamadı' });
 
@@ -2949,10 +2954,15 @@ export const appealScore = async (req, res, next) => {
         if (!isInvolved) return res.status(403).json({ message: 'Yetkisiz' });
         if (request.scoreStatus !== 'CONFIRMED') return res.status(400).json({ message: 'Yalnızca onaylanmış skorlara itiraz edilebilir' });
         if (request.scoreAppeal) return res.status(400).json({ message: 'Bu maç için zaten itiraz yapılmış' });
+        // Maç arşive düştükten (completedAt) 48 saat sonra itiraz hakkı kapanır — istemci
+        // butonu bu sürede zaten gizliyor, burası ikinci savunma hattı.
+        if (request.completedAt && Date.now() - new Date(request.completedAt).getTime() > APPEAL_WINDOW_MS) {
+            return res.status(400).json({ message: 'Bu maç için itiraz süresi (48 saat) doldu.' });
+        }
 
         const updated = await prisma.activityRequest.update({
             where: { id },
-            data: { scoreAppeal: true, scoreAppealReason: reason || null },
+            data: { scoreAppeal: true, scoreAppealReason: trimmedReason },
         });
 
         emitToUser(req.userId, 'rivalUpdate', updated);
@@ -2963,7 +2973,7 @@ export const appealScore = async (req, res, next) => {
             createNotification(
                 admin.id, 'SCORE_DISPUTED',
                 '⚠️ Skor İtirazı',
-                `${me?.username} otomatik onaylanan skora itiraz etti${reason ? `: ${reason}` : '.'}`,
+                `${me?.username} otomatik onaylanan skora itiraz etti: ${trimmedReason}`,
                 { rivalId: id, scoreAppeal: true, category: request.category, subCategory: request.subCategory }
             ).catch(() => {});
             emitToUser(admin.id, 'notification', {});
