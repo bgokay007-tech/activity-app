@@ -5176,6 +5176,119 @@ const vb = StyleSheet.create({
     selSummaryTxt:{ color:'#4ade80', fontSize:13, fontWeight:'700', textAlign:'center' },
 });
 
+// ─── Archive Match Detail Modal ─────────────────────────────────────────────────
+// Arşivdeki bir maça dokununca tüm bilgileri (iki takım ayrı ayrı, set skorları,
+// puan değişimleri, kort/tarih/mod, itiraz/akran değerlendirme/hakem aksiyonları)
+// tek bir modalde gösterir — kompakt karttaki özet görünümün tam hâli.
+function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, onPeerReview, onRefereeReview }) {
+    const t = useT();
+    if (!match) return null;
+    const m = match;
+    const isOwner = m.senderId === myId;
+    const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
+    const parts = Array.isArray(m.participants) ? m.participants : [];
+    const founderSide = [m.sender, ...senderTeamArr].filter(Boolean);
+    const opponentSide = parts.filter(Boolean);
+    const snapshot = m.score?.ratingSnapshot || {};
+    const sets = m.score?.sets;
+    const winner = m.score?.winner;
+    const iAmFounderSide = isOwner || senderTeamArr.some(st => st?.id === myId);
+    const founderLabel = m.founderTeamName || (founderSide.length > 1 ? 'Kurucu Takım' : (founderSide[0] ? senderAlias(founderSide[0]) : 'Kurucu'));
+    const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? 'Rakip Takım' : (opponentSide[0] ? senderAlias(opponentSide[0]) : 'Rakip'));
+    const myResultText = winner === 'draw' ? '🤝 Berabere' : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '✅ Kazandın' : winner ? '❌ Kaybettin' : null;
+    const myResultColor = winner === 'draw' ? '#fbbf24' : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '#4ade80' : '#f87171';
+
+    const renderPlayer = (p, isFounderSidePlayer) => {
+        const hist = snapshot[p.id];
+        const rBefore = hist?.skillRating_before;
+        const pts = hist?.change ?? null;
+        const pSets = sets ? sets.map(s2 => isFounderSidePlayer ? s2.sender : s2.opponent) : null;
+        const pWins = sets ? sets.filter(s2 => (isFounderSidePlayer ? s2.sender : s2.opponent) > (isFounderSidePlayer ? s2.opponent : s2.sender)).length : null;
+        return (
+            <View key={p.id || p.username} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:6 }}>
+                <TouchableOpacity onPress={() => { if (p.id) { onUserPress(p.id); onClose(); } }} style={{ flex:1 }} activeOpacity={0.7}>
+                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
+                    <View style={{ flexDirection:'row', gap:6, marginTop:2 }}>
+                        {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>{Number(rBefore).toFixed(2)} ★</Text>}
+                        {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'700' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
+                    </View>
+                </TouchableOpacity>
+                {pSets && (
+                    <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                        {pSets.join('  ')}  <Text style={{ fontWeight:'800', color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted }}>({pWins})</Text>
+                    </Text>
+                )}
+            </View>
+        );
+    };
+
+    return (
+        <Modal visible={!!match} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, maxHeight:'88%' }}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>Maç Detayı</Text>
+                            <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                        </View>
+                        {myResultText && <Text style={{ fontSize:14, fontWeight:'800', marginBottom:10, color: myResultColor }}>{myResultText}</Text>}
+                        <View style={{ marginBottom:14 }}>
+                            <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:2 }}>
+                                {m.flexibleSchedule ? '📅 Esnek Program' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' }) : ''}
+                                {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
+                            </Text>
+                            {(m.courtName || m.location) && (
+                                <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                                    🏟️ {m.courtName || m.location}{m.courtName && m.location ? ` · 📍 ${m.location}` : ''}
+                                </Text>
+                            )}
+                            {m.matchMode && (
+                                <Text style={{ color: m.matchMode.toUpperCase()==='COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:12, fontWeight:'700', marginTop:2 }}>
+                                    {m.matchMode.toUpperCase()==='COMPETITIVE' ? '🔥 Rekabetçi' : '🎾 Antrenman'}
+                                </Text>
+                            )}
+                        </View>
+
+                        <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'800', marginBottom:6 }}>{founderLabel}</Text>
+                        {founderSide.length > 0 ? founderSide.map(p => renderPlayer(p, true)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
+
+                        <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'800', marginBottom:6, marginTop:8 }}>{opponentLabel}</Text>
+                        {opponentSide.length > 0 ? opponentSide.map(p => renderPlayer(p, false)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
+
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 }}>
+                            {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
+                                && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
+                                <TouchableOpacity onPress={() => { onAppeal(m); onClose(); }}
+                                    style={{ backgroundColor:'#f9731620', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#f9731650' }}>
+                                    <Text style={{ color:'#f97316', fontSize:12, fontWeight:'700' }}>⚠️ İtiraz Et</Text>
+                                </TouchableOpacity>
+                            )}
+                            {m.scoreAppeal && (
+                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>⏳ İtiraz İnceleniyor</Text>
+                            )}
+                            {m.needsPeerReview && (
+                                <TouchableOpacity onPress={() => onPeerReview(m.id)}
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#7c3aed50' }}>
+                                    <Text style={{ color:'#a78bfa', fontSize:12, fontWeight:'700' }}>{t.peerReviewNeedsReviewBtn}</Text>
+                                </TouchableOpacity>
+                            )}
+                            {m.refereeId && m.myRefereeReview && (
+                                <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{'⭐'.repeat(m.myRefereeReview.rating)} Hakemi değerlendirdin</Text>
+                            )}
+                            {m.refereeId && !m.myRefereeReview && m.canReviewReferee && (
+                                <TouchableOpacity onPress={() => onRefereeReview(m)}
+                                    style={{ backgroundColor:'#fbbf2420', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#fbbf2450' }}>
+                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>Hakemi Değerlendir</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
 
 function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null }) {
@@ -10836,6 +10949,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState('rivals');
+    const [archiveDetailMatch, setArchiveDetailMatch] = useState(null);
     const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
 
@@ -14214,7 +14328,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                         const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
                                         return (
-                                            <View key={m.id} style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, m.id === highlightRivalId && { borderColor:'#f97316', borderWidth:2 }]}>
+                                            <TouchableOpacity key={m.id} activeOpacity={0.8} onPress={() => setArchiveDetailMatch(m)} style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, m.id === highlightRivalId && { borderColor:'#f97316', borderWidth:2 }]}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
                                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
                                                     {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
@@ -14290,12 +14404,23 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>Hakemi Değerlendir</Text>
                                                     </TouchableOpacity>
                                                 )}
-                                            </View>
+                                            </TouchableOpacity>
                                         );
                                     })}
                                 </View>
                             )
                         )}
+
+                        {/* Maç Detayı Modal — arşivdeki bir maça dokununca tüm bilgileri gösterir */}
+                        <ArchiveMatchDetailModal
+                            match={archiveDetailMatch}
+                            myId={myId}
+                            onClose={() => setArchiveDetailMatch(null)}
+                            onUserPress={setProfileUserId}
+                            onAppeal={handleAppeal}
+                            onPeerReview={(id) => { setArchiveDetailMatch(null); setPeerReviewRivalId(id); }}
+                            onRefereeReview={(mm) => { setArchiveDetailMatch(null); openRefereeReview(mm); }}
+                        />
 
                         {/* Ekipmanlar arşivi (satılmış ilanlar) */}
                         {archiveSubTab === 'equipment' && (
