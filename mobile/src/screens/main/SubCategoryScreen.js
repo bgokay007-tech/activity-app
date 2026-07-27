@@ -1915,6 +1915,31 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         if (editOpenedFromDetailRef.current) setTimeout(() => setDetailVisible(true), 300);
     };
 
+    // Hakemlik için hızlı başvuru — maç detayına hiç girmeden, kart üzerinden
+    // doğrudan fiyat/mesaj ile başvurabilsin diye.
+    const [refereeApplyVisible, setRefereeApplyVisible] = useState(false);
+    const [refereeOfferPrice, setRefereeOfferPrice] = useState('');
+    const [refereeOfferMessage, setRefereeOfferMessage] = useState('');
+    const [refereeApplySubmitting, setRefereeApplySubmitting] = useState(false);
+    const submitRefereeApply = async () => {
+        setRefereeApplySubmitting(true);
+        try {
+            await api.post(`/rivals/${item.id}/respond`, {
+                asReferee: true,
+                offerPrice: refereeOfferPrice ? `${refereeOfferPrice}₺` : undefined,
+                offerMessage: refereeOfferMessage || undefined,
+            });
+            setRefereeApplyVisible(false);
+            setRefereeOfferPrice('');
+            setRefereeOfferMessage('');
+            onRefresh();
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setRefereeApplySubmitting(false);
+        }
+    };
+
     useEffect(() => {
         if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
     }, [autoOpen]);
@@ -2270,7 +2295,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 ) : Array.isArray(item.positions) && item.positions.includes('REFEREE') ? (
                     <TouchableOpacity
                         style={{ backgroundColor:'#f59e0b20', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }}
-                        onPress={() => setDetailVisible(true)}
+                        onPress={() => setRefereeApplyVisible(true)}
                     >
                         <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeApplyBtn}</Text>
                     </TouchableOpacity>
@@ -2322,6 +2347,31 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 editItem={item}
             />
         )}
+
+        {/* Hakemlik İçin Başvur — maç detayına girmeden, kart üzerinden doğrudan */}
+        <Modal visible={refereeApplyVisible} animationType="slide" transparent onRequestClose={() => setRefereeApplyVisible(false)}>
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37 }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{t.refereeApplyBtn}</Text>
+                            <TouchableOpacity onPress={() => setRefereeApplyVisible(false)}><Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text></TouchableOpacity>
+                        </View>
+                        <Text style={s.fieldLabel}>{t.refereePaymentLabel}</Text>
+                        <TextInput style={s.fieldInput} value={refereeOfferPrice} onChangeText={setRefereeOfferPrice}
+                            placeholder="500" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                        <Text style={s.fieldLabel}>{t.messageFieldLabel}</Text>
+                        <TextInput style={[s.fieldInput, { height:70, textAlignVertical:'top' }]}
+                            value={refereeOfferMessage} onChangeText={setRefereeOfferMessage}
+                            placeholder={t.refereeApplyMsgPh} placeholderTextColor={colors.textMuted} multiline />
+                        <TouchableOpacity style={[s.submitBtn, { backgroundColor:'#f59e0b' }, refereeApplySubmitting && { opacity:0.6 }]}
+                            onPress={submitRefereeApply} disabled={refereeApplySubmitting}>
+                            <Text style={s.submitBtnText}>{refereeApplySubmitting ? t.submittingBtn : t.refereeApplySendBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
 
         </>
     );
