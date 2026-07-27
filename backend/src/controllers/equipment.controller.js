@@ -36,6 +36,7 @@ export const getListings = async (req, res, next) => {
             },
             include: {
                 user: { select: USER_SELECT },
+                soldToUser: { select: USER_SELECT },
                 offers: { where: { OR: [{ status: 'PENDING' }, { fromUserId: req.userId }] } },
             },
             orderBy: { createdAt: 'desc' },
@@ -45,6 +46,8 @@ export const getListings = async (req, res, next) => {
             offerCount: l.offers.filter(o => o.status === 'PENDING').length,
             myOffer: l.offers.find(o => o.fromUserId === req.userId) || null,
             offers: undefined,
+            // Alıcının kimliği (varsa) gizlilik için sadece ilan sahibine gösterilir.
+            soldToUser: l.userId === req.userId ? l.soldToUser : undefined,
         })));
     } catch (err) { next(err); }
 };
@@ -59,11 +62,15 @@ export const getListing = async (req, res, next) => {
             where: { id },
             include: {
                 user: { select: USER_SELECT },
+                soldToUser: { select: USER_SELECT },
                 offers: { where: { fromUserId: req.userId } },
             },
         });
         if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
-        res.json({ ...listing, myOffer: listing.offers[0] || null, offers: undefined });
+        res.json({
+            ...listing, myOffer: listing.offers[0] || null, offers: undefined,
+            soldToUser: listing.userId === req.userId ? listing.soldToUser : undefined,
+        });
     } catch (err) { next(err); }
 };
 
@@ -299,6 +306,40 @@ export const respondOffer = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
+// İlan sahibi "Satıldı" işaretlerken kime sattığını seçebilsin diye, bu ilan üzerinden
+// teklif veren VEYA mesajlaşan (Sohbet Aç) herkesi tekilleştirip döner — uygulama içinden
+// mi dışından mı satıldığını görebilmek için (bkz. markSold'daki soldToUserId).
+export const getListingContacts = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const listing = await prisma.equipmentListing.findUnique({ where: { id }, select: { userId: true } });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (listing.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const [offers, messages] = await Promise.all([
+            prisma.equipmentOffer.findMany({ where: { listingId: id }, select: { fromUserId: true } }),
+            prisma.message.findMany({
+                where: { equipmentListingId: id },
+                select: { senderId: true, conversation: { select: { user1Id: true, user2Id: true } } },
+            }),
+        ]);
+
+        const contactIds = new Set();
+        offers.forEach(o => contactIds.add(o.fromUserId));
+        messages.forEach(m => {
+            const other = m.conversation.user1Id === req.userId ? m.conversation.user2Id : m.conversation.user1Id;
+            if (other) contactIds.add(other);
+        });
+        contactIds.delete(req.userId);
+
+        const users = contactIds.size ? await prisma.user.findMany({
+            where: { id: { in: [...contactIds] } },
+            select: USER_SELECT,
+        }) : [];
+        res.json(users);
+    } catch (err) { next(err); }
+};
+
 // İlan sahibi anlaşma bozulunca opsiyonu iptal edip ilanı tekrar herkese açar.
 export const cancelReservation = async (req, res, next) => {
     try {
@@ -331,6 +372,7 @@ export const cancelReservation = async (req, res, next) => {
 export const markSold = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const { soldToUserId } = req.body;
         const listing = await prisma.equipmentListing.findUnique({ where: { id } });
         if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
         if (listing.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
@@ -338,8 +380,8 @@ export const markSold = async (req, res, next) => {
 
         const updated = await prisma.equipmentListing.update({
             where: { id },
-            data: { status: 'SOLD' },
-            include: { user: { select: USER_SELECT } },
+            data: { status: 'SOLD', soldToUserId: soldToUserId || null },
+            include: { user: { select: USER_SELECT }, soldToUser: { select: USER_SELECT } },
         });
         res.json(updated);
         broadcast('equipmentUpdate', updated);

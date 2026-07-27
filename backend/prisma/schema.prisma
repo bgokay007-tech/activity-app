@@ -105,6 +105,7 @@ model User {
   refereeReviewsGiven RefereeReview[] @relation("RefereeReviewer")
   refereeReviewsReceived RefereeReview[] @relation("RefereeReviewReceived")
   equipmentListings   EquipmentListing[]
+  equipmentPurchases  EquipmentListing[] @relation("EquipmentSoldTo")
   equipmentOffers     EquipmentOffer[]
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
@@ -412,10 +413,16 @@ model EquipmentListing {
   reservedForUserId String?
   reservedUntil     DateTime?
 
+  // Satıldı işaretlenirken ilan sahibi, ilan üzerinden konuştuğu kişilerden (teklif verenler +
+  // mesajlaşanlar) birini "bana bu satın aldı" olarak seçebilir — uygulama içinden mi dışından
+  // mı satıldığını görmek için. Seçilmezse (dışarıdan satıldıysa) null kalır.
+  soldToUserId String?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  soldToUser  User?            @relation("EquipmentSoldTo", fields: [soldToUserId], references: [id], onDelete: SetNull)
   offers      EquipmentOffer[]
   messages    Message[]
 }

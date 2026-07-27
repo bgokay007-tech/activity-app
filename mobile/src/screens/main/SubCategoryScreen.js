@@ -12530,6 +12530,46 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </View>
             </Modal>
 
+            <Modal visible={!!soldPickerListing} animationType="slide" transparent onRequestClose={() => setSoldPickerListing(null)}>
+                <View style={s.modalOverlay}>
+                    <View style={s.modalBox}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>Kime Sattın?</Text>
+                            <TouchableOpacity onPress={() => setSoldPickerListing(null)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>
+                            İlan üzerinden teklif veren ya da mesajlaşan biri varsa seçebilirsin — uygulama içinden mi dışından mı satıldığını görmemizi sağlar.
+                        </Text>
+                        {loadingSoldContacts ? (
+                            <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
+                        ) : (
+                            <ScrollView style={{ maxHeight:280 }} showsVerticalScrollIndicator={false}>
+                                {soldPickerContacts.map(u => (
+                                    <TouchableOpacity key={u.id} onPress={() => markEquipmentSold(soldPickerListing.id, u.id)}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:8, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                        <Avatar name={u.username} avatar={u.avatar} size={32} color={cfg.color} />
+                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                                {soldPickerContacts.length === 0 && (
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:10 }}>
+                                        Bu ilan üzerinden henüz kimseyle konuşmamışsın.
+                                    </Text>
+                                )}
+                            </ScrollView>
+                        )}
+                        <TouchableOpacity
+                            disabled={equipmentActionLoading}
+                            onPress={() => markEquipmentSold(soldPickerListing.id, null)}
+                            style={{ marginTop:12, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor: colors.border }}>
+                            <Text style={{ color: colors.textSecondary, fontWeight:'800', fontSize:14 }}>Uygulama Dışından Biri</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
             <CityAlertInfoModal
                 visible={cityAlertInfoTab !== null}
                 desc={cityAlertDesc[cityAlertInfoTab] || ''}
@@ -13170,13 +13210,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {selectedEquipment?.status !== 'SOLD' && (
                                                         <TouchableOpacity
                                                             disabled={equipmentActionLoading}
-                                                            onPress={() => Alert.alert(t.equipMarkSoldConfirmTitle, t.equipMarkSoldConfirmMsg, [
-                                                                { text: t.no || 'İptal', style:'cancel' },
-                                                                { text: t.yes || 'Evet', onPress: () => markEquipmentSold(selectedEquipment.id) },
-                                                            ])}
+                                                            onPress={() => openSoldPicker(selectedEquipment)}
                                                             style={{ backgroundColor:'#16a34a20', borderRadius:10, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#16a34a50', marginBottom:6 }}>
                                                             <Text style={{ color:'#4ade80', fontWeight:'800' }}>{t.equipMarkSoldBtn}</Text>
                                                         </TouchableOpacity>
+                                                    )}
+                                                    {selectedEquipment?.status === 'SOLD' && selectedEquipment.userId === myId && (
+                                                        <View style={{ backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, paddingHorizontal:10, alignItems:'center', marginBottom:6 }}>
+                                                            <Text style={{ color: colors.textMuted, fontSize:12, fontWeight:'700' }}>
+                                                                {selectedEquipment.soldToUser
+                                                                    ? `Uygulama içinden satıldı: ${selectedEquipment.soldToUser.fullName || selectedEquipment.soldToUser.username}`
+                                                                    : 'Uygulama dışından satıldı'}
+                                                            </Text>
+                                                        </View>
                                                     )}
                                                     <TouchableOpacity onPress={() => Alert.alert('İlanı Sil', 'Bu ilanı silmek istiyor musunuz?', [
                                                         { text:'İptal', style:'cancel' },
