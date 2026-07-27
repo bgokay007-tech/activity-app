@@ -456,19 +456,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [refereeApplications, setRefereeApplications] = useState([]);
     const [refereeAdId, setRefereeAdId] = useState(null);
 
+    // Hakem başvuruları asıl maçın id'siyle sorgulanır — Hakemler sekmesinden ilanın
+    // kendi detayı açıldıysa (isRefereeAd) linkedRivalId asıl maçın id'sidir.
+    const refereeMatchIdForApps = item?.refereeRequested ? item?.id : item?.linkedRivalId;
     useEffect(() => {
         setRefereeApplications([]);
         setRefereeAdId(null);
         setInviteForReferee(false);
-        if (item?.id && visible && item.refereeRequested) {
-            api.get(`/rivals/${item.id}/referee-applications`)
+        if (refereeMatchIdForApps && visible) {
+            api.get(`/rivals/${refereeMatchIdForApps}/referee-applications`)
                 .then(({ data }) => {
                     setRefereeApplications(Array.isArray(data.applications) ? data.applications : []);
                     setRefereeAdId(data.refereeAdId || null);
                 })
                 .catch(() => {});
         }
-    }, [item?.id, visible, item?.refereeRequested]);
+    }, [refereeMatchIdForApps, visible]);
 
     const submitRefereeApply = async () => {
         setRefereeApplySubmitting(true);
@@ -493,8 +496,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [counterMessageInput, setCounterMessageInput] = useState('');
 
     const reloadRefereeApplications = () => {
-        if (!item?.id) return;
-        api.get(`/rivals/${item.id}/referee-applications`)
+        if (!refereeMatchIdForApps) return;
+        api.get(`/rivals/${refereeMatchIdForApps}/referee-applications`)
             .then(({ data }) => {
                 setRefereeApplications(Array.isArray(data.applications) ? data.applications : []);
                 setRefereeAdId(data.refereeAdId || null);
@@ -1030,7 +1033,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ fontSize:14 }}>🧑‍⚖️</Text>
                                             </View>
                                             <View style={{ flex:1 }}>
-                                                <Text style={[det.playerSub, { color:'#f59e0b' }]}>Hakem — Bekleniyor</Text>
+                                                {/* Kendi başvurusu bekleyen/karşı teklif almış görüntüleyici bunu genel
+                                                    "Hakem — Bekleniyor" yerine kendi durumu olarak görsün. */}
+                                                <Text style={[det.playerSub, { color:'#f59e0b' }]}>
+                                                    {mySentReq === 'PENDING' ? 'İsteğiniz Bekleniyor'
+                                                        : mySentReq === 'COUNTERED' ? 'Karşı Teklif Aldınız'
+                                                        : 'Hakem — Bekleniyor'}
+                                                </Text>
                                             </View>
                                         </>
                                     )}
@@ -1443,8 +1452,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </View>
                     )}
 
-                    {/* Hakem Başvuruları — ilan sahibi + katılımcılar ortak görür; sahibi kabul/red/karşı teklif verebilir */}
-                    {item.refereeRequested && (isOwner || isParticipant) && refereeApplications.length > 0 && (
+                    {/* Hakem Başvuruları — ilan sahibi + katılımcılar ortak görür; sahibi kabul/red/karşı teklif verebilir.
+                        Hakemler sekmesinden ilanın kendi detayı açıldığında da (isRefereeAd) görünür. */}
+                    {(item.refereeRequested || isRefereeAd) && (isOwner || isParticipant || isLinkedMatchPlayer) && refereeApplications.length > 0 && (
                         <View style={{ marginBottom:10, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', padding:6 }}>
                             <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'800', marginBottom:4 }}>{t.refereeApplicationsTitle}</Text>
                             {refereeApplications.map(app => (
@@ -2282,11 +2292,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </View>
                     </View>
                 ) : mySentReq === 'PENDING' ? (
-                    <View style={{ gap:2 }}>
-                        <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>{t.waitingReq}</Text>
+                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6 }}>
                         <TouchableOpacity onPress={handleWithdraw}>
                             <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700', textAlign:'center' }}>{t.withdrawReqBtn}</Text>
                         </TouchableOpacity>
+                        <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>
+                            {Array.isArray(item.positions) && item.positions.includes('REFEREE') ? 'İsteğiniz Bekleniyor' : t.waitingReq}
+                        </Text>
                     </View>
                 ) : mySentReq === 'ACCEPTED' ? (
                     <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', textAlign:'center' }}>✓ Kabul</Text>
