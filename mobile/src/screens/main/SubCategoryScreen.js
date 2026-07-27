@@ -5234,12 +5234,17 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                         {myResultText && <Text style={{ fontSize:14, fontWeight:'800', marginBottom:10, color: myResultColor }}>{myResultText}</Text>}
                         <View style={{ marginBottom:14 }}>
                             <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:2 }}>
-                                {m.flexibleSchedule ? '📅 Esnek Program' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' }) : ''}
+                                {m.flexibleSchedule ? '📅 Esnek Program' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : ''}
                                 {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
                             </Text>
                             {(m.courtName || m.location) && (
                                 <Text style={{ color: colors.textMuted, fontSize:12 }}>
                                     🏟️ {m.courtName || m.location}{m.courtName && m.location ? ` · 📍 ${m.location}` : ''}
+                                </Text>
+                            )}
+                            {m.duration != null && (
+                                <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
+                                    ⏱ {m.duration} dakika
                                 </Text>
                             )}
                             {m.matchMode && (
@@ -14339,8 +14344,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         // Çiftler (DOUBLE) maçlarda kurucunun partneri senderTeam'de tutulur —
                                         // eskiden buraya dahil edilmiyordu, bu yüzden hem eksik oyuncu (3 yerine 4)
                                         // hem de yanlış taraf ataması (partner rakip gibi gösteriliyordu) oluyordu.
+                                        // Artık iki taraf ayrı satırlarda gösteriliyor (kurucu / rakip) — tek bir
+                                        // karışık satır yerine.
                                         const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
-                                        const allP = [m.sender, ...senderTeamArr, ...parts].filter(Boolean);
+                                        const founderSide = [m.sender, ...senderTeamArr].filter(Boolean);
+                                        const opponentSide = parts.filter(Boolean);
                                         const snapshot = m.score?.ratingSnapshot || {};
                                         const sets = m.score?.sets;
                                         const winner = m.score?.winner;
@@ -14370,20 +14378,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         {m.courtName && m.location ? `  📍 ${m.location}` : ''}
                                                     </Text>
                                                 ) : null}
-                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom: sets ? 3 : 0 }}>
-                                                    {allP.map(p => {
-                                                        // Kurucu taraf: ilan sahibi VEYA onun partneri (senderTeam) — set
-                                                        // skorları ve kazanan tarafı buna göre doğru atanır.
-                                                        const isSender = p.id === m.senderId || senderTeamArr.some(st => st?.id === p.id);
+                                                {(() => {
+                                                    const renderCompactPlayer = (p, isFounderSidePlayer) => {
                                                         const hist = snapshot[p.id];
                                                         const rBefore = hist?.skillRating_before;
                                                         const pts = hist?.change ?? null;
-                                                        const pSets = sets ? sets.map(s2 => isSender ? s2.sender : s2.opponent) : null;
-                                                        const pWins = sets ? sets.filter(s2 => (isSender ? s2.sender : s2.opponent) > (isSender ? s2.opponent : s2.sender)).length : null;
+                                                        const pSets = sets ? sets.map(s2 => isFounderSidePlayer ? s2.sender : s2.opponent) : null;
+                                                        const pWins = sets ? sets.filter(s2 => (isFounderSidePlayer ? s2.sender : s2.opponent) > (isFounderSidePlayer ? s2.opponent : s2.sender)).length : null;
                                                         return (
                                                             <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:3 }}>
-                                                                <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:0, paddingVertical:0, flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
+                                                                <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:0, paddingVertical:0, flexDirection:'row', alignItems:'center', gap:3, maxWidth:100 }}>
+                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'600', flexShrink:1 }} numberOfLines={1} ellipsizeMode="tail">{senderAlias(p)}</Text>
                                                                     {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(rBefore).toFixed(2)} ★</Text>}
                                                                     {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                                                                 </TouchableOpacity>
@@ -14395,8 +14400,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 )}
                                                             </View>
                                                         );
-                                                    })}
-                                                </View>
+                                                    };
+                                                    return (
+                                                        <View style={{ marginBottom: sets ? 3 : 0 }}>
+                                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
+                                                                {founderSide.map(p => renderCompactPlayer(p, true))}
+                                                            </View>
+                                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                                                {opponentSide.map(p => renderCompactPlayer(p, false))}
+                                                            </View>
+                                                        </View>
+                                                    );
+                                                })()}
                                                 {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
                                                     && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
                                                     <TouchableOpacity
