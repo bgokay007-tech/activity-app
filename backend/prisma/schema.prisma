@@ -103,6 +103,7 @@ model User {
   coachLessonRequests CoachLessonRequest[] @relation("CoachLessonStudent")
   coachReviewsGiven   CoachReview[] @relation("CoachReviewer")
   refereeReviewsGiven RefereeReview[] @relation("RefereeReviewer")
+  refereeReviewsReceived RefereeReview[] @relation("RefereeReviewReceived")
   equipmentListings   EquipmentListing[]
   equipmentOffers     EquipmentOffer[]
   listingReports      ListingReport[]
@@ -373,17 +374,21 @@ model RefereeListing {
 // katılımcı/sahip olanlar verebilir (ActivityRequest.refereeId üzerinden doğrulanır).
 model RefereeReview {
   id               String   @id @default(uuid())
-  refereeListingId String
+  refereeListingId String?  // hakemin o kategori/dalda aktif ilanı varsa bağlanır (genel ortalama puanı için) — zorunlu değil
+  refereeUserId    String   // asıl bağ: hakemlik yapan kişi (ActivityRequest.refereeId) — ilanı olmasa da yorum alabilir
+  rivalId          String   // hangi maçın hakemliği değerlendiriliyor — maç başına 1 yorum
   reviewerId       String
   rating           Int      // 1-5
   comment          String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  refereeListing   RefereeListing @relation(fields: [refereeListingId], references: [id], onDelete: Cascade)
-  reviewer         User           @relation("RefereeReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  refereeListing   RefereeListing?  @relation(fields: [refereeListingId], references: [id], onDelete: Cascade)
+  refereeUser      User             @relation("RefereeReviewReceived", fields: [refereeUserId], references: [id], onDelete: Cascade)
+  rival            ActivityRequest  @relation(fields: [rivalId], references: [id], onDelete: Cascade)
+  reviewer         User             @relation("RefereeReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
 
-  @@unique([refereeListingId, reviewerId])
+  @@unique([rivalId, reviewerId])
 }
 
 model EquipmentListing {
@@ -667,6 +672,7 @@ model ActivityRequest {
   linkedRival     ActivityRequest?  @relation("RefereeLink", fields: [linkedRivalId], references: [id], onDelete: Cascade)
   refereeAds      ActivityRequest[] @relation("RefereeLink")
   refereeUser     User?  @relation("MatchRefereeUser", fields: [refereeId], references: [id], onDelete: SetNull)
+  refereeReviews  RefereeReview[]
 }
 
 model MatchComment {

@@ -10,7 +10,7 @@ import {
     getMatchComments, addMatchComment, deleteMatchComment,
     getMyUpcomingMatches, getMyMatchHistory,
     proposeSchedule, acceptSchedule, updateRivalRequest,
-    getForReservation, getRefereeApplications,
+    getForReservation, getRefereeApplications, submitRefereeReview,
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
 import { getPeerReviewTargets, submitPeerReview } from '../controllers/peerReview.controller.js';
@@ -43,6 +43,7 @@ router.patch('/:id/confirm-score',   authenticate, confirmScore);
 router.patch('/:id/dispute-score',   authenticate, disputeScore);
 router.post('/:id/report-dispute',   authenticate, reportDispute);
 router.post('/:id/appeal-score',     authenticate, appealScore);
+router.post('/:id/referee-review',   authenticate, submitRefereeReview);
 router.patch('/:id/archive',         authenticate, archiveMatch);
 router.patch('/:id/extend-score',    authenticate, extendScoreDeadline);
 router.patch('/:id/abandon',         authenticate, abandonMatch);

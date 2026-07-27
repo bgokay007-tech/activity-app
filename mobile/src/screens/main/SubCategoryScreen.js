@@ -10816,6 +10816,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [route.params?.initialTournSubTab]);
     const [archiveTournaments, setArchiveTournaments] = useState([]);
     const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
+    // Arşiv > Ekipmanlar (satılmış ilanlar) ve Hakemlik (hakemlik yapılan tamamlanmış maçlar)
+    const [archiveEquipment, setArchiveEquipment] = useState([]);
+    const [loadingArchiveEquipment, setLoadingArchiveEquipment] = useState(false);
+    const [archiveRefereedMatches, setArchiveRefereedMatches] = useState([]);
+    const [refereeReviewMatch, setRefereeReviewMatch] = useState(null);
+    const [refereeReviewRating, setRefereeReviewRating] = useState(0);
+    const [refereeReviewComment, setRefereeReviewComment] = useState('');
+    const [submittingRefereeReview, setSubmittingRefereeReview] = useState(false);
     const [selectedArchiveTournament, setSelectedArchiveTournament] = useState(null);
     const [archiveModalMatches, setArchiveModalMatches] = useState([]);
     const [archiveModalLoading, setArchiveModalLoading] = useState(false);
@@ -11129,6 +11137,29 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
     }, [appealMatch, appealReasonText]);
 
+    const openRefereeReview = useCallback((match) => {
+        setRefereeReviewRating(match.myRefereeReview?.rating || 0);
+        setRefereeReviewComment(match.myRefereeReview?.comment || '');
+        setRefereeReviewMatch(match);
+    }, []);
+
+    const submitRefereeReview = useCallback(async () => {
+        if (!refereeReviewMatch || !refereeReviewRating) return;
+        setSubmittingRefereeReview(true);
+        try {
+            const { data } = await api.post(`/rivals/${refereeReviewMatch.id}/referee-review`, {
+                rating: refereeReviewRating, comment: refereeReviewComment.trim(),
+            });
+            const applyReview = (list) => list.map(m => m.id === refereeReviewMatch.id ? { ...m, myRefereeReview: data } : m);
+            setArchiveRivals(applyReview);
+            setRefereeReviewMatch(null);
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Değerlendirme gönderilemedi');
+        } finally {
+            setSubmittingRefereeReview(false);
+        }
+    }, [refereeReviewMatch, refereeReviewRating, refereeReviewComment]);
+
     // Real-time new comment for upcoming match modal
     useEffect(() => {
         if (!commentMatch?.id) return;
@@ -11259,10 +11290,29 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
         if (archiveDateTo) params.set('dateTo', archiveDateTo);
         api.get(`/archive?${params.toString()}`)
-            .then(res => setArchiveRivals(res.data?.rivals || []))
+            .then(res => {
+                setArchiveRivals(res.data?.rivals || []);
+                setArchiveRefereedMatches(res.data?.refereedMatches || []);
+            })
             .catch(() => {})
             .finally(() => setLoadingArchive(false));
     }, [activeTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
+
+    const loadArchiveEquipment = useCallback(async () => {
+        if (activeTab !== 'archive' || archiveSubTab !== 'equipment') return;
+        setLoadingArchiveEquipment(true);
+        try {
+            const params = new URLSearchParams({ category, subCategory: sub, status: 'SOLD' });
+            const { data } = await api.get(`/equipment?${params.toString()}`);
+            setArchiveEquipment(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingArchiveEquipment(false); }
+    }, [activeTab, archiveSubTab, category, sub]);
+
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { loadArchiveEquipment(); });
+        return () => task.cancel();
+    }, [loadArchiveEquipment]);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => { loadArchive(); });
@@ -12411,6 +12461,42 @@ export default function SubCategoryScreen({ route, navigation }) {
                             style={{ marginTop:12, backgroundColor: appealReasonText.trim() ? '#f97316' : colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', opacity: submittingAppeal ? 0.6 : 1 }}>
                             <Text style={{ color: appealReasonText.trim() ? '#fff' : colors.textMuted, fontWeight:'800', fontSize:14 }}>
                                 {submittingAppeal ? '…' : 'İtiraz Et'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal visible={!!refereeReviewMatch} animationType="slide" transparent onRequestClose={() => setRefereeReviewMatch(null)}>
+                <View style={s.modalOverlay}>
+                    <View style={s.modalBox}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>Hakemi Değerlendir</Text>
+                            <TouchableOpacity onPress={() => setRefereeReviewMatch(null)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection:'row', justifyContent:'center', gap:6, marginBottom:14 }}>
+                            {[1,2,3,4,5].map(n => (
+                                <TouchableOpacity key={n} onPress={() => setRefereeReviewRating(n)}>
+                                    <Text style={{ fontSize:30, color: n <= refereeReviewRating ? '#fbbf24' : colors.border }}>★</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <TextInput
+                            style={[s.fieldInput, { height:90, textAlignVertical:'top' }]}
+                            value={refereeReviewComment}
+                            onChangeText={setRefereeReviewComment}
+                            placeholder="Hakemlik hakkında yorumun (isteğe bağlı)"
+                            placeholderTextColor={colors.textMuted}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            onPress={submitRefereeReview}
+                            disabled={!refereeReviewRating || submittingRefereeReview}
+                            style={{ marginTop:12, backgroundColor: refereeReviewRating ? '#fbbf24' : colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', opacity: submittingRefereeReview ? 0.6 : 1 }}>
+                            <Text style={{ color: refereeReviewRating ? '#111827' : colors.textMuted, fontWeight:'800', fontSize:14 }}>
+                                {submittingRefereeReview ? '…' : 'Gönder'}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -13892,16 +13978,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'archive' && (
                         <>
                         {/* Sub-tabs */}
-                        <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
-                            {['rivals','tournaments'].map(st => (
-                                <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
-                                    style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
-                                    <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                        {st === 'rivals' ? 'Bireysel Maçlar' : 'Turnuvalar'}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:10 }}>
+                            <View style={{ flexDirection:'row', gap:3 }}>
+                                {['rivals','tournaments','equipment','referee'].map(st => (
+                                    <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
+                                        style={{ paddingVertical:4, paddingHorizontal:12, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
+                                        <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                            {st === 'rivals' ? 'Bireysel Maçlar' : st === 'tournaments' ? 'Turnuvalar' : st === 'equipment' ? 'Ekipmanlar' : 'Hakemlik'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </ScrollView>
                         {/* Filter bar */}
                         <View style={{ flexDirection:'row', gap:3, marginBottom:8, alignItems:'center' }}>
                             <TextInput
@@ -14021,6 +14109,89 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>{t.peerReviewNeedsReviewBtn}</Text>
                                                     </TouchableOpacity>
                                                 )}
+                                                {m.refereeId && m.myRefereeReview && (
+                                                    <View style={{ marginTop:4, backgroundColor:'#fbbf2415', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor:'#fbbf2440', alignSelf:'flex-start' }}>
+                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>
+                                                            {'⭐'.repeat(m.myRefereeReview.rating)} Hakemi değerlendirdin
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                {m.refereeId && !m.myRefereeReview && m.canReviewReferee && (
+                                                    <TouchableOpacity
+                                                        onPress={() => openRefereeReview(m)}
+                                                        style={{ marginTop:4, backgroundColor:'#fbbf2420', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor:'#fbbf2450', alignSelf:'flex-start' }}>
+                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>Hakemi Değerlendir</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            )
+                        )}
+
+                        {/* Ekipmanlar arşivi (satılmış ilanlar) */}
+                        {archiveSubTab === 'equipment' && (
+                            loadingArchiveEquipment ? (
+                                <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
+                            ) : archiveEquipment.length === 0 ? (
+                                <EmptyState emoji="🎾" text={t.equipNoSold} />
+                            ) : (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical:5 }}>
+                                    {archiveEquipment.map(eq => (
+                                        <TouchableOpacity key={eq.id} onPress={() => setSelectedEquipment(eq)}
+                                            style={{ width:'48%', backgroundColor: colors.surface2, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
+                                            {eq.images?.[0] ? (
+                                                <Image source={{ uri: eq.images[0] }} style={{ width:'100%', height:120 }} resizeMode="cover" />
+                                            ) : (
+                                                <View style={{ width:'100%', height:120, alignItems:'center', justifyContent:'center', backgroundColor: colors.surface }}>
+                                                    <Text style={{ fontSize:36 }}>🎾</Text>
+                                                </View>
+                                            )}
+                                            <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#6b7280', borderRadius:6, paddingHorizontal:4, paddingVertical:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>Satıldı</Text>
+                                            </View>
+                                            <View style={{ padding:5 }}>
+                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{eq.title}</Text>
+                                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : 'Fiyat sor'}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>{eq.user?.username}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )
+                        )}
+
+                        {/* Hakemlik arşivi (hakemlik yapılan tamamlanmış maçlar) */}
+                        {archiveSubTab === 'referee' && (
+                            loadingArchive ? (
+                                <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
+                            ) : archiveRefereedMatches.length === 0 ? (
+                                <EmptyState emoji="🟨" text="Henüz hakemlik yaptığın tamamlanmış maç yok" />
+                            ) : (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical:5 }}>
+                                    {archiveRefereedMatches.map(m => {
+                                        const parts = Array.isArray(m.participants) ? m.participants : [];
+                                        const allP = [m.sender, ...parts].filter(Boolean);
+                                        return (
+                                            <View key={m.id} style={[s.card, { width:'48%' }]}>
+                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                    {m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
+                                                    {m.matchTime ? ` ${m.matchTime}` : ''}
+                                                </Text>
+                                                {(m.courtName || m.location) ? (
+                                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                        🏟️ {m.courtName || m.location}
+                                                    </Text>
+                                                ) : null}
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                                    {allP.map(p => (
+                                                        <TouchableOpacity key={p.id || p.username} onPress={() => p.id && setProfileUserId(p.id)}
+                                                            style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:2 }}>
+                                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'600' }}>{senderAlias(p)}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
                                             </View>
                                         );
                                     })}

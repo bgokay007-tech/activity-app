@@ -94,6 +94,38 @@ export const getArchive = async (req, res, next) => {
             return { ...r, needsPeerReview };
         });
 
-        res.json({ tournaments, rivals: rivalsAnnotated });
+        // Hakem değerlendirmesi: maçın onaylanmış hakemi varsa (refereeId) ve maç tamamlandıysa,
+        // katılımcı olan ben (hakemin kendisi değilsem) o maçın hakemliğini yorum+yıldızla
+        // değerlendirebilirim — bkz. POST /rivals/:id/referee-review. Zaten değerlendirdiysem
+        // kendi değerlendirmem kart üzerinde gösterilsin diye ekleniyor.
+        const refereedRivalIds = rivalsAnnotated.filter(r => r.refereeId && r.status === 'COMPLETED').map(r => r.id);
+        const myRefereeReviews = refereedRivalIds.length ? await prisma.refereeReview.findMany({
+            where: { rivalId: { in: refereedRivalIds }, reviewerId: myId },
+        }) : [];
+        const myReviewByRival = Object.fromEntries(myRefereeReviews.map(rv => [rv.rivalId, rv]));
+        const rivalsFinal = rivalsAnnotated.map(r => {
+            if (!r.refereeId || r.status !== 'COMPLETED') return r;
+            const parts = Array.isArray(r.participants) ? r.participants : [];
+            const senderTeamArr = Array.isArray(r.senderTeam) ? r.senderTeam : [];
+            const rosterIds = [...new Set([r.senderId, ...parts.map(p => p.id), ...senderTeamArr.map(m => m.id)])];
+            const canReviewReferee = r.refereeId !== myId && rosterIds.includes(myId);
+            return { ...r, canReviewReferee, myRefereeReview: myReviewByRival[r.id] || null };
+        });
+
+        // ── Hakemlik yaptığım (tamamlanmış) maçlar — Arşiv > Hakemlik sekmesi ──────────
+        const refereedMatches = await prisma.activityRequest.findMany({
+            where: {
+                refereeId: myId,
+                status: 'COMPLETED',
+                ...(category    && { category }),
+                ...(subCategory && { subCategory }),
+                ...(hasDate && { completedAt: dateFilter }),
+            },
+            include: { sender: { select: USER_SELECT } },
+            orderBy: { completedAt: 'desc' },
+            take: 100,
+        });
+
+        res.json({ tournaments, rivals: rivalsFinal, refereedMatches });
     } catch (e) { next(e); }
 };

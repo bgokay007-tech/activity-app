@@ -3053,6 +3053,53 @@ export const appealScore = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Bir maçın hakemliğini değerlendirme — maç tamamlandıktan sonra o maçın katılımcıları
+// (hakemin kendisi hariç) hakeme maç başına 1 kez yorum+yıldız (1-5) verebilir. Hakemin
+// o kategori/dalda aktif bir ilanı varsa (RefereeListing) genel ortalama puanına da
+// yansısın diye otomatik bağlanır — ilanı yoksa da yorum sorunsuz kaydedilir.
+export const submitRefereeReview = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { rating, comment } = req.body;
+        const r = parseInt(rating, 10);
+        if (!r || r < 1 || r > 5) return res.status(400).json({ message: 'Geçerli bir yıldız puanı girin (1-5)' });
+
+        const match = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!match) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (!match.refereeId) return res.status(400).json({ message: 'Bu maçta hakem yok' });
+        if (match.status !== 'COMPLETED') return res.status(400).json({ message: 'Sadece tamamlanmış maçların hakemi değerlendirilebilir' });
+        if (match.refereeId === req.userId) return res.status(403).json({ message: 'Kendi hakemliğinizi değerlendiremezsiniz' });
+
+        const participants = Array.isArray(match.participants) ? match.participants : [];
+        const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+        const rosterIds = [match.senderId, ...participants.map(p => p?.id), ...senderTeamArr.map(m => m?.id)].filter(Boolean);
+        if (!rosterIds.includes(req.userId)) return res.status(403).json({ message: 'Bu maçta yer almadığınız için hakemi değerlendiremezsiniz' });
+
+        const listing = await prisma.refereeListing.findFirst({
+            where: { userId: match.refereeId, category: match.category, subCategory: match.subCategory, status: 'ACTIVE' },
+            select: { id: true },
+        });
+
+        const review = await prisma.refereeReview.upsert({
+            where: { rivalId_reviewerId: { rivalId: id, reviewerId: req.userId } },
+            update: { rating: r, comment: comment?.trim() || null },
+            create: {
+                rivalId: id, refereeUserId: match.refereeId, refereeListingId: listing?.id || null,
+                reviewerId: req.userId, rating: r, comment: comment?.trim() || null,
+            },
+            include: { reviewer: { select: { id: true, username: true, fullName: true, avatar: true } } },
+        });
+
+        createNotification(
+            match.refereeId, 'REFEREE_REVIEWED', '⭐ Hakemlik Değerlendirmesi',
+            `Hakemlik yaptığınız bir maç için değerlendirme aldınız (${r}/5).`,
+            { rivalId: id, category: match.category, subCategory: match.subCategory }
+        ).catch(() => {});
+
+        res.status(201).json(review);
+    } catch (error) { next(error); }
+};
+
 export const archiveMatch = async (req, res, next) => {
     try {
         const { id } = req.params;
