@@ -475,6 +475,9 @@ export const getRivalById = async (req, res, next) => {
                 sender: { select: { ...SENDER_SELECT, interests: { select: { alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
                 refereeUser: { select: SENDER_SELECT },
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) için:
+                // asıl maçın oyuncularını (kim başvuramaz) ve dolu/boş slot durumunu görebilmek için.
+                linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, sender: { select: SENDER_SELECT } } },
             },
         });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
@@ -733,6 +736,12 @@ export const updateRivalRequest = async (req, res, next) => {
                         location: updated.location,
                         courtName: updated.courtName,
                         courtAddress: updated.courtAddress,
+                        courtLat: updated.courtLat,
+                        courtLng: updated.courtLng,
+                        isCourtReserved: updated.isCourtReserved,
+                        ...(updated.venueId            && { venueId: updated.venueId }),
+                        ...(updated.venueCourtId       && { venueCourtId: updated.venueCourtId }),
+                        ...(updated.venueReservationId && { venueReservationId: updated.venueReservationId }),
                         positions: ['REFEREE'],
                         ...(refereePayment && { refereePayment }),
                         linkedRivalId: updated.id,
@@ -763,6 +772,8 @@ export const updateRivalRequest = async (req, res, next) => {
                 }).catch(() => {});
         }
 
+        if (refereeWillBeRequested) syncRefereeAdCourt(id, updated);
+
         broadcast('rivalUpdate', finalUpdated);
         res.json(matchTypeLocked ? { ...finalUpdated, matchTypeLocked: true } : finalUpdated);
     } catch (error) { next(error); }
@@ -773,6 +784,25 @@ const fmtEndTime = (startTime, mins) => {
     const total = h * 60 + m + mins;
     return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 };
+
+// Bir maçın kort/rezervasyon bilgisi (adres, koordinat, rezerve edildi mi, tesis/kort/
+// rezervasyon id) değiştiğinde, o maça bağlı "Hakem Arıyorum" ilanına (varsa) da yansıtır —
+// aksi halde hakem ilanı asıl maçın kort bilgisinden bağımsız/eski kalır.
+function syncRefereeAdCourt(rivalId, activity) {
+    prisma.activityRequest.updateMany({
+        where: { linkedRivalId: rivalId },
+        data: {
+            courtName: activity.courtName,
+            courtAddress: activity.courtAddress,
+            courtLat: activity.courtLat,
+            courtLng: activity.courtLng,
+            isCourtReserved: activity.isCourtReserved,
+            venueId: activity.venueId,
+            venueCourtId: activity.venueCourtId,
+            venueReservationId: activity.venueReservationId,
+        },
+    }).catch(() => {});
+}
 
 // Bu maçın alıcısı/katılımcıları/bekleyen istek sahiplerine (ilan sahibi hariç) bildirim +
 // rivalUpdate yayınlar — kort/saat değişikliği gibi tüm oyuncuları ilgilendiren güncellemeler için.
@@ -833,6 +863,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
                 },
                 include: { sender: { select: SENDER_SELECT } },
             });
+            if (updated.refereeRequested) syncRefereeAdCourt(rival.id, updated);
             broadcast('rivalUpdate', updated);
             return res.json(updated);
         }
@@ -864,6 +895,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
                 title: '🔄 Maç Bilgisi Değişti',
                 body: `"${updated.courtName || 'Kort'}" için maç ${newMatchDateObj ? newMatchDateObj.toISOString().slice(0, 10) : ''} ${newMatchTime || ''} olarak güncellendi.`,
             });
+            if (updated.refereeRequested) syncRefereeAdCourt(rival.id, updated);
             broadcast('rivalUpdate', updated);
             return res.json(updated);
         }
@@ -985,6 +1017,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
                 : `"${updatedActivity.courtName}" için maç ${matchDate} ${matchTime}–${newEndTime} olarak güncellendi.`,
         });
 
+        if (updatedActivity.refereeRequested) syncRefereeAdCourt(rival.id, updatedActivity);
         broadcast('rivalUpdate', updatedActivity);
         res.json(updatedActivity);
     } catch (error) {
@@ -1123,6 +1156,12 @@ export const createRivalRequest = async (req, res, next) => {
                     location,
                     courtName: resolvedCourtName,
                     courtAddress,
+                    courtLat: courtLat ? Number(courtLat) : null,
+                    courtLng: courtLng ? Number(courtLng) : null,
+                    isCourtReserved: isCourtReserved || false,
+                    ...(venueId            && { venueId }),
+                    ...(venueCourtId       && { venueCourtId }),
+                    ...(venueReservationId && { venueReservationId }),
                     positions: ['REFEREE'],
                     ...(refereePayment && { refereePayment }),
                     linkedRivalId: request.id,
@@ -1407,6 +1446,9 @@ export const getRivalRequests = async (req, res, next) => {
                     },
                     // joiningTeam is returned automatically as it's a scalar field on RivalJoinRequest
                 },
+                // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) için:
+                // asıl maçın oyuncularını (kim başvuramaz) ve dolu/boş slot durumunu görebilmek için.
+                linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, sender: { select: SENDER_SELECT } } },
             },
             orderBy: { createdAt: 'desc' },
             take: 30,

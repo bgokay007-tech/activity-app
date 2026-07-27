@@ -157,7 +157,7 @@ function ReviewModal({ visible, venue, myReviews, onClose, onSaved }) {
 }
 
 export default function VenueDetailScreen({ route, navigation }) {
-    const { venue, rescheduleResId, editRivalId } = route.params;
+    const { venue, rescheduleResId } = route.params;
     const [selectedCourt, setSelected] = useState(null);
     const [reviews, setReviews]         = useState(null); // null = loading
     const [showReviewModal, setShowReviewModal] = useState(false);
@@ -215,9 +215,7 @@ export default function VenueDetailScreen({ route, navigation }) {
 
             {rescheduleResId && (
                 <View style={{ backgroundColor: '#3b82f620', paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' }}>
-                    <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>
-                        {editRivalId ? '🔄 Maçınızın kort/saatini değiştirmek için bir kort seçin' : '🔄 Rezervasyonunuzu değiştirmek için bir kort seçin'}
-                    </Text>
+                    <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>🔄 Rezervasyonunuzu değiştirmek için bir kort seçin</Text>
                 </View>
             )}
 
@@ -428,10 +426,10 @@ export default function VenueDetailScreen({ route, navigation }) {
 
                 {selectedCourt && (
                     <TouchableOpacity style={s.reserveBtn}
-                        onPress={() => navigation.navigate('CourtSlots', { venue, court: selectedCourt, rescheduleResId, editRivalId })}
+                        onPress={() => navigation.navigate('CourtSlots', { venue, court: selectedCourt, rescheduleResId })}
                         activeOpacity={0.8}>
                         <Text style={s.reserveBtnText}>
-                            {editRivalId ? `Kort/Saat Seç — ${selectedCourt.name} →` : rescheduleResId ? `Yeni Saat Seç — ${selectedCourt.name} →` : `Saat Seç — ${selectedCourt.name} →`}
+                            {rescheduleResId ? `Yeni Saat Seç — ${selectedCourt.name} →` : `Saat Seç — ${selectedCourt.name} →`}
                         </Text>
                     </TouchableOpacity>
                 )}

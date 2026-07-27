@@ -574,6 +574,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     }, [visible, item?.id]);
 
     const isOwner = item.senderId === myId;
+    // Hakem Arıyorum ilanları (linkedRival dolu) için: asıl maça oyuncu olarak
+    // katılmış biri (kurucu/partner/rakip) kendi maçına hakemlik başvurusu yapamaz.
+    const isLinkedMatchPlayer = !!item.linkedRival && (
+        item.linkedRival.senderId === myId
+        || (Array.isArray(item.linkedRival.participants) && item.linkedRival.participants.some(p => p?.id === myId))
+        || (Array.isArray(item.linkedRival.senderTeam) && item.linkedRival.senderTeam.some(p => p?.id === myId))
+    );
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const senderTeamArr = localSenderTeam ?? (Array.isArray(item.senderTeam) ? item.senderTeam : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
@@ -1520,6 +1527,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.cancelAdBtn}</Text>
                                 </TouchableOpacity>
                             </View>
+                        ) : isLinkedMatchPlayer ? (
+                            <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
+                                <Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
+                            </View>
                         ) : myInvite ? (
                             <View style={{ gap:3 }}>
                                 {myInvite.isPartnerInvite && (
@@ -1811,6 +1822,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const cfg = getConfig(sub);
     const isVolleyball = sub === 'volleyball';
     const isOwner = item.senderId === myId;
+    // Hakem Arıyorum ilanları (linkedRival dolu) için: asıl maça oyuncu olarak
+    // katılmış biri (kurucu/partner/rakip) kendi maçına hakemlik başvurusu yapamaz.
+    const isLinkedMatchPlayer = !!item.linkedRival && (
+        item.linkedRival.senderId === myId
+        || (Array.isArray(item.linkedRival.participants) && item.linkedRival.participants.some(p => p?.id === myId))
+        || (Array.isArray(item.linkedRival.senderTeam) && item.linkedRival.senderTeam.some(p => p?.id === myId))
+    );
     const participants = Array.isArray(item.participants) ? item.participants : [];
     const required = item.matchType === 'DOUBLE'
         ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
@@ -2424,7 +2442,7 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
     );
 }
 
-function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress, navigation }) {
+function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
     const t = useT();
     const [showScore, setShowScore] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
@@ -2478,16 +2496,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [localCommentText, setLocalCommentText] = useState('');
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
     const [orderVenueId, setOrderVenueId] = useState(null);
-    // Yaklaşan maçta kort/gün/saat değiştirme (gerçek işletme rezervasyonu yoksa)
-    const [showEditCourtModal, setShowEditCourtModal] = useState(false);
-    const [editDate, setEditDate] = useState(null);
-    const [editTime, setEditTime] = useState('');
-    const [editCourtName, setEditCourtName] = useState('');
-    const [editCourtAddress, setEditCourtAddress] = useState('');
-    const [showEditDatePicker, setShowEditDatePicker] = useState(false);
-    const [showEditTimePicker, setShowEditTimePicker] = useState(false);
-    const [editSubmitting, setEditSubmitting] = useState(false);
-    const [editVenueLoading, setEditVenueLoading] = useState(false);
+    // Yaklaşan maçta kort/gün/saat değiştirme — açık ilan düzenlemesiyle aynı ekran (CreateRivalModal)
+    const [editVisible, setEditVisible] = useState(false);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const isVolleyball = match.subCategory === 'volleyball';
@@ -2726,40 +2736,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 },
             ]
         );
-    };
-
-    const openEditCourt = async () => {
-        if (match.venueId && match.venueReservationId) {
-            setEditVenueLoading(true);
-            try {
-                const { data } = await api.get(`/venues/${match.venueId}`);
-                navigation?.navigate('VenueDetail', { venue: data, rescheduleResId: match.venueReservationId, editRivalId: match.id });
-            } catch (e) {
-                Alert.alert('', e?.response?.data?.message || 'Tesis bilgisi alınamadı');
-            } finally { setEditVenueLoading(false); }
-            return;
-        }
-        setEditDate(match.matchDate ? new Date(match.matchDate) : null);
-        setEditTime(match.matchTime || '');
-        setEditCourtName(match.courtName || '');
-        setEditCourtAddress(match.courtAddress || '');
-        setShowEditCourtModal(true);
-    };
-
-    const submitEditCourt = async () => {
-        if (!editDate || !editTime) { Alert.alert('', 'Tarih ve saat seçin'); return; }
-        setEditSubmitting(true);
-        try {
-            const dateStr = `${editDate.getFullYear()}-${String(editDate.getMonth()+1).padStart(2,'0')}-${String(editDate.getDate()).padStart(2,'0')}`;
-            await api.patch(`/rivals/${match.id}`, {
-                matchDate: dateStr, matchTime: editTime,
-                courtName: editCourtName.trim() || null,
-                courtAddress: editCourtAddress.trim() || null,
-            });
-            setShowEditCourtModal(false);
-            onRefresh();
-        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Güncellenemedi'); }
-        finally { setEditSubmitting(false); }
     };
 
     const searchPropCourts = async (text) => {
@@ -3254,65 +3230,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     </Modal>
 
-                    {/* Kort/gün/saat değiştir (gerçek işletme rezervasyonu olmayan maçlar için) */}
-                    <Modal visible={showEditCourtModal} animationType="fade" transparent onRequestClose={() => setShowEditCourtModal(false)}>
-                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
-                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
-                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>✏️ Kort/Gün/Saat Değiştir</Text>
-                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
-                                    <TouchableOpacity
-                                        style={{ flex:1, backgroundColor:'#1e293b', borderRadius:8, padding:9, borderWidth:1, borderColor: editDate ? colors.purple+'60' : colors.border }}
-                                        onPress={() => setShowEditDatePicker(true)}>
-                                        <Text style={{ color: editDate ? '#fff' : colors.textMuted, fontSize:13 }}>
-                                            {editDate ? `📅 ${String(editDate.getDate()).padStart(2,'0')}/${String(editDate.getMonth()+1).padStart(2,'0')}/${editDate.getFullYear()}` : '📅 Tarih Seç'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={{ flex:1, backgroundColor:'#1e293b', borderRadius:8, padding:9, borderWidth:1, borderColor: editTime ? colors.purple+'60' : colors.border }}
-                                        onPress={() => setShowEditTimePicker(true)}>
-                                        <Text style={{ color: editTime ? '#fff' : colors.textMuted, fontSize:13 }}>
-                                            {editTime ? `🕐 ${editTime}` : '🕐 Saat Seç'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                                <TextInput
-                                    value={editCourtName}
-                                    onChangeText={setEditCourtName}
-                                    placeholder="Kort / Tesis Adı (isteğe bağlı)"
-                                    placeholderTextColor={colors.textMuted}
-                                    style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:13, paddingHorizontal:12, paddingVertical:9, marginBottom:8 }}
-                                />
-                                <TextInput
-                                    value={editCourtAddress}
-                                    onChangeText={setEditCourtAddress}
-                                    placeholder="Adres (isteğe bağlı)"
-                                    placeholderTextColor={colors.textMuted}
-                                    style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:13, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
-                                />
-                                <View style={{ flexDirection:'row', gap:8 }}>
-                                    <TouchableOpacity onPress={() => setShowEditCourtModal(false)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
-                                        <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={submitEditCourt} disabled={editSubmitting} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple, opacity: editSubmitting ? 0.6 : 1 }}>
-                                        <Text style={{ color:'#fff', fontWeight:'800' }}>{editSubmitting ? '...' : 'Kaydet'}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </View>
-                    </Modal>
-                    <CalendarPickerModal
-                        visible={showEditDatePicker}
-                        value={editDate}
-                        onSelect={(d) => { setEditDate(d); setShowEditDatePicker(false); }}
-                        onClose={() => setShowEditDatePicker(false)}
-                    />
-                    <TimePickerModal
-                        visible={showEditTimePicker}
-                        title="Saat Seç"
-                        value={editTime}
-                        onSelect={(v) => { setEditTime(v); setShowEditTimePicker(false); }}
-                        onClose={() => setShowEditTimePicker(false)}
-                    />
+                    {editVisible && (
+                        <CreateRivalModal
+                            visible
+                            onClose={() => setEditVisible(false)}
+                            category={match.category}
+                            sub={match.subCategory}
+                            onCreated={onRefresh}
+                            editItem={match}
+                        />
+                    )}
 
                     {/* Non-DOUBLE: owner remove */}
                     {isOwner && match.matchType !== 'DOUBLE' && participantsArr.length > 0 && (
@@ -3618,11 +3545,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.scoreStatus !== 'CONFIRMED' && (
                             <>
-                                {isOwner && (
+                                {isOwner && match.matchDate && (
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', alignItems:'center' }}
-                                        onPress={openEditCourt} disabled={editVenueLoading}>
-                                        <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{editVenueLoading ? '...' : '✏️ Kort/Saat'}</Text>
+                                        onPress={() => setEditVisible(true)}>
+                                        <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>✏️ Kort/Saat</Text>
                                     </TouchableOpacity>
                                 )}
                                 {withinPenaltyWindow && !iAlreadyRequestedMutual && (
@@ -5108,6 +5035,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         (Array.isArray(editItem.participants) && editItem.participants.length > 0) ||
         (Array.isArray(editItem.senderTeam) && editItem.senderTeam.length > 0)
     );
+    // Yaklaşan Maçlar'dan (MATCHED) açıldıysa: takım/katılımcı, mesaj, rating, format gibi
+    // alanlara artık dokunulamaz — sadece kort/gün/saat değiştirilebilir (backend de bu
+    // durumda sadece bu alanları kabul ediyor, bkz. updateMatchedRivalCourt).
+    const isMatchedEdit = !!editItem && editItem.status === 'MATCHED';
 
     const INIT = {
         matchType: isPadel ? 'DOUBLE' : 'SINGLE', teamSize: isFootball ? 5 : isVolleyball ? 6 : 1,
@@ -5462,6 +5393,31 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // farklı kortsa önce yeni rezervasyonu alır, o başarılı olursa eskisini iptal eder —
     // (böylece hata durumunda kort boşta kalmaz).
     const submitEdit = async (matchDateStr) => {
+        // Yaklaşan Maçlar'dan (MATCHED) açıldıysa: rezervasyon işlemlerini (reserve/reschedule/
+        // iptal) burada ELLE yapmıyoruz — backend (updateMatchedRivalCourt) hepsini kendi
+        // tarafında, Pro paket + iptal/değişiklik politikası kontrolleriyle birlikte yapıyor.
+        // Sadece hedef kort/gün/saat bilgisini gönderiyoruz.
+        if (isMatchedEdit) {
+            try {
+                await api.patch(`/rivals/${editItem.id}`, {
+                    matchDate: matchDateStr || null,
+                    matchTime: f.matchTime || null,
+                    duration: f.duration || null,
+                    venueId: f.venueId || null,
+                    venueCourtId: f.venueCourtId || null,
+                    courtName: f.selectedCourt ? ([f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') || null) : (f.showManualCourt ? f.manualCourtName : null) || f.courtSearchText || null,
+                    courtAddress: f.manualAddress || null,
+                });
+                onCreated();
+                onClose();
+            } catch (e) {
+                Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+            } finally {
+                setSubmitting(false);
+            }
+            return;
+        }
+
         try {
             const orig = originalRef.current;
             let venueReservationId = f.venueReservationId || null;
@@ -5703,13 +5659,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
-                            <Text style={s.modalTitle}>{editItem ? t.editRivalTitle : t.createTitle}</Text>
+                            <Text style={s.modalTitle}>{isMatchedEdit ? '✏️ Kort/Saat Değiştir' : editItem ? t.editRivalTitle : t.createTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-                            {/* 1+2 - Mod + Format yan yana (non-team) / Mod + Takım (team) */}
-                            {!isTeamSport ? (
+                            {/* 1+2 - Mod + Format yan yana (non-team) / Mod + Takım (team) — Yaklaşan
+                                Maçlar'dan (MATCHED) düzenlemede bu bölüm tamamen gizlenir, sadece
+                                kort/gün/saat değiştirilebilir. */}
+                            {!isMatchedEdit && (!isTeamSport ? (
                                 <>
                                     {/* Mod + Format — tek satır, içeriğe göre boyutlanır (flex:1 yok — sağa boşluk kalırsa kalsın, aralarında boşluk olmasın) */}
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
@@ -5866,7 +5824,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </>
                                     )}
                                 </>
-                            )}
+                            ))}
 
                             {/* Tarih · Saat · Süre — tek satır, içeriğe göre boyutlanır (flex YOK — flex ile
                                 genişletince kutu, kısa metnin (ör. "22/07/2026") ihtiyacından fazla yer
@@ -6250,7 +6208,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             )}
 
                             {/* Hakem Talep Et / Davet Et / Ücret — sadece tenis/padel/voleybol, tek satır, aynı yükseklikte */}
-                            {['tennis', 'padel', 'volleyball'].includes(sub) && (
+                            {!isMatchedEdit && ['tennis', 'padel', 'volleyball'].includes(sub) && (
                                 <>
                                     <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeRequested && f.refereeInvites.length > 0 ? 6 : 10 }}>
                                         {/* Davete İzin Ver — kapalıyken sadece ilan sahibi oyuncu davet edebilir/
@@ -6322,13 +6280,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             )}
 
                             {/* Açıklama */}
-                            <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
-                            <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
-                                value={f.message} onChangeText={v => set('message', v)}
-                                placeholder={t.messagePh}
-                                placeholderTextColor={colors.textMuted} multiline />
+                            {!isMatchedEdit && (
+                                <>
+                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
+                                    <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
+                                        value={f.message} onChangeText={v => set('message', v)}
+                                        placeholder={t.messagePh}
+                                        placeholderTextColor={colors.textMuted} multiline />
+                                </>
+                            )}
 
-                            {category === 'ARTS' && (
+                            {!isMatchedEdit && category === 'ARTS' && (
                                 <>
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
                                     <TextInput style={s.fieldInput}
@@ -12486,7 +12448,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {filteredMatchedUpcoming.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} navigation={navigation} />
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                                 </View>
                                             ))}
                                         </View>
@@ -12501,7 +12463,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {pendingScoreAll.map(m => (
                                             <View key={m.id} style={{ width:'48.5%' }}>
-                                                <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} navigation={navigation} />
+                                                <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                             </View>
                                         ))}
                                     </View>
