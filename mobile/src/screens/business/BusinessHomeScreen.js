@@ -2160,12 +2160,12 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const TABS = [
         { key: 'info',         label: 'ℹ️ Bilgi' },
         isApproved ? { key: 'reservations', label: '📅 Rezervasyonlar' } : null,
+        isApproved && isPro ? { key: 'bills',    label: 'Adisyonlar' } : null,
         isApproved ? { key: 'analytics',    label: '📊 Rapor' }          : null,
         isApproved ? { key: 'reviews',      label: '⭐ Yorumlar' }       : null,
         isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
         isApproved && isPro ? { key: 'orders',   label: '🛒 Sipariş' } : null,
-        isApproved && isPro ? { key: 'bills',    label: 'Adisyonlar' } : null,
         isApproved          ? { key: 'settings', label: '⚙️ Ayarlar' } : null,
     ].filter(Boolean);
 
