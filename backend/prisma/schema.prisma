@@ -414,9 +414,14 @@ model EquipmentListing {
   reservedUntil     DateTime?
 
   // Satıldı işaretlenirken ilan sahibi, ilan üzerinden konuştuğu kişilerden (teklif verenler +
-  // mesajlaşanlar) birini "bana bu satın aldı" olarak seçebilir — uygulama içinden mi dışından
-  // mı satıldığını görmek için. Seçilmezse (dışarıdan satıldıysa) null kalır.
-  soldToUserId String?
+  // mesajlaşanlar) VEYA kullanıcı adıyla arayıp bulduğu herhangi birini "bana bu satın aldı"
+  // olarak seçebilir (maçta karşılaşıp anlaşmış olabilirler) — uygulama içinden mi dışından
+  // mı satıldığını görmek için. Seçilmezse (dışarıdan satıldıysa) null kalır. Seçilen kişinin
+  // gerçekten onayladığını doğrulamak için: 24 saat içinde onaylamazsa otomatik onaylanır
+  // (bkz. jobs/equipmentAutoConfirmSold.js).
+  soldToUserId          String?
+  soldToConfirmed       Boolean   @default(false)
+  soldToConfirmDeadline DateTime?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

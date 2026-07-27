@@ -10782,6 +10782,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [soldPickerListing, setSoldPickerListing] = useState(null);
     const [soldPickerContacts, setSoldPickerContacts] = useState([]);
     const [loadingSoldContacts, setLoadingSoldContacts] = useState(false);
+    const [soldSearchQuery, setSoldSearchQuery] = useState('');
+    const [soldSearchResults, setSoldSearchResults] = useState([]);
+    const [soldSearching, setSoldSearching] = useState(false);
     const [reportingListingId, setReportingListingId] = useState(null);
     const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
     const [news, setNews] = useState([]);
@@ -12103,12 +12106,36 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const openSoldPicker = async (listing) => {
         setSoldPickerListing(listing);
+        setSoldSearchQuery('');
+        setSoldSearchResults([]);
         setLoadingSoldContacts(true);
         try {
             const { data } = await api.get(`/equipment/${listing.id}/contacts`);
             setSoldPickerContacts(Array.isArray(data) ? data : []);
         } catch { setSoldPickerContacts([]); }
         finally { setLoadingSoldContacts(false); }
+    };
+
+    useEffect(() => {
+        if (!soldPickerListing) return;
+        if (!soldSearchQuery.trim() || soldSearchQuery.trim().length < 2) { setSoldSearchResults([]); return; }
+        setSoldSearching(true);
+        const task = setTimeout(() => {
+            api.get(`/users/search?q=${encodeURIComponent(soldSearchQuery.trim())}`)
+                .then(res => setSoldSearchResults(Array.isArray(res.data) ? res.data : []))
+                .catch(() => setSoldSearchResults([]))
+                .finally(() => setSoldSearching(false));
+        }, 400);
+        return () => clearTimeout(task);
+    }, [soldSearchQuery, soldPickerListing]);
+
+    const confirmEquipmentSale = async (id, action) => {
+        setEquipmentActionLoading(true);
+        try {
+            const { data } = await api.patch(`/equipment/${id}/confirm-sold`, { action });
+            setSelectedEquipment(prev => prev ? { ...prev, ...data } : prev);
+        } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+        finally { setEquipmentActionLoading(false); }
     };
 
     const reportListing = (type, id) => {
@@ -12540,26 +12567,49 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </TouchableOpacity>
                         </View>
                         <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>
-                            İlan üzerinden teklif veren ya da mesajlaşan biri varsa seçebilirsin — uygulama içinden mi dışından mı satıldığını görmemizi sağlar.
+                            Uygulamada kim olduğunu biliyorsan seçebilirsin (maçta karşılaşıp anlaşmış da olabilirsiniz) — seçtiğin kişi 24 saat içinde onaylamazsa otomatik onaylanır.
                         </Text>
-                        {loadingSoldContacts ? (
-                            <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
-                        ) : (
-                            <ScrollView style={{ maxHeight:280 }} showsVerticalScrollIndicator={false}>
-                                {soldPickerContacts.map(u => (
-                                    <TouchableOpacity key={u.id} onPress={() => markEquipmentSold(soldPickerListing.id, u.id)}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:8, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                        <Avatar name={u.username} avatar={u.avatar} size={32} color={cfg.color} />
-                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                                {soldPickerContacts.length === 0 && (
-                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:10 }}>
-                                        Bu ilan üzerinden henüz kimseyle konuşmamışsın.
-                                    </Text>
-                                )}
-                            </ScrollView>
-                        )}
+                        <TextInput
+                            style={[s.fieldInput, { marginBottom:8 }]}
+                            value={soldSearchQuery}
+                            onChangeText={setSoldSearchQuery}
+                            placeholder="Kullanıcı adı veya isimle ara"
+                            placeholderTextColor={colors.textMuted}
+                        />
+                        <ScrollView style={{ maxHeight:280 }} showsVerticalScrollIndicator={false}>
+                            {soldSearchQuery.trim().length >= 2 ? (
+                                soldSearching ? (
+                                    <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
+                                ) : soldSearchResults.length === 0 ? (
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:10 }}>Kullanıcı bulunamadı.</Text>
+                                ) : (
+                                    soldSearchResults.map(u => (
+                                        <TouchableOpacity key={u.id} onPress={() => markEquipmentSold(soldPickerListing.id, u.id)}
+                                            style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:8, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                            <Avatar name={u.username} avatar={u.avatar} size={32} color={cfg.color} />
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
+                                        </TouchableOpacity>
+                                    ))
+                                )
+                            ) : (
+                                <>
+                                    {soldPickerContacts.length > 0 && (
+                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:4 }}>Bu ilanda konuştukların</Text>
+                                    )}
+                                    {loadingSoldContacts ? (
+                                        <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
+                                    ) : (
+                                        soldPickerContacts.map(u => (
+                                            <TouchableOpacity key={u.id} onPress={() => markEquipmentSold(soldPickerListing.id, u.id)}
+                                                style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:8, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                                <Avatar name={u.username} avatar={u.avatar} size={32} color={cfg.color} />
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{u.fullName || u.username}</Text>
+                                            </TouchableOpacity>
+                                        ))
+                                    )}
+                                </>
+                            )}
+                        </ScrollView>
                         <TouchableOpacity
                             disabled={equipmentActionLoading}
                             onPress={() => markEquipmentSold(soldPickerListing.id, null)}
@@ -13219,9 +13269,26 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <View style={{ backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, paddingHorizontal:10, alignItems:'center', marginBottom:6 }}>
                                                             <Text style={{ color: colors.textMuted, fontSize:12, fontWeight:'700' }}>
                                                                 {selectedEquipment.soldToUser
-                                                                    ? `Uygulama içinden satıldı: ${selectedEquipment.soldToUser.fullName || selectedEquipment.soldToUser.username}`
+                                                                    ? `Uygulama içinden satıldı: ${selectedEquipment.soldToUser.fullName || selectedEquipment.soldToUser.username}${selectedEquipment.soldToConfirmed ? ' ✅ onaylandı' : ' ⏳ onay bekleniyor'}`
                                                                     : 'Uygulama dışından satıldı'}
                                                             </Text>
+                                                        </View>
+                                                    )}
+                                                    {selectedEquipment?.status === 'SOLD' && selectedEquipment.soldToUserId === myId && !selectedEquipment.soldToConfirmed && (
+                                                        <View style={{ backgroundColor:'#fbbf2415', borderRadius:10, padding:10, borderWidth:1, borderColor:'#fbbf2440', marginBottom:6 }}>
+                                                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700', marginBottom:8 }}>
+                                                                {selectedEquipment.user?.fullName || selectedEquipment.user?.username}, bu ürünü sana sattığını belirtti. Onaylıyor musun?
+                                                            </Text>
+                                                            <View style={{ flexDirection:'row', gap:6 }}>
+                                                                <TouchableOpacity disabled={equipmentActionLoading} onPress={() => confirmEquipmentSale(selectedEquipment.id, 'confirm')}
+                                                                    style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
+                                                                    <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:12 }}>Onayla</Text>
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity disabled={equipmentActionLoading} onPress={() => confirmEquipmentSale(selectedEquipment.id, 'reject')}
+                                                                    style={{ flex:1, backgroundColor:'#ef444420', borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
+                                                                    <Text style={{ color:'#ef4444', fontWeight:'800', fontSize:12 }}>Ben Değilim</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
                                                         </View>
                                                     )}
                                                     <TouchableOpacity onPress={() => Alert.alert('İlanı Sil', 'Bu ilanı silmek istiyor musunuz?', [

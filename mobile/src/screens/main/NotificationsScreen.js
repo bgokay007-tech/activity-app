@@ -53,6 +53,7 @@ const TYPE_ICON = {
     PAYMENT_ALERT: '💳',
     PEER_REVIEW_PROMPT: '🏐',
     EQUIPMENT_OFFER: '💰',
+    EQUIPMENT_SOLD_CONFIRM: '🎾',
     GAME_TABLE_INVITE: '🎲',
     default: '🔔',
 };
@@ -156,7 +157,7 @@ export default function NotificationsScreen({ navigation }) {
                 Alert.alert('', errData?.message || 'Masaya katılınamadı.');
             });
             socket.emit(`${game}:joinByCode`, { code });
-        } else if (type === 'EQUIPMENT_OFFER') {
+        } else if (type === 'EQUIPMENT_OFFER' || type === 'EQUIPMENT_SOLD_CONFIRM') {
             goToEquipmentListing();
         } else if (type === 'MESSAGE' && data.coachListingId) {
             goToCoachListing();

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import {
     getListings, getListing, createListing, deleteListing,
-    sendOffer, getOffers, respondOffer, cancelReservation, markSold, getListingContacts,
+    sendOffer, getOffers, respondOffer, cancelReservation, markSold, getListingContacts, confirmSold,
 } from '../controllers/equipment.controller.js';
 import { reportListing } from '../controllers/listing-report.controller.js';
 
@@ -19,6 +19,7 @@ router.get('/:id/offers',        getOffers);
 router.patch('/offers/:offerId', respondOffer);
 router.patch('/:id/unreserve',   cancelReservation);
 router.patch('/:id/sold',        markSold);
+router.patch('/:id/confirm-sold', confirmSold);
 router.get('/:id/contacts',      getListingContacts);
 router.get('/:id',           getListing);
 

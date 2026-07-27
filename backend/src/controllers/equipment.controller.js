@@ -368,7 +368,13 @@ export const cancelReservation = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-// İlan sahibi satışı tamamlayınca ilan "Satılanlar" sekmesine geçer.
+const SOLD_CONFIRM_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// İlan sahibi satışı tamamlayınca ilan "Satılanlar" sekmesine geçer. Alıcı olarak biri
+// seçildiyse (teklif/mesajlaşma listesinden VEYA kullanıcı adıyla arayıp bulduğu herhangi
+// biri — maçta karşılaşıp anlaşmış da olabilirler), o kişiye "seni satın aldı diye
+// işaretledi, onaylar mısın?" bildirimi gider; 24 saat içinde yanıt vermezse otomatik
+// onaylanır (bkz. jobs/equipmentAutoConfirmSold.js).
 export const markSold = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -378,9 +384,20 @@ export const markSold = async (req, res, next) => {
         if (listing.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
         if (listing.status === 'SOLD') return res.status(400).json({ message: 'Bu ilan zaten satıldı olarak işaretli' });
 
+        let buyer = null;
+        if (soldToUserId) {
+            if (soldToUserId === req.userId) return res.status(400).json({ message: 'Kendinizi alıcı olarak seçemezsiniz' });
+            buyer = await prisma.user.findUnique({ where: { id: soldToUserId }, select: { id: true } });
+            if (!buyer) return res.status(400).json({ message: 'Seçilen kullanıcı bulunamadı' });
+        }
+
+        const deadline = buyer ? new Date(Date.now() + SOLD_CONFIRM_WINDOW_MS) : null;
         const updated = await prisma.equipmentListing.update({
             where: { id },
-            data: { status: 'SOLD', soldToUserId: soldToUserId || null },
+            data: {
+                status: 'SOLD', soldToUserId: buyer?.id || null,
+                soldToConfirmed: false, soldToConfirmDeadline: deadline,
+            },
             include: { user: { select: USER_SELECT }, soldToUser: { select: USER_SELECT } },
         });
         res.json(updated);
@@ -391,5 +408,46 @@ export const markSold = async (req, res, next) => {
             where: { listingId: id, status: 'PENDING' },
             data: { status: 'REJECTED' },
         }).catch(() => {});
+
+        if (buyer) {
+            createNotification(
+                buyer.id, 'EQUIPMENT_SOLD_CONFIRM',
+                '🎾 Bu ürünü senden aldığını mı söylüyor?',
+                `${updated.user?.fullName || updated.user?.username}, "${listing.title}" ürününü sana sattığını belirtti. Onaylar mısın? Yanıtlamazsan 24 saat sonra otomatik onaylanır.`,
+                { listingId: id, category: listing.category, subCategory: listing.subCategory }
+            ).catch(() => {});
+        }
+    } catch (err) { next(err); }
+};
+
+// Alıcı, kendisine atfedilen satışı onaylar (ya da reddeder — ilan sahibi yanlış kişi
+// seçmiş olabilir). Sadece soldToUserId'nin kendisi çağırabilir.
+export const confirmSold = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { action } = req.body; // 'confirm' | 'reject'
+        const listing = await prisma.equipmentListing.findUnique({ where: { id } });
+        if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (listing.soldToUserId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (listing.soldToConfirmed) return res.status(400).json({ message: 'Bu satış zaten onaylanmış' });
+
+        const updated = await prisma.equipmentListing.update({
+            where: { id },
+            data: action === 'reject'
+                ? { soldToUserId: null, soldToConfirmDeadline: null }
+                : { soldToConfirmed: true, soldToConfirmDeadline: null },
+            include: { user: { select: USER_SELECT }, soldToUser: { select: USER_SELECT } },
+        });
+        res.json(updated);
+        broadcast('equipmentUpdate', updated);
+
+        createNotification(
+            listing.userId, 'EQUIPMENT_SOLD_CONFIRM',
+            action === 'reject' ? '❌ Alıcı Reddetti' : '✅ Alıcı Onayladı',
+            action === 'reject'
+                ? `"${listing.title}" ürünü için seçtiğin kişi bu satışı reddetti.`
+                : `"${listing.title}" ürünü için seçtiğin kişi satışı onayladı.`,
+            { listingId: id, category: listing.category, subCategory: listing.subCategory }
+        ).catch(() => {});
     } catch (err) { next(err); }
 };
