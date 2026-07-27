@@ -2574,6 +2574,7 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
 
 function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     const [showScore, setShowScore] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
     const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
@@ -3752,7 +3753,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 {/* Comment input */}
                 <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding' : undefined}>
                     <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7,
-                        paddingBottom: Platform.OS==='ios' ? 28 : 10,
+                        paddingBottom: insets.bottom + (Platform.OS==='ios' ? 8 : 10),
                         borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                         <TextInput
                             style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
@@ -15428,7 +15429,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                             {/* Yorum yaz — bottom input */}
                             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
-                                <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: Platform.OS === 'ios' ? 28 : 10, borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
+                                <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 8 : 10), borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                                     <TextInput
                                         style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
                                         placeholder={t.matchCommentPlaceholder}
