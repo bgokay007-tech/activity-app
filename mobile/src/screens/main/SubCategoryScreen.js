@@ -10803,6 +10803,31 @@ export default function SubCategoryScreen({ route, navigation }) {
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
     const myRating = myInterests.find(i => i.subCategory === sub)?.skillRating ?? 0;
+
+    // İlan oluşturmadan önce bu dalın "Aktivitelerim"e eklenmiş (ve gizli olmayan)
+    // olduğunu kontrol eder — backend zaten bunu reddediyor ama kullanıcı formu
+    // doldurup gönderene kadar bunu öğrenmiyordu. Redux'taki myInterests az önce
+    // eklenmiş bir aktiviteyi yansıtmayabileceği için anlık, taze bir kontrol yapılır.
+    const requireActivityThenCreate = async () => {
+        try {
+            const { data } = await api.get('/interests/my');
+            const hasActivity = Array.isArray(data) && data.some(i => i.category === category && i.subCategory === sub && !i.hidden);
+            if (!hasActivity) {
+                Alert.alert(
+                    'Aktivite Gerekli',
+                    `${sportDisplayName} için ilan oluşturabilmen için önce bu dalı profilinden "Aktivitelerim"e eklemen gerekiyor.`,
+                    [
+                        { text: 'Vazgeç', style: 'cancel' },
+                        { text: 'Profilime Git', onPress: () => navigation.navigate('ProfileTab') },
+                    ]
+                );
+                return;
+            }
+        } catch {
+            // Kontrol başarısız olursa akışı engelleme — backend zaten koruma sağlıyor.
+        }
+        setShowCreateRival(true);
+    };
     const lang = useSelector(s => s.lang?.lang || 'en');
     const insets = useSafeAreaInsets();
     const t = useT();
@@ -10840,7 +10865,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             surface:      prefillSurface,
             indoor:       prefillIndoor,
         });
-        setShowCreateRival(true);
+        requireActivityThenCreate();
         navigation.setParams({ openCreateRival: undefined });
     }, [openCreateRival]);
 
@@ -12879,7 +12904,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <TouchableOpacity style={s.courtResBtn} onPress={() => navigation.navigate('VenueSearch', { branch: sub })} activeOpacity={0.8}>
                                     <Text style={s.courtResBtnText}>Kort Rez.</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
+                                <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={requireActivityThenCreate}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{category === 'ARTS' ? (t.createEventBtn || '📅 Etkinlik Oluştur') : t.createAdBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
