@@ -108,7 +108,7 @@ export async function autoDrawUnscored() {
                     'SCORE_CONFIRMED',
                     '🤝 Maç berabere kaydedildi',
                     '4 saat içinde skor girilmedi. Maç otomatik olarak 0-0 berabere kaydedildi. ELO puanı değişmedi.',
-                    { rivalId: r.id, category: r.category.toLowerCase(), subCategory: r.subCategory }
+                    { rivalId: r.id, category: r.category, subCategory: r.subCategory }
                 );
             }
         }
