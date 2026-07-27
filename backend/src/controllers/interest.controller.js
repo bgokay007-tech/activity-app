@@ -110,11 +110,15 @@ export const getCategories = async (req, res) => {
     });
 };
 
-// Kullanıcının ilgi alanlarını getir (gizlenmiş branşlar listelenmez)
+// Kullanıcının ilgi alanlarını getir (gizlenmiş branşlar varsayılan olarak listelenmez —
+// ?includeHidden=true ile döndürülür, sadece Profil ekranındaki "Benim Aktivitelerim"
+// listesi bunu kullanır; okey/batak gibi "bu aktivite var mı" kontrolü yapan diğer tüm
+// çağıranlar eskisi gibi gizli olanları hiç görmez).
 export const getUserInterests = async (req, res, next) => {
     try {
+        const includeHidden = req.query.includeHidden === 'true';
         const interests = await prisma.userInterest.findMany({
-            where: { userId: req.userId, hidden: false },
+            where: { userId: req.userId, ...(includeHidden ? {} : { hidden: false }) },
             include: { skills: true },
         });
         res.json(interests);

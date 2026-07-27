@@ -23,6 +23,13 @@ const ENABLED_SUBS = new Set([
 // engellemek için), sadece gizlenebilir.
 const WAGERED_GAMES = new Set(['okey', 'batak']);
 
+// Bu dallarda derece anketi zorunlu — eklerken açılan anket kapatılamaz/atlanamaz
+// (backend'de de requireActiveInterest ile ayrıca korunuyor, bkz. rival.controller.js).
+const RATING_REQUIRED_SUBS = new Set([
+    'tennis', 'padel', 'volleyball', 'basketball', 'football',
+    'badminton', 'golf', 'handball', 'table_tennis',
+]);
+
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
@@ -65,7 +72,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             } else if (!data.assessmentCompleted) {
                 // Daha once gizlenmis (ama 3+ mac gecmisi oldugu icin silinmemis) bir brans
                 // tekrar eklendiyse anketi tekrar acmiyoruz - puan/gecmis zaten korunuyor.
-                setAssessTarget({ interestId: data.id, subCategory });
+                setAssessTarget({ interestId: data.id, subCategory, mandatory: RATING_REQUIRED_SUBS.has(subCategory) });
             }
         } catch (e) { console.error(e); }
         finally { setLoadingId(null); }
@@ -239,7 +246,8 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                 interestId={assessTarget?.interestId}
                 subCategory={assessTarget?.subCategory}
                 lang={lang}
-                onClose={() => setAssessTarget(null)}
+                mandatory={!!assessTarget?.mandatory}
+                onClose={() => { if (!assessTarget?.mandatory) setAssessTarget(null); }}
                 onComplete={handleAssessComplete}
             />
 

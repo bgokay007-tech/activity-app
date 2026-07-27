@@ -2,6 +2,14 @@
 // Each option has a `points` value (0–30)
 // Max score = questions.length * 30 → level thresholds are % based
 
+// Bu dallarda derece anketi eklerken ZORUNLU — addInterest sonrası AssessmentModal
+// kapatılamaz/atlanamaz, ve rival.controller.js (createRivalRequest/sendJoinRequest)
+// bu dallarda assessmentCompleted olmadan ilan açmaya/katılmaya izin vermez.
+export const RATING_REQUIRED_SUBCATEGORIES = new Set([
+    'tennis', 'padel', 'volleyball', 'basketball', 'football',
+    'badminton', 'golf', 'handball', 'table_tennis',
+]);
+
 // Padel: her soru kullanıcının kendini 0-5 arası puanladığı tek tip 6 seçenekli
 // bir ölçek kullanır; `max` o sorunun toplam puana katkısının üst sınırıdır
 // (kategori ağırlığını uygulamak için 0-5'i orantılı olarak `max`'a ölçekler).

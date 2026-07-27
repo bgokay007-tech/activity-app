@@ -16,7 +16,7 @@ const LEVEL_COLORS = {
     PRO:          '#f87171',
 };
 
-export default function AssessmentModal({ visible, interestId, subCategory, lang: langProp, onClose, onComplete }) {
+export default function AssessmentModal({ visible, interestId, subCategory, lang: langProp, onClose, onComplete, mandatory = false }) {
     // ── All hooks first — no early returns before this block ──
     const langRedux = useSelector(s => s.lang?.lang || 'en');
     const lang = langProp || langRedux;
@@ -115,18 +115,23 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
 
     // ── Render ──
     return (
-        <Modal visible={!!visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={!!visible} animationType="slide" transparent onRequestClose={mandatory ? undefined : onClose}>
             <View style={s.overlay}>
                 <View style={s.box}>
                     {/* Header */}
                     <View style={s.header}>
                         <View style={{ flex: 1 }}>
                             <Text style={s.title}>{t.assessmentTitle(safeLabel)}</Text>
+                            {mandatory && !result && (
+                                <Text style={s.subtitle}>Bu dalda ilan açabilmek/katılabilmek için anketi tamamlaman gerekiyor</Text>
+                            )}
                             {!result && !needsPosition && questions.length > 0 && (
                                 <Text style={s.subtitle}>{t.questionCounter(current + 1, questions.length)}</Text>
                             )}
                         </View>
-                        <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
+                        {!mandatory && (
+                            <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
+                        )}
                     </View>
 
                     {/* Progress bar */}

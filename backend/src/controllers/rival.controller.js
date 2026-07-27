@@ -6,6 +6,28 @@ import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
 import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
 import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES } from './venue.controller.js';
+import { RATING_REQUIRED_SUBCATEGORIES } from '../config/assessments.js';
+
+// İlan açma/katılma öncesi ortak aktivite kontrolü: kullanıcı bu dalı "Aktivitelerim"e
+// eklememişse veya gizlemişse (hidden=true, gizliyken hiçbir şey yapamaz) reddedilir.
+// RATING_REQUIRED_SUBCATEGORIES'te ayrıca derece anketini (assessmentCompleted)
+// tamamlamış olmalı — ekleme sırasında zorunlu olsa da eski kayıtlar için ikinci savunma hattı.
+async function requireActiveInterest(userId, category, subCategory) {
+    const interest = await prisma.userInterest.findUnique({
+        where: { userId_category_subCategory: { userId, category, subCategory } },
+    });
+    if (!interest || interest.hidden) {
+        const err = new Error('Bu dal için önce profilinden "Aktivitelerim"e eklemelisin.');
+        err.status = 403; err.code = 'ACTIVITY_REQUIRED';
+        throw err;
+    }
+    if (RATING_REQUIRED_SUBCATEGORIES.has(subCategory) && !interest.assessmentCompleted) {
+        const err = new Error('Bu dalda ilan açabilmek/katılabilmek için önce derece anketini tamamlamalısın.');
+        err.status = 403; err.code = 'ASSESSMENT_REQUIRED';
+        throw err;
+    }
+    return interest;
+}
 
 // Fixed transfer lookup based on rating gap + score dominance
 // ratingDiff = |loserRating - winnerRating| (0–5 scale, 1 rating pt = 20 totalPoints)
@@ -1080,6 +1102,8 @@ export const createRivalRequest = async (req, res, next) => {
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
+        await requireActiveInterest(creatorId, category, subCategory);
+
         if (!flexibleSchedule && matchDate && matchTime) {
             const [h, m] = matchTime.split(':').map(Number);
             const matchUTC = new Date(new Date(matchDate).getTime() + (h * 60 + m) * 60000 - 3 * 3600000);
@@ -1567,6 +1591,8 @@ export const sendJoinRequest = async (req, res, next) => {
 
         if (request.status !== 'OPEN') return res.status(400).json({ message: 'This request is no longer open' });
         if (request.senderId === req.userId) return res.status(400).json({ message: 'You cannot join your own request' });
+
+        await requireActiveInterest(req.userId, request.category, request.subCategory);
 
         // Hakem ilanına başvuru: bağlı olduğu asıl maça zaten oyuncu olarak katılmış biri
         // (kurucu/rakip/partner fark etmez) aynı maça hakemlik başvurusu yapamaz.

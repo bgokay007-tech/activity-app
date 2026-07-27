@@ -1905,12 +1905,28 @@ export default function ProfileScreen({ route, navigation }) {
         ]);
     };
 
+    // Benim Aktivitelerim kartındaki "⋮" menüsü — gizle (soner) / göster (addInterest'in
+    // upsert'i hidden:false yapıp puan/geçmişi koruyarak geri getirir). Gizliyken o dalda
+    // ilan açma/katılma backend'de (requireActiveInterest) zaten engelleniyor.
+    const toggleHideInterest = async (interest) => {
+        try {
+            if (interest.hidden) {
+                await api.post('/interests/add', { category: interest.category, subCategory: interest.subCategory });
+            } else {
+                await api.patch(`/interests/${interest.id}/hide`);
+            }
+            setInterests(prev => prev.map(x => x.id === interest.id ? { ...x, hidden: !interest.hidden } : x));
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'İşlem yapılamadı');
+        }
+    };
+
     useEffect(() => {
         const load = async () => {
             try {
                 const [profileRes, intRes, storiesRes, reelsRes, postsRes, upcomingRes, historyRes, reservationsRes] = await Promise.all([
                     api.get(isOwnProfile ? '/auth/me' : `/users/${userId}`),
-                    api.get(isOwnProfile ? '/interests/my' : `/interests/user/${userId}`).catch(() => ({ data: [] })),
+                    api.get(isOwnProfile ? '/interests/my?includeHidden=true' : `/interests/user/${userId}`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=STORY`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=REEL`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=POST`).catch(() => ({ data: [] })),
@@ -2797,33 +2813,53 @@ export default function ProfileScreen({ route, navigation }) {
                     <Text style={s.sectionTitle}>{isOwnProfile ? t.branchesSection : (lang === 'tr' ? '🏅 Sporlar' : '🏅 Sports')}</Text>
                     {interests.length > 0 ? (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 3, paddingVertical: 1 }}>
-                            {interests.map(i => {
+                            {[...interests].sort((a, b) => (a.hidden ? 1 : 0) - (b.hidden ? 1 : 0)).map(i => {
                                 const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
                                 const reservationCount = isOwnProfile ? myReservations.filter(r => isReservActive(r) && reservationMatchesSport(r, i.subCategory)).length : 0;
                                 return (
-                                    <TouchableOpacity
-                                        key={i.id}
-                                        activeOpacity={0.8}
-                                        onPress={() => setCardModalItem({
-                                            ...i,
-                                            emoji: SUB_EMOJI[i.subCategory] || '🏅',
-                                            upcomingCount,
-                                            archiveCount: myHistory.filter(m => m.subCategory === i.subCategory).length,
-                                            historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
-                                            reservationCount,
-                                        })}
-                                        style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, gap: 3 }}
-                                    >
-                                        <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
-                                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }}>{i.subCategory}</Text>
-                                        {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>{i.alias}</Text> : null}
-                                        {i.assessmentCompleted && (
-                                            <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
+                                    <View key={i.id} style={{ position: 'relative' }}>
+                                        <TouchableOpacity
+                                            activeOpacity={0.8}
+                                            onPress={() => setCardModalItem({
+                                                ...i,
+                                                emoji: SUB_EMOJI[i.subCategory] || '🏅',
+                                                upcomingCount,
+                                                archiveCount: myHistory.filter(m => m.subCategory === i.subCategory).length,
+                                                historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
+                                                reservationCount,
+                                            })}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
+                                        >
+                                            <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
+                                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }}>{i.subCategory}</Text>
+                                            {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>{i.alias}</Text> : null}
+                                            {i.assessmentCompleted && (
+                                                <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
+                                            )}
+                                            {reservationCount > 0 && (
+                                                <Text style={{ color: '#60a5fa', fontSize: 9, fontWeight: '700' }}>📅 {reservationCount}</Text>
+                                            )}
+                                            {i.hidden && (
+                                                <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700' }}>Gizli</Text>
+                                            )}
+                                        </TouchableOpacity>
+                                        {isOwnProfile && (
+                                            <TouchableOpacity
+                                                onPress={() => Alert.alert(
+                                                    i.subCategory,
+                                                    null,
+                                                    [
+                                                        { text: i.hidden ? 'Göster' : 'Gizle', onPress: () => toggleHideInterest(i) },
+                                                        { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                                                    ]
+                                                )}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                style={{ position: 'absolute', top: 2, right: 2, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}
+                                            >
+                                                <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: '900' }}>⋮</Text>
+                                            </TouchableOpacity>
                                         )}
-                                        {reservationCount > 0 && (
-                                            <Text style={{ color: '#60a5fa', fontSize: 9, fontWeight: '700' }}>📅 {reservationCount}</Text>
-                                        )}
-                                    </TouchableOpacity>
+                                    </View>
                                 );
                             })}
                         </ScrollView>
