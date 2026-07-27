@@ -6187,6 +6187,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <TouchableOpacity
                                                 style={[s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5, justifyContent:'center' }]}
                                                 onPress={() => {
+                                                    if (isMatchedEdit) {
+                                                        // Burada gerçek rezervasyona hiç dokunulmaz (cancelCourt gibi anlık
+                                                        // iptal yapılmaz) — sadece yerel seçim temizlenir ki arama kutusu
+                                                        // tekrar görünsün ve istenilen HERHANGİ bir işletmenin kortu
+                                                        // aranabilsin (aynı işletmeye zorunlu değil). Asıl kort/rezervasyon
+                                                        // değişikliği Kaydet'te backend (updateMatchedRivalCourt) tarafından
+                                                        // Pro paket + iptal/değişiklik politikası kontrolleriyle yapılır.
+                                                        deselectCourt();
+                                                        return;
+                                                    }
                                                     Alert.alert(
                                                         [f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' '),
                                                         null,
