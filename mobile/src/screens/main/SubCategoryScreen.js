@@ -2566,6 +2566,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [orderVenueId, setOrderVenueId] = useState(null);
     // Yaklaşan maçta kort/gün/saat değiştirme — açık ilan düzenlemesiyle aynı ekran (CreateRivalModal)
     const [editVisible, setEditVisible] = useState(false);
+    // Telefonun geri tuşu, CreateRivalModal açıkken varsayılan olarak ekranın tamamından
+    // çıkmaya çalışıp modal render'ı yarım kesiyordu ("Cannot read property 'snapshot' of
+    // null") — RivalCard'daki (açık ilan) aynı düzenleme ekranı için kullanılan patern.
+    useEffect(() => {
+        const onBackPress = () => {
+            if (editVisible) { setEditVisible(false); return true; }
+            return false;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [editVisible]);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const isVolleyball = match.subCategory === 'volleyball';
@@ -10598,8 +10609,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const tabs = getTabs(sub, category);
     const tabLabel = (tab) => {
         if (category === 'ARTS') {
-            if (tab === 'rivals')  return t.eventsTab  || '📅 Etkinlikler';
-            if (tab === 'coaches') return t.coursesTab || '🎓 Kurslar';
+            if (tab === 'rivals')  return t.eventsTab  || 'Etkinlikler';
+            if (tab === 'coaches') return t.coursesTab || 'Kurslar';
         }
         return t[tab + 'Tab'];
     };
@@ -13826,7 +13837,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
                                     style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
                                     <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                        {st === 'rivals' ? '⚔️ Bireysel Maçlar' : '🏆 Turnuvalar'}
+                                        {st === 'rivals' ? 'Bireysel Maçlar' : 'Turnuvalar'}
                                     </Text>
                                 </TouchableOpacity>
                             ))}

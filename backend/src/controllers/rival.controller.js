@@ -928,16 +928,28 @@ async function updateMatchedRivalCourt(req, res, rival) {
 
         // İptal/değişiklik saat penceresi: farklı işletmeye geçiş = eski rezervasyonun iptali
         // (cancelHoursBefore), aynı işletmede kort/saat değişikliği = değiştirme (rescheduleHoursBefore).
+        // Farklı işletmeye geçişte pencere şartı sağlanmıyorsa değişiklik YİNE DE engellenmez —
+        // eski rezervasyon otomatik iptal edilmek yerine eski tesisin onayına gönderilir (mevcut
+        // "iptal talebi" akışıyla aynı, bkz. requestCancelReservation/approveCancelRequest); aynı
+        // işletmede sadece saat/kort değiştiren bir "değiştirme" için ise pencere şartı hâlâ sert
+        // engel olarak kalır (o rezervasyon zaten iptal edilmiyor, sadece güncelleniyor).
         const policyField = crossVenue ? 'cancelHoursBefore' : 'rescheduleHoursBefore';
         const windowHours = oldReservation.venue?.[policyField];
+        let oldCancelNeedsApproval = false;
         if (windowHours !== null && windowHours !== undefined) {
-            if (windowHours < 0) {
-                return res.status(403).json({ message: crossVenue ? 'Bu tesis rezervasyon iptaline izin vermiyor, bu yüzden farklı bir tesise geçemezsiniz.' : 'Bu tesis rezervasyon değişikliğine izin vermiyor' });
-            }
             const oldResDate = new Date(`${oldReservation.date}T${oldReservation.startTime}:00`);
             const hoursLeft = (oldResDate - new Date()) / 3600000;
-            if (hoursLeft < windowHours) {
-                return res.status(403).json({ message: `Mevcut rezervasyondan ${windowHours} saat öncesine kadar ${crossVenue ? 'tesis' : 'kort/saat'} değişikliği yapılabilir` });
+            const withinPolicy = windowHours >= 0 && hoursLeft >= windowHours;
+            if (!withinPolicy) {
+                if (crossVenue) {
+                    oldCancelNeedsApproval = true;
+                } else {
+                    return res.status(403).json({
+                        message: windowHours < 0
+                            ? 'Bu tesis rezervasyon değişikliğine izin vermiyor'
+                            : `Mevcut rezervasyondan ${windowHours} saat öncesine kadar kort/saat değişikliği yapılabilir`,
+                    });
+                }
             }
         }
 
@@ -961,11 +973,24 @@ async function updateMatchedRivalCourt(req, res, rival) {
         let finalVenueReservationId = oldReservation.id;
 
         if (crossVenue) {
-            await prisma.courtReservation.update({ where: { id: oldReservation.id }, data: { status: 'CANCELLED' } });
-            createNotification(oldReservation.venue.userId, 'RESERVATION', '🚫 Rezervasyon İptal Edildi',
-                `${oldReservation.date} ${oldReservation.startTime}–${oldReservation.endTime} rezervasyonu, oyuncu farklı bir tesise geçtiği için iptal edildi.`,
-                { reservationId: oldReservation.id }
-            ).catch(() => {});
+            if (oldCancelNeedsApproval) {
+                // İptal penceresi geçmiş — eski rezervasyon otomatik iptal edilmiyor, tesisin
+                // onayına gönderiliyor (mevcut "iptal talebi" akışıyla aynı alanlar).
+                await prisma.courtReservation.update({
+                    where: { id: oldReservation.id },
+                    data: { cancelRequested: true, cancelRequestNote: 'Oyuncu maçı farklı bir tesise taşıdı, iptal süresi geçtiği için onayınız gerekiyor.' },
+                });
+                createNotification(oldReservation.venue.userId, 'RESERVATION', '⏳ İptal Onayı Gerekiyor',
+                    `${oldReservation.date} ${oldReservation.startTime}–${oldReservation.endTime} rezervasyonu için oyuncu maçı farklı bir tesise taşıdı, ancak iptal süresi geçtiği için onayınız gerekiyor. Onaylarsanız rezervasyon iptal edilecek.`,
+                    { reservationId: oldReservation.id }
+                ).catch(() => {});
+            } else {
+                await prisma.courtReservation.update({ where: { id: oldReservation.id }, data: { status: 'CANCELLED' } });
+                createNotification(oldReservation.venue.userId, 'RESERVATION', '🚫 Rezervasyon İptal Edildi',
+                    `${oldReservation.date} ${oldReservation.startTime}–${oldReservation.endTime} rezervasyonu, oyuncu farklı bir tesise geçtiği için iptal edildi.`,
+                    { reservationId: oldReservation.id }
+                ).catch(() => {});
+            }
             emitToUser(oldReservation.venue.userId, 'notification', {});
 
             const newReservation = await prisma.courtReservation.create({
@@ -1010,16 +1035,19 @@ async function updateMatchedRivalCourt(req, res, rival) {
             include: { sender: { select: SENDER_SELECT } },
         });
 
+        const oldCancelNote = (crossVenue && oldCancelNeedsApproval)
+            ? ' Eski tesisteki rezervasyonunuzun iptali, iptal süresi geçtiği için o tesisin onayını bekliyor.'
+            : '';
         notifyMatchParticipants(updatedActivity, {
             title: newStatus === 'PENDING' ? '⏳ Maç Kort/Saat Değişikliği Onay Bekliyor' : '🔄 Maç Kort/Saat Bilgisi Değişti',
-            body: newStatus === 'PENDING'
+            body: (newStatus === 'PENDING'
                 ? `"${updatedActivity.courtName}" için maç ${matchDate} ${matchTime}–${newEndTime} olarak güncellenmek isteniyor, işletme onayı bekleniyor.`
-                : `"${updatedActivity.courtName}" için maç ${matchDate} ${matchTime}–${newEndTime} olarak güncellendi.`,
+                : `"${updatedActivity.courtName}" için maç ${matchDate} ${matchTime}–${newEndTime} olarak güncellendi.`) + oldCancelNote,
         });
 
         if (updatedActivity.refereeRequested) syncRefereeAdCourt(rival.id, updatedActivity);
         broadcast('rivalUpdate', updatedActivity);
-        res.json(updatedActivity);
+        res.json({ ...updatedActivity, oldReservationCancelPending: crossVenue && oldCancelNeedsApproval });
     } catch (error) {
         console.error('[updateMatchedRivalCourt]', error);
         res.status(500).json({ message: error?.message || 'Kort/saat değişikliği başarısız oldu' });
