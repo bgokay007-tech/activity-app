@@ -2794,6 +2794,17 @@ export const enterScore = async (req, res, next) => {
         const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
+        if (request.venueReservationId) {
+            const reservation = await prisma.courtReservation.findUnique({ where: { id: request.venueReservationId } });
+            if (reservation?.paymentConfirmStatus === 'NOT_COLLECTED') {
+                return res.status(403).json({ message: 'Kort ücretiniz gerçekleşmedi, skor giremezsiniz.', code: 'COURT_FEE_NOT_PAID' });
+            }
+            const bill = await prisma.venueBill.findUnique({ where: { reservationId: request.venueReservationId } });
+            if (bill && bill.status !== 'PAID') {
+                return res.status(403).json({ message: 'Adisyon ödemeniz gerçekleşmedi, skor giremezsiniz.', code: 'BILL_NOT_PAID' });
+            }
+        }
+
         const updated = await prisma.activityRequest.update({
             where: { id },
             data: {
@@ -2819,6 +2830,34 @@ export const enterScore = async (req, res, next) => {
                     ).catch(() => {});
                 }
             }).catch(() => {});
+    } catch (error) { next(error); }
+};
+
+// Maç detayından adisyonu görüntüle (sadece maça dahil olanlar, salt okunur)
+export const getRivalBill = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const request = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!request) return res.status(404).json({ message: 'Not found' });
+
+        const participants = Array.isArray(request.participants) ? request.participants : [];
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+
+        if (!request.venueReservationId) return res.json({ bill: null });
+
+        const [reservation, bill] = await Promise.all([
+            prisma.courtReservation.findUnique({ where: { id: request.venueReservationId } }),
+            prisma.venueBill.findUnique({
+                where: { reservationId: request.venueReservationId },
+                include: { items: { orderBy: { createdAt: 'asc' } } },
+            }),
+        ]);
+
+        res.json({
+            bill,
+            courtFeePaid: reservation?.paymentConfirmStatus !== 'NOT_COLLECTED',
+        });
     } catch (error) { next(error); }
 };
 

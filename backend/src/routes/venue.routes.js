@@ -12,6 +12,7 @@ import {
     addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
     placeOrder, getVenueOrders, getUserOrders, updateOrderStatus,
     requestCancelReservation, approveCancelRequest, getCancelRequests,
+    getOrCreateBill, addBillItem, updateBillItem, removeBillItem, markBillPaid, getVenueBills,
 } from '../controllers/venue.controller.js';
 import {
     getVenueReviews, upsertVenueReview, upsertCourtReview, deleteVenueReview,
@@ -44,6 +45,14 @@ router.delete('/:id/menu/:itemId',  deleteMenuItem);
 // Siparişler (sahip)
 router.get('/:id/orders',            getVenueOrders);
 router.patch('/orders/:orderId',     updateOrderStatus);
+
+// Adisyon (sahip)
+router.get('/:id/bills',                     getVenueBills);
+router.get('/reservations/:resId/bill',      getOrCreateBill);
+router.post('/bills/:billId/items',          addBillItem);
+router.patch('/bills/:billId/items/:itemId', updateBillItem);
+router.delete('/bills/:billId/items/:itemId',removeBillItem);
+router.patch('/bills/:billId/pay',           markBillPaid);
 
 // Genel (tüm kullanıcılar)
 router.get('/search',                    searchVenues);

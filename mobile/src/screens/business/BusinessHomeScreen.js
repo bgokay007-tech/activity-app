@@ -1345,6 +1345,13 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [orders, setOrders]             = useState([]);
     const [ordersLoaded, setOrdersLoaded] = useState(false);
 
+    const [bills, setBills]               = useState([]);
+    const [billsLoaded, setBillsLoaded]   = useState(false);
+    const [billModalRes, setBillModalRes] = useState(null); // reservation açık adisyon modalı
+    const [activeBill, setActiveBill]     = useState(null);
+    const [billModalLoading, setBillModalLoading] = useState(false);
+    const [billItemBusy, setBillItemBusy] = useState(false);
+
     const [reservations, setReservations]   = useState([]);
     const [resLoaded, setResLoaded]         = useState(false);
     const [cancelRequests, setCancelRequests] = useState([]);
@@ -1549,6 +1556,64 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         try { const { data } = await api.get(`/venues/${venue.id}/reservations`); setReservations(data); }
         catch {} finally { setResLoaded(true); }
     };
+    const loadBills = async () => {
+        try { const { data } = await api.get(`/venues/${venue.id}/bills`); setBills(data || []); }
+        catch {} finally { setBillsLoaded(true); }
+    };
+
+    const openBillModal = async (reservation) => {
+        setBillModalRes(reservation);
+        setBillModalLoading(true);
+        if (!menuLoaded) loadMenu();
+        try {
+            const { data } = await api.get(`/venues/reservations/${reservation.id}/bill`);
+            setActiveBill(data.bill);
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Adisyon açılamadı');
+            setBillModalRes(null);
+        } finally {
+            setBillModalLoading(false);
+        }
+    };
+    const closeBillModal = () => { setBillModalRes(null); setActiveBill(null); };
+
+    const addBillItem = async (menuItemId) => {
+        if (!activeBill || billItemBusy) return;
+        setBillItemBusy(true);
+        try {
+            const { data } = await api.post(`/venues/bills/${activeBill.id}/items`, { menuItemId, quantity: 1 });
+            setActiveBill(data.bill);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Ürün eklenemedi'); }
+        finally { setBillItemBusy(false); }
+    };
+    const changeBillItemQty = async (item, delta) => {
+        if (billItemBusy) return;
+        const newQty = item.quantity + delta;
+        setBillItemBusy(true);
+        try {
+            if (newQty <= 0) {
+                const { data } = await api.delete(`/venues/bills/${activeBill.id}/items/${item.id}`);
+                setActiveBill(data.bill);
+            } else {
+                const { data } = await api.patch(`/venues/bills/${activeBill.id}/items/${item.id}`, { quantity: newQty });
+                setActiveBill(data.bill);
+            }
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Güncellenemedi'); }
+        finally { setBillItemBusy(false); }
+    };
+    const markBillPaid = () => {
+        if (!activeBill) return;
+        Alert.alert('Adisyonu Öde', `Toplam ${activeBill.totalPrice}₺ ödendi olarak işaretlensin mi?`, [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Ödendi', onPress: async () => {
+                try {
+                    const { data } = await api.patch(`/venues/bills/${activeBill.id}/pay`);
+                    setActiveBill(data.bill);
+                    setBills(p => p.map(b => b.id === data.bill.id ? { ...b, ...data.bill } : b));
+                } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İşaretlenemedi'); }
+            } },
+        ]);
+    };
 
     const loadCancelRequests = async () => {
         try { const { data } = await api.get('/venues/reservations/cancel-requests'); setCancelRequests(data || []); }
@@ -1581,6 +1646,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         if (tab === 'blocks'       && !blocksLoaded)  loadBlocks();
         if (tab === 'menu'         && !menuLoaded)    loadMenu();
         if (tab === 'orders'       && !ordersLoaded)  loadOrders();
+        if (tab === 'bills'        && !billsLoaded)   loadBills();
         if (tab === 'reviews'      && !reviewsLoaded) loadVenueReviews();
         if (tab === 'reservations') { setScheduleOpen(true); if (!resLoaded) loadReservations(); loadCancelRequests(); }
         if (tab === 'analytics')    setAnalyticsOpen(true);
@@ -2099,6 +2165,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
         isApproved && isPro ? { key: 'orders',   label: '🛒 Sipariş' } : null,
+        isApproved && isPro ? { key: 'bills',    label: 'Adisyonlar' } : null,
         isApproved          ? { key: 'settings', label: '⚙️ Ayarlar' } : null,
     ].filter(Boolean);
 
@@ -2399,6 +2466,35 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                 </View>
             )}
 
+            {activeTab === 'bills' && (
+                <View style={vc.panel}>
+                    {bills.length === 0
+                        ? <Text style={vc.emptyTxt}>Henüz adisyon yok</Text>
+                        : bills.map(b => (
+                            <TouchableOpacity key={b.id} style={vc.orderCard} onPress={() => openBillModal(b.reservation)}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                                        @{b.reservation?.user?.username || '—'} · {b.reservation?.court?.name}
+                                    </Text>
+                                    <Text style={{ color: b.status === 'PAID' ? '#22c55e' : '#eab308', fontSize: 12, fontWeight: '600' }}>
+                                        {b.status === 'PAID' ? 'Ödendi' : 'Açık'}
+                                    </Text>
+                                </View>
+                                <Text style={{ color: '#6b7280', fontSize: 11, marginBottom: 4 }}>
+                                    {b.reservation?.date} {b.reservation?.startTime}
+                                </Text>
+                                {(b.items || []).map(it => (
+                                    <Text key={it.id} style={{ color: '#aaa', fontSize: 12 }}>
+                                        {it.quantity}× {it.name} — {it.unitPrice * it.quantity}₺
+                                    </Text>
+                                ))}
+                                <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {b.totalPrice}₺</Text>
+                            </TouchableOpacity>
+                        ))
+                    }
+                </View>
+            )}
+
             {activeTab === 'reviews' && (
                 <View style={vc.panel}>
                     {venueReviews === null ? (
@@ -2515,6 +2611,90 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 </TouchableOpacity>
                             </View>
                         </KeyboardAvoidingView>
+                    </View>
+                </Modal>
+            )}
+
+            {/* ── Adisyon Modalı (PRO+) ── */}
+            {!!billModalRes && (
+                <Modal visible animationType="slide" transparent onRequestClose={closeBillModal}>
+                    <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                        <View style={{ backgroundColor:'#1e1e2e', borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36, maxHeight:'85%' }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                                <View>
+                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>Adisyon</Text>
+                                    <Text style={{ color:'#9ca3af', fontSize:11, marginTop:2 }}>
+                                        @{billModalRes.user?.username || billModalRes.manualName || '—'} · {billModalRes.court?.name} {billModalRes.startTime}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity onPress={closeBillModal}>
+                                    <Text style={{ color:'#6b7280', fontSize:18 }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {billModalLoading ? (
+                                <ActivityIndicator color={BIZ_COLOR} style={{ marginVertical: 20 }} />
+                            ) : (
+                                <ScrollView style={{ maxHeight: 420 }}>
+                                    <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ADİSYONDAKİ ÜRÜNLER</Text>
+                                    {(activeBill?.items || []).length === 0 ? (
+                                        <Text style={{ color:'#6b7280', fontSize:12, marginBottom:12 }}>Henüz ürün eklenmedi</Text>
+                                    ) : activeBill.items.map(it => (
+                                        <View key={it.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#ffffff06', borderRadius:8, padding:10, marginBottom:6 }}>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{it.name}</Text>
+                                                <Text style={{ color:'#6b7280', fontSize:11 }}>{it.unitPrice}₺ × {it.quantity} = {it.unitPrice * it.quantity}₺</Text>
+                                            </View>
+                                            {activeBill.status !== 'PAID' && (
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+                                                    <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, -1)}>
+                                                        <Text style={{ color:'#f87171', fontSize:18, fontWeight:'800' }}>−</Text>
+                                                    </TouchableOpacity>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{it.quantity}</Text>
+                                                    <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, 1)}>
+                                                        <Text style={{ color:'#22c55e', fontSize:18, fontWeight:'800' }}>+</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            )}
+                                        </View>
+                                    ))}
+
+                                    <View style={{ height:1, backgroundColor:'#ffffff10', marginVertical:12 }} />
+
+                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:16, marginBottom:14 }}>
+                                        Toplam: {activeBill?.totalPrice || 0}₺
+                                    </Text>
+
+                                    {activeBill?.status !== 'PAID' && (
+                                        <>
+                                            <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ÜRÜN EKLE</Text>
+                                            {menuItems.filter(m => m.available).length === 0 ? (
+                                                <Text style={{ color:'#6b7280', fontSize:12, marginBottom:12 }}>Menüde ürün yok. Önce Menü sekmesinden ürün ekleyin.</Text>
+                                            ) : menuItems.filter(m => m.available).map(m => (
+                                                <TouchableOpacity key={m.id} disabled={billItemBusy}
+                                                    style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#ffffff08', borderRadius:8, padding:10, marginBottom:6 }}
+                                                    onPress={() => addBillItem(m.id)}>
+                                                    <Text style={{ color:'#e5e7eb', fontSize:13 }}>{m.name}{m.unit ? ` (${m.unit})` : ''}</Text>
+                                                    <Text style={{ color: BIZ_COLOR, fontWeight:'700', fontSize:13 }}>+ {m.price}₺</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </>
+                                    )}
+                                </ScrollView>
+                            )}
+
+                            {activeBill && activeBill.status !== 'PAID' && activeBill.items?.length > 0 && (
+                                <TouchableOpacity onPress={markBillPaid}
+                                    style={{ backgroundColor:'#22c55e', borderRadius:10, paddingVertical:12, alignItems:'center', marginTop:14 }}>
+                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>Ödendi Olarak İşaretle</Text>
+                                </TouchableOpacity>
+                            )}
+                            {activeBill?.status === 'PAID' && (
+                                <View style={{ backgroundColor:'#22c55e15', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:14, borderWidth:1, borderColor:'#22c55e40' }}>
+                                    <Text style={{ color:'#22c55e', fontWeight:'700', fontSize:13 }}>Bu adisyon ödendi</Text>
+                                </View>
+                            )}
+                        </View>
                     </View>
                 </Modal>
             )}
@@ -2684,6 +2864,12 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         {r.noShow ? '  · ❌ Gelmedi' : ''}
                                     </Text>
                                 </View>
+                                {isPro && r.status !== 'CANCELLED' && (
+                                    <TouchableOpacity style={[vc.resCancelBtn, { backgroundColor: '#7c3aed15', borderColor: '#7c3aed40', marginRight: 8 }]}
+                                        onPress={() => openBillModal(r)}>
+                                        <Text style={[vc.resCancelTxt, { color: '#a78bfa' }]}>Adisyon</Text>
+                                    </TouchableOpacity>
+                                )}
                                 <TouchableOpacity style={vc.resCancelBtn}
                                     onPress={() => Alert.alert('İptal Et', `${r.user?.username} kişisinin rezervasyonu iptal edilsin mi?`, [
                                         { text: 'Vazgeç', style: 'cancel' },

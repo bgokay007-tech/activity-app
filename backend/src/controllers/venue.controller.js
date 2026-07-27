@@ -1967,3 +1967,144 @@ export const updateOrderStatus = async (req, res, next) => {
         res.json({ order: updated });
     } catch (error) { next(error); }
 };
+
+// ─── Adisyon ──────────────────────────────────────────────────────────────────
+
+const assertBillReservationOwner = async (resId, userId) => {
+    const reservation = await prisma.courtReservation.findUnique({ where: { id: resId }, include: { venue: true } });
+    if (!reservation) return { error: 'Rezervasyon bulunamadı', status: 404 };
+    if (reservation.venue.userId !== userId) return { error: 'Yetkisiz', status: 403 };
+    const check = await assertProVenueOwner(reservation.venueId, userId, 'Adisyon özelliği');
+    if (check.error) return check;
+    return { reservation };
+};
+
+const recalcBillTotal = async (billId) => {
+    const items = await prisma.venueBillItem.findMany({ where: { billId } });
+    const totalPrice = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+    return prisma.venueBill.update({ where: { id: billId }, data: { totalPrice }, include: { items: true } });
+};
+
+// Adisyonu getir (yoksa oluştur) — işletme sahibi, rezervasyon detayından
+export const getOrCreateBill = async (req, res, next) => {
+    try {
+        const { resId } = req.params;
+        const check = await assertBillReservationOwner(resId, req.userId);
+        if (check.error) return res.status(check.status).json({ message: check.error });
+
+        let bill = await prisma.venueBill.findUnique({
+            where: { reservationId: resId },
+            include: { items: { orderBy: { createdAt: 'asc' } } },
+        });
+        if (!bill) {
+            bill = await prisma.venueBill.create({
+                data: { venueId: check.reservation.venueId, reservationId: resId },
+                include: { items: true },
+            });
+        }
+        res.json({ bill });
+    } catch (error) { next(error); }
+};
+
+export const addBillItem = async (req, res, next) => {
+    try {
+        const { billId } = req.params;
+        const { menuItemId, quantity } = req.body;
+        const qty = parseInt(quantity) || 1;
+
+        const bill = await prisma.venueBill.findUnique({ where: { id: billId }, include: { venue: true } });
+        if (!bill) return res.status(404).json({ message: 'Adisyon bulunamadı' });
+        if (bill.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (bill.status === 'PAID') return res.status(400).json({ message: 'Ödenmiş adisyon değiştirilemez' });
+
+        const menuItem = await prisma.venueMenuItem.findUnique({ where: { id: menuItemId } });
+        if (!menuItem || menuItem.venueId !== bill.venueId) return res.status(400).json({ message: 'Ürün bulunamadı' });
+
+        await prisma.venueBillItem.create({
+            data: { billId, menuItemId, name: menuItem.name, unitPrice: menuItem.price, quantity: qty },
+        });
+        const updated = await recalcBillTotal(billId);
+        res.status(201).json({ bill: updated });
+    } catch (error) { next(error); }
+};
+
+export const updateBillItem = async (req, res, next) => {
+    try {
+        const { billId, itemId } = req.params;
+        const { quantity } = req.body;
+        const qty = parseInt(quantity) || 1;
+
+        const bill = await prisma.venueBill.findUnique({ where: { id: billId }, include: { venue: true } });
+        if (!bill) return res.status(404).json({ message: 'Adisyon bulunamadı' });
+        if (bill.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (bill.status === 'PAID') return res.status(400).json({ message: 'Ödenmiş adisyon değiştirilemez' });
+
+        await prisma.venueBillItem.update({ where: { id: itemId }, data: { quantity: qty } });
+        const updated = await recalcBillTotal(billId);
+        res.json({ bill: updated });
+    } catch (error) { next(error); }
+};
+
+export const removeBillItem = async (req, res, next) => {
+    try {
+        const { billId, itemId } = req.params;
+
+        const bill = await prisma.venueBill.findUnique({ where: { id: billId }, include: { venue: true } });
+        if (!bill) return res.status(404).json({ message: 'Adisyon bulunamadı' });
+        if (bill.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+        if (bill.status === 'PAID') return res.status(400).json({ message: 'Ödenmiş adisyon değiştirilemez' });
+
+        await prisma.venueBillItem.delete({ where: { id: itemId } });
+        const updated = await recalcBillTotal(billId);
+        res.json({ bill: updated });
+    } catch (error) { next(error); }
+};
+
+export const markBillPaid = async (req, res, next) => {
+    try {
+        const { billId } = req.params;
+        const bill = await prisma.venueBill.findUnique({ where: { id: billId }, include: { venue: true, reservation: true } });
+        if (!bill) return res.status(404).json({ message: 'Adisyon bulunamadı' });
+        if (bill.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const updated = await prisma.venueBill.update({
+            where: { id: billId },
+            data: { status: 'PAID', paidAt: new Date() },
+            include: { items: true },
+        });
+
+        if (bill.reservation.userId) {
+            await createNotification(bill.reservation.userId, 'BILL_PAID', 'Adisyon Ödendi',
+                `${bill.venue.name} adisyonunuz ödendi olarak işaretlendi.`,
+                { billId, venueId: bill.venueId }
+            );
+            emitToUser(bill.reservation.userId, 'notification', {});
+        }
+
+        res.json({ bill: updated });
+    } catch (error) { next(error); }
+};
+
+// Tesisin tüm adisyonları — "Adisyonlar" sekmesi
+export const getVenueBills = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const bills = await prisma.venueBill.findMany({
+            where: { venueId: id },
+            include: {
+                items: true,
+                reservation: {
+                    include: {
+                        court: { select: { name: true } },
+                        user: { select: { id: true, username: true, avatar: true } },
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(bills);
+    } catch (error) { next(error); }
+};

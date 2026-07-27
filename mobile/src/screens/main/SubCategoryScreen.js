@@ -2643,6 +2643,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [localCommentText, setLocalCommentText] = useState('');
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
     const [orderVenueId, setOrderVenueId] = useState(null);
+    const [billView, setBillView] = useState(null); // { bill, courtFeePaid } | null
+    const [billViewLoading, setBillViewLoading] = useState(false);
+    const [showBillView, setShowBillView] = useState(false);
     // Yaklaşan maçta kort/gün/saat değiştirme — açık ilan düzenlemesiyle aynı ekran (CreateRivalModal)
     const [editVisible, setEditVisible] = useState(false);
     // Telefonun geri tuşu, CreateRivalModal açıkken varsayılan olarak ekranın tamamından
@@ -2818,6 +2821,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             Alert.alert('', t.scoreConfirmed);
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.confirmFailed); }
+    };
+
+    const openBillView = async () => {
+        setShowBillView(true);
+        setBillViewLoading(true);
+        try {
+            const { data } = await api.get(`/rivals/${match.id}/bill`);
+            setBillView(data);
+        } catch (e) { setBillView(null); }
+        finally { setBillViewLoading(false); }
     };
 
     const searchAbanCourts = async (text) => {
@@ -3699,6 +3712,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     onPress={() => setShowCantScore(true)}>
                                     <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
                                 </TouchableOpacity>
+                                {match.venueId && (
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#7c3aed50', backgroundColor:'#7c3aed18', flex:1, alignItems:'center' }}
+                                        onPress={openBillView}>
+                                        <Text style={{ color:'#a78bfa', fontSize:13, fontWeight:'700' }}>Adisyon</Text>
+                                    </TouchableOpacity>
+                                )}
                             </>
                         )}
                         {match.scoreStatus !== 'CONFIRMED' && (
@@ -3789,6 +3809,57 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
+            </View>
+        </Modal>
+
+        {/* Adisyon Görüntüleme Modal (salt okunur) */}
+        <Modal visible={showBillView} animationType="slide" transparent onRequestClose={() => setShowBillView(false)}>
+            <View style={s.modalOverlay}>
+                <View style={[s.modalBox, { paddingBottom:37 }]}>
+                    <View style={s.modalHeader}>
+                        <Text style={s.modalTitle}>Adisyon</Text>
+                        <TouchableOpacity onPress={() => setShowBillView(false)}>
+                            <Text style={s.modalClose}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {billViewLoading ? (
+                        <ActivityIndicator color={cfg.color} style={{ marginVertical:20 }} />
+                    ) : (
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {billView?.courtFeePaid === false && (
+                                <View style={{ backgroundColor:'#ef444418', borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor:'#ef444440' }}>
+                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>⚠️ Kort ücretiniz gerçekleşmedi</Text>
+                                </View>
+                            )}
+                            {!billView?.bill ? (
+                                <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Bu rezervasyon için adisyon oluşturulmamış.</Text>
+                            ) : (
+                                <>
+                                    {billView.bill.status !== 'PAID' && (
+                                        <View style={{ backgroundColor:'#ef444418', borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor:'#ef444440' }}>
+                                            <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>⚠️ Adisyon ödemeniz gerçekleşmedi</Text>
+                                        </View>
+                                    )}
+                                    {(billView.bill.items || []).length === 0 ? (
+                                        <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz ürün eklenmemiş.</Text>
+                                    ) : billView.bill.items.map(it => (
+                                        <View key={it.id} style={{ flexDirection:'row', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:6, borderWidth:1, borderColor: colors.border }}>
+                                            <Text style={{ color:'#fff', fontSize:13 }}>{it.quantity}× {it.name}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>{it.unitPrice * it.quantity}₺</Text>
+                                        </View>
+                                    ))}
+                                    <View style={{ flexDirection:'row', justifyContent:'space-between', marginTop:8, paddingTop:10, borderTopWidth:1, borderTopColor: colors.border }}>
+                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>Toplam</Text>
+                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>{billView.bill.totalPrice}₺</Text>
+                                    </View>
+                                    <Text style={{ color: billView.bill.status === 'PAID' ? '#4ade80' : '#facc15', fontSize:12, fontWeight:'700', marginTop:8, textAlign:'center' }}>
+                                        {billView.bill.status === 'PAID' ? '✅ Ödendi' : '⏳ Ödenmedi'}
+                                    </Text>
+                                </>
+                            )}
+                        </ScrollView>
+                    )}
+                </View>
             </View>
         </Modal>
 
