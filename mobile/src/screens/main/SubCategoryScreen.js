@@ -10778,6 +10778,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [acceptDateModal, setAcceptDateModal] = useState({ visible: false, offerId: null });
     const [counterInput, setCounterInput] = useState({ visible: false, offerId: null, price: '' });
     const [equipmentActionLoading, setEquipmentActionLoading] = useState(false);
+    // Satıldı işaretlerken, ilan üzerinden konuşulan kişilerden birini "bana sattım" seçebilme
+    const [soldPickerListing, setSoldPickerListing] = useState(null);
+    const [soldPickerContacts, setSoldPickerContacts] = useState([]);
+    const [loadingSoldContacts, setLoadingSoldContacts] = useState(false);
     const [reportingListingId, setReportingListingId] = useState(null);
     const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
     const [news, setNews] = useState([]);
@@ -12086,14 +12090,25 @@ export default function SubCategoryScreen({ route, navigation }) {
         finally { setEquipmentActionLoading(false); }
     };
 
-    const markEquipmentSold = async (id) => {
+    const markEquipmentSold = async (id, soldToUserId) => {
         setEquipmentActionLoading(true);
         try {
-            await api.patch(`/equipment/${id}/sold`);
+            await api.patch(`/equipment/${id}/sold`, { soldToUserId: soldToUserId || null });
             setEquipmentListings(prev => prev.filter(e => e.id !== id));
             setSelectedEquipment(null);
+            setSoldPickerListing(null);
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setEquipmentActionLoading(false); }
+    };
+
+    const openSoldPicker = async (listing) => {
+        setSoldPickerListing(listing);
+        setLoadingSoldContacts(true);
+        try {
+            const { data } = await api.get(`/equipment/${listing.id}/contacts`);
+            setSoldPickerContacts(Array.isArray(data) ? data : []);
+        } catch { setSoldPickerContacts([]); }
+        finally { setLoadingSoldContacts(false); }
     };
 
     const reportListing = (type, id) => {
@@ -12604,7 +12619,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                         <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
                             style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
-                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? '🏟️ Kortlar' : '🏟️ Courts'}</Text>
+                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? 'Kortlar' : 'Courts'}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
                             <Text style={{ fontSize:19 }}>ℹ️</Text>
@@ -12641,7 +12656,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* İlan oluştur + Kort Rezervasyonu + bildirim butonu yan yana */}
                             <CityAlertRow tab="rivals" dateFilter>
                                 <TouchableOpacity style={s.courtResBtn} onPress={() => navigation.navigate('VenueSearch', { branch: sub })} activeOpacity={0.8}>
-                                    <Text style={s.courtResBtnText}>🏟️ Kort Rez.</Text>
+                                    <Text style={s.courtResBtnText}>Kort Rez.</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={() => setShowCreateRival(true)}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{category === 'ARTS' ? (t.createEventBtn || '📅 Etkinlik Oluştur') : t.createAdBtn}</Text>
@@ -12696,7 +12711,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Skor Bekleyen Maçlar */}
                             {pendingScoreAll.length > 0 && (
                                 <>
-                                    <Text style={[s.sectionTitle, { color: '#f97316' }]}>⏳ {t.pendingScoreTitle}</Text>
+                                    <Text style={[s.sectionTitle, { color: '#f97316' }]}>{t.pendingScoreTitle}</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {pendingScoreAll.map(m => (
                                             <View key={m.id} style={{ width:'48.5%' }}>
