@@ -1414,6 +1414,7 @@ model VenueBill {
   status        String   @default("OPEN") // OPEN | PAID
   totalPrice    Int      @default(0)
   paidAt        DateTime?
+  paymentRequestedAt DateTime? // katılımcılardan ödeme istendiği an — 2 saat sonra admine bildirim açılır
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

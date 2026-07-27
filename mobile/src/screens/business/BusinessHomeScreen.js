@@ -2755,10 +2755,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                             <View style={{ flex:1 }}>
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{it.name}</Text>
                                                 {it.note ? <Text style={{ color:'#9ca3af', fontSize:11, marginTop:1 }}>{it.note}</Text> : null}
-                                                <Text style={{ color:'#6b7280', fontSize:11 }}>{it.unitPrice}₺ × {it.quantity} = {it.unitPrice * it.quantity}₺</Text>
+                                                <Text style={{ color:'#6b7280', fontSize:11 }}>{it.unitPrice}₺ / adet</Text>
                                             </View>
                                             {activeBill.status !== 'PAID' && (
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:10, width:88, justifyContent:'center' }}>
                                                     <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, -1)}>
                                                         <Text style={{ color:'#f87171', fontSize:18, fontWeight:'800' }}>−</Text>
                                                     </TouchableOpacity>
@@ -2768,14 +2768,18 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                                     </TouchableOpacity>
                                                 </View>
                                             )}
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', minWidth:60, textAlign:'right' }}>
+                                                {it.unitPrice * it.quantity}₺
+                                            </Text>
                                         </View>
                                     ))}
 
                                     <View style={{ height:1, backgroundColor:'#ffffff10', marginVertical:12 }} />
 
-                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:16, marginBottom:14 }}>
-                                        Toplam: {activeBill?.totalPrice || 0}₺
-                                    </Text>
+                                    <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:14 }}>
+                                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:16 }}>Toplam</Text>
+                                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:16 }}>{activeBill?.totalPrice || 0}₺</Text>
+                                    </View>
 
                                     {activeBill?.status !== 'PAID' && (() => {
                                         const available = menuItems.filter(m => m.available);

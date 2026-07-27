@@ -2861,6 +2861,81 @@ export const getRivalBill = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+const BILL_PAYMENT_ESCALATE_MS = 2 * 60 * 60 * 1000; // ödeme talebinden 2 saat sonra admine bildirilebilir
+
+// Katılımcı, ödenmemiş adisyon için diğer katılımcılardan uygulama üzerinden ödeme ister.
+export const requestBillPayment = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const request = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!request) return res.status(404).json({ message: 'Not found' });
+
+        const participants = Array.isArray(request.participants) ? request.participants : [];
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+        if (!request.venueReservationId) return res.status(400).json({ message: 'Bu maça bağlı bir rezervasyon yok' });
+
+        const bill = await prisma.venueBill.findUnique({
+            where: { reservationId: request.venueReservationId },
+            include: { venue: true },
+        });
+        if (!bill) return res.status(404).json({ message: 'Adisyon bulunamadı' });
+        if (bill.status === 'PAID') return res.status(400).json({ message: 'Adisyon zaten ödenmiş' });
+
+        const updated = await prisma.venueBill.update({
+            where: { id: bill.id },
+            data: { paymentRequestedAt: new Date() },
+            include: { items: { orderBy: { createdAt: 'asc' } } },
+        });
+        res.json({ bill: updated });
+
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+        const otherIds = [...new Set([request.senderId, ...participants.map(p => p?.id)].filter(pid => pid && pid !== req.userId))];
+        for (const uid of otherIds) {
+            createNotification(uid, 'BILL_PAYMENT_REQUEST', '💳 Adisyon Ödeme Talebi',
+                `${me?.fullName || me?.username} ${bill.venue.name} adisyonunun ödenmesini istedi. Toplam: ${updated.totalPrice}₺`,
+                { rivalId: request.id, billId: bill.id }
+            ).catch(() => {});
+            emitToUser(uid, 'notification', {});
+        }
+    } catch (error) { next(error); }
+};
+
+// Ödeme talebine rağmen 2 saattir ödenmediyse admine bildirir.
+export const reportBillUnpaid = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const request = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!request) return res.status(404).json({ message: 'Not found' });
+
+        const participants = Array.isArray(request.participants) ? request.participants : [];
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+        if (!request.venueReservationId) return res.status(400).json({ message: 'Bu maça bağlı bir rezervasyon yok' });
+
+        const bill = await prisma.venueBill.findUnique({
+            where: { reservationId: request.venueReservationId },
+            include: { venue: true },
+        });
+        if (!bill) return res.status(404).json({ message: 'Adisyon bulunamadı' });
+        if (bill.status === 'PAID') return res.status(400).json({ message: 'Adisyon zaten ödenmiş' });
+        if (!bill.paymentRequestedAt) return res.status(400).json({ message: 'Önce katılımcılardan ödeme isteyin' });
+        if (Date.now() - new Date(bill.paymentRequestedAt).getTime() < BILL_PAYMENT_ESCALATE_MS) {
+            return res.status(400).json({ message: 'Ödeme talebinden bu yana 2 saat geçmeden admine bildirilemez' });
+        }
+
+        res.json({ ok: true });
+
+        const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+        for (const admin of admins) {
+            createNotification(admin.id, 'PAYMENT_ALERT', '🚨 Adisyon Ödemesi Alınamadı',
+                `${bill.venue.name} adisyonu (${bill.totalPrice}₺) — ödeme talebine rağmen 2 saattir ödenmedi.`,
+                { rivalId: request.id, billId: bill.id }
+            ).catch(() => {});
+        }
+    } catch (error) { next(error); }
+};
+
 // Shared by confirmScore (user action) and the 1h auto-confirm job. Applies ELO,
 // builds the rating snapshot and marks the request CONFIRMED. Caller handles auth + notification.
 export async function runScoreConfirmation(request) {

@@ -2645,6 +2645,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [orderVenueId, setOrderVenueId] = useState(null);
     const [billView, setBillView] = useState(null); // { bill, courtFeePaid } | null
     const [billViewLoading, setBillViewLoading] = useState(false);
+    const [billActionBusy, setBillActionBusy] = useState(false);
     const [showBillView, setShowBillView] = useState(false);
     // Yaklaşan maçta kort/gün/saat değiştirme — açık ilan düzenlemesiyle aynı ekran (CreateRivalModal)
     const [editVisible, setEditVisible] = useState(false);
@@ -2831,6 +2832,31 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             setBillView(data);
         } catch (e) { setBillView(null); }
         finally { setBillViewLoading(false); }
+    };
+    const refreshBillView = async () => {
+        try {
+            const { data } = await api.get(`/rivals/${match.id}/bill`);
+            setBillView(data);
+        } catch (e) {}
+    };
+    const requestBillPaymentPress = async () => {
+        if (billActionBusy) return;
+        setBillActionBusy(true);
+        try {
+            await api.post(`/rivals/${match.id}/request-bill-payment`, {});
+            await refreshBillView();
+            Alert.alert('', 'Diğer katılımcılara ödeme talebi gönderildi.');
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || 'İstek gönderilemedi'); }
+        finally { setBillActionBusy(false); }
+    };
+    const reportBillUnpaidPress = async () => {
+        if (billActionBusy) return;
+        setBillActionBusy(true);
+        try {
+            await api.post(`/rivals/${match.id}/report-bill-unpaid`, {});
+            Alert.alert('', 'Admine bildirildi.');
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || 'Bildirilemedi'); }
+        finally { setBillActionBusy(false); }
     };
 
     const searchAbanCourts = async (text) => {
@@ -3835,11 +3861,31 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Bu rezervasyon için adisyon oluşturulmamış.</Text>
                             ) : (
                                 <>
-                                    {billView.bill.status !== 'PAID' && (
+                                    {billView.bill.status !== 'PAID' && (() => {
+                                        const requestedAt = billView.bill.paymentRequestedAt ? new Date(billView.bill.paymentRequestedAt).getTime() : null;
+                                        const elapsedMs = requestedAt ? Date.now() - requestedAt : null;
+                                        const canEscalate = requestedAt && elapsedMs >= 2 * 60 * 60 * 1000;
+                                        return (
                                         <View style={{ backgroundColor:'#ef444418', borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor:'#ef444440' }}>
-                                            <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>⚠️ Adisyon ödemeniz gerçekleşmedi</Text>
+                                            <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700', marginBottom: requestedAt ? 8 : 0 }}>⚠️ Adisyon ödemeniz gerçekleşmedi</Text>
+                                            {!requestedAt ? (
+                                                <TouchableOpacity disabled={billActionBusy} onPress={requestBillPaymentPress}
+                                                    style={{ backgroundColor:'#7c3aed', borderRadius:8, paddingVertical:9, alignItems:'center', opacity: billActionBusy ? 0.6 : 1 }}>
+                                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Katılımcılardan Ödeme İste</Text>
+                                                </TouchableOpacity>
+                                            ) : canEscalate ? (
+                                                <TouchableOpacity disabled={billActionBusy} onPress={reportBillUnpaidPress}
+                                                    style={{ backgroundColor:'#dc2626', borderRadius:8, paddingVertical:9, alignItems:'center', opacity: billActionBusy ? 0.6 : 1 }}>
+                                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Admine Bildir</Text>
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <Text style={{ color:'#fca5a5', fontSize:12 }}>
+                                                    Ödeme talebi gönderildi, 2 saat içinde ödenmezse admine bildirebilirsiniz.
+                                                </Text>
+                                            )}
                                         </View>
-                                    )}
+                                        );
+                                    })()}
                                     {(billView.bill.items || []).length === 0 ? (
                                         <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz ürün eklenmemiş.</Text>
                                     ) : billView.bill.items.map(it => (

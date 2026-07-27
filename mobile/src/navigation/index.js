@@ -243,6 +243,7 @@ function AppTabs() {
     const t = useT();
     const dispatch = useDispatch();
     const userId = useSelector(s => s.auth.user?.id);
+    const isBusiness = useSelector(s => s.auth.user?.isBusiness);
     const lang = useSelector(s => s.lang?.lang || 'en');
     const activityLogoText = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
     // Rozet sayısı Redux'ta tutulur — NotificationsScreen okundu işaretlerken doğrudan
@@ -312,6 +313,10 @@ function AppTabs() {
     return (
         <View style={{ flex: 1 }}>
         <Tab.Navigator
+            // İşletme hesabı "App" sekmelerine (bildirim/mesaj ikonlarından) dıştan girdiğinde,
+            // sekmeler arası geri-tuşu geçmişi devreye girmesin — geri tuşu her zaman doğrudan
+            // BusinessApp'e (nereden geldiyse oraya) dönsün.
+            backBehavior={isBusiness ? 'none' : 'history'}
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
