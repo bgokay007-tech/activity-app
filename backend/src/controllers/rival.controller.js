@@ -665,6 +665,52 @@ export const updateRivalRequest = async (req, res, next) => {
             include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } } },
         });
 
+        // İlan düzenlendiğinde, zaten kabul edilmiş katılımcılar (varsa) katılımcı
+        // listesinden çıkarılıp tekrar onay bekleyen duruma (AWAITING_JOINER_CONFIRM)
+        // alınır — detaylar değiştiği için artık uygun olmayabilirler. Aynı geç-kabul
+        // onay/iptal akışı (confirmLateJoin) burada da kullanılır.
+        let finalUpdated = updated;
+        if (hasParticipants) {
+            const acceptedJoinReqs = await prisma.rivalJoinRequest.findMany({
+                where: { rivalId: id, status: 'ACCEPTED' },
+            });
+            if (acceptedJoinReqs.length > 0) {
+                const acceptedIds = acceptedJoinReqs.map(jr => jr.userId);
+                const clearedParticipants = Array.isArray(updated.participants)
+                    ? updated.participants.map(p => (p?.id && acceptedIds.includes(p.id)) ? null : p)
+                    : updated.participants;
+                const clearedSenderTeam = Array.isArray(updated.senderTeam)
+                    ? updated.senderTeam.filter(p => !(p?.id && acceptedIds.includes(p.id)))
+                    : updated.senderTeam;
+                await prisma.rivalJoinRequest.updateMany({
+                    where: { id: { in: acceptedJoinReqs.map(jr => jr.id) } },
+                    data: { status: 'AWAITING_JOINER_CONFIRM' },
+                });
+                finalUpdated = await prisma.activityRequest.update({
+                    where: { id },
+                    data: { participants: clearedParticipants, senderTeam: clearedSenderTeam, reopenedAt: new Date() },
+                    include: {
+                        sender: { select: SENDER_SELECT },
+                        joinRequests: {
+                            where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+                            orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
+                            include: { user: { select: SENDER_SELECT } },
+                        },
+                    },
+                });
+                for (const jr of acceptedJoinReqs) {
+                    emitToUser(jr.userId, 'joinLateAccepted', { rivalId: id, requestId: jr.id });
+                    createNotification(
+                        jr.userId,
+                        'RIVAL_EDITED_RECONFIRM',
+                        '✏️ İlan Güncellendi — Onayınız Gerekiyor',
+                        `"${finalUpdated.sender?.username || 'İlan sahibi'}" katıldığınız maçın detaylarını değiştirdi. Yeni bilgilerle devam etmek istiyorsanız onaylayın, istemiyorsanız iptal edin.`,
+                        { rivalId: id, requestId: jr.id, category: finalUpdated.category, subCategory: finalUpdated.subCategory }
+                    ).catch(() => {});
+                }
+            }
+        }
+
         // Hakem talebi kapatıldı/açıldı → bağlı "Hakem Arıyorum" ilanını senkronize et
         const refereeWillBeRequested = refereeRequested !== undefined ? !!refereeRequested : rival.refereeRequested;
         if (refereeRequested !== undefined && !!refereeRequested !== rival.refereeRequested) {
@@ -711,8 +757,8 @@ export const updateRivalRequest = async (req, res, next) => {
                 }).catch(() => {});
         }
 
-        broadcast('rivalUpdate', updated);
-        res.json(matchTypeLocked ? { ...updated, matchTypeLocked: true } : updated);
+        broadcast('rivalUpdate', finalUpdated);
+        res.json(matchTypeLocked ? { ...finalUpdated, matchTypeLocked: true } : finalUpdated);
     } catch (error) { next(error); }
 };
 
