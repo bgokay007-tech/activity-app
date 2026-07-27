@@ -1537,9 +1537,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             katılımcılar bunu SADECE sahibi ilanı oluştururken/düzenlerken
                             "🔓 Davete İzin Ver"i açtıysa yapabilir (item.participantsCanInvite). */}
                         {(() => {
-                            const otherCanAct = (isParticipant || mySentReq === 'ACCEPTED') && item.participantsCanInvite;
-                            const canInvite = (isOwner || otherCanAct) && !isFull;
-                            const canShare = isOwner || otherCanAct;
+                            // Hakemler sekmesinden hakem ilanının kendi detayı açıldıysa (isRefereeAd),
+                            // ilan sahibi olsa bile burası sadece hakemlikle ilgili olmalı — oyuncu
+                            // davet et / paylaş gibi asıl maça ait aksiyonlar burada gösterilmez.
+                            const otherCanAct = !isRefereeAd && (isParticipant || mySentReq === 'ACCEPTED') && item.participantsCanInvite;
+                            const canInvite = !isRefereeAd && (isOwner || otherCanAct) && !isFull;
+                            const canShare = !isRefereeAd && (isOwner || otherCanAct);
                             return (canInvite || canShare) && (
                                 <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
                                     {canInvite && (
@@ -1561,7 +1564,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </View>
                             );
                         })()}
-                        {isOwner && !isFull && (sub === 'tennis' || sub === 'padel') && (
+                        {isOwner && !isRefereeAd && !isFull && (sub === 'tennis' || sub === 'padel') && (
                             <TouchableOpacity
                                 disabled={seedingDemoRival}
                                 style={[s.joinBtn, { backgroundColor:'#7c3aed20', borderWidth:1, borderColor:'#7c3aed50', marginBottom:6, borderRadius: moderateScale(8), paddingVertical: moderateScale(6), opacity: seedingDemoRival ? 0.6 : 1 }]}
@@ -1591,7 +1594,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <Text style={{ color:'#fff', fontWeight:'800', fontSize: moderateScale(12) }}>{t.buyTicketBtn}</Text>
                             </TouchableOpacity>
                         )}
-                        {isOwner ? (
+                        {isOwner && isRefereeAd ? null : isOwner ? (
                             <View style={{ flexDirection: 'row', gap: 3 }}>
                                 <TouchableOpacity
                                     style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
@@ -1898,6 +1901,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const cfg = getConfig(sub);
     const isVolleyball = sub === 'volleyball';
     const isOwner = item.senderId === myId;
+    // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) — ilan
+    // sahibi (asıl maçın kurucusuyla aynı kişi) olsa bile bu kart üzerinde asıl maça ait
+    // Düzenle/İptal gibi aksiyonlar gösterilmez, sadece hakemlikle ilgili durum gösterilir.
+    const isRefereeAd = item.matchType === 'PLAYER_WANTED' && Array.isArray(item.positions) && item.positions.includes('REFEREE');
     // Hakem Arıyorum ilanları (linkedRival dolu) için: asıl maça oyuncu olarak
     // katılmış biri (kurucu/partner/rakip) kendi maçına hakemlik başvurusu yapamaz.
     const isLinkedMatchPlayer = !!item.linkedRival && (
@@ -2258,7 +2265,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
 
             {/* Aksiyon alanı */}
             <View>
-                {isOwner ? (
+                {isOwner && isRefereeAd ? null : isOwner ? (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                         <TouchableOpacity
                             style={[s.cancelBtn, { flex: 0, width: moderateScale(30), paddingHorizontal:0, paddingVertical: moderateScale(4), borderRadius: moderateScale(10), backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
@@ -3124,7 +3131,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                 </TouchableOpacity>
             )}
-            {match.refereeRequested && (
+            {match.refereeRequested && (match.refereeUser || !matchEnded) && (
                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }}>
                     {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓` : t.refereeOnlyMissingLabel}
                 </Text>
@@ -3215,7 +3222,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                             </TouchableOpacity>
                         )}
-                        {match.refereeRequested && (
+                        {match.refereeRequested && (match.refereeUser || !matchEnded) && (
                             <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', marginTop:6 }}>
                                 {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓` : t.refereeOnlyMissingLabel}
                             </Text>
