@@ -2424,7 +2424,7 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
     );
 }
 
-function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
+function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress, navigation }) {
     const t = useT();
     const [showScore, setShowScore] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
@@ -2478,6 +2478,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [localCommentText, setLocalCommentText] = useState('');
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
     const [orderVenueId, setOrderVenueId] = useState(null);
+    // Yaklaşan maçta kort/gün/saat değiştirme (gerçek işletme rezervasyonu yoksa)
+    const [showEditCourtModal, setShowEditCourtModal] = useState(false);
+    const [editDate, setEditDate] = useState(null);
+    const [editTime, setEditTime] = useState('');
+    const [editCourtName, setEditCourtName] = useState('');
+    const [editCourtAddress, setEditCourtAddress] = useState('');
+    const [showEditDatePicker, setShowEditDatePicker] = useState(false);
+    const [showEditTimePicker, setShowEditTimePicker] = useState(false);
+    const [editSubmitting, setEditSubmitting] = useState(false);
+    const [editVenueLoading, setEditVenueLoading] = useState(false);
     const isOwner = match.senderId === myId;
     const cfg = getConfig(match.subCategory);
     const isVolleyball = match.subCategory === 'volleyball';
@@ -2716,6 +2726,40 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 },
             ]
         );
+    };
+
+    const openEditCourt = async () => {
+        if (match.venueId && match.venueReservationId) {
+            setEditVenueLoading(true);
+            try {
+                const { data } = await api.get(`/venues/${match.venueId}`);
+                navigation?.navigate('VenueDetail', { venue: data, rescheduleResId: match.venueReservationId, editRivalId: match.id });
+            } catch (e) {
+                Alert.alert('', e?.response?.data?.message || 'Tesis bilgisi alınamadı');
+            } finally { setEditVenueLoading(false); }
+            return;
+        }
+        setEditDate(match.matchDate ? new Date(match.matchDate) : null);
+        setEditTime(match.matchTime || '');
+        setEditCourtName(match.courtName || '');
+        setEditCourtAddress(match.courtAddress || '');
+        setShowEditCourtModal(true);
+    };
+
+    const submitEditCourt = async () => {
+        if (!editDate || !editTime) { Alert.alert('', 'Tarih ve saat seçin'); return; }
+        setEditSubmitting(true);
+        try {
+            const dateStr = `${editDate.getFullYear()}-${String(editDate.getMonth()+1).padStart(2,'0')}-${String(editDate.getDate()).padStart(2,'0')}`;
+            await api.patch(`/rivals/${match.id}`, {
+                matchDate: dateStr, matchTime: editTime,
+                courtName: editCourtName.trim() || null,
+                courtAddress: editCourtAddress.trim() || null,
+            });
+            setShowEditCourtModal(false);
+            onRefresh();
+        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Güncellenemedi'); }
+        finally { setEditSubmitting(false); }
     };
 
     const searchPropCourts = async (text) => {
@@ -3210,6 +3254,66 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     </Modal>
 
+                    {/* Kort/gün/saat değiştir (gerçek işletme rezervasyonu olmayan maçlar için) */}
+                    <Modal visible={showEditCourtModal} animationType="fade" transparent onRequestClose={() => setShowEditCourtModal(false)}>
+                        <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
+                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
+                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>✏️ Kort/Gün/Saat Değiştir</Text>
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                    <TouchableOpacity
+                                        style={{ flex:1, backgroundColor:'#1e293b', borderRadius:8, padding:9, borderWidth:1, borderColor: editDate ? colors.purple+'60' : colors.border }}
+                                        onPress={() => setShowEditDatePicker(true)}>
+                                        <Text style={{ color: editDate ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                            {editDate ? `📅 ${String(editDate.getDate()).padStart(2,'0')}/${String(editDate.getMonth()+1).padStart(2,'0')}/${editDate.getFullYear()}` : '📅 Tarih Seç'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={{ flex:1, backgroundColor:'#1e293b', borderRadius:8, padding:9, borderWidth:1, borderColor: editTime ? colors.purple+'60' : colors.border }}
+                                        onPress={() => setShowEditTimePicker(true)}>
+                                        <Text style={{ color: editTime ? '#fff' : colors.textMuted, fontSize:13 }}>
+                                            {editTime ? `🕐 ${editTime}` : '🕐 Saat Seç'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <TextInput
+                                    value={editCourtName}
+                                    onChangeText={setEditCourtName}
+                                    placeholder="Kort / Tesis Adı (isteğe bağlı)"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:13, paddingHorizontal:12, paddingVertical:9, marginBottom:8 }}
+                                />
+                                <TextInput
+                                    value={editCourtAddress}
+                                    onChangeText={setEditCourtAddress}
+                                    placeholder="Adres (isteğe bağlı)"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:13, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
+                                />
+                                <View style={{ flexDirection:'row', gap:8 }}>
+                                    <TouchableOpacity onPress={() => setShowEditCourtModal(false)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
+                                        <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={submitEditCourt} disabled={editSubmitting} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple, opacity: editSubmitting ? 0.6 : 1 }}>
+                                        <Text style={{ color:'#fff', fontWeight:'800' }}>{editSubmitting ? '...' : 'Kaydet'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                    </Modal>
+                    <CalendarPickerModal
+                        visible={showEditDatePicker}
+                        value={editDate}
+                        onSelect={(d) => { setEditDate(d); setShowEditDatePicker(false); }}
+                        onClose={() => setShowEditDatePicker(false)}
+                    />
+                    <TimePickerModal
+                        visible={showEditTimePicker}
+                        title="Saat Seç"
+                        value={editTime}
+                        onSelect={(v) => { setEditTime(v); setShowEditTimePicker(false); }}
+                        onClose={() => setShowEditTimePicker(false)}
+                    />
+
                     {/* Non-DOUBLE: owner remove */}
                     {isOwner && match.matchType !== 'DOUBLE' && participantsArr.length > 0 && (
                         <View style={{ marginBottom:12, gap:3 }}>
@@ -3514,6 +3618,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.scoreStatus !== 'CONFIRMED' && (
                             <>
+                                {isOwner && (
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', alignItems:'center' }}
+                                        onPress={openEditCourt} disabled={editVenueLoading}>
+                                        <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{editVenueLoading ? '...' : '✏️ Kort/Saat'}</Text>
+                                    </TouchableOpacity>
+                                )}
                                 {withinPenaltyWindow && !iAlreadyRequestedMutual && (
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#2563eb50', backgroundColor:'#2563eb18', alignItems:'center' }}
@@ -12339,7 +12450,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {filteredMatchedUpcoming.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} navigation={navigation} />
                                                 </View>
                                             ))}
                                         </View>
@@ -12354,7 +12465,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {pendingScoreAll.map(m => (
                                             <View key={m.id} style={{ width:'48.5%' }}>
-                                                <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} navigation={navigation} />
                                             </View>
                                         ))}
                                     </View>

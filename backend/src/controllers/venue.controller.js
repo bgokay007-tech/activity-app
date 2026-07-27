@@ -3,9 +3,9 @@ import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-const toTime = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-const overlaps = (as, ae, bs, be) => as < be && ae > bs;
+export const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+export const toTime = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+export const overlaps = (as, ae, bs, be) => as < be && ae > bs;
 
 // Türkiye saatiyle "şu an" — tarih (YYYY-MM-DD) ve gün içi dakika olarak.
 function nowIstanbul() {
@@ -18,7 +18,7 @@ function nowIstanbul() {
 }
 
 // date/startTime geçmişte mi? (Türkiye saati baz alınır)
-function isPastDateTime(date, startTime) {
+export function isPastDateTime(date, startTime) {
     const { dateStr: today, mins: nowMins } = nowIstanbul();
     if (date < today) return true;
     if (date > today) return false;
@@ -29,7 +29,7 @@ function isPastDateTime(date, startTime) {
 // Hem yeni rezervasyon oluştururken hem de (politika dahilinde) saat değiştirirken kullanılır —
 // FULL_AUTO'da (Tümünü Otomatik Onayla) ikisi de doğrudan CONFIRMED olmalı, işletmeci tekrar
 // elle onaylamak zorunda kalmamalı.
-function computeReservationStatus(court, venue, paymentMethod) {
+export function computeReservationStatus(court, venue, paymentMethod) {
     const effectiveMode = court?.approvalMode || venue?.approvalMode || 'FULL_AUTO';
     const pm = paymentMethod || 'CASH';
     if (effectiveMode === 'FULL_AUTO') return 'CONFIRMED';
@@ -130,7 +130,7 @@ function getOpenWindows(venue, date, courtId = null, keepOvernight = false) {
 // reservationOpenDaysBefore=N ise, `date` günü için rezervasyon, o günden (N-1) gün önce
 // reservationOpenTime saatinde (yoksa 00:00) açılır. Örn. N=3, hedef Salı → açılış Pazar 00:00.
 // N ayarlanmamışsa (null) sınırsız — her zaman açık, null döner.
-function getReservationOpensAt(venue, date) {
+export function getReservationOpensAt(venue, date) {
     if (!venue.reservationOpenDaysBefore) return null;
     // Tarih-only aritmetik: takvim günü hesaplaması saat dilimi kaymasından etkilenmesin diye
     // önce saf UTC takvim tarihi üzerinde çıkarma yapılır, +03:00 sadece sonuçta eklenir.
@@ -575,7 +575,7 @@ export const updateCourtSettings = async (req, res, next) => {
 // Bakım/çakışma/boşluk kontrolleri — hem kullanıcı rezervasyonunda (makeReservation) hem de
 // işletmecinin manuel (telefonla gelen) rezervasyonunda (createManualReservation) ortak.
 // Sorun yoksa null, varsa { status, message } döner.
-async function validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod) {
+export async function validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod) {
     // Tüm-gün bakım kontrolü
     const courtCheck = await prisma.venueCourt.findUnique({ where: { id: courtId } });
     const mDates = (Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : []).map(normMaint);
@@ -1261,6 +1261,32 @@ export const updateReservationStatus = async (req, res, next) => {
                 { reservationId: resId }
             ).catch(() => {});
             emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CONFIRMED' });
+
+            // Bu rezervasyona bağlı bir maç ilanı varsa, sadece rezervasyon sahibine değil
+            // ilandaki tüm oyunculara (katılımcılar + bekleyen istek sahipleri) da onay bildirimi gider.
+            prisma.activityRequest.findFirst({ where: { venueReservationId: resId } }).then(activity => {
+                if (!activity) return;
+                prisma.rivalJoinRequest.findMany({
+                    where: { rivalId: activity.id, status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+                    select: { userId: true },
+                }).then(pendingReqs => {
+                    const participantIds = Array.isArray(activity.participants) ? activity.participants.map(p => p?.id).filter(Boolean) : [];
+                    const senderTeamIds = Array.isArray(activity.senderTeam) ? activity.senderTeam.map(p => p?.id).filter(Boolean) : [];
+                    const recipients = new Set([
+                        ...(activity.receiverId ? [activity.receiverId] : []),
+                        ...participantIds, ...senderTeamIds,
+                        ...pendingReqs.map(r => r.userId),
+                    ]);
+                    recipients.delete(customerId);
+                    for (const uid of recipients) {
+                        createNotification(uid, 'RESERVATION', '✅ Maç Kort/Saat Değişikliği Onaylandı',
+                            `${venueName} · ${courtName} — ${dateStr} maç saati işletme tarafından onaylandı.`,
+                            { rivalId: activity.id }
+                        ).catch(() => {});
+                        emitToUser(uid, 'rivalUpdate', activity);
+                    }
+                }).catch(() => {});
+            }).catch(() => {});
         } else {
             createNotification(customerId, 'RESERVATION',
                 '❌ Rezervasyon İptal Edildi',
@@ -1732,7 +1758,7 @@ export const getBlockedUsers = async (req, res, next) => {
 
 // ─── Menü Yönetimi ────────────────────────────────────────────────────────────
 
-const PRO_PACKAGES = ['PRO', 'PREMIUM'];
+export const PRO_PACKAGES = ['PRO', 'PREMIUM'];
 
 const assertProVenueOwner = async (venueId, userId, featureLabel = 'Menü özelliği') => {
     const venue = await prisma.businessVenue.findUnique({ where: { id: venueId } });

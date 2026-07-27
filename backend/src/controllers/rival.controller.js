@@ -5,6 +5,7 @@ import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
 import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
+import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES } from './venue.controller.js';
 
 // Fixed transfer lookup based on rating gap + score dominance
 // ratingDiff = |loserRating - winnerRating| (0–5 scale, 1 rating pt = 20 totalPoints)
@@ -610,7 +611,12 @@ export const updateRivalRequest = async (req, res, next) => {
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Bu ilanı düzenleme yetkiniz yok' });
-        if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık ilanlar düzenlenebilir' });
+
+        // Yaklaşan Maçlar (MATCHED) durumundaki bir ilanda oyuncular genelde iptal yerine
+        // sadece kort/gün/saat değiştirmek ister — bunun için ayrı, dar kapsamlı bir yol izlenir
+        // (takım/katılımcı alanlarına dokunulmaz, sadece lojistik bilgiler).
+        if (rival.status === 'MATCHED') return updateMatchedRivalCourt(req, res, rival);
+        if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık veya eşleşmiş ilanlar düzenlenebilir' });
 
         const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
@@ -761,6 +767,231 @@ export const updateRivalRequest = async (req, res, next) => {
         res.json(matchTypeLocked ? { ...finalUpdated, matchTypeLocked: true } : finalUpdated);
     } catch (error) { next(error); }
 };
+
+const fmtEndTime = (startTime, mins) => {
+    const [h, m] = startTime.split(':').map(Number);
+    const total = h * 60 + m + mins;
+    return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+// Bu maçın alıcısı/katılımcıları/bekleyen istek sahiplerine (ilan sahibi hariç) bildirim +
+// rivalUpdate yayınlar — kort/saat değişikliği gibi tüm oyuncuları ilgilendiren güncellemeler için.
+function notifyMatchParticipants(activity, { title, body, excludeUserId }) {
+    const pendingReqsPromise = prisma.rivalJoinRequest.findMany({
+        where: { rivalId: activity.id, status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+        select: { userId: true },
+    });
+    pendingReqsPromise.then(pendingReqs => {
+        const participantIds = Array.isArray(activity.participants) ? activity.participants.map(p => p?.id).filter(Boolean) : [];
+        const senderTeamIds = Array.isArray(activity.senderTeam) ? activity.senderTeam.map(p => p?.id).filter(Boolean) : [];
+        const recipients = new Set([
+            ...(activity.receiverId ? [activity.receiverId] : []),
+            ...participantIds, ...senderTeamIds,
+            ...pendingReqs.map(r => r.userId),
+        ]);
+        if (excludeUserId) recipients.delete(excludeUserId);
+        recipients.delete(activity.senderId);
+        for (const uid of recipients) {
+            createNotification(uid, 'RESERVATION', title, body, { rivalId: activity.id }).catch(() => {});
+            emitToUser(uid, 'rivalUpdate', activity);
+        }
+    }).catch(() => {});
+}
+
+// Eşleşmiş (MATCHED) bir ilanda sadece kort/gün/saat değişikliğine izin verir — takım/katılımcı
+// alanlarına dokunulmaz. Gerçek bir işletme rezervasyonuna bağlıysa (venueReservationId), ilgili
+// CourtReservation da senkronize edilir: aynı işletme içinde kort/saat değişikliği "değiştirme"
+// (reschedule) olarak, farklı bir işletmenin kortuna geçiş ise eski rezervasyonun iptali + yeni
+// işletmede yeni rezervasyon olarak işlenir. Kort kimliği değişiyorsa (aynı ya da farklı işletme
+// fark etmez) hedef işletmenin Pro/Premium pakete sahip olması şart koşulur; ayrıca tesisin
+// iptal/değişiklik saat penceresi (cancelHoursBefore/rescheduleHoursBefore) uygulanır. Onay durumu
+// (otomatik/manuel) computeReservationStatus ile tesisin onay moduna göre belirlenir.
+async function updateMatchedRivalCourt(req, res, rival) {
+    try {
+        const { matchDate, matchTime, duration, venueId, venueCourtId, courtName, courtAddress, courtLat, courtLng, surface, courtFeePerPerson } = req.body;
+
+        const oldDateStr = rival.matchDate ? rival.matchDate.toISOString().slice(0, 10) : null;
+        const dateChanged = matchDate !== undefined && matchDate !== oldDateStr;
+        const timeChanged = matchTime !== undefined && matchTime !== rival.matchTime;
+        const venueChanged = venueId !== undefined && (venueId || null) !== (rival.venueId || null);
+        const courtChanged = venueCourtId !== undefined && (venueCourtId || null) !== (rival.venueCourtId || null);
+        const anyCourtTimeChange = dateChanged || timeChanged || venueChanged || courtChanged;
+
+        // Sadece kozmetik alanlar (adres, zemin, ücret vb.) değişmişse ya da hiçbir şey
+        // değişmemişse — rezervasyon senkronizasyonuna gerek yok, direkt güncelle.
+        if (!anyCourtTimeChange) {
+            const updated = await prisma.activityRequest.update({
+                where: { id: rival.id },
+                data: {
+                    ...(courtName !== undefined && { courtName }),
+                    ...(courtAddress !== undefined && { courtAddress }),
+                    ...(courtLat !== undefined && { courtLat: courtLat !== null ? Number(courtLat) : null }),
+                    ...(courtLng !== undefined && { courtLng: courtLng !== null ? Number(courtLng) : null }),
+                    ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
+                    ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
+                    ...(duration !== undefined && { duration: duration !== null && duration !== '' ? parseInt(duration, 10) : null }),
+                },
+                include: { sender: { select: SENDER_SELECT } },
+            });
+            broadcast('rivalUpdate', updated);
+            return res.json(updated);
+        }
+
+        const oldReservation = rival.venueReservationId
+            ? await prisma.courtReservation.findUnique({ where: { id: rival.venueReservationId }, include: { venue: true } })
+            : null;
+
+        // Gerçek bir işletme rezervasyonu yok (serbest/kendi ayarladıkları kort) — politika
+        // kontrolüne gerek yok, direkt güncellenip katılımcılara haber verilir.
+        if (!oldReservation) {
+            const newMatchDateObj = dateChanged ? new Date(`${matchDate}T00:00:00`) : rival.matchDate;
+            const newMatchTime = timeChanged ? matchTime : rival.matchTime;
+            const updated = await prisma.activityRequest.update({
+                where: { id: rival.id },
+                data: {
+                    matchDate: newMatchDateObj, matchTime: newMatchTime,
+                    ...(duration !== undefined && { duration: duration !== null && duration !== '' ? parseInt(duration, 10) : null }),
+                    ...(courtName !== undefined && { courtName }),
+                    ...(courtAddress !== undefined && { courtAddress }),
+                    ...(courtLat !== undefined && { courtLat: courtLat !== null ? Number(courtLat) : null }),
+                    ...(courtLng !== undefined && { courtLng: courtLng !== null ? Number(courtLng) : null }),
+                    ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
+                    ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
+                },
+                include: { sender: { select: SENDER_SELECT } },
+            });
+            notifyMatchParticipants(updated, {
+                title: '🔄 Maç Bilgisi Değişti',
+                body: `"${updated.courtName || 'Kort'}" için maç ${newMatchDateObj ? newMatchDateObj.toISOString().slice(0, 10) : ''} ${newMatchTime || ''} olarak güncellendi.`,
+            });
+            broadcast('rivalUpdate', updated);
+            return res.json(updated);
+        }
+
+        // Gerçek bir rezervasyona bağlı kort/saat değişikliği — tutarlılık için işletme, kort,
+        // tarih ve saatin birlikte gönderilmesi istenir.
+        if (!venueId || !venueCourtId || !matchDate || !matchTime) {
+            return res.status(400).json({ message: 'Kort değişikliği için işletme, kort, tarih ve saat birlikte seçilmelidir.' });
+        }
+        if (isPastDateTime(matchDate, matchTime)) return res.status(400).json({ message: 'Geçmiş bir tarih/saate değişiklik yapılamaz' });
+
+        const crossVenue = venueId !== rival.venueId;
+        const courtIdentityChanged = venueCourtId !== rival.venueCourtId;
+
+        const targetVenue = crossVenue ? await prisma.businessVenue.findUnique({ where: { id: venueId } }) : oldReservation.venue;
+        const targetCourt = await prisma.venueCourt.findUnique({ where: { id: venueCourtId } });
+        if (!targetVenue || targetVenue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
+        if (!targetCourt || targetCourt.venueId !== targetVenue.id) return res.status(404).json({ message: 'Kort bulunamadı' });
+
+        // Kort kimliği değişiyorsa (aynı ya da farklı işletme fark etmez) hedef işletmenin
+        // Pro/Premium pakete sahip olması şart — sadece saat değişen bir "değiştirme" için
+        // paket şartı aranmaz.
+        if (courtIdentityChanged) {
+            const now = new Date();
+            const sub = await prisma.businessSubscription.findFirst({ where: { userId: targetVenue.userId, status: 'ACTIVE', endDate: { gt: now } } });
+            if (!sub || !PRO_PACKAGES.includes(sub.packageType)) {
+                return res.status(403).json({ message: 'Bu tesis Pro veya Premium pakete sahip olmadığı için kort değişikliği bu ilan üzerinden yapılamaz. Mevcut rezervasyonu iptal edip yeniden ilan oluşturabilirsiniz.' });
+            }
+        }
+
+        // İptal/değişiklik saat penceresi: farklı işletmeye geçiş = eski rezervasyonun iptali
+        // (cancelHoursBefore), aynı işletmede kort/saat değişikliği = değiştirme (rescheduleHoursBefore).
+        const policyField = crossVenue ? 'cancelHoursBefore' : 'rescheduleHoursBefore';
+        const windowHours = oldReservation.venue?.[policyField];
+        if (windowHours !== null && windowHours !== undefined) {
+            if (windowHours < 0) {
+                return res.status(403).json({ message: crossVenue ? 'Bu tesis rezervasyon iptaline izin vermiyor, bu yüzden farklı bir tesise geçemezsiniz.' : 'Bu tesis rezervasyon değişikliğine izin vermiyor' });
+            }
+            const oldResDate = new Date(`${oldReservation.date}T${oldReservation.startTime}:00`);
+            const hoursLeft = (oldResDate - new Date()) / 3600000;
+            if (hoursLeft < windowHours) {
+                return res.status(403).json({ message: `Mevcut rezervasyondan ${windowHours} saat öncesine kadar ${crossVenue ? 'tesis' : 'kort/saat'} değişikliği yapılabilir` });
+            }
+        }
+
+        const newDuration = duration !== undefined && duration !== null && duration !== '' ? parseInt(duration, 10) : (rival.duration || 60);
+        const newEndTime = fmtEndTime(matchTime, newDuration);
+
+        // Çakışma kontrolü (kendi eski rezervasyonu hariç)
+        const conflicting = await prisma.courtReservation.findMany({
+            where: { venueId, courtId: venueCourtId, date: matchDate, status: { not: 'CANCELLED' }, NOT: { id: oldReservation.id } },
+        });
+        const startMins = toMins(matchTime);
+        const endMins = startMins + newDuration;
+        const hasConflict = conflicting.some(r => {
+            const rs = toMins(r.startTime);
+            const re = toMins(r.endTime) <= rs ? toMins(r.endTime) + 1440 : toMins(r.endTime);
+            return overlaps(startMins, endMins, rs, re);
+        });
+        if (hasConflict) return res.status(409).json({ message: 'Seçilen saat aralığı dolu' });
+
+        const newStatus = computeReservationStatus(targetCourt, targetVenue, oldReservation.paymentMethod);
+        let finalVenueReservationId = oldReservation.id;
+
+        if (crossVenue) {
+            await prisma.courtReservation.update({ where: { id: oldReservation.id }, data: { status: 'CANCELLED' } });
+            createNotification(oldReservation.venue.userId, 'RESERVATION', '🚫 Rezervasyon İptal Edildi',
+                `${oldReservation.date} ${oldReservation.startTime}–${oldReservation.endTime} rezervasyonu, oyuncu farklı bir tesise geçtiği için iptal edildi.`,
+                { reservationId: oldReservation.id }
+            ).catch(() => {});
+            emitToUser(oldReservation.venue.userId, 'notification', {});
+
+            const newReservation = await prisma.courtReservation.create({
+                data: {
+                    venueId, courtId: venueCourtId, userId: rival.senderId,
+                    date: matchDate, startTime: matchTime, endTime: newEndTime,
+                    paymentMethod: oldReservation.paymentMethod, status: newStatus,
+                },
+            });
+            finalVenueReservationId = newReservation.id;
+            createNotification(targetVenue.userId, 'RESERVATION',
+                newStatus === 'CONFIRMED' ? '✅ Otomatik Onaylı Rezervasyon' : '📅 Yeni Rezervasyon',
+                `Bir maç ilanı bu tesise taşındı: ${targetCourt.name} — ${matchDate} ${matchTime}–${newEndTime}.${newStatus === 'PENDING' ? ' Onayınız bekleniyor.' : ''}`,
+                { reservationId: newReservation.id }
+            ).catch(() => {});
+            emitToUser(targetVenue.userId, 'notification', {});
+        } else {
+            await prisma.courtReservation.update({
+                where: { id: oldReservation.id },
+                data: { courtId: venueCourtId, date: matchDate, startTime: matchTime, endTime: newEndTime, status: newStatus },
+            });
+            createNotification(targetVenue.userId, 'RESERVATION',
+                newStatus === 'CONFIRMED' ? '✅ Rezervasyon Değişti (Otomatik Onaylı)' : '📅 Rezervasyon Değiştirme Talebi',
+                `${targetCourt.name} — ${matchDate} ${matchTime}–${newEndTime} olarak güncellendi.${newStatus === 'PENDING' ? ' Onayınız bekleniyor.' : ''}`,
+                { reservationId: oldReservation.id }
+            ).catch(() => {});
+            emitToUser(targetVenue.userId, 'notification', {});
+        }
+
+        const updatedActivity = await prisma.activityRequest.update({
+            where: { id: rival.id },
+            data: {
+                matchDate: new Date(`${matchDate}T00:00:00`), matchTime, duration: newDuration,
+                venueId, venueCourtId, venueReservationId: finalVenueReservationId,
+                courtName: `${targetVenue.name}${targetCourt.name ? ` ${targetCourt.name}` : ''}`,
+                courtAddress: targetVenue.address || rival.courtAddress,
+                courtLat: targetVenue.lat ?? rival.courtLat, courtLng: targetVenue.lng ?? rival.courtLng,
+                isCourtReserved: true,
+                ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
+                ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
+            },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+
+        notifyMatchParticipants(updatedActivity, {
+            title: newStatus === 'PENDING' ? '⏳ Maç Kort/Saat Değişikliği Onay Bekliyor' : '🔄 Maç Kort/Saat Bilgisi Değişti',
+            body: newStatus === 'PENDING'
+                ? `"${updatedActivity.courtName}" için maç ${matchDate} ${matchTime}–${newEndTime} olarak güncellenmek isteniyor, işletme onayı bekleniyor.`
+                : `"${updatedActivity.courtName}" için maç ${matchDate} ${matchTime}–${newEndTime} olarak güncellendi.`,
+        });
+
+        broadcast('rivalUpdate', updatedActivity);
+        res.json(updatedActivity);
+    } catch (error) {
+        console.error('[updateMatchedRivalCourt]', error);
+        res.status(500).json({ message: error?.message || 'Kort/saat değişikliği başarısız oldu' });
+    }
+}
 
 export const createRivalRequest = async (req, res, next) => {
     const creatorId = req.userId; // capture before any async ops

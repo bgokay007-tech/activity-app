@@ -8,6 +8,7 @@ import api from '../../services/api';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 
 function pad(n) { return String(n).padStart(2, '0'); }
+function toMinsHM(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 
 const SURFACE_LABEL = { CLAY: 'Toprak', HARD: 'Sert Zemin', CARPET: 'Halı Saha', GRASS: 'Çim', PARQUET: 'Parke', SYNTHETIC: 'Sentetik' };
 
@@ -144,8 +145,9 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
 }
 
 export default function CourtSlotsScreen({ route, navigation }) {
-    const { venue, court, rescheduleResId } = route.params;
+    const { venue, court, rescheduleResId, editRivalId } = route.params;
     const rescheduleMode = !!rescheduleResId;
+    const editMode = !!editRivalId;
 
     const dateOptions = useMemo(() => Array.from({ length: 14 }, (_, i) => getDateStr(i)), []);
     const [selectedDate, setDate] = useState(dateOptions[0]);
@@ -185,6 +187,24 @@ export default function CourtSlotsScreen({ route, navigation }) {
     const handleConfirm = async (paymentMethod) => {
         setConf(true);
         try {
+            if (editMode) {
+                const startMins = toMinsHM(pickedSlot.start);
+                const endMins = toMinsHM(pickedSlot.end) <= startMins ? toMinsHM(pickedSlot.end) + 1440 : toMinsHM(pickedSlot.end);
+                const { data } = await api.patch(`/rivals/${editRivalId}`, {
+                    venueId: venue.id,
+                    venueCourtId: court.id,
+                    matchDate: selectedDate,
+                    matchTime: pickedSlot.start,
+                    duration: endMins - startMins,
+                });
+                setModal(false);
+                Alert.alert(
+                    data?.venueReservationId ? '✅ Kort/Saat Güncellendi' : '✅ Güncellendi',
+                    `Yeni kort/saat: ${court.name} — ${selectedDate} ${pickedSlot.start}–${pickedSlot.end}.`,
+                    [{ text: 'Tamam', onPress: () => navigation.popToTop() }]
+                );
+                return;
+            }
             if (rescheduleMode) {
                 await api.patch(`/venues/reservations/${rescheduleResId}/reschedule`, {
                     newDate: selectedDate,
@@ -215,7 +235,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
             const detail  = srvMsg
                 || (netCode === 'ECONNABORTED' ? 'Bağlantı zaman aşımına uğradı (30 sn)' : null)
                 || (netCode ? `Ağ hatası: ${netCode}` : null)
-                || e?.message || (rescheduleMode ? 'Rezervasyon değiştirilemedi' : 'Rezervasyon yapılamadı');
+                || e?.message || (editMode ? 'Kort/saat değişikliği yapılamadı' : rescheduleMode ? 'Rezervasyon değiştirilemedi' : 'Rezervasyon yapılamadı');
             Alert.alert('Hata', status ? `[${status}] ${detail}` : detail);
         } finally { setConf(false); }
     };
@@ -231,7 +251,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
             <StatusBar barStyle="light-content" />
             {rescheduleMode && (
                 <View style={{ backgroundColor: '#3b82f620', paddingTop: Platform.OS === 'ios' ? 54 : 36, paddingBottom: 8, paddingHorizontal: 16, alignItems: 'center' }}>
-                    <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>🔄 Rezervasyonunuz için yeni bir saat seçin</Text>
+                    <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>{editMode ? '🔄 Maçınız için yeni bir saat seçin' : '🔄 Rezervasyonunuz için yeni bir saat seçin'}</Text>
                 </View>
             )}
             <View style={[s.header, !rescheduleMode && { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
@@ -467,7 +487,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 onConfirm={handleConfirm}
                 onClose={() => { setModal(false); setPicked(null); }}
                 confirming={confirming}
-                rescheduleMode={rescheduleMode}
+                rescheduleMode={rescheduleMode || editMode}
             />
         </View>
     );
