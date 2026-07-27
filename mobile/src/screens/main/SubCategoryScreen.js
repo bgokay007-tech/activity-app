@@ -1427,30 +1427,39 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </View>
                     )}
 
-                    {/* Hakem Slotu — ilan sahibi + katılımcılar için özet, kimin hakem olduğunu gösterir */}
-                    {item.refereeRequested && (isOwner || isParticipant) && (
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', paddingHorizontal:9, paddingVertical:6 }}>
-                            {item.refereeUser ? (
-                                <>
-                                    <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(24)} color="#f59e0b" />
-                                    <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700' }}>{t.refereeSlotLabel}: {item.refereeUser.fullName || item.refereeUser.username} ✓</Text>
-                                </>
-                            ) : (
-                                <>
-                                    <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }}>
-                                        {t.refereeSlotLabel}: {t.refereeSlotSearching}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}
-                                    </Text>
-                                    {isOwner && refereeAdId && (
-                                        <TouchableOpacity
-                                            onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
-                                            style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', paddingHorizontal:8, paddingVertical:4 }}>
-                                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </>
-                            )}
-                        </View>
-                    )}
+                    {/* Hakem Slotu — ilan sahibi + katılımcılar için özet, kimin hakem olduğunu gösterir.
+                        Hakemler sekmesinden ilanın kendi detayı açıldığında da (isRefereeAd) görünür. */}
+                    {(() => {
+                        const canSeeRefereeSlot = (item.refereeRequested || isRefereeAd) && (isOwner || isParticipant || isLinkedMatchPlayer);
+                        if (!canSeeRefereeSlot) return null;
+                        // Davete İzin Ver açıksa (participantsCanInvite), kabul edilmiş katılımcılar
+                        // da hakem davet edebilir — asıl maçtan bakılıyorsa item, hakem ilanından
+                        // bakılıyorsa item.linkedRival üzerinde bu ayar tutuluyor.
+                        const canInviteReferee = isOwner || ((isParticipant || isLinkedMatchPlayer) && (item.participantsCanInvite || item.linkedRival?.participantsCanInvite));
+                        return (
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', paddingHorizontal:9, paddingVertical:6 }}>
+                                {item.refereeUser ? (
+                                    <>
+                                        <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(24)} color="#f59e0b" />
+                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700' }}>{t.refereeSlotLabel}: {item.refereeUser.fullName || item.refereeUser.username} ✓</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }}>
+                                            {t.refereeSlotLabel}: {t.refereeSlotSearching}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}
+                                        </Text>
+                                        {canInviteReferee && refereeAdId && (
+                                            <TouchableOpacity
+                                                onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
+                                                style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', paddingHorizontal:8, paddingVertical:4 }}>
+                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </>
+                                )}
+                            </View>
+                        );
+                    })()}
 
                     {/* Hakem Başvuruları — ilan sahibi + katılımcılar ortak görür; sahibi kabul/red/karşı teklif verebilir.
                         Hakemler sekmesinden ilanın kendi detayı açıldığında da (isRefereeAd) görünür. */}
@@ -6382,7 +6391,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 }
                                                 Alert.alert(
                                                     '🔓 Davete İzin Ver',
-                                                    'Bunu açarsan, ilanına kabul edilen katılımcılar da başka oyuncu davet edebilir ve ilanı paylaşabilir. Kapalı kaldığında bunu sadece sen yapabilirsin.',
+                                                    'Bunu açarsan, ilanına kabul edilen katılımcılar da başka oyuncu davet edebilir, hakem davet edebilir ve ilanı paylaşabilir. Kapalı kaldığında bunları sadece sen yapabilirsin.',
                                                     [
                                                         { text: 'Vazgeç', style: 'cancel' },
                                                         { text: 'Aç', onPress: () => set('participantsCanInvite', true) },
@@ -14188,11 +14197,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {archiveRivals.map(m => {
                                         const isOwner = m.senderId === myId;
                                         const parts = Array.isArray(m.participants) ? m.participants : [];
-                                        const allP = [m.sender, ...parts].filter(Boolean);
+                                        // Çiftler (DOUBLE) maçlarda kurucunun partneri senderTeam'de tutulur —
+                                        // eskiden buraya dahil edilmiyordu, bu yüzden hem eksik oyuncu (3 yerine 4)
+                                        // hem de yanlış taraf ataması (partner rakip gibi gösteriliyordu) oluyordu.
+                                        const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
+                                        const allP = [m.sender, ...senderTeamArr, ...parts].filter(Boolean);
                                         const snapshot = m.score?.ratingSnapshot || {};
                                         const sets = m.score?.sets;
                                         const winner = m.score?.winner;
-                                        const myResult = winner === 'draw' ? '🤝' : winner === (isOwner ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
+                                        // Ben ilan sahibi olmasam da kurucunun partneriysem (senderTeam) yine
+                                        // "sender" tarafındayımdır — aksi halde çiftler maçında partner olan
+                                        // kullanıcı kendi kazandığı maçta bile ❌ görüyordu.
+                                        const iAmSenderSide = isOwner || senderTeamArr.some(st => st?.id === myId);
+                                        const myResult = winner === 'draw' ? '🤝' : winner === (iAmSenderSide ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
                                         const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
                                         const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                         const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
@@ -14216,7 +14233,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 ) : null}
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom: sets ? 3 : 0 }}>
                                                     {allP.map(p => {
-                                                        const isSender = p.id === m.senderId;
+                                                        // Kurucu taraf: ilan sahibi VEYA onun partneri (senderTeam) — set
+                                                        // skorları ve kazanan tarafı buna göre doğru atanır.
+                                                        const isSender = p.id === m.senderId || senderTeamArr.some(st => st?.id === p.id);
                                                         const hist = snapshot[p.id];
                                                         const rBefore = hist?.skillRating_before;
                                                         const pts = hist?.change ?? null;

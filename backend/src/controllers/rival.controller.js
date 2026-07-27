@@ -499,7 +499,7 @@ export const getRivalById = async (req, res, next) => {
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
                 // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) için:
                 // asıl maçın oyuncularını (kim başvuramaz) ve dolu/boş slot durumunu görebilmek için.
-                linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, sender: { select: SENDER_SELECT } } },
+                linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, participantsCanInvite: true, sender: { select: SENDER_SELECT } } },
             },
         });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
@@ -1500,7 +1500,7 @@ export const getRivalRequests = async (req, res, next) => {
                 },
                 // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) için:
                 // asıl maçın oyuncularını (kim başvuramaz) ve dolu/boş slot durumunu görebilmek için.
-                linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, sender: { select: SENDER_SELECT } } },
+                linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, participantsCanInvite: true, sender: { select: SENDER_SELECT } } },
             },
             orderBy: { createdAt: 'desc' },
             take: 30,
@@ -1898,9 +1898,28 @@ export const inviteToRival = async (req, res, next) => {
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
-        const isParticipant = participants.some(p => p?.id === req.userId);
-        // Owner or any already-accepted participant can invite more players
-        if (rival.senderId !== req.userId && !isParticipant) return res.status(403).json({ message: 'Forbidden' });
+
+        // Sahibi her zaman davet edebilir. Hakem ilanına davet ediliyorsa (linkedRivalId
+        // dolu) yetki, asıl maçın katılımcısı olup olmadığına ve o maçın "Davete İzin
+        // Ver" (participantsCanInvite) ayarına göre belirlenir — hakem ilanının kendi
+        // (hep boş) participants alanına bakmak yanlış olurdu.
+        let isAuthorized = rival.senderId === req.userId;
+        if (!isAuthorized) {
+            if (rival.linkedRivalId) {
+                const mainMatch = await prisma.activityRequest.findUnique({
+                    where: { id: rival.linkedRivalId },
+                    select: { participants: true, senderTeam: true, participantsCanInvite: true },
+                });
+                if (mainMatch?.participantsCanInvite) {
+                    const mp = Array.isArray(mainMatch.participants) ? mainMatch.participants : [];
+                    const mt = Array.isArray(mainMatch.senderTeam) ? mainMatch.senderTeam : [];
+                    isAuthorized = mp.some(p => p?.id === req.userId) || mt.some(p => p?.id === req.userId);
+                }
+            } else if (rival.participantsCanInvite) {
+                isAuthorized = participants.some(p => p?.id === req.userId);
+            }
+        }
+        if (!isAuthorized) return res.status(403).json({ message: 'Forbidden' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
         if (userId === req.userId) return res.status(400).json({ message: 'Kendinizi davet edemezsiniz' });
 
