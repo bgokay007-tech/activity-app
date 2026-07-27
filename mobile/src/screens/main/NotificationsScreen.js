@@ -126,13 +126,18 @@ export default function NotificationsScreen({ navigation }) {
         const type = item.type;
         const goToSub = (tab = 'rivals', tournSubTab = null, openChatTournamentId = null) => {
             if (!data.category || !data.subCategory) return;
+            // Eski bir sunucu hatası yüzünden bazı geçmiş bildirimlerde category küçük harfle
+            // kaydedilmiş olabilir (ör. "sports") — kategori her yerde büyük harfle
+            // ("SPORTS") saklanıp karşılaştırıldığı için normalize edilmezse ekran hiçbir
+            // maç bulamıyordu.
+            const cat = String(data.category).toUpperCase();
             // Hakem ilanına (bağımsız veya bir maça bağlı "Hakem Arıyorum" ilanı) işaret eden
             // bildirimler İlanlar sekmesinde değil, Antrenörler → Hakemler alt-sekmesinde yaşar.
             if (data.refereeAd) {
-                navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: 'coaches', initialCoachSubTab: 'referees', highlightRivalId: data.rivalId || null });
+                navigation.push('SubCategory', { category: cat, sub: data.subCategory, initialTab: 'coaches', initialCoachSubTab: 'referees', highlightRivalId: data.rivalId || null });
                 return;
             }
-            navigation.push('SubCategory', { category: data.category, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab, openChatTournamentId });
+            navigation.push('SubCategory', { category: cat, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab, openChatTournamentId });
         };
         const goToEquipmentListing = () => {
             if (!data.category || !data.subCategory || !data.listingId) return;
