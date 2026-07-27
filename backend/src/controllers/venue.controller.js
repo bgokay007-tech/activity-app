@@ -2002,7 +2002,14 @@ export const getOrCreateBill = async (req, res, next) => {
                 include: { items: true },
             });
         }
-        res.json({ bill });
+        res.json({
+            bill,
+            reservation: {
+                id: check.reservation.id,
+                paymentMethod: check.reservation.paymentMethod,
+                paymentConfirmStatus: check.reservation.paymentConfirmStatus,
+            },
+        });
     } catch (error) { next(error); }
 };
 
@@ -2020,9 +2027,14 @@ export const addBillItem = async (req, res, next) => {
         if (menuItemId) {
             const menuItem = await prisma.venueMenuItem.findUnique({ where: { id: menuItemId } });
             if (!menuItem || menuItem.venueId !== bill.venueId) return res.status(400).json({ message: 'Ürün bulunamadı' });
-            await prisma.venueBillItem.create({
-                data: { billId, menuItemId, name: menuItem.name, unitPrice: menuItem.price, quantity: qty },
-            });
+            const existing = await prisma.venueBillItem.findFirst({ where: { billId, menuItemId } });
+            if (existing) {
+                await prisma.venueBillItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty } });
+            } else {
+                await prisma.venueBillItem.create({
+                    data: { billId, menuItemId, name: menuItem.name, unitPrice: menuItem.price, quantity: qty },
+                });
+            }
         } else {
             if (!name?.trim()) return res.status(400).json({ message: 'İsim zorunludur' });
             const price = parseInt(unitPrice);
@@ -2071,17 +2083,18 @@ export const removeBillItem = async (req, res, next) => {
 export const markBillPaid = async (req, res, next) => {
     try {
         const { billId } = req.params;
+        const paid = req.body?.paid !== false; // varsayılan true — eski istemcilerle uyumlu
         const bill = await prisma.venueBill.findUnique({ where: { id: billId }, include: { venue: true, reservation: true } });
         if (!bill) return res.status(404).json({ message: 'Adisyon bulunamadı' });
         if (bill.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
         const updated = await prisma.venueBill.update({
             where: { id: billId },
-            data: { status: 'PAID', paidAt: new Date() },
+            data: paid ? { status: 'PAID', paidAt: new Date() } : { status: 'OPEN', paidAt: null },
             include: { items: true },
         });
 
-        if (bill.reservation.userId) {
+        if (paid && bill.reservation.userId) {
             await createNotification(bill.reservation.userId, 'BILL_PAID', 'Adisyon Ödendi',
                 `${bill.venue.name} adisyonunuz ödendi olarak işaretlendi.`,
                 { billId, venueId: bill.venueId }

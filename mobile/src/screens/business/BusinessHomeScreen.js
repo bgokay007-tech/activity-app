@@ -1057,6 +1057,9 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
 
     const handleSlotPress = (slot, court) => {
         if (!slot.reservationId) return;
+        // Onay bekleyenler her zaman küçük menüden onaylanır/reddedilir.
+        // Onaylı rezervasyonlarda (Pro tesis) doğrudan tam ekran Adisyon sayfası açılır.
+        if (slot.status !== 'PENDING' && isPro) { doOpenBill(slot, court); return; }
         setActionSlot({ slot, court });
     };
 
@@ -1269,7 +1272,7 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                             )}
                                                             {isConfirmedUnpaid && (
                                                                 <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
-                                                                    Ödeme Al →
+                                                                    {isPro ? 'Adisyon →' : 'Ödeme Al →'}
                                                                 </Text>
                                                             )}
                                                             {isPro && isConfirmedPaid && (
@@ -1356,12 +1359,6 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                 <Text style={{ color:'#f87171', fontWeight:'800', fontSize:14 }}>❌ Gelmedi / Ödeme Alınamadı</Text>
                                             </TouchableOpacity>
                                         </>
-                                    )}
-                                    {isPro && (
-                                        <TouchableOpacity style={{ backgroundColor:'#7c3aed18', borderRadius:10, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor:'#7c3aed40' }}
-                                            onPress={() => doOpenBill(slot, court)}>
-                                            <Text style={{ color:'#a78bfa', fontWeight:'800', fontSize:14 }}>🧾 Adisyon</Text>
-                                        </TouchableOpacity>
                                     )}
                                 </>
                             );
@@ -1635,6 +1632,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         try {
             const { data } = await api.get(`/venues/reservations/${reservation.id}/bill`);
             setActiveBill(data.bill);
+            setBillModalRes(prev => prev ? { ...prev, ...data.reservation } : prev);
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Adisyon açılamadı');
             setBillModalRes(null);
@@ -1686,16 +1684,33 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Güncellenemedi'); }
         finally { setBillItemBusy(false); }
     };
-    const markBillPaid = () => {
+    const setBillPaidStatus = (paid) => {
         if (!activeBill) return;
-        Alert.alert('Adisyonu Öde', `Toplam ${activeBill.totalPrice}₺ ödendi olarak işaretlensin mi?`, [
+        if (paid === (activeBill.status === 'PAID')) return;
+        Alert.alert('Adisyon Durumu', paid
+            ? `Toplam ${activeBill.totalPrice}₺ ödendi olarak işaretlensin mi?`
+            : 'Bu adisyon ödenmedi olarak işaretlensin mi?', [
             { text: 'Vazgeç', style: 'cancel' },
-            { text: 'Ödendi', onPress: async () => {
+            { text: 'Onayla', onPress: async () => {
                 try {
-                    const { data } = await api.patch(`/venues/bills/${activeBill.id}/pay`);
+                    const { data } = await api.patch(`/venues/bills/${activeBill.id}/pay`, { paid });
                     setActiveBill(data.bill);
                     setBills(p => p.map(b => b.id === data.bill.id ? { ...b, ...data.bill } : b));
                 } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İşaretlenemedi'); }
+            } },
+        ]);
+    };
+
+    const markCourtFeeNotCollected = () => {
+        if (!billModalRes) return;
+        Alert.alert('Kort Ücreti Alınmadı', 'Kort ücreti alınmadı olarak işaretlensin mi? Admine bildirim gidecek.', [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Onayla', style: 'destructive', onPress: async () => {
+                try {
+                    await api.patch(`/venues/reservations/${billModalRes.id}/status`, { action: 'payment_not_collected' });
+                    setBillModalRes(prev => prev ? { ...prev, paymentConfirmStatus: 'NOT_COLLECTED' } : prev);
+                    setReservations(p => p.map(r => r.id === billModalRes.id ? { ...r, paymentConfirmStatus: 'NOT_COLLECTED' } : r));
+                } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız'); }
             } },
         ]);
     };
@@ -2702,25 +2717,36 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
 
             {/* ── Adisyon Modalı (PRO+) ── */}
             {!!billModalRes && (
-                <Modal visible animationType="slide" transparent onRequestClose={closeBillModal}>
-                    <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
-                        <View style={{ backgroundColor:'#1e1e2e', borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:36, maxHeight:'85%' }}>
-                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-                                <View>
-                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>Adisyon</Text>
-                                    <Text style={{ color:'#9ca3af', fontSize:11, marginTop:2 }}>
-                                        @{billModalRes.user?.username || billModalRes.manualName || '—'} · {billModalRes.court?.name} {billModalRes.startTime}
-                                    </Text>
-                                </View>
-                                <TouchableOpacity onPress={closeBillModal}>
-                                    <Text style={{ color:'#6b7280', fontSize:18 }}>✕</Text>
-                                </TouchableOpacity>
+                <Modal visible animationType="slide" onRequestClose={closeBillModal}>
+                    <View style={{ flex:1, backgroundColor:'#0a0a14' }}>
+                        {/* Header */}
+                        <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16,
+                            paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom:14,
+                            borderBottomWidth:1, borderBottomColor:'#ffffff12' }}>
+                            <TouchableOpacity onPress={closeBillModal} style={{ marginRight:14, padding:4 }}>
+                                <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
+                            </TouchableOpacity>
+                            <View style={{ flex:1 }}>
+                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    @{billModalRes.user?.username || billModalRes.manualName || '—'}
+                                </Text>
+                                <Text style={{ color:'#9ca3af', fontSize:12, marginTop:1 }} numberOfLines={1}>
+                                    {billModalRes.court?.name} · {billModalRes.startTime}
+                                </Text>
                             </View>
+                        </View>
 
-                            {billModalLoading ? (
-                                <ActivityIndicator color={BIZ_COLOR} style={{ marginVertical: 20 }} />
-                            ) : (
-                                <ScrollView style={{ maxHeight: 420 }}>
+                        {/* Sekme çubuğu */}
+                        <View style={{ flexDirection:'row', paddingHorizontal:16, paddingTop:10, paddingBottom:10, borderBottomWidth:1, borderBottomColor:'#ffffff08' }}>
+                            <View style={{ paddingHorizontal:14, paddingVertical:8, borderRadius:10, backgroundColor: BIZ_COLOR+'22', borderWidth:1, borderColor: BIZ_COLOR+'50' }}>
+                                <Text style={{ color: BIZ_LIGHT, fontWeight:'800', fontSize:13 }}>Adisyon</Text>
+                            </View>
+                        </View>
+
+                        {billModalLoading ? (
+                            <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 40 }} />
+                        ) : (
+                            <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:24 }}>
                                     <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ADİSYONDAKİ ÜRÜNLER</Text>
                                     {(activeBill?.items || []).length === 0 ? (
                                         <Text style={{ color:'#6b7280', fontSize:12, marginBottom:12 }}>Henüz ürün eklenmedi</Text>
@@ -2822,21 +2848,42 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         </>
                                         );
                                     })()}
-                                </ScrollView>
-                            )}
+                            </ScrollView>
+                        )}
 
-                            {activeBill && activeBill.status !== 'PAID' && activeBill.items?.length > 0 && (
-                                <TouchableOpacity onPress={markBillPaid}
-                                    style={{ backgroundColor:'#22c55e', borderRadius:10, paddingVertical:12, alignItems:'center', marginTop:14 }}>
-                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>Ödendi Olarak İşaretle</Text>
-                                </TouchableOpacity>
-                            )}
-                            {activeBill?.status === 'PAID' && (
-                                <View style={{ backgroundColor:'#22c55e15', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:14, borderWidth:1, borderColor:'#22c55e40' }}>
-                                    <Text style={{ color:'#22c55e', fontWeight:'700', fontSize:13 }}>Bu adisyon ödendi</Text>
+                        {/* Alt bilgi/aksiyon çubuğu */}
+                        {!billModalLoading && activeBill && (
+                            <View style={{ padding:16, paddingBottom: Platform.OS === 'ios' ? 28 : 16, borderTopWidth:1, borderTopColor:'#ffffff10', gap:8 }}>
+                                <View style={{ flexDirection:'row', gap:8 }}>
+                                    <TouchableOpacity onPress={() => setBillPaidStatus(true)}
+                                        style={{ flex:1, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1,
+                                            backgroundColor: activeBill.status === 'PAID' ? '#22c55e25' : '#ffffff08',
+                                            borderColor: activeBill.status === 'PAID' ? '#22c55e60' : '#ffffff15' }}>
+                                        <Text style={{ color: activeBill.status === 'PAID' ? '#22c55e' : '#9ca3af', fontWeight:'800', fontSize:13 }}>✅ Ödeme Alındı</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setBillPaidStatus(false)}
+                                        style={{ flex:1, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1,
+                                            backgroundColor: activeBill.status !== 'PAID' ? '#ef444425' : '#ffffff08',
+                                            borderColor: activeBill.status !== 'PAID' ? '#ef444460' : '#ffffff15' }}>
+                                        <Text style={{ color: activeBill.status !== 'PAID' ? '#f87171' : '#9ca3af', fontWeight:'800', fontSize:13 }}>❌ Ödeme Alınmadı</Text>
+                                    </TouchableOpacity>
                                 </View>
-                            )}
-                        </View>
+                                {billModalRes.paymentConfirmStatus === 'NOT_COLLECTED' ? (
+                                    <View style={{ borderRadius:10, paddingVertical:9, alignItems:'center', backgroundColor:'#ef444415', borderWidth:1, borderColor:'#ef444440' }}>
+                                        <Text style={{ color:'#f87171', fontWeight:'700', fontSize:12 }}>⚠️ Kort ücreti alınmadı olarak işaretlendi</Text>
+                                    </View>
+                                ) : billModalRes.paymentConfirmStatus === 'CONFIRMED' ? (
+                                    <View style={{ borderRadius:10, paddingVertical:9, alignItems:'center', backgroundColor:'#22c55e15', borderWidth:1, borderColor:'#22c55e40' }}>
+                                        <Text style={{ color:'#22c55e', fontWeight:'700', fontSize:12 }}>✅ Kort ücreti alındı</Text>
+                                    </View>
+                                ) : (
+                                    <TouchableOpacity onPress={markCourtFeeNotCollected}
+                                        style={{ borderRadius:10, paddingVertical:10, alignItems:'center', backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
+                                        <Text style={{ color:'#f59e0b', fontWeight:'700', fontSize:12 }}>⚠️ Kort Ücreti Alınmadı</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
                     </View>
                 </Modal>
             )}
