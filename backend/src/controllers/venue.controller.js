@@ -2009,7 +2009,7 @@ export const getOrCreateBill = async (req, res, next) => {
 export const addBillItem = async (req, res, next) => {
     try {
         const { billId } = req.params;
-        const { menuItemId, quantity } = req.body;
+        const { menuItemId, quantity, name, unitPrice, note } = req.body;
         const qty = parseInt(quantity) || 1;
 
         const bill = await prisma.venueBill.findUnique({ where: { id: billId }, include: { venue: true } });
@@ -2017,12 +2017,20 @@ export const addBillItem = async (req, res, next) => {
         if (bill.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
         if (bill.status === 'PAID') return res.status(400).json({ message: 'Ödenmiş adisyon değiştirilemez' });
 
-        const menuItem = await prisma.venueMenuItem.findUnique({ where: { id: menuItemId } });
-        if (!menuItem || menuItem.venueId !== bill.venueId) return res.status(400).json({ message: 'Ürün bulunamadı' });
-
-        await prisma.venueBillItem.create({
-            data: { billId, menuItemId, name: menuItem.name, unitPrice: menuItem.price, quantity: qty },
-        });
+        if (menuItemId) {
+            const menuItem = await prisma.venueMenuItem.findUnique({ where: { id: menuItemId } });
+            if (!menuItem || menuItem.venueId !== bill.venueId) return res.status(400).json({ message: 'Ürün bulunamadı' });
+            await prisma.venueBillItem.create({
+                data: { billId, menuItemId, name: menuItem.name, unitPrice: menuItem.price, quantity: qty },
+            });
+        } else {
+            if (!name?.trim()) return res.status(400).json({ message: 'İsim zorunludur' });
+            const price = parseInt(unitPrice);
+            if (!Number.isFinite(price) || price < 0) return res.status(400).json({ message: 'Geçersiz fiyat' });
+            await prisma.venueBillItem.create({
+                data: { billId, name: name.trim(), unitPrice: price, quantity: qty, note: note?.trim() || null },
+            });
+        }
         const updated = await recalcBillTotal(billId);
         res.status(201).json({ bill: updated });
     } catch (error) { next(error); }

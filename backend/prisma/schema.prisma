@@ -1430,6 +1430,7 @@ model VenueBillItem {
   name       String  // ekleme anındaki isim (menüden silinse de adisyonda kalır)
   unitPrice  Int     // ekleme anındaki fiyat
   quantity   Int     @default(1)
+  note       String? // manuel eklenen ürünün isteğe bağlı detayı
   createdAt  DateTime @default(now())
 
   bill     VenueBill      @relation(fields: [billId], references: [id], onDelete: Cascade)
