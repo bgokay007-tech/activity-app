@@ -574,6 +574,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     }, [visible, item?.id]);
 
     const isOwner = item.senderId === myId;
+    // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) kendi
+    // participants/senderTeam alanları hep boş (o alanlar hakemi tutar) — Oyuncular
+    // bölümünde asıl maçın oyuncularını göstermek için linkedRival'a bakılır.
+    const isRefereeAd = item.matchType === 'PLAYER_WANTED' && Array.isArray(item.positions) && item.positions.includes('REFEREE');
     // Hakem Arıyorum ilanları (linkedRival dolu) için: asıl maça oyuncu olarak
     // katılmış biri (kurucu/partner/rakip) kendi maçına hakemlik başvurusu yapamaz.
     const isLinkedMatchPlayer = !!item.linkedRival && (
@@ -604,6 +608,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         : (item.teamSize || 1);
     const senderSideCount = 1 + (Array.isArray(item.senderTeam) ? item.senderTeam.length : 0);
     const filled = participants.filter(p => p && p.id).length;
+    // Hakem Arıyorum ilanının Oyuncular bölümü kendi (hep boş) alanları yerine
+    // asıl maçın (linkedRival) oyuncularını gösterir.
+    const linkedParticipants = (isRefereeAd && item.linkedRival && Array.isArray(item.linkedRival.participants)) ? item.linkedRival.participants : [];
+    const linkedSenderTeam = (isRefereeAd && item.linkedRival && Array.isArray(item.linkedRival.senderTeam)) ? item.linkedRival.senderTeam : [];
+    const linkedRequired = (isRefereeAd && item.linkedRival) ? (item.linkedRival.matchType === 'DOUBLE'
+        ? (linkedSenderTeam.length > 0 ? 2 : 3)
+        : (item.linkedRival.teamSize || 1)) : 0;
+    const linkedSenderSideCount = (isRefereeAd && item.linkedRival) ? 1 + linkedSenderTeam.length : 0;
+    const linkedFilled = linkedParticipants.filter(p => p?.id).length;
     const mySentReq = item._myJoinStatus;
     const isFull = filled >= required;
     const isParticipant = participants.some(p => p?.id === myId);
@@ -956,7 +969,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {/* Oyuncular */}
                     <View style={det.section}>
                         <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                            <Text style={det.sectionTitle}>👥 {t.players || 'Oyuncular'} ({senderSideCount + filled} / {senderSideCount + required})</Text>
+                            <Text style={det.sectionTitle}>
+                                👥 {t.players || 'Oyuncular'} {isRefereeAd && item.linkedRival
+                                    ? `(${linkedSenderSideCount + linkedFilled} / ${linkedSenderSideCount + linkedRequired})`
+                                    : `(${senderSideCount + filled} / ${senderSideCount + required})`}
+                            </Text>
                             {item.matchType === 'DOUBLE' && (isOwner || isParticipant) && showTeamCards && (
                                 <TouchableOpacity onPress={() => toggleTeamCards(false)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 Çevir</Text>
@@ -970,7 +987,56 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             )}
                         </View>
                         <Animated.View style={{ transform: [{ perspective: 800 }, { rotateY: cardRotateY }] }}>
-                        {item.matchType === 'DOUBLE' ? (() => {
+                        {isRefereeAd && item.linkedRival ? (
+                            <>
+                                <View style={det.playerRow}>
+                                    <Avatar name={item.linkedRival.sender?.username} avatar={item.linkedRival.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.linkedRival.senderId && navigation.push('Profile', { userId: item.linkedRival.senderId })} />
+                                    <View style={{ flex:1 }}>
+                                        <Text style={det.playerName}>{playerDisplayName(item.linkedRival.sender)}</Text>
+                                        <Text style={det.playerSub}>{item.linkedRival.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                    </View>
+                                </View>
+                                {[...linkedSenderTeam, ...linkedParticipants].filter(p => p?.id).map((p, i) => (
+                                    <View key={p.id || i} style={det.playerRow}>
+                                        <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>{playerDisplayName(p)}</Text>
+                                            <Text style={det.playerSub}>{p.username}</Text>
+                                        </View>
+                                    </View>
+                                ))}
+                                {Array.from({ length: Math.max(0, linkedRequired - linkedFilled) }).map((_, i) => (
+                                    <View key={`empty-${i}`} style={[det.playerRow, { opacity:0.55 }]}>
+                                        <View style={{ width:moderateScale(32), height:moderateScale(32), borderRadius:moderateScale(16), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:14 }}>?</Text>
+                                        </View>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={[det.playerSub, { color: colors.textMuted }]}>Bekleniyor</Text>
+                                        </View>
+                                    </View>
+                                ))}
+                                <View style={[det.playerRow, { marginTop:4, borderTopWidth:1, borderTopColor: colors.border, paddingTop:8 }]}>
+                                    {item.refereeUser ? (
+                                        <>
+                                            <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(32)} color={'#f59e0b'} onPress={() => navigation.push('Profile', { userId: item.refereeUser.id })} />
+                                            <View style={{ flex:1 }}>
+                                                <Text style={det.playerName}>{playerDisplayName(item.refereeUser)}</Text>
+                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>🧑‍⚖️ Hakem</Text>
+                                            </View>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <View style={{ width:moderateScale(32), height:moderateScale(32), borderRadius:moderateScale(16), borderWidth:1, borderStyle:'dashed', borderColor:'#f59e0b', alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ fontSize:14 }}>🧑‍⚖️</Text>
+                                            </View>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={[det.playerSub, { color:'#f59e0b' }]}>Hakem — Bekleniyor</Text>
+                                            </View>
+                                        </>
+                                    )}
+                                </View>
+                            </>
+                        ) : item.matchType === 'DOUBLE' ? (() => {
                             const allJoinReqs = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
                             const pendingPartnerInvite = allJoinReqs.find(jr => jr.isPartnerInvite && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
 
@@ -2169,6 +2235,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             <Text style={[s.cancelBtnText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.cancelAdBtn}</Text>
                         </TouchableOpacity>
                     </View>
+                ) : isLinkedMatchPlayer ? (
+                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={2}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
                 ) : myInvite ? (
                     <TouchableOpacity
                         style={{ backgroundColor:'#16a34a', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
@@ -2984,7 +3052,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             )}
             {match.refereeRequested && (
                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }}>
-                    {t.refereeSlotLabel}: {match.refereeUser ? (match.refereeUser.fullName || match.refereeUser.username) + ' ✓' : t.refereeSlotSearching}
+                    {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓` : t.refereeOnlyMissingLabel}
                 </Text>
             )}
             {/* Comment count */}
@@ -3075,7 +3143,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.refereeRequested && (
                             <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', marginTop:6 }}>
-                                {t.refereeSlotLabel}: {match.refereeUser ? (match.refereeUser.fullName || match.refereeUser.username) + ' ✓' : t.refereeSlotSearching}
+                                {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓` : t.refereeOnlyMissingLabel}
                             </Text>
                         )}
                         {match.level && (
