@@ -4,10 +4,12 @@ import {
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
 import useT from '../../hooks/useT';
+import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
 const STATUS_COLOR = { PENDING: '#eab308', CONFIRMED: '#22c55e', CANCELLED: '#6b7280' };
 
@@ -45,6 +47,9 @@ function ReservationCard({ item, onCancel, onCancelRequested, navigation }) {
             Alert.alert(t.error, e?.response?.data?.message || 'Tesis bilgisi alınamadı');
         } finally { setLV(false); }
     };
+
+    const lang = useSelector(s => s.lang?.lang || 'tr');
+    const subLabel = getSubCategoryLabel(branchToSub(item.venue?.branch).sub, lang);
 
     const sc = STATUS_COLOR[item.status] || '#9ca3af';
     const sl = {
@@ -156,8 +161,15 @@ function ReservationCard({ item, onCancel, onCancelRequested, navigation }) {
                     <Text style={s.venueName}>{item.venue?.name}</Text>
                     <Text style={s.courtName}>{item.court?.name}</Text>
                 </View>
-                <View style={[s.badge, { backgroundColor: sc + '20', borderColor: sc + '50' }]}>
-                    <Text style={[s.badgeText, { color: sc }]}>{sl}</Text>
+                <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                    {!!subLabel && (
+                        <View style={s.subBadge}>
+                            <Text style={s.subBadgeText} numberOfLines={1}>{subLabel}</Text>
+                        </View>
+                    )}
+                    <View style={[s.badge, { backgroundColor: sc + '20', borderColor: sc + '50' }]}>
+                        <Text style={[s.badgeText, { color: sc }]}>{sl}</Text>
+                    </View>
                 </View>
             </View>
 
@@ -373,6 +385,8 @@ const s = StyleSheet.create({
     courtName: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
     badge: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1 },
     badgeText: { fontSize: 11, fontWeight: '700' },
+    subBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, maxWidth: 110 },
+    subBadgeText: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
 
     timeRow: { flexDirection: 'row', gap: 14, marginBottom: 6 },
     timeText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },

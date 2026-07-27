@@ -8,6 +8,7 @@ import { onSocket, getSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { decrementUnread, clearUnread } from '../../store/slices/notificationSlice';
+import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
 const TYPE_ICON = {
     RIVAL_REQUEST: '⚔️',
@@ -62,6 +63,7 @@ export default function NotificationsScreen({ navigation }) {
     const t = useT();
     const dispatch = useDispatch();
     const isBusiness = useSelector(s => s.auth.user?.isBusiness);
+    const lang = useSelector(s => s.lang?.lang || 'tr');
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -261,6 +263,7 @@ export default function NotificationsScreen({ navigation }) {
 
     const renderItem = ({ item }) => {
         const icon = TYPE_ICON[item.type] || TYPE_ICON.default;
+        const subLabel = getSubCategoryLabel(item.data?.subCategory, lang);
         return (
             <TouchableOpacity
                 style={[styles.item, !item.read && styles.itemUnread]}
@@ -278,6 +281,11 @@ export default function NotificationsScreen({ navigation }) {
                     </Text>
                 </View>
                 {!item.read && <View style={styles.dot} />}
+                {!!subLabel && (
+                    <View style={styles.subBadge}>
+                        <Text style={styles.subBadgeText} numberOfLines={1}>{subLabel}</Text>
+                    </View>
+                )}
             </TouchableOpacity>
         );
     };
@@ -318,7 +326,9 @@ const styles = StyleSheet.create({
     title: { color: '#fff', fontSize: 22, fontWeight: '900' },
     markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
     markAllText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
-    item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 3 },
+    item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 3, position: 'relative' },
+    subBadge: { position: 'absolute', top: 8, right: 12, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: colors.border, maxWidth: 90 },
+    subBadgeText: { color: colors.textMuted, fontSize: 9, fontWeight: '700' },
     itemUnread: { backgroundColor: colors.purple + '10' },
     iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface2, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
     icon: { fontSize: 18 },
