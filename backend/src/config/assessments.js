@@ -728,6 +728,134 @@ const QUESTIONS = {
     ],
 };
 
+// ─── Basitleştirilmiş sekme setiyle açılan 13 yeni dal — ilk 4 soru (süre/
+// beceri/eğitim/yarışma) _default ile aynı, sadece 5. soru her dala özel bir
+// teknik/pratik soru. mandatory değil (RATING_REQUIRED_SUBCATEGORIES'te yok).
+const DURATION_Q = {
+    id: 'q1',
+    question: 'How long have you been involved in this activity?',
+    tr: 'Bu aktiviteye ne kadar süredir devam ediyorsun?',
+    options: [
+        { text: 'Just starting out',    tr: 'Yeni başlıyorum',      points: 0 },
+        { text: 'Less than 1 year',      tr: '1 yıldan az',          points: 8 },
+        { text: '1–3 years',             tr: '1–3 yıl',              points: 16 },
+        { text: '3–6 years',             tr: '3–6 yıl',              points: 23 },
+        { text: '6+ years',              tr: '6+ yıl',               points: 30 },
+    ],
+};
+const SKILL_Q = {
+    id: 'q2',
+    question: 'How would you rate your current skill level?',
+    tr: 'Mevcut beceri seviyeni nasıl değerlendirirsin?',
+    options: [
+        { text: 'Complete beginner',                  tr: 'Tam yeni başlayan',                      points: 0 },
+        { text: 'Still learning basics',              tr: 'Hâlâ temelleri öğreniyorum',             points: 8 },
+        { text: 'Comfortable with most fundamentals', tr: 'Çoğu temel konuda rahatım',              points: 16 },
+        { text: 'Advanced practitioner',              tr: 'İleri seviye',                           points: 24 },
+        { text: 'Expert / near-professional',         tr: 'Uzman / neredeyse profesyonel',          points: 30 },
+    ],
+};
+const TRAINING_Q = {
+    id: 'q3',
+    question: 'Have you received any formal training or coaching?',
+    tr: 'Resmi bir eğitim veya antrenörlük aldın mı?',
+    options: [
+        { text: 'No training at all',             tr: 'Hiç eğitim almadım',                        points: 0 },
+        { text: 'Brief introduction / workshop',  tr: 'Kısa tanıtım / atölye',                     points: 8 },
+        { text: 'Regular coaching or lessons',    tr: 'Düzenli antrenörlük veya ders',             points: 16 },
+        { text: 'Long-term structured training',  tr: 'Uzun süreli yapılandırılmış antrenman',     points: 24 },
+        { text: 'Professional coaching program',  tr: 'Profesyonel antrenörlük programı',          points: 30 },
+    ],
+};
+const COMPETITION_Q = {
+    id: 'q4',
+    question: 'Have you competed or performed publicly in this activity?',
+    tr: 'Bu aktivitede yarıştın veya kamuoyu önünde performans sergiledin mi?',
+    options: [
+        { text: 'Never',                         tr: 'Hiç',                                        points: 0 },
+        { text: 'Casual / friendly competitions', tr: 'Sosyal / dostluk yarışmaları',              points: 8 },
+        { text: 'Local competitions',            tr: 'Yerel yarışmalar',                           points: 16 },
+        { text: 'Regional or national events',   tr: 'Bölgesel veya ulusal etkinlikler',           points: 24 },
+        { text: 'International level',           tr: 'Uluslararası seviye',                        points: 30 },
+    ],
+};
+const skillOptions5 = () => ([
+    { text: 'Very weak', tr: 'Çok zayıf', points: 0 },
+    { text: 'Weak',      tr: 'Zayıf',      points: 8 },
+    { text: 'Average',   tr: 'Orta',       points: 16 },
+    { text: 'Good',      tr: 'İyi',        points: 24 },
+    { text: 'Very good', tr: 'Çok iyi',    points: 30 },
+]);
+const buildSimple = (q5) => [DURATION_Q, SKILL_Q, TRAINING_Q, COMPETITION_Q, { id: 'q5', ...q5 }];
+
+Object.assign(QUESTIONS, {
+    airsoft: buildSimple({
+        question: 'How would you rate your tactical awareness and teamwork on the field?',
+        tr: 'Sahadaki taktik farkındalığını ve takım oyununu nasıl değerlendirirsin?',
+        options: skillOptions5(),
+    }),
+    archery: buildSimple({
+        question: 'How consistent is your shot grouping/accuracy?',
+        tr: 'Atışlarındaki isabet/grupla tutarlılığın nasıl?',
+        options: skillOptions5(),
+    }),
+    camping: buildSimple({
+        question: 'How comfortable are you with outdoor/survival skills (setting up camp, fire, navigation)?',
+        tr: 'Doğa/hayatta kalma becerilerinde (kamp kurma, ateş, yön bulma) kendine ne kadar güveniyorsun?',
+        options: skillOptions5(),
+    }),
+    climbing: buildSimple({
+        question: 'What difficulty level do you climb comfortably?',
+        tr: 'Hangi zorluk seviyesinde rahat tırmanabiliyorsun?',
+        options: skillOptions5(),
+    }),
+    equestrian: buildSimple({
+        question: 'How would you rate your riding technique and horse control?',
+        tr: 'Biniş tekniğini ve at kontrolünü nasıl değerlendirirsin?',
+        options: skillOptions5(),
+    }),
+    extreme_sports: buildSimple({
+        question: 'How would you rate your risk management and technical control in extreme conditions?',
+        tr: 'Ekstrem koşullarda risk yönetimini ve teknik kontrolünü nasıl değerlendirirsin?',
+        options: skillOptions5(),
+    }),
+    fitness_gym: buildSimple({
+        question: 'How would you rate your strength and technique in core exercises (squat, bench, deadlift etc.)?',
+        tr: 'Temel egzersizlerdeki (squat, bench, deadlift vb.) gücünü ve tekniğini nasıl değerlendirirsin?',
+        options: skillOptions5(),
+    }),
+    foot_tennis: buildSimple({
+        question: 'How would you rate your ball control and technique?',
+        tr: 'Top kontrolünü ve tekniğini nasıl değerlendirirsin?',
+        options: skillOptions5(),
+    }),
+    paintball: buildSimple({
+        question: 'How would you rate your tactical positioning and accuracy?',
+        tr: 'Taktik konumlanmanı ve isabetini nasıl değerlendirirsin?',
+        options: skillOptions5(),
+    }),
+    sup_kano: buildSimple({
+        question: 'How would you rate your balance and paddling technique?',
+        tr: 'Dengeni ve kürek tekniğini nasıl değerlendirirsin?',
+        options: skillOptions5(),
+    }),
+    running: buildSimple({
+        question: 'What is your comfortable running pace/distance level?',
+        tr: 'Rahat koşabildiğin tempo/mesafe seviyen nedir?',
+        options: skillOptions5(),
+    }),
+    walking: buildSimple({
+        question: 'How many kilometers can you comfortably walk in one session?',
+        tr: 'Tek seferde kaç kilometre rahat yürüyebilirsin?',
+        options: skillOptions5(),
+    }),
+    hiking: buildSimple({
+        question: 'What is the most challenging terrain/duration hike you have completed?',
+        tr: 'Tamamladığın en zorlu arazi/süre yürüyüşü ne kadardı?',
+        options: skillOptions5(),
+    }),
+});
+
 // Get questions for a sport (falls back to _default), localised to lang ('en'|'tr')
 export function getQuestions(subCategory, lang = 'en') {
     const raw = QUESTIONS[subCategory.toLowerCase()] || QUESTIONS._default;
