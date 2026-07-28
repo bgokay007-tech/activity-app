@@ -1716,10 +1716,13 @@ export const sendJoinRequest = async (req, res, next) => {
         // Hakem başvurusu: fiyat teklifi / mesaj / CV — sadece positions:['REFEREE'] ilanlarında anlamlı
         const { offerPrice, offerMessage, offerCvUrl } = req.body;
         if (existing?.status === 'REJECTED') {
-            // Reddedilen isteği yeniden PENDING yap
+            // Reddedilen isteği yeniden PENDING yap — createdAt de sıfırlanır, yoksa eski
+            // (reddedilen/geri çekilen) başvurunun tarihi kalır ve owner isteği dakikalar
+            // içinde onaylasa bile respondToJoin'deki "1 saatten eski mi" kontrolü bu eski
+            // tarihe bakıp yanlışlıkla "geç kabul" (joiner'a son onay sorusu) akışına sokar.
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId: req.userId } },
-                data: { status: 'PENDING', joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null },
+                data: { status: 'PENDING', joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, createdAt: new Date() },
             });
         } else {
             await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null } });
