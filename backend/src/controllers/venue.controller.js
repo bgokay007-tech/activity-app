@@ -1862,18 +1862,19 @@ export const placeOrder = async (req, res, next) => {
         });
         if (isBlocked) return res.status(403).json({ message: 'Bu tesisten sipariş veremezsiniz' });
 
-        // Sadece bu tesiste eşleşmiş (MATCHED) bir maçta yer alan kullanıcılar sipariş verebilir
+        // Sadece bu tesiste eşleşmiş (MATCHED) bir maçta yer alan kullanıcılar sipariş verebilir —
+        // maç saati henüz gelmemiş olsa bile (maç MATCHED olduğu andan itibaren) sipariş verilebilir.
         const venueMatches = await prisma.activityRequest.findMany({
             where: { venueId: id, status: 'MATCHED' },
-            select: { senderId: true, receiverId: true, participants: true, senderTeam: true },
+            select: { senderId: true, receiverId: true, participants: true, senderTeam: true, venueReservationId: true },
         });
-        const isMatchParticipant = venueMatches.some(m => {
+        const myMatch = venueMatches.find(m => {
             if (m.senderId === req.userId || m.receiverId === req.userId) return true;
             const parts = Array.isArray(m.participants) ? m.participants : [];
             const team  = Array.isArray(m.senderTeam)   ? m.senderTeam   : [];
             return parts.some(p => p?.id === req.userId) || team.some(p => p?.id === req.userId);
         });
-        if (!isMatchParticipant) return res.status(403).json({ message: 'Bu tesisten sipariş verebilmek için bu tesiste eşleşmiş bir maçınız olmalı.' });
+        if (!myMatch) return res.status(403).json({ message: 'Bu tesisten sipariş verebilmek için bu tesiste eşleşmiş bir maçınız olmalı.' });
 
         // Menu item fiyatlarını çek
         const menuItems = await prisma.venueMenuItem.findMany({
@@ -1885,6 +1886,38 @@ export const placeOrder = async (req, res, next) => {
             const mi = menuItems.find(m => m.id === i.menuItemId);
             return mi ? sum + mi.price * (i.quantity || 1) : sum;
         }, 0);
+
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+
+        // İşletme, bu kullanıcının rezervasyonu için zaten bir adisyon açtıysa (VenueBill),
+        // sipariş ayrı/bağlantısız bir kayıt olarak kalmasın — doğrudan aynı adisyona
+        // eklensin (işletmeci tek yerden takip etsin).
+        const existingBill = myMatch.venueReservationId
+            ? await prisma.venueBill.findUnique({ where: { reservationId: myMatch.venueReservationId } })
+            : null;
+
+        if (existingBill && existingBill.status === 'OPEN') {
+            for (const i of items) {
+                const mi = menuItems.find(m => m.id === i.menuItemId);
+                if (!mi) continue;
+                const qty = i.quantity || 1;
+                const existingItem = await prisma.venueBillItem.findFirst({ where: { billId: existingBill.id, menuItemId: mi.id } });
+                if (existingItem) {
+                    await prisma.venueBillItem.update({ where: { id: existingItem.id }, data: { quantity: existingItem.quantity + qty } });
+                } else {
+                    await prisma.venueBillItem.create({
+                        data: { billId: existingBill.id, menuItemId: mi.id, name: mi.name, unitPrice: mi.price, quantity: qty, note: notes || null },
+                    });
+                }
+            }
+            const updatedBill = await recalcBillTotal(existingBill.id);
+            await createNotification(venue.userId, 'VENUE_ORDER', '🛒 Adisyona Sipariş Eklendi',
+                `${user?.username} adisyona ürün ekledi. Yeni toplam: ${updatedBill.totalPrice}₺`,
+                { reservationId: myMatch.venueReservationId, venueId: id }
+            );
+            emitToUser(venue.userId, 'notification', {});
+            return res.status(201).json({ addedToBill: true, bill: updatedBill });
+        }
 
         const order = await prisma.venueOrder.create({
             data: {
@@ -1901,7 +1934,6 @@ export const placeOrder = async (req, res, next) => {
             include: { items: { include: { menuItem: true } } },
         });
 
-        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
         await createNotification(venue.userId, 'VENUE_ORDER', '🛒 Yeni Sipariş',
             `${user?.username} tesisinden sipariş verdi. Toplam: ${totalPrice}₺`,
             { orderId: order.id, venueId: id }
