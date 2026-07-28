@@ -110,10 +110,62 @@ async function getYesterdayMostWins(subCategory, city) {
     return { type: 'most_wins', userId, name: info.name, wins: info.count, date: start };
 }
 
+// Padel gibi çiftler branşlarında galibiyet tek oyuncuya değil kazanan İKİLİYE ait sayılır —
+// o maçtaki takım (sender+partner ya da opp1+opp2) birlikte "günün padelcıları" adayı olur.
+async function getYesterdayMostWinsTeam(subCategory, city) {
+    const { start, end } = dayRangeUTC(1);
+    const matches = await prisma.activityRequest.findMany({
+        where: {
+            subCategory,
+            matchType: 'DOUBLE',
+            status: 'COMPLETED',
+            scoreStatus: 'CONFIRMED',
+            matchDate: { gte: start, lt: end },
+            ...(city ? { location: { contains: city, mode: 'insensitive' } } : {}),
+        },
+        select: {
+            senderId: true, senderTeam: true, participants: true, score: true,
+            founderTeamName: true, opponentTeamName: true,
+            sender: { select: { id: true, username: true, fullName: true } },
+        },
+    });
+
+    const wins = {}; // teamKey -> { count, names, teamName }
+    for (const m of matches) {
+        const winnerSide = m.score?.winner;
+        if (winnerSide !== 'sender' && winnerSide !== 'opponent') continue;
+        const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
+        const parts = Array.isArray(m.participants) ? m.participants : [];
+
+        let teamIds, teamNames, teamName;
+        if (winnerSide === 'sender') {
+            const partner = senderTeamArr[0];
+            teamIds = [m.senderId, partner?.id].filter(Boolean);
+            teamNames = [m.sender?.fullName || m.sender?.username, partner?.fullName || partner?.username].filter(Boolean);
+            teamName = m.founderTeamName;
+        } else {
+            teamIds = [parts[0]?.id, parts[1]?.id].filter(Boolean);
+            teamNames = [parts[0]?.fullName || parts[0]?.username, parts[1]?.fullName || parts[1]?.username].filter(Boolean);
+            teamName = m.opponentTeamName;
+        }
+        if (teamNames.length < 2) continue; // takım eksikse (partner/rakip verisi yoksa) sayma
+
+        const key = teamIds.length === 2 ? teamIds.slice().sort().join('|') : teamNames.slice().sort().join('|');
+        wins[key] = wins[key] || { count: 0, names: teamNames, teamName };
+        wins[key].count++;
+    }
+
+    const top = Object.entries(wins).sort((a, b) => b[1].count - a[1].count)[0];
+    if (!top) return null;
+    const [, info] = top;
+    return { type: 'most_wins', name: info.teamName || info.names.join(' & '), wins: info.count, date: start };
+}
+
 export const getDailySpotlight = async (req, res, next) => {
     try {
         const { subCategory = 'tennis' } = req.query;
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true } });
+        const mostWins = subCategory === 'padel' ? getYesterdayMostWinsTeam : getYesterdayMostWins;
 
         const [internationalTournament, nationalTournament, localTournament] = await Promise.all([
             getYesterdayTournamentTop3(subCategory, 'ULUSLARARASI'),
@@ -122,11 +174,11 @@ export const getDailySpotlight = async (req, res, next) => {
         ]);
 
         // O katmanda dün biten bir turnuva yoksa, Yerel'deki gibi en çok galibiyet
-        // alan oyuncunun adı fallback olarak gösterilir — kart hiçbir zaman boş kalmaz.
+        // alan oyuncunun/takımın adı fallback olarak gösterilir — kart hiçbir zaman boş kalmaz.
         const [international, national, local] = await Promise.all([
-            internationalTournament ? Promise.resolve(internationalTournament) : getYesterdayMostWins(subCategory),
-            nationalTournament ? Promise.resolve(nationalTournament) : getYesterdayMostWins(subCategory),
-            localTournament ? Promise.resolve(localTournament) : getYesterdayMostWins(subCategory, me?.city),
+            internationalTournament ? Promise.resolve(internationalTournament) : mostWins(subCategory),
+            nationalTournament ? Promise.resolve(nationalTournament) : mostWins(subCategory),
+            localTournament ? Promise.resolve(localTournament) : mostWins(subCategory, me?.city),
         ]);
 
         res.json({

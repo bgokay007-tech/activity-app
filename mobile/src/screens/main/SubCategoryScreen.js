@@ -10739,7 +10739,7 @@ function RatingInfoModal({ visible, onClose, cfg }) {
     );
 }
 
-// ─── Günün Tenisçisi (Digimon kart) ────────────────────────────────────────────
+// ─── Günün Tenisçisi / Günün Padelcıları (Digimon kart) ────────────────────────
 
 function SpotlightTierRow({ label, entry }) {
     return (
@@ -10762,21 +10762,27 @@ function SpotlightTierRow({ label, entry }) {
     );
 }
 
-function TennisSpotlightModal({ visible, onClose, cfg }) {
+const SPOTLIGHT_CONFIG = {
+    tennis: { title: 'Günün Tenisçisi', emoji: '🎾', comingSoon: 'Çok yakında — güncel ATP/WTA verileri burada görünecek 🎾' },
+    padel:  { title: 'Günün Padelcıları', emoji: '🏓', comingSoon: 'Çok yakında — güncel profesyonel padel verileri burada görünecek 🏓' },
+};
+
+function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
     const insets = useSafeAreaInsets();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flipped, setFlipped] = useState(false);
+    const meta = SPOTLIGHT_CONFIG[sub] || SPOTLIGHT_CONFIG.tennis;
 
     useEffect(() => {
         if (!visible) return;
         setFlipped(false);
         setLoading(true);
-        api.get('/spotlight/daily', { params: { subCategory: 'tennis' } })
+        api.get('/spotlight/daily', { params: { subCategory: sub } })
             .then(res => setData(res.data))
             .catch(() => setData(null))
             .finally(() => setLoading(false));
-    }, [visible]);
+    }, [visible, sub]);
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -10787,15 +10793,15 @@ function TennisSpotlightModal({ visible, onClose, cfg }) {
                             <ActivityIndicator color={cfg.color} style={{ marginTop:60 }} />
                         ) : !flipped ? (
                             <>
-                                <Text style={spot.cardEmoji}>🎾</Text>
-                                <Text style={[spot.cardTitle, { color: cfg.color }]}>Günün Tenisçisi</Text>
+                                <Text style={spot.cardEmoji}>{meta.emoji}</Text>
+                                <Text style={[spot.cardTitle, { color: cfg.color }]}>{meta.title}</Text>
                                 {data?.pro?.available ? (
                                     <>
                                         <Text style={spot.proName}>{data.pro.name}</Text>
                                         <Text style={spot.proAchievements}>{data.pro.achievements}</Text>
                                     </>
                                 ) : (
-                                    <Text style={spot.comingSoon}>Çok yakında — güncel ATP/WTA verileri burada görünecek 🎾</Text>
+                                    <Text style={spot.comingSoon}>{meta.comingSoon}</Text>
                                 )}
                             </>
                         ) : (
@@ -11052,18 +11058,19 @@ export default function SubCategoryScreen({ route, navigation }) {
         navigation.setParams({ openCreateRival: undefined });
     }, [openCreateRival]);
 
-    // Tenis sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi" kartını otomatik göster
+    // Tenis/Padel sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi/Padelcıları" kartını otomatik göster
     const [showSpotlight, setShowSpotlight] = useState(false);
     const [showRatingInfo, setShowRatingInfo] = useState(false);
     useEffect(() => {
-        if (sub !== 'tennis') return;
+        if (sub !== 'tennis' && sub !== 'padel') return;
         const today = new Date().toISOString().slice(0, 10);
-        AsyncStorage.getItem('tennis_spotlight_shown').then(raw => {
+        const storageKey = `${sub}_spotlight_shown`;
+        AsyncStorage.getItem(storageKey).then(raw => {
             let { date, count } = raw ? JSON.parse(raw) : { date: today, count: 0 };
             if (date !== today) { date = today; count = 0; }
             if (count < 3) {
                 setShowSpotlight(true);
-                AsyncStorage.setItem('tennis_spotlight_shown', JSON.stringify({ date, count: count + 1 }));
+                AsyncStorage.setItem(storageKey, JSON.stringify({ date, count: count + 1 }));
             }
         });
     }, [sub]);
@@ -16152,7 +16159,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </View>
             </Modal>
         </View>
-        <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} />
+        <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} sub={sub} />
         <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} />
         </>
     );
