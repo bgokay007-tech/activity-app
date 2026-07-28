@@ -1822,7 +1822,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <TouchableOpacity onPress={() => setRefereeApplyVisible(false)}><Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text></TouchableOpacity>
                         </View>
                         <Text style={s.fieldLabel}>{t.refereePaymentLabel}</Text>
-                        <TextInput style={s.fieldInput} value={refereeOfferPrice} onChangeText={setRefereeOfferPrice}
+                        <TextInput style={s.fieldInput} value={refereeOfferPrice} onChangeText={v => setRefereeOfferPrice(v.replace(/[^0-9]/g, ''))}
                             placeholder="500" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                         <Text style={s.fieldLabel}>{t.messageFieldLabel}</Text>
                         <TextInput style={[s.fieldInput, { height:70, textAlignVertical:'top' }]}
@@ -2426,7 +2426,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             <TouchableOpacity onPress={() => setRefereeApplyVisible(false)}><Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text></TouchableOpacity>
                         </View>
                         <Text style={s.fieldLabel}>{t.refereePaymentLabel}</Text>
-                        <TextInput style={s.fieldInput} value={refereeOfferPrice} onChangeText={setRefereeOfferPrice}
+                        <TextInput style={s.fieldInput} value={refereeOfferPrice} onChangeText={v => setRefereeOfferPrice(v.replace(/[^0-9]/g, ''))}
                             placeholder="500" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                         <Text style={s.fieldLabel}>{t.messageFieldLabel}</Text>
                         <TextInput style={[s.fieldInput, { height:70, textAlignVertical:'top' }]}
@@ -5548,7 +5548,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtReserved: !!editItem.isCourtReserved,
                 courtMutual: !editItem.courtName && !editItem.venueId,
                 refereeRequested: !!editItem.refereeRequested,
-                refereePayment: editItem.refereePayment || '',
+                // Kayıtlı değer para birimi simgesiyle gelebilir (ör. "1000₺") — ham
+                // sayısal alana geri konurken temizlenmezse kaydedince ikinci bir simge
+                // eklenip "1000₺₺" oluşuyordu.
+                refereePayment: (editItem.refereePayment || '').toString().replace(/[^0-9]/g, ''),
                 participantsCanInvite: !!editItem.participantsCanInvite,
             };
         }
@@ -7142,7 +7145,7 @@ function CreateRefereeMatchModal({ visible, onClose, category, sub, onCreated })
                 matchTime: f.matchTime || undefined,
                 location: f.location || undefined,
                 positions: [f.mode],
-                refereePayment: f.payment || undefined,
+                refereePayment: f.payment ? `${f.payment}₺` : undefined,
             });
             onCreated(); onClose();
         } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.sendFailed); }
@@ -7180,8 +7183,8 @@ function CreateRefereeMatchModal({ visible, onClose, category, sub, onCreated })
                             <TextInput style={s.fieldInput} value={f.location} onChangeText={v=>set('location',v)}
                                 placeholder="İstanbul / Kadıköy" placeholderTextColor={colors.textMuted} />
                             <Text style={s.fieldLabel}>{t.refereePaymentLabel}</Text>
-                            <TextInput style={s.fieldInput} value={f.payment} onChangeText={v=>set('payment',v)}
-                                placeholder="500₺" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                            <TextInput style={s.fieldInput} value={f.payment} onChangeText={v=>set('payment', v.replace(/[^0-9]/g, ''))}
+                                placeholder="500" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                             <Text style={s.fieldLabel}>{t.messageFieldLabel}</Text>
                             <TextInput style={[s.fieldInput,{height:80,textAlignVertical:'top'}]}
                                 value={f.message} onChangeText={v=>set('message',v)}
