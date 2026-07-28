@@ -8,6 +8,8 @@ import { setLang } from '../../store/slices/langSlice';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import RainbowLogo from '../../components/RainbowLogo';
+import LanguagePickerModal from '../../components/LanguagePickerModal';
+import { getLanguageLabel } from '../../utils/languages';
 import useT from '../../hooks/useT';
 
 const SAVED_EMAIL_KEY = 'activity_saved_email';
@@ -22,6 +24,7 @@ export default function LoginScreen({ navigation }) {
     const [loading, setLoading] = useState(false);
     const [remember, setRemember] = useState(false);
     const [showPass, setShowPass] = useState(false);
+    const [showLangPicker, setShowLangPicker] = useState(false);
 
     useEffect(() => {
         Promise.all([
@@ -58,22 +61,25 @@ export default function LoginScreen({ navigation }) {
     return (
         <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             {/* Language selector — sabit sağ üst köşe */}
-            <View style={{ position: 'absolute', top: insets.top + 12, right: 16, zIndex: 10, flexDirection: 'row', gap: 3 }}>
-                {['tr', 'en'].map(l => (
-                    <TouchableOpacity
-                        key={l}
-                        onPress={() => dispatch(setLang(l))}
-                        style={{
-                            borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3,
-                            backgroundColor: lang === l ? colors.purple + '30' : colors.surface2,
-                        }}
-                    >
-                        <Text style={{ color: lang === l ? '#fff' : colors.textMuted, fontSize: 12, fontWeight: '800' }}>
-                            {l === 'tr' ? '🇹🇷 TR' : '🇬🇧 EN'}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+            <TouchableOpacity
+                onPress={() => setShowLangPicker(true)}
+                style={{
+                    position: 'absolute', top: insets.top + 12, right: 16, zIndex: 10,
+                    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+                    backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border,
+                }}
+            >
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '800' }}>
+                    🌐 {getLanguageLabel(lang)}
+                </Text>
+            </TouchableOpacity>
+
+            <LanguagePickerModal
+                visible={showLangPicker}
+                onClose={() => setShowLangPicker(false)}
+                currentValue={lang}
+                onSelect={l => dispatch(setLang(l))}
+            />
 
             <View style={s.inner}>
                 <RainbowLogo style={{ fontSize: 36, marginBottom: 4 }} />
