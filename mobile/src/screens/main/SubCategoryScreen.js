@@ -1828,50 +1828,52 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         {/* Oyuncu Davet Et — arama modali */}
         <Modal visible={inviteModalVisible} animationType="slide" transparent onRequestClose={() => setInviteModalVisible(false)}>
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? noEmojiStr(t.inviteRefereeBtn) : t.inviteBtn}</Text>
-                        <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); setInviteForReferee(false); }}>
-                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <TextInput
-                        style={[s.fieldInput, { fontSize: moderateScale(14), borderRadius: moderateScale(12), paddingHorizontal: moderateScale(14), paddingVertical: moderateScale(12) }]}
-                        value={inviteQuery}
-                        onChangeText={setInviteQuery}
-                        placeholder={t.inviteSearchPh}
-                        placeholderTextColor={colors.textMuted}
-                        autoFocus
-                    />
-                    {inviteSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
-                        {inviteResults.map(u => (
-                            <View key={u.id} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
-                                <Avatar name={u.username} avatar={u.avatar} size={moderateScale(36)} color={cfg.color} />
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:moderateScale(13) }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
-                                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
-                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
-                                    </Text>
+                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? noEmojiStr(t.inviteRefereeBtn) : t.inviteBtn}</Text>
+                            <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); setInviteForReferee(false); }}>
+                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <TextInput
+                            style={[s.fieldInput, { fontSize: moderateScale(14), borderRadius: moderateScale(12), paddingHorizontal: moderateScale(14), paddingVertical: moderateScale(12) }]}
+                            value={inviteQuery}
+                            onChangeText={setInviteQuery}
+                            placeholder={t.inviteSearchPh}
+                            placeholderTextColor={colors.textMuted}
+                            autoFocus
+                        />
+                        {inviteSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                        <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                            {inviteResults.map(u => (
+                                <View key={u.id} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                    <Avatar name={u.username} avatar={u.avatar} size={moderateScale(36)} color={cfg.color} />
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color:'#fff', fontWeight:'700', fontSize:moderateScale(13) }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
+                                            {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                        </Text>
+                                    </View>
+                                    {invitedUserIds.has(u.id) ? (
+                                        <Text style={{ color:'#4ade80', fontSize:moderateScale(12), fontWeight:'700' }}>✓ Davet Gönderildi</Text>
+                                    ) : (
+                                        <TouchableOpacity
+                                            style={[s.joinBtn, { paddingHorizontal:moderateScale(14), paddingVertical:moderateScale(7), borderRadius: moderateScale(10) }, invitingUserId === u.id && { opacity:0.6 }]}
+                                            onPress={() => handleInvite(u)}
+                                            disabled={invitingUserId === u.id}
+                                        >
+                                            <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{invitingUserId === u.id ? '...' : t.inviteSendBtn}</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
-                                {invitedUserIds.has(u.id) ? (
-                                    <Text style={{ color:'#4ade80', fontSize:moderateScale(12), fontWeight:'700' }}>✓ Davet Gönderildi</Text>
-                                ) : (
-                                    <TouchableOpacity
-                                        style={[s.joinBtn, { paddingHorizontal:moderateScale(14), paddingVertical:moderateScale(7), borderRadius: moderateScale(10) }, invitingUserId === u.id && { opacity:0.6 }]}
-                                        onPress={() => handleInvite(u)}
-                                        disabled={invitingUserId === u.id}
-                                    >
-                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{invitingUserId === u.id ? '...' : t.inviteSendBtn}</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        ))}
-                        {!inviteSearching && inviteQuery.trim().length >= 2 && inviteResults.length === 0 && (
-                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:moderateScale(13) }}>{t.inviteNoResults}</Text>
-                        )}
-                    </ScrollView>
-                </View>
+                            ))}
+                            {!inviteSearching && inviteQuery.trim().length >= 2 && inviteResults.length === 0 && (
+                                <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:moderateScale(13) }}>{t.inviteNoResults}</Text>
+                            )}
+                        </ScrollView>
+                    </View>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
 
@@ -9509,39 +9511,41 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         {/* Çiftler Rekabetçi — partner arama modali */}
         <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowPartnerSearch(false)}>
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.tournPartnerChoose || 'Partner Seç'}</Text>
-                        <TouchableOpacity onPress={() => { setShowPartnerSearch(false); setPartnerQuery(''); setPartnerResults([]); }}>
-                            <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <TextInput
-                        style={s.fieldInput}
-                        value={partnerQuery}
-                        onChangeText={setPartnerQuery}
-                        placeholder={t.inviteSearchPh}
-                        placeholderTextColor={colors.textMuted}
-                        autoFocus
-                    />
-                    {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
-                        {partnerResults.map(u => (
-                            <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
-                                <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
-                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
-                                    </Text>
-                                </View>
+                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.tournPartnerChoose || 'Partner Seç'}</Text>
+                            <TouchableOpacity onPress={() => { setShowPartnerSearch(false); setPartnerQuery(''); setPartnerResults([]); }}>
+                                <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
                             </TouchableOpacity>
-                        ))}
-                        {!partnerSearching && partnerQuery.trim().length >= 2 && partnerResults.length === 0 && (
-                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
-                        )}
-                    </ScrollView>
-                </View>
+                        </View>
+                        <TextInput
+                            style={s.fieldInput}
+                            value={partnerQuery}
+                            onChangeText={setPartnerQuery}
+                            placeholder={t.inviteSearchPh}
+                            placeholderTextColor={colors.textMuted}
+                            autoFocus
+                        />
+                        {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                        <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                            {partnerResults.map(u => (
+                                <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                    <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                            {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                            {!partnerSearching && partnerQuery.trim().length >= 2 && partnerResults.length === 0 && (
+                                <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
+                            )}
+                        </ScrollView>
+                    </View>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
         </>
