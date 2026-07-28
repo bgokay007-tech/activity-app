@@ -5,6 +5,21 @@ const RSS_FEEDS_EN = {
     basketball: 'https://feeds.bbci.co.uk/sport/basketball/rss.xml',
     padel:      'https://news.google.com/rss/search?q=padel+sport&hl=en-US&gl=US&ceid=US:en',
     volleyball: 'https://news.google.com/rss/search?q=volleyball&hl=en-US&gl=US&ceid=US:en',
+    // Basitleştirilmiş sekme setiyle açılan yeni dallar — dedike bir spor feed'i yok,
+    // Google News arama sorgusu kullanılıyor (padel/volleyball ile aynı desen).
+    airsoft:        'https://news.google.com/rss/search?q=airsoft&hl=en-US&gl=US&ceid=US:en',
+    archery:        'https://news.google.com/rss/search?q=archery&hl=en-US&gl=US&ceid=US:en',
+    camping:        'https://news.google.com/rss/search?q=camping&hl=en-US&gl=US&ceid=US:en',
+    climbing:       'https://news.google.com/rss/search?q=rock+climbing&hl=en-US&gl=US&ceid=US:en',
+    equestrian:     'https://news.google.com/rss/search?q=equestrian+horse+riding&hl=en-US&gl=US&ceid=US:en',
+    extreme_sports: 'https://news.google.com/rss/search?q=extreme+sports&hl=en-US&gl=US&ceid=US:en',
+    fitness_gym:    'https://news.google.com/rss/search?q=fitness+gym&hl=en-US&gl=US&ceid=US:en',
+    foot_tennis:    'https://news.google.com/rss/search?q=foot+tennis&hl=en-US&gl=US&ceid=US:en',
+    paintball:      'https://news.google.com/rss/search?q=paintball&hl=en-US&gl=US&ceid=US:en',
+    sup_kano:       'https://news.google.com/rss/search?q=stand+up+paddle+kayak+canoe&hl=en-US&gl=US&ceid=US:en',
+    running:        'https://news.google.com/rss/search?q=running+marathon&hl=en-US&gl=US&ceid=US:en',
+    walking:        'https://news.google.com/rss/search?q=walking+fitness&hl=en-US&gl=US&ceid=US:en',
+    hiking:         'https://news.google.com/rss/search?q=hiking+trail&hl=en-US&gl=US&ceid=US:en',
 };
 
 // Turkish Google News RSS feeds
@@ -14,6 +29,19 @@ const RSS_FEEDS_TR = {
     basketball: 'https://news.google.com/rss/search?q=basketbol+spor&hl=tr&gl=TR&ceid=TR:tr',
     padel:      'https://news.google.com/rss/search?q=padel+tenis&hl=tr&gl=TR&ceid=TR:tr',
     volleyball: 'https://news.google.com/rss/search?q=voleybol+spor&hl=tr&gl=TR&ceid=TR:tr',
+    airsoft:        'https://news.google.com/rss/search?q=airsoft&hl=tr&gl=TR&ceid=TR:tr',
+    archery:        'https://news.google.com/rss/search?q=okçuluk+spor&hl=tr&gl=TR&ceid=TR:tr',
+    camping:        'https://news.google.com/rss/search?q=kamp&hl=tr&gl=TR&ceid=TR:tr',
+    climbing:       'https://news.google.com/rss/search?q=tırmanış+spor&hl=tr&gl=TR&ceid=TR:tr',
+    equestrian:     'https://news.google.com/rss/search?q=binicilik+at+sporu&hl=tr&gl=TR&ceid=TR:tr',
+    extreme_sports: 'https://news.google.com/rss/search?q=ekstrem+spor&hl=tr&gl=TR&ceid=TR:tr',
+    fitness_gym:    'https://news.google.com/rss/search?q=fitness+spor+salonu&hl=tr&gl=TR&ceid=TR:tr',
+    foot_tennis:    'https://news.google.com/rss/search?q=ayak+tenisi&hl=tr&gl=TR&ceid=TR:tr',
+    paintball:      'https://news.google.com/rss/search?q=paintball&hl=tr&gl=TR&ceid=TR:tr',
+    sup_kano:       'https://news.google.com/rss/search?q=sup+kano+kürek&hl=tr&gl=TR&ceid=TR:tr',
+    running:        'https://news.google.com/rss/search?q=koşu+maraton&hl=tr&gl=TR&ceid=TR:tr',
+    walking:        'https://news.google.com/rss/search?q=yürüyüş+spor&hl=tr&gl=TR&ceid=TR:tr',
+    hiking:         'https://news.google.com/rss/search?q=doğa+yürüyüşü&hl=tr&gl=TR&ceid=TR:tr',
 };
 
 const WELLNESS_QUERIES = {

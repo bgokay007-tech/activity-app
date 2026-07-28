@@ -7,7 +7,11 @@ import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak', 'okey', 'chess', 'tavla', 'friend_finding']);
+const ENABLED_SUBS = new Set([
+    'tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak', 'okey', 'chess', 'tavla', 'friend_finding',
+    // Basitleştirilmiş sekme setiyle (Etkinlik/Destek/Ekipman/Medya/Yazılar/Bilet Al/Haberler/Arşiv) açılan yeni dallar
+    'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
+]);
 
 // Bu dallar "ilan" (rakip bul) mantığına değil kendi özel ekranlarına gider —
 // SubCategory yerine bu ekran adına yönlendirilir, ilan sayacı da gösterilmez.

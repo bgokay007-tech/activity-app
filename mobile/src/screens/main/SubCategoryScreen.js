@@ -89,6 +89,19 @@ const SUB_CONFIG = {
     football:   { name:'Football',   nameTR:'Futbol',     emoji:'⚽', color: colors.green   || '#16a34a' },
     basketball: { name:'Basketball', nameTR:'Basketbol',  emoji:'🏀', color:'#f97316' },
     volleyball: { name:'Volleyball', nameTR:'Voleybol',   emoji:'🏐', color:'#a855f7' },
+    airsoft:        { name:'Airsoft',        nameTR:'Airsoft',         emoji:'🪖', color:'#65a30d' },
+    archery:        { name:'Archery',        nameTR:'Okçuluk',         emoji:'🏹', color:'#b45309' },
+    camping:        { name:'Camping',        nameTR:'Kamp',            emoji:'🏕️', color:'#059669' },
+    climbing:       { name:'Climbing',       nameTR:'Tırmanış',        emoji:'🧗', color:'#dc2626' },
+    equestrian:     { name:'Equestrian',     nameTR:'Binicilik',       emoji:'🐎', color:'#92400e' },
+    extreme_sports: { name:'Extreme Sports', nameTR:'Ekstrem Sporlar', emoji:'🪂', color:'#e11d48' },
+    fitness_gym:    { name:'Fitness & Gym',  nameTR:'Fitness & Spor Salonu', emoji:'🏋️', color:'#f97316' },
+    foot_tennis:    { name:'Foot Tennis',    nameTR:'Ayak Tenisi',     emoji:'🦶', color:'#0891b2' },
+    paintball:      { name:'Paintball',      nameTR:'Paintball',       emoji:'🔫', color:'#7c3aed' },
+    sup_kano:       { name:'SUP & Canoe',    nameTR:'SUP & Kano',      emoji:'🛶', color:'#0284c7' },
+    running:        { name:'Running',        nameTR:'Koşu',            emoji:'🏃', color:'#16a34a' },
+    walking:        { name:'Walking',        nameTR:'Yürüyüş',         emoji:'🚶', color:'#0d9488' },
+    hiking:         { name:'Hiking',         nameTR:'Doğa Yürüyüşü',   emoji:'🥾', color:'#65a30d' },
     default:    { name:'Sport',      nameTR:'Spor',       emoji:'🏅', color: colors.purple },
 };
 
@@ -96,9 +109,16 @@ function getConfig(sub) {
     return SUB_CONFIG[sub] || { ...SUB_CONFIG.default, name: sub.charAt(0).toUpperCase()+sub.slice(1) };
 }
 
+// Basitleştirilmiş sekme setiyle açılan yeni dallar — rekabetçi maç/turnuva/hakem
+// yapısı yok, sadece Etkinlik (rivals), Destek (coaches), Ekipman, Medya, Yazılar,
+// Bilet Al, Haberler, Arşiv.
+const SIMPLE_TAB_SUBS = new Set(['airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking']);
+
 function getTabs(sub, category) {
     if (category === 'ARTS')
         return ['rivals', 'coaches', 'media', 'archive'];
+    if (SIMPLE_TAB_SUBS.has(sub))
+        return ['rivals', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (sub === 'football')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', 'referee', 'media'];
     if (sub === 'volleyball')
@@ -1441,11 +1461,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 {item.refereeUser ? (
                                     <>
                                         <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(24)} color="#f59e0b" />
-                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700' }}>{t.refereeSlotLabel}: {item.refereeUser.fullName || item.refereeUser.username} ✓</Text>
+                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeSlotLabel}: {item.refereeUser.fullName || item.refereeUser.username} ✓</Text>
                                     </>
                                 ) : (
                                     <>
-                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }}>
+                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                             {t.refereeSlotLabel}: {t.refereeSlotSearching}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}
                                         </Text>
                                         {canInviteReferee && refereeAdId && (
@@ -2144,12 +2164,12 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 </View>
                 {Array.isArray(item.positions) && (item.positions.includes('REFEREE') || item.positions.includes('REFEREE_OFFER')) && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
-                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
-                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>
+                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', flexShrink:1 }}>
+                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {item.positions.includes('REFEREE_OFFER') ? t.refereeOfferingLabel : t.refereeSeekingLabel}
                             </Text>
                         </View>
-                        {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>{item.refereePayment}</Text>}
+                        {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.refereePayment}</Text>}
                     </View>
                 )}
                 {item.refereeRequested && (
@@ -3200,7 +3220,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 </TouchableOpacity>
             )}
             {match.refereeRequested && (match.refereeUser || !matchEnded) && (
-                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }}>
+                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓` : t.refereeOnlyMissingLabel}
                 </Text>
             )}
@@ -3279,7 +3299,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             </TouchableOpacity>
                         )}
                         {match.courtFeePerPerson > 0 && (
-                            <Text style={{ color:'#4ade80', fontSize:13, marginTop:4 }}>
+                            <Text style={{ color:'#4ade80', fontSize:13, marginTop:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 💰 {match.refereeFeePerPerson > 0
                                     ? t.refereeFeeTotalLabel(match.courtFeePerPerson, match.refereeFeePerPerson, match.courtFeePerPerson + match.refereeFeePerPerson)
                                     : `${match.courtFeePerPerson}₺${match.refereeRequested ? ` +${t.refereeFeeHint}` : ''}`} / {t.perPerson}
@@ -3291,7 +3311,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             </TouchableOpacity>
                         )}
                         {match.refereeRequested && (match.refereeUser || !matchEnded) && (
-                            <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', marginTop:6 }}>
+                            <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', marginTop:6 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓` : t.refereeOnlyMissingLabel}
                             </Text>
                         )}
@@ -5879,7 +5899,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
             await api.patch(`/rivals/${editItem.id}`, {
                 message: f.message || null,
-                ...(category === 'ARTS' && { ticketUrl: f.ticketUrl || null }),
+                ...((category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) && { ticketUrl: f.ticketUrl || null }),
                 matchDate: f.flexibleSchedule ? null : (matchDateStr || null),
                 matchTime: f.flexibleSchedule ? null : (f.matchTime || null),
                 duration: f.flexibleSchedule ? null : (f.duration || null),
@@ -5996,7 +6016,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 isCourtReserved: f.courtReserved,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? parseInt(f.courtFeePerPerson, 10) : undefined,
                 message:   f.message || undefined,
-                ticketUrl: category === 'ARTS' ? (f.ticketUrl || undefined) : undefined,
+                ticketUrl: (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) ? (f.ticketUrl || undefined) : undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
                 genderReq: (sub === 'tennis' || sub === 'padel') ? f.genderReq : undefined,
@@ -6712,7 +6732,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
-                            {!isMatchedEdit && category === 'ARTS' && (
+                            {!isMatchedEdit && (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) && (
                                 <>
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
                                     <TextInput style={s.fieldInput}
@@ -10986,6 +11006,10 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (tab === 'rivals')  return t.eventsTab  || 'Etkinlikler';
             if (tab === 'coaches') return t.coursesTab || 'Kurslar';
         }
+        if (SIMPLE_TAB_SUBS.has(sub)) {
+            if (tab === 'rivals') return t.eventsTab || 'Etkinlikler';
+            if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : `${sportDisplayName} Equipment`;
+        }
         return t[tab + 'Tab'];
     };
 
@@ -13048,11 +13072,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <>
                             {/* İlan oluştur + Kort Rezervasyonu + bildirim butonu yan yana */}
                             <CityAlertRow tab="rivals" dateFilter>
-                                <TouchableOpacity style={s.courtResBtn} onPress={requireActivityThenVenueSearch} activeOpacity={0.8}>
-                                    <Text style={s.courtResBtnText}>Kort Rez.</Text>
-                                </TouchableOpacity>
+                                {!SIMPLE_TAB_SUBS.has(sub) && (
+                                    <TouchableOpacity style={s.courtResBtn} onPress={requireActivityThenVenueSearch} activeOpacity={0.8}>
+                                        <Text style={s.courtResBtnText}>Kort Rez.</Text>
+                                    </TouchableOpacity>
+                                )}
                                 <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={requireActivityThenCreate}>
-                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{category === 'ARTS' ? (t.createEventBtn || '📅 Etkinlik Oluştur') : t.createAdBtn}</Text>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub) ? (t.createEventBtn || '📅 Etkinlik Oluştur') : t.createAdBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
 
