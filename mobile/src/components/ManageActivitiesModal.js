@@ -19,6 +19,7 @@ const ENABLED_SUBS = new Set([
     'fps', 'rpg', 'strategy', 'sports_games', 'moba', 'battle_royale', 'simulation', 'puzzle', 'racing', 'card_games', 'okey', 'batak',
     // Basitleştirilmiş sekme setiyle açılan yeni dallar
     'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
+    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting',
 ]);
 
 // Puanlı (bahisli) oyunlar — geçmiş maç sayısına bakılmaksızın tamamen

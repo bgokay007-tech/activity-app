@@ -112,7 +112,10 @@ function getConfig(sub) {
 // Basitleştirilmiş sekme setiyle açılan yeni dallar — rekabetçi maç/turnuva/hakem
 // yapısı yok, sadece Etkinlik (rivals), Destek (coaches), Ekipman, Medya, Yazılar,
 // Bilet Al, Haberler, Arşiv.
-const SIMPLE_TAB_SUBS = new Set(['airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking']);
+const SIMPLE_TAB_SUBS = new Set([
+    'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
+    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting',
+]);
 
 function getTabs(sub, category) {
     if (category === 'ARTS')
