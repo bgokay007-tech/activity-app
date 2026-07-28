@@ -8,6 +8,7 @@ import api from '../services/api';
 import colors from '../theme/colors';
 import AssessmentModal from './AssessmentModal';
 import FriendFindingSurveyModal from './FriendFindingSurveyModal';
+import { getSubCategoryLabel } from '../utils/subCategoryLabels';
 import useT from '../hooks/useT';
 
 const ENABLED_SUBS = new Set([
@@ -188,7 +189,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                         <View key={sub.id} style={[s.subRow, !enabled && { opacity: 0.5 }]}>
                                             <Text style={s.subEmoji}>{sub.emoji || '🏅'}</Text>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={s.subName}>{sub.label || sub.id}</Text>
+                                                <Text style={s.subName}>{getSubCategoryLabel(sub.id, lang)}</Text>
                                                 {existing?.assessmentCompleted && (
                                                     <Text style={[s.subRating, { color: activeColor }]}>
                                                         {Number(existing.skillRating).toFixed(2)} ★
