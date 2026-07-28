@@ -40,6 +40,7 @@ import concertRoutes from './routes/concert.routes.js';
 import movieRoutes from './routes/movie.routes.js';
 import theaterRoutes from './routes/theater.routes.js';
 import sportsTicketRoutes from './routes/sportsTicket.routes.js';
+import trailRoutes from './routes/trail.routes.js';
 
 const app = express();
 
@@ -96,6 +97,7 @@ app.use('/api/concerts', concertRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/theater', theaterRoutes);
 app.use('/api/sports-tickets', sportsTicketRoutes);
+app.use('/api/trails', trailRoutes);
 app.use('/share', shareRoutes);
 
 app.get('/health', (req, res) => {

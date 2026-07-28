@@ -144,6 +144,9 @@ model User {
   venueReviews          VenueReview[]
   courtRatings          CourtRating[]
   reviewAppeals         ReviewAppeal[]
+  trails                Trail[]         @relation("TrailCreator")
+  trailReviews          TrailReview[]   @relation("TrailReviewUser")
+  trailComments         TrailComment[]  @relation("TrailCommentUser")
 
   // Arkadaş Bulma (konum bazlı eşleştirme)
   lat                  Float?
@@ -1035,6 +1038,64 @@ model CourtRating {
   user  User  @relation(fields: [userId],  references: [id], onDelete: Cascade)
 
   @@unique([userId, courtId])
+}
+
+// Wikiloc tarzı GPS rota paylaşımı (şu an sadece "hiking" dalı için) —
+// kullanıcılar kendi yürüdükleri güzergahı kaydedip paylaşabilir (source
+// USER), admin de dış kaynaklardan (GPX vb.) topladığı rotaları "onaylı"
+// olarak ekleyebilir (source CURATED, verified true).
+model Trail {
+  id            String   @id @default(uuid())
+  creatorId     String
+  subCategory   String   // 'hiking' — sabit kodlanmadı, ileride diğer dallara açılabilir
+  title         String
+  description   String?
+  city          String?
+  district      String?
+  distanceKm    Float
+  elevationGain Float?
+  durationMin   Int?
+  difficulty    String   @default("MEDIUM") // EASY | MEDIUM | HARD
+  path          Json                        // [{lat,lng,ele?,t?}, ...] GPS iz noktaları
+  startLat      Float?
+  startLng      Float?
+  images        Json     @default("[]")     // Cloudinary URL dizisi
+  source        String   @default("USER")   // USER | CURATED
+  verified      Boolean  @default(false)    // CURATED ise otomatik true — "Onaylı" rozeti
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  creator  User            @relation("TrailCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  reviews  TrailReview[]
+  comments TrailComment[]
+
+  @@index([subCategory, city])
+}
+
+model TrailReview {
+  id        String   @id @default(uuid())
+  trailId   String
+  userId    String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trail Trail @relation(fields: [trailId], references: [id], onDelete: Cascade)
+  user  User  @relation("TrailReviewUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trailId])
+}
+
+model TrailComment {
+  id        String   @id @default(uuid())
+  trailId   String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  trail Trail @relation(fields: [trailId], references: [id], onDelete: Cascade)
+  user  User  @relation("TrailCommentUser", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ARKADAŞLIK

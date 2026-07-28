@@ -24,6 +24,7 @@ import CalendarPickerModal from '../../components/CalendarPickerModal';
 import DateRangePickerModal from '../../components/DateRangePickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
 import PeerReviewModal from '../../components/PeerReviewModal';
+import TrailsTab from './TrailsTab';
 import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 
@@ -120,6 +121,10 @@ const SIMPLE_TAB_SUBS = new Set([
 function getTabs(sub, category) {
     if (category === 'ARTS')
         return ['rivals', 'coaches', 'media', 'archive'];
+    // Doğa Yürüyüşü: Wikiloc tarzı GPS rota paylaşımı — "Etkinlik"in hemen
+    // sağında ayrı bir "Rotalar" sekmesi.
+    if (sub === 'hiking')
+        return ['rivals', 'routes', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (SIMPLE_TAB_SUBS.has(sub))
         return ['rivals', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (sub === 'football')
@@ -11012,10 +11017,11 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (tab === 'rivals')  return t.eventsTab  || 'Etkinlikler';
             if (tab === 'coaches') return t.coursesTab || 'Kurslar';
         }
-        if (SIMPLE_TAB_SUBS.has(sub)) {
+        if (SIMPLE_TAB_SUBS.has(sub) || sub === 'hiking') {
             if (tab === 'rivals') return t.eventsTab || 'Etkinlikler';
             if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : `${sportDisplayName} Equipment`;
         }
+        if (tab === 'routes') return t.routesTab || (lang === 'tr' ? 'Rotalar' : 'Trails');
         return t[tab + 'Tab'];
     };
 
@@ -11121,6 +11127,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
     const [news, setNews] = useState([]);
     const [loadingNews, setLoadingNews] = useState(false);
+    const [trails, setTrails] = useState([]);
+    const [loadingTrails, setLoadingTrails] = useState(false);
+    const [trailsLoaded, setTrailsLoaded] = useState(false);
     const [sportsTickets, setSportsTickets] = useState([]);
     const [loadingTickets, setLoadingTickets] = useState(false);
     const [ticketsLoaded, setTicketsLoaded] = useState(false);
@@ -11997,6 +12006,19 @@ export default function SubCategoryScreen({ route, navigation }) {
     useEffect(() => {
         if (activeTab === 'news') loadNews();
     }, [activeTab, lang]);
+
+    const loadTrails = useCallback(async () => {
+        setLoadingTrails(true);
+        try {
+            const { data } = await api.get('/trails', { params: { subCategory: sub } });
+            setTrails(Array.isArray(data) ? data : []);
+        } catch { setTrails([]); }
+        finally { setLoadingTrails(false); setTrailsLoaded(true); }
+    }, [sub]);
+
+    useEffect(() => {
+        if (activeTab === 'routes' && !trailsLoaded) loadTrails();
+    }, [activeTab, trailsLoaded, loadTrails]);
 
     const fetchVenues = async (city, name) => {
         setLoadingVenues(true);
@@ -15200,6 +15222,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </>
                         );
                     })()}
+
+                    {/* ── ROTALAR (Doğa Yürüyüşü GPS rotaları) ── */}
+                    {activeTab === 'routes' && (
+                        <TrailsTab
+                            trails={trails}
+                            loading={loadingTrails}
+                            onRefresh={loadTrails}
+                            myId={myId}
+                            myIsAdmin={myIsAdmin}
+                            navigation={navigation}
+                        />
+                    )}
 
                     {/* ── NEWS ── */}
                     {activeTab === 'news' && (

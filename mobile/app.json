@@ -25,7 +25,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.activity.app",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": ["audio", "location"]
       }
     },
     "android": {
@@ -35,6 +35,13 @@
       },
       "package": "com.activity.app",
       "softwareKeyboardLayoutMode": "pan",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ],
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBPx1coqo46Ge1eS2b4rZ_UpCAoTcQC_KM"
@@ -57,8 +64,9 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Yakınındaki rakip ilanlarını bulabilmek için konumunu kullanmak istiyoruz.",
-          "isIosBackgroundLocationEnabled": false,
-          "isAndroidBackgroundLocationEnabled": false
+          "locationAlwaysAndWhenInUsePermission": "Doğa yürüyüşü rotanı kaydederken, telefon kilitliyken de konumunu takip edebilmemiz için konumuna her zaman erişime izin ver.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       "@react-native-community/datetimepicker",
