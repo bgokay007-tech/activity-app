@@ -1862,10 +1862,11 @@ export const placeOrder = async (req, res, next) => {
         });
         if (isBlocked) return res.status(403).json({ message: 'Bu tesisten sipariş veremezsiniz' });
 
-        // Sadece bu tesiste eşleşmiş (MATCHED) bir maçta yer alan kullanıcılar sipariş verebilir —
-        // maç saati henüz gelmemiş olsa bile (maç MATCHED olduğu andan itibaren) sipariş verilebilir.
+        // Bu tesiste ilanı/maçı olan (açık ilan, eşleşmiş yaklaşan maç ya da skor bekleyen
+        // tamamlanmış maç) kullanıcılar sipariş verebilir — maç saatinin gelmesi ya da
+        // eşleşmenin tamamlanmış olması şart değil, sadece geçerli bir rezervasyon/ilan yeterli.
         const venueMatches = await prisma.activityRequest.findMany({
-            where: { venueId: id, status: 'MATCHED' },
+            where: { venueId: id, status: { in: ['OPEN', 'MATCHED', 'COMPLETED'] } },
             select: { senderId: true, receiverId: true, participants: true, senderTeam: true, venueReservationId: true },
         });
         const myMatch = venueMatches.find(m => {
@@ -1874,7 +1875,7 @@ export const placeOrder = async (req, res, next) => {
             const team  = Array.isArray(m.senderTeam)   ? m.senderTeam   : [];
             return parts.some(p => p?.id === req.userId) || team.some(p => p?.id === req.userId);
         });
-        if (!myMatch) return res.status(403).json({ message: 'Bu tesisten sipariş verebilmek için bu tesiste eşleşmiş bir maçınız olmalı.' });
+        if (!myMatch) return res.status(403).json({ message: 'Bu tesisten sipariş verebilmek için bu tesiste bir maçınız/ilanınız olmalı.' });
 
         // Menu item fiyatlarını çek
         const menuItems = await prisma.venueMenuItem.findMany({
@@ -1901,12 +1902,14 @@ export const placeOrder = async (req, res, next) => {
                 const mi = menuItems.find(m => m.id === i.menuItemId);
                 if (!mi) continue;
                 const qty = i.quantity || 1;
-                const existingItem = await prisma.venueBillItem.findFirst({ where: { billId: existingBill.id, menuItemId: mi.id } });
+                // userId'ye göre de eşleştirilir — aksi halde iki farklı kullanıcının aynı
+                // ürünü sipariş etmesi tek satırda birleşip "kim ne aldı" bilgisini kaybederdi.
+                const existingItem = await prisma.venueBillItem.findFirst({ where: { billId: existingBill.id, menuItemId: mi.id, userId: req.userId } });
                 if (existingItem) {
                     await prisma.venueBillItem.update({ where: { id: existingItem.id }, data: { quantity: existingItem.quantity + qty } });
                 } else {
                     await prisma.venueBillItem.create({
-                        data: { billId: existingBill.id, menuItemId: mi.id, name: mi.name, unitPrice: mi.price, quantity: qty, note: notes || null },
+                        data: { billId: existingBill.id, menuItemId: mi.id, userId: req.userId, name: mi.name, unitPrice: mi.price, quantity: qty, note: notes || null },
                     });
                 }
             }
@@ -2011,10 +2014,15 @@ const assertBillReservationOwner = async (resId, userId) => {
     return { reservation };
 };
 
+const BILL_ITEM_INCLUDE = { user: { select: { id: true, username: true, fullName: true, avatar: true } } };
+
 const recalcBillTotal = async (billId) => {
     const items = await prisma.venueBillItem.findMany({ where: { billId } });
     const totalPrice = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
-    return prisma.venueBill.update({ where: { id: billId }, data: { totalPrice }, include: { items: true } });
+    return prisma.venueBill.update({
+        where: { id: billId }, data: { totalPrice },
+        include: { items: { include: BILL_ITEM_INCLUDE, orderBy: { createdAt: 'asc' } } },
+    });
 };
 
 // Adisyonu getir (yoksa oluştur) — işletme sahibi, rezervasyon detayından
@@ -2026,16 +2034,34 @@ export const getOrCreateBill = async (req, res, next) => {
 
         let bill = await prisma.venueBill.findUnique({
             where: { reservationId: resId },
-            include: { items: { orderBy: { createdAt: 'asc' } } },
+            include: { items: { include: BILL_ITEM_INCLUDE, orderBy: { createdAt: 'asc' } } },
         });
         if (!bill) {
             bill = await prisma.venueBill.create({
                 data: { venueId: check.reservation.venueId, reservationId: resId },
-                include: { items: true },
+                include: { items: { include: BILL_ITEM_INCLUDE } },
             });
         }
+
+        // Manuel ürün eklerken işletmeci isterse "kimin için" seçebilsin diye — bu
+        // rezervasyondan oluşturulmuş bir maç ilanı varsa (bkz. venueReservationId)
+        // kadrosu (kurucu + partner + rakipler) döndürülür.
+        const linkedActivity = await prisma.activityRequest.findFirst({
+            where: { venueReservationId: resId },
+            select: {
+                sender: { select: { id: true, username: true, fullName: true, avatar: true } },
+                senderTeam: true, participants: true,
+            },
+        });
+        const roster = linkedActivity ? [
+            linkedActivity.sender,
+            ...(Array.isArray(linkedActivity.senderTeam) ? linkedActivity.senderTeam : []),
+            ...(Array.isArray(linkedActivity.participants) ? linkedActivity.participants : []),
+        ].filter(p => p?.id) : [];
+
         res.json({
             bill,
+            roster,
             reservation: {
                 id: check.reservation.id,
                 paymentMethod: check.reservation.paymentMethod,
@@ -2048,8 +2074,11 @@ export const getOrCreateBill = async (req, res, next) => {
 export const addBillItem = async (req, res, next) => {
     try {
         const { billId } = req.params;
-        const { menuItemId, quantity, name, unitPrice, note } = req.body;
+        const { menuItemId, quantity, name, unitPrice, note, userId } = req.body;
         const qty = parseInt(quantity) || 1;
+        // İşletmeci bu ürünü isterse rezervasyon kadrosundan bir kullanıcıya atayabilir —
+        // tamamen isteğe bağlı, boş bırakılırsa item kimseye özel işaretlenmez.
+        const attributedUserId = userId || null;
 
         const bill = await prisma.venueBill.findUnique({ where: { id: billId }, include: { venue: true } });
         if (!bill) return res.status(404).json({ message: 'Adisyon bulunamadı' });
@@ -2059,12 +2088,12 @@ export const addBillItem = async (req, res, next) => {
         if (menuItemId) {
             const menuItem = await prisma.venueMenuItem.findUnique({ where: { id: menuItemId } });
             if (!menuItem || menuItem.venueId !== bill.venueId) return res.status(400).json({ message: 'Ürün bulunamadı' });
-            const existing = await prisma.venueBillItem.findFirst({ where: { billId, menuItemId } });
+            const existing = await prisma.venueBillItem.findFirst({ where: { billId, menuItemId, userId: attributedUserId } });
             if (existing) {
                 await prisma.venueBillItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty } });
             } else {
                 await prisma.venueBillItem.create({
-                    data: { billId, menuItemId, name: menuItem.name, unitPrice: menuItem.price, quantity: qty },
+                    data: { billId, menuItemId, userId: attributedUserId, name: menuItem.name, unitPrice: menuItem.price, quantity: qty },
                 });
             }
         } else {
@@ -2072,7 +2101,7 @@ export const addBillItem = async (req, res, next) => {
             const price = parseInt(unitPrice);
             if (!Number.isFinite(price) || price < 0) return res.status(400).json({ message: 'Geçersiz fiyat' });
             await prisma.venueBillItem.create({
-                data: { billId, name: name.trim(), unitPrice: price, quantity: qty, note: note?.trim() || null },
+                data: { billId, userId: attributedUserId, name: name.trim(), unitPrice: price, quantity: qty, note: note?.trim() || null },
             });
         }
         const updated = await recalcBillTotal(billId);
@@ -2123,7 +2152,7 @@ export const markBillPaid = async (req, res, next) => {
         const updated = await prisma.venueBill.update({
             where: { id: billId },
             data: paid ? { status: 'PAID', paidAt: new Date() } : { status: 'OPEN', paidAt: null },
-            include: { items: true },
+            include: { items: { include: BILL_ITEM_INCLUDE, orderBy: { createdAt: 'asc' } } },
         });
 
         if (paid && bill.reservation.userId) {
@@ -2148,7 +2177,7 @@ export const getVenueBills = async (req, res, next) => {
         const bills = await prisma.venueBill.findMany({
             where: { venueId: id },
             include: {
-                items: true,
+                items: { include: BILL_ITEM_INCLUDE, orderBy: { createdAt: 'asc' } },
                 reservation: {
                     include: {
                         court: { select: { name: true } },

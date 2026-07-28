@@ -1924,6 +1924,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         || (Array.isArray(item.linkedRival.senderTeam) && item.linkedRival.senderTeam.some(p => p?.id === myId))
     );
     const participants = Array.isArray(item.participants) ? item.participants : [];
+    const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+    // Sipariş butonu: ilan sahibi ya da o ana kadar kabul edilmiş katılımcı/partner —
+    // maç henüz eşleşmemiş (açık ilan) olsa bile, kort zaten rezerve edildiyse sipariş
+    // verilebilir; maç saatinin gelmesi ya da eşleşmenin tamamlanması şart değil.
+    const isRivalParticipant = isOwner || item.receiverId === myId
+        || participants.some(p => p?.id === myId) || senderTeamArr.some(p => p?.id === myId);
+    const [orderVenueId, setOrderVenueId] = useState(null);
     const required = item.matchType === 'DOUBLE'
         ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
         : (item.teamSize || 1);
@@ -2219,6 +2226,17 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
                     </Text>
                 )}
+
+                {item.venueId && isRivalParticipant && (
+                    <TouchableOpacity onPress={() => setOrderVenueId(item.venueId)} style={{ marginBottom:3 }}>
+                        <Text style={{ color:'#22c55e', fontSize: moderateScale(11), fontWeight:'600' }}>📋 Sipariş Ver</Text>
+                    </TouchableOpacity>
+                )}
+                <VenueMenuOrderModal
+                    visible={!!orderVenueId}
+                    venueId={orderVenueId}
+                    onClose={() => setOrderVenueId(null)}
+                />
 
                 {item.flexibleSchedule && (
                     <View style={[s.flexBanner, { borderRadius: moderateScale(10), padding:0, marginBottom:3 }]}>
@@ -3176,7 +3194,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             {match.courtName && (
                 <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>🏟️ {match.courtName}</Text>
             )}
-            {match.venueId && isParticipant && !matchEnded && (
+            {match.venueId && isParticipant && (
                 <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:4 }}>
                     <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                 </TouchableOpacity>
@@ -3267,7 +3285,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     : `${match.courtFeePerPerson}₺${match.refereeRequested ? ` +${t.refereeFeeHint}` : ''}`} / {t.perPerson}
                             </Text>
                         )}
-                        {match.venueId && isParticipant && !matchEnded && (
+                        {match.venueId && isParticipant && (
                             <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
                                 <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                             </TouchableOpacity>

@@ -140,6 +140,7 @@ model User {
   courtReservations     CourtReservation[]
   venueBlocks           VenueBlock[]       @relation("BlockedUser")
   venueOrders           VenueOrder[]
+  venueBillItems        VenueBillItem[]
   venueReviews          VenueReview[]
   courtRatings          CourtRating[]
   reviewAppeals         ReviewAppeal[]
@@ -1428,6 +1429,8 @@ model VenueBillItem {
   id         String  @id @default(uuid())
   billId     String
   menuItemId String?
+  userId     String? // bu ürünü kim aldı — kullanıcı kendi sipariş verdiyse otomatik,
+                      // işletmeci manuel eklerken isterse rezervasyon kadrosundan seçer
   name       String  // ekleme anındaki isim (menüden silinse de adisyonda kalır)
   unitPrice  Int     // ekleme anındaki fiyat
   quantity   Int     @default(1)
@@ -1436,6 +1439,7 @@ model VenueBillItem {
 
   bill     VenueBill      @relation(fields: [billId], references: [id], onDelete: Cascade)
   menuItem VenueMenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  user     User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
 // KORT BLOĞU — turnuva süresince kort rezervasyona kapalıdır

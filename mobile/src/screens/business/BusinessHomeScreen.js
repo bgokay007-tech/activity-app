@@ -1410,6 +1410,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [billsLoaded, setBillsLoaded]   = useState(false);
     const [billModalRes, setBillModalRes] = useState(null); // reservation açık adisyon modalı
     const [activeBill, setActiveBill]     = useState(null);
+    const [billRoster, setBillRoster]     = useState([]); // rezervasyona bağlı maçın kadrosu — ürün eklerken "kimin için" seçmek için
+    const [billForUserId, setBillForUserId] = useState(null); // seçiliyse eklenen bir sonraki ürün bu kullanıcıya atanır (isteğe bağlı)
     const [billModalLoading, setBillModalLoading] = useState(false);
     const [billItemBusy, setBillItemBusy] = useState(false);
     const [billPickerCat, setBillPickerCat] = useState('EQUIPMENT');
@@ -1634,6 +1636,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         try {
             const { data } = await api.get(`/venues/reservations/${reservation.id}/bill`);
             setActiveBill(data.bill);
+            setBillRoster(Array.isArray(data.roster) ? data.roster : []);
             setBillModalRes(prev => prev ? { ...prev, ...data.reservation } : prev);
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Adisyon açılamadı');
@@ -1643,7 +1646,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         }
     };
     const closeBillModal = () => {
-        setBillModalRes(null); setActiveBill(null);
+        setBillModalRes(null); setActiveBill(null); setBillRoster([]); setBillForUserId(null);
         setShowManualBillItem(false); setManualBillName(''); setManualBillPrice(''); setManualBillNote('');
     };
 
@@ -1651,7 +1654,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         if (!activeBill || billItemBusy) return;
         setBillItemBusy(true);
         try {
-            const { data } = await api.post(`/venues/bills/${activeBill.id}/items`, { menuItemId, quantity: 1 });
+            const { data } = await api.post(`/venues/bills/${activeBill.id}/items`, { menuItemId, quantity: 1, userId: billForUserId || undefined });
             setActiveBill(data.bill);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Ürün eklenemedi'); }
         finally { setBillItemBusy(false); }
@@ -1665,6 +1668,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         try {
             const { data } = await api.post(`/venues/bills/${activeBill.id}/items`, {
                 name: manualBillName.trim(), unitPrice: price, quantity: 1, note: manualBillNote.trim() || undefined,
+                userId: billForUserId || undefined,
             });
             setActiveBill(data.bill);
             setShowManualBillItem(false); setManualBillName(''); setManualBillPrice(''); setManualBillNote('');
@@ -2756,6 +2760,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         <View key={it.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#ffffff06', borderRadius:8, padding:10, marginBottom:6 }}>
                                             <View style={{ flex:1 }}>
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{it.name}</Text>
+                                                {it.user ? <Text style={{ color:'#93c5fd', fontSize:11, marginTop:1 }}>👤 {it.user.fullName || it.user.username}</Text> : null}
                                                 {it.note ? <Text style={{ color:'#9ca3af', fontSize:11, marginTop:1 }}>{it.note}</Text> : null}
                                                 <Text style={{ color:'#6b7280', fontSize:11 }}>{it.unitPrice}₺ / adet</Text>
                                             </View>
@@ -2791,6 +2796,31 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         const shown = useTabs ? available.filter(m => m.category === activeCat) : available;
                                         return (
                                         <>
+                                            {billRoster.length > 0 && (
+                                                <View style={{ marginBottom:10 }}>
+                                                    <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>
+                                                        KİMİN İÇİN? (isteğe bağlı)
+                                                    </Text>
+                                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                                        <View style={{ flexDirection:'row', gap:6 }}>
+                                                            <TouchableOpacity onPress={() => setBillForUserId(null)}
+                                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8,
+                                                                    backgroundColor: !billForUserId ? BIZ_COLOR+'25' : '#ffffff08',
+                                                                    borderWidth:1, borderColor: !billForUserId ? BIZ_COLOR+'60' : '#ffffff10' }}>
+                                                                <Text style={{ color: !billForUserId ? BIZ_LIGHT : '#9ca3af', fontSize:12, fontWeight:'700' }}>Belirtilmemiş</Text>
+                                                            </TouchableOpacity>
+                                                            {billRoster.map(p => (
+                                                                <TouchableOpacity key={p.id} onPress={() => setBillForUserId(p.id)}
+                                                                    style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8,
+                                                                        backgroundColor: billForUserId === p.id ? BIZ_COLOR+'25' : '#ffffff08',
+                                                                        borderWidth:1, borderColor: billForUserId === p.id ? BIZ_COLOR+'60' : '#ffffff10' }}>
+                                                                    <Text style={{ color: billForUserId === p.id ? BIZ_LIGHT : '#9ca3af', fontSize:12, fontWeight:'700' }}>{p.fullName || p.username}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    </ScrollView>
+                                                </View>
+                                            )}
                                             <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ÜRÜN EKLE</Text>
                                             {useTabs && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
