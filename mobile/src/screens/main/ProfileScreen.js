@@ -2828,20 +2828,17 @@ export default function ProfileScreen({ route, navigation }) {
                                                 historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
                                                 reservationCount,
                                             })}
-                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: 128, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
                                         >
                                             <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
-                                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }}>{i.subCategory}</Text>
-                                            {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }}>{i.alias}</Text> : null}
-                                            {i.assessmentCompleted && (
-                                                <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }}>{Number(i.skillRating).toFixed(2)} ★</Text>
-                                            )}
-                                            {reservationCount > 0 && (
-                                                <Text style={{ color: '#60a5fa', fontSize: 9, fontWeight: '700' }}>📅 {reservationCount}</Text>
-                                            )}
-                                            {i.hidden && (
-                                                <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700' }}>Gizli</Text>
-                                            )}
+                                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>{i.subCategory}</Text>
+                                            {/* Alias/derece/rezervasyon satırları içerik olmasa bile sabit yükseklikte
+                                                (boşlukla) render edilir ki kartlar birbirine göre kısa/uzun olmasın. */}
+                                            <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>{i.alias || ' '}</Text>
+                                            <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>{i.assessmentCompleted ? `${Number(i.skillRating).toFixed(2)} ★` : ' '}</Text>
+                                            <Text style={{ color: i.hidden ? colors.textMuted : '#60a5fa', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>
+                                                {i.hidden ? 'Gizli' : reservationCount > 0 ? `📅 ${reservationCount}` : ' '}
+                                            </Text>
                                         </TouchableOpacity>
                                         {isOwnProfile && (
                                             <TouchableOpacity
