@@ -129,7 +129,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
         if (!result || !assessTarget) return;
         const updated = localInterests.map(i =>
             i.id === assessTarget.interestId
-                ? { ...i, skillRating: result.skillRating, level: result.level }
+                ? { ...i, skillRating: result.skillRating, level: result.level, assessmentCompleted: true }
                 : i
         );
         setLocalInterests(updated);

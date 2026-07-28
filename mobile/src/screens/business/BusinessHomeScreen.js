@@ -5,6 +5,7 @@ import {
     TextInput, Switch, FlatList, BackHandler, KeyboardAvoidingView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../../store/slices/authSlice';
 import api from '../../services/api';
@@ -1381,6 +1382,7 @@ const ORDER_COLORS = { PENDING:'#eab308', CONFIRMED:'#3b82f6', READY:'#22c55e', 
 const ORDER_LABELS = { PENDING:'⏳ Bekliyor', CONFIRMED:'✅ Onaylandı', READY:'🟢 Hazır', CANCELLED:'❌ İptal' };
 
 function VenueCard({ venue, sub, onDelete, navigation, openReservations = false }) {
+    const insets = useSafeAreaInsets();
     const isApproved = venue.status === 'APPROVED';
     const isPro     = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
     const isPremium = sub && sub.packageType === 'PREMIUM';
@@ -2855,9 +2857,11 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             </ScrollView>
                         )}
 
-                        {/* Alt bilgi/aksiyon çubuğu */}
+                        {/* Alt bilgi/aksiyon çubuğu — Android'de ekran içi gezinme çubuğu (dokunmatik
+                            tuşlar) varsa sabit 16'lık padding yetmeyip butonlar onun altında/üstünde
+                            kalıp dokunulamaz hale geliyordu, bu yüzden insets.bottom da hesaba katılır. */}
                         {!billModalLoading && activeBill && (
-                            <View style={{ padding:16, paddingBottom: Platform.OS === 'ios' ? 28 : 16, borderTopWidth:1, borderTopColor:'#ffffff10', gap:8 }}>
+                            <View style={{ padding:16, paddingBottom: Math.max(16, insets.bottom + 12), borderTopWidth:1, borderTopColor:'#ffffff10', gap:8 }}>
                                 <View style={{ flexDirection:'row', gap:8 }}>
                                     <TouchableOpacity onPress={() => setBillPaidStatus(true)}
                                         style={{ flex:1, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1,

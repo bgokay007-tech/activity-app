@@ -5463,7 +5463,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         venuePayMethod: 'CASH',
         refereeRequested: false,
         refereePayment: '',
-        participantsCanInvite: false,
+        participantsCanInvite: true,
     };
 
     const buildInitialState = () => {
@@ -6614,22 +6614,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             {!isMatchedEdit && ['tennis', 'padel', 'volleyball'].includes(sub) && (
                                 <>
                                     <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeRequested && f.refereeInvites.length > 0 ? 6 : 10 }}>
-                                        {/* Davete İzin Ver — kapalıyken sadece ilan sahibi oyuncu davet edebilir/
-                                            paylaşabilir; açıkken kabul edilmiş katılımcılar da davet/paylaşım yapabilir.
-                                            Açmadan önce ne işe yaradığını açıklayan bir onay penceresi gösterilir —
-                                            onaylanmazsa kilitli kalır. Kapatmak onay istemez. */}
+                                        {/* Davete İzin Ver — varsayılan açık: kabul edilmiş katılımcılar da davet/
+                                            paylaşım yapabilir. Kapatmadan önce ne anlama geldiğini açıklayan bir onay
+                                            penceresi gösterilir — onaylanmazsa açık kalır. Açmak onay istemez. */}
                                         <TouchableOpacity
                                             onPress={() => {
-                                                if (f.participantsCanInvite) {
-                                                    set('participantsCanInvite', false);
+                                                if (!f.participantsCanInvite) {
+                                                    set('participantsCanInvite', true);
                                                     return;
                                                 }
                                                 Alert.alert(
-                                                    '🔓 Davete İzin Ver',
-                                                    'Bunu açarsan, ilanına kabul edilen katılımcılar da başka oyuncu davet edebilir, hakem davet edebilir ve ilanı paylaşabilir. Kapalı kaldığında bunları sadece sen yapabilirsin.',
+                                                    '🔒 Davet/Paylaşımı Kapat',
+                                                    'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
                                                     [
                                                         { text: 'Vazgeç', style: 'cancel' },
-                                                        { text: 'Aç', onPress: () => set('participantsCanInvite', true) },
+                                                        { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
                                                     ]
                                                 );
                                             }}
