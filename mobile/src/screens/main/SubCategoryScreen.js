@@ -978,7 +978,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </TouchableOpacity>
                             )}
                             {item.courtFeePerPerson > 0 && (
-                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10) }} numberOfLines={1}>
+                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''}/{t.perPerson}
                                 </Text>
                             )}
@@ -2173,13 +2173,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 )}
                 {item.refereeRequested && (
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
-                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
+                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', flexShrink:1 }}>
                             <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {t.refereeSlotLabel}: {item.refereeUser ? (item.refereeUser.fullName || item.refereeUser.username) : t.refereeSlotSearching}
                             </Text>
                         </View>
-                        {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }}>{item.refereePayment}</Text>}
+                        {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.refereePayment}</Text>}
                     </View>
                 )}
                 {item.linkedRivalId && (
@@ -16158,7 +16158,7 @@ const s = StyleSheet.create({
     emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:17, paddingVertical:7 },
     emptyBtnText:     { color:'#fff', fontWeight:'700' },
 
-    card:             { backgroundColor: colors.surface, borderRadius:14, paddingHorizontal:7, paddingTop:5, paddingBottom:5, borderWidth:1, borderColor: colors.border },
+    card:             { backgroundColor: colors.surface, borderRadius:14, paddingHorizontal:7, paddingTop:5, paddingBottom:5, borderWidth:1, borderColor: colors.border, overflow:'hidden' },
     cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:2 },
     avatar:           { justifyContent:'center', alignItems:'center', borderWidth:1 },
     avatarText:       { fontWeight:'800' },

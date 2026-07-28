@@ -11,7 +11,7 @@
     "updates": {
       "url": "https://u.expo.dev/6efad865-a6d7-4da4-b5e8-43c9c4de1cba",
       "enabled": true,
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 3000
     },
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
