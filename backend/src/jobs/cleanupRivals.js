@@ -18,7 +18,7 @@ export async function cleanupExpiredRivals() {
                 matchDate: { not: null },
                 linkedRivalId: null,
             },
-            select: { id: true, senderId: true, subCategory: true, matchDate: true, matchTime: true },
+            select: { id: true, senderId: true, category: true, subCategory: true, matchDate: true, matchTime: true },
         });
 
         const expired = openRequests.filter(r => {
@@ -47,7 +47,7 @@ export async function cleanupExpiredRivals() {
                     'MATCH_EXPIRED',
                     '⏰ İlanınız Kaldırıldı',
                     `${r.subCategory} ilanınız için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik kaldırıldı.`,
-                    {},
+                    { rivalId: r.id, category: r.category, subCategory: r.subCategory },
                 ).catch(() => {});
             }
         }
@@ -78,6 +78,16 @@ export async function cleanupExpiredRivals() {
         });
 
         if (expiredRefereeAds.length > 0) {
+            // Hakem ilanı süresi geçtiğinde bağlı olduğu asıl maç zaten (yetersiz oyuncudan,
+            // ayrılmadan vs.) CANCELLED olmuş olabilir — o zaman "hakem bulunamadı, maçınız
+            // hakemsiz devam edecek" bildirimi anlamsız çünkü ortada devam edecek maç yok.
+            const linkedIds = [...new Set(expiredRefereeAds.map(r => r.linkedRivalId))];
+            const linkedMatches = await prisma.activityRequest.findMany({
+                where: { id: { in: linkedIds } },
+                select: { id: true, status: true },
+            });
+            const linkedStatus = new Map(linkedMatches.map(m => [m.id, m.status]));
+
             await prisma.activityRequest.updateMany({
                 where: { id: { in: expiredRefereeAds.map(r => r.id) } },
                 data: { status: 'CANCELLED' },
@@ -89,6 +99,7 @@ export async function cleanupExpiredRivals() {
             console.log(`[cleanup] Cancelled ${expiredRefereeAds.length} expired referee-wanted ad(s)`);
             for (const r of expiredRefereeAds) {
                 emitToUser(r.senderId, 'rivalDeleted', { rivalId: r.id, subCategory: r.subCategory });
+                if (linkedStatus.get(r.linkedRivalId) === 'CANCELLED') continue;
                 createNotification(
                     r.senderId,
                     'REFEREE_NOT_FOUND',
