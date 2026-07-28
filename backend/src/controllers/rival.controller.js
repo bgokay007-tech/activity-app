@@ -1994,6 +1994,10 @@ export const respondToJoin = async (req, res, next) => {
         const responder = joinReq.initiatedBy === 'OWNER' ? joinReq.userId : joinReq.rival.senderId;
         if (responder !== req.userId) return res.status(403).json({ message: 'Forbidden' });
 
+        // İdempotentlik: aynı istek zaten işlenmişse (çift dokunma / ağ tekrar denemesi) yeniden
+        // işlenip tekrar tekrar bildirim gönderilmesin — bir isteğe bir kez yanıt verilebilir.
+        if (joinReq.status !== 'PENDING') return res.status(400).json({ message: 'Bu istek zaten yanıtlanmış' });
+
         if (action !== 'accept') {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
             // Reddedildiğini diğer tarafa bildir — katıl/davet butonu geri açılsın
@@ -2001,7 +2005,7 @@ export const respondToJoin = async (req, res, next) => {
             emitToUser(notifyTargetId, 'joinRejected', { rivalId: joinReq.rivalId });
             // Owner'ın gönderdiği davet (partner/rakip 1/rakip 2) reddedildiyse ilan sahibine kalıcı bildirim gönder
             if (joinReq.initiatedBy === 'OWNER') {
-                const roleLabel = joinReq.isPartnerInvite ? 'Partner' : 'Rakip';
+                const roleLabel = joinReq.isPartnerInvite ? 'Partner' : 'Maça';
                 createNotification(
                     joinReq.rival.senderId, 'MATCH_INVITE_DECLINED',
                     '❌ Davet Reddedildi',
