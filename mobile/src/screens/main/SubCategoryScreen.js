@@ -13030,10 +13030,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                 {sub === 'padel' ? (
                     <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
                         <Image source={require('../../../assets/padel.png')} style={{ width:26, height:26 }} resizeMode="contain" />
-                        <Text style={s.title}>{cfg.name}</Text>
+                        <Text style={s.title}>{sportDisplayName}</Text>
                     </View>
                 ) : (
-                    <Text style={s.title}>{cfg.emoji} {cfg.name}</Text>
+                    <Text style={s.title}>{cfg.emoji} {sportDisplayName}</Text>
                 )}
                 {(sub === 'tennis' || sub === 'padel') && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
