@@ -1,8 +1,9 @@
 ﻿import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setCredentials } from '../../store/slices/authSlice';
+import { setLang } from '../../store/slices/langSlice';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import RainbowLogo from '../../components/RainbowLogo';
@@ -14,6 +15,7 @@ const SAVED_PASS_KEY  = 'activity_saved_pass';
 export default function LoginScreen({ navigation }) {
     const dispatch = useDispatch();
     const t = useT();
+    const lang = useSelector(s => s.lang?.lang || 'en');
     const [form, setForm] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [remember, setRemember] = useState(false);
@@ -54,6 +56,24 @@ export default function LoginScreen({ navigation }) {
     return (
         <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={s.inner}>
+                {/* Language selector */}
+                <View style={{ flexDirection: 'row', gap: 3, alignSelf: 'flex-end', marginBottom: 16 }}>
+                    {['tr', 'en'].map(l => (
+                        <TouchableOpacity
+                            key={l}
+                            onPress={() => dispatch(setLang(l))}
+                            style={{
+                                borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3,
+                                backgroundColor: lang === l ? colors.purple + '30' : colors.surface2,
+                            }}
+                        >
+                            <Text style={{ color: lang === l ? '#fff' : colors.textMuted, fontSize: 12, fontWeight: '800' }}>
+                                {l === 'tr' ? '🇹🇷 TR' : '🇬🇧 EN'}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
                 <RainbowLogo style={{ fontSize: 36, marginBottom: 4 }} />
                 <Text style={s.sub}>{t.findYourMatch}</Text>
 
