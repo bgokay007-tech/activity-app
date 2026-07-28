@@ -15,6 +15,7 @@ import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ManageActivitiesModal from '../../components/ManageActivitiesModal';
+import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -482,7 +483,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             <View style={fc.topRow}>
                                 <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>
                                 <View style={{ flexShrink: 1 }}>
-                                    <Text style={fc.smallSportName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.subCategory?.toUpperCase()}</Text>
+                                    <Text style={fc.smallSportName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{getSubCategoryLabel(item.subCategory, lang)?.toUpperCase()}</Text>
                                     {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.alias}</Text> : null}
                                 </View>
                                 {item.assessmentCompleted && (
@@ -1101,7 +1102,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{item.name}</Text>
                                                     <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
                                                         {item.placement === 1 ? (tr ? '1. Yer' : '1st Place') : item.placement === 2 ? (tr ? '2. Yer' : '2nd Place') : (tr ? '3. Yer' : '3rd Place')}
-                                                        {' · '}{item.subCategory}
+                                                        {' · '}{getSubCategoryLabel(item.subCategory, lang)}
                                                     </Text>
                                                     {item.completedAt && (
                                                         <Text style={{ color: '#6b7280', fontSize: 10, marginTop: 2 }}>
@@ -2828,13 +2829,13 @@ export default function ProfileScreen({ route, navigation }) {
                                                 historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
                                                 reservationCount,
                                             })}
-                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: 128, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, paddingTop: 3, paddingBottom: 11, paddingHorizontal: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: 128, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
                                         >
                                             <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
-                                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>{i.subCategory}</Text>
-                                            {/* Alias/derece/rezervasyon satırları içerik olmasa bile sabit yükseklikte
-                                                (boşlukla) render edilir ki kartlar birbirine göre kısa/uzun olmasın. */}
-                                            <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>{i.alias || ' '}</Text>
+                                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textAlign: 'center' }} numberOfLines={1}>{getSubCategoryLabel(i.subCategory, lang)}</Text>
+                                            {/* Alias varsa gösterilir, yoksa hiç render edilmez — boş bir satır
+                                                bırakıp isim ile derece arasında gereksiz boşluk oluşturmasın. */}
+                                            {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>{i.alias}</Text> : null}
                                             <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>{i.assessmentCompleted ? `${Number(i.skillRating).toFixed(2)} ★` : ' '}</Text>
                                             <Text style={{ color: i.hidden ? colors.textMuted : '#60a5fa', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>
                                                 {i.hidden ? 'Gizli' : reservationCount > 0 ? `📅 ${reservationCount}` : ' '}
