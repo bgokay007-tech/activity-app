@@ -3,12 +3,29 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import { onSocket, getSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { decrementUnread, clearUnread } from '../../store/slices/notificationSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
+
+// "Okundu" işareti PATCH isteği, kullanıcı bildirime dokunduktan hemen sonra
+// uygulamayı kapatırsa yarıda kesilip sunucuya hiç ulaşmayabiliyordu — bu durumda
+// bildirim saatler/günler sonra tekrar "okunmamış" görünüyordu, çünkü kaybolan
+// isteği tekrar deneyecek hiçbir mekanizma yoktu. Artık "okundu" niyeti önce
+// cihaza kalıcı olarak yazılıyor (AsyncStorage), her ekran yüklemesinde bekleyen
+// istekler tekrar denenip başarılı olunca kuyruktan siliniyor — uygulama kapansa/
+// internet gitse bile bir sonraki açılışta otomatik tamamlanır.
+const PENDING_READS_KEY = 'pending_notification_reads';
+const loadPendingReads = async () => {
+    try { return JSON.parse(await AsyncStorage.getItem(PENDING_READS_KEY)) || []; }
+    catch { return []; }
+};
+const savePendingReads = async (ids) => {
+    try { await AsyncStorage.setItem(PENDING_READS_KEY, JSON.stringify(ids)); } catch {}
+};
 
 const TYPE_ICON = {
     RIVAL_REQUEST: '⚔️',
@@ -68,8 +85,23 @@ export default function NotificationsScreen({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
+    // Daha önce tamamlanamamış "okundu" isteklerini tekrar dener — bu, ekran her
+    // yüklendiğinde (mount, focus, pull-to-refresh) çalışır ki hiçbir bekleyen
+    // istek sonsuza kadar unutulmasın.
+    const flushPendingReads = async () => {
+        const pending = await loadPendingReads();
+        if (pending.length === 0) return;
+        const stillPending = [];
+        for (const id of pending) {
+            try { await api.patch(`/notifications/${id}/read`); }
+            catch { stillPending.push(id); }
+        }
+        await savePendingReads(stillPending);
+    };
+
     const load = async () => {
         try {
+            await flushPendingReads();
             const { data } = await api.get('/notifications');
             setNotifications(data.notifications || []);
         } catch (e) { console.warn(e?.message); }
@@ -81,10 +113,13 @@ export default function NotificationsScreen({ navigation }) {
     // Ekran odaklandığında listeyi tazele (tab'a her dönüşte güncel gelsin)
     useFocusEffect(useCallback(() => { load(); }, []));
 
-    // Socket: yeni bildirim gelince listeye ekle
+    // Socket: yeni bildirim gelince listeye ekle — bazı sunucu tarafı kodları
+    // createNotification'dan sonra ayrıca boş bir {} 'notification' event'i daha
+    // yayınlıyor (id'siz); id'si olmayan bir event'i hayalet kayıt olarak listeye
+    // eklememek için id kontrolü şart.
     useEffect(() => {
         const off = onSocket('notification', (notif) => {
-            if (!notif) return;
+            if (!notif?.id) return;
             setNotifications(prev => {
                 if (prev.some(n => n.id === notif.id)) return prev;
                 return [{ ...notif, read: false, createdAt: notif.createdAt || new Date().toISOString() }, ...prev];
@@ -103,14 +138,17 @@ export default function NotificationsScreen({ navigation }) {
         // okunmamış görünüyordu. İstek başarısız olsa bile en az bu oturumda doğru görünür.
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
         if (wasUnread) dispatch(decrementUnread());
-        // Ağ isteği anlık kesintiye (arka plana alma vb.) karşı bir kez tekrar denenir.
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                await api.patch(`/notifications/${id}/read`);
-                return;
-            } catch (e) {
-                if (attempt === 1) console.warn(e?.message);
-            }
+        // "Okundu" niyeti önce kalıcı kuyruğa yazılır — istek şimdi başarısız olsa
+        // (ya da uygulama bu sırada tamamen kapansa) bile bir sonraki load() çağrısı
+        // (ekran açılışı/odağı) bunu otomatik tekrar deneyip tamamlayacak.
+        const pending = await loadPendingReads();
+        if (!pending.includes(id)) await savePendingReads([...pending, id]);
+        try {
+            await api.patch(`/notifications/${id}/read`);
+            const after = await loadPendingReads();
+            await savePendingReads(after.filter(pid => pid !== id));
+        } catch (e) {
+            console.warn(e?.message);
         }
     };
 

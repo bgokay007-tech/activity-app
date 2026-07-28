@@ -305,8 +305,12 @@ function AppTabs() {
         if (!userId) return;
         connectSocket(userId);
         const off = onSocket('notification', (notif) => {
+            // Bazı sunucu tarafı kodları createNotification'dan sonra ayrıca boş bir
+            // {} 'notification' event'i daha yayınlıyor (id'siz) - bu, id'si olmayan
+            // event'i sayıp rozeti çift artırmasın diye burada da id şart koşuluyor.
+            if (!notif?.id) return;
             dispatch(incrementUnread());
-            if (notif?.id && !shownNotifIdsRef.current.has(notif.id)) {
+            if (!shownNotifIdsRef.current.has(notif.id)) {
                 shownNotifIdsRef.current.add(notif.id);
                 Notifications.scheduleNotificationAsync({
                     content: { title: notif.title, body: notif.body, sound: 'default', data: { ...(notif.data || {}), type: notif.type } },

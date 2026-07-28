@@ -63,7 +63,7 @@ export async function cleanupExpiredRivals() {
                 matchDate: { not: null },
                 linkedRivalId: { not: null },
             },
-            select: { id: true, senderId: true, subCategory: true, matchDate: true, matchTime: true, linkedRivalId: true },
+            select: { id: true, senderId: true, category: true, subCategory: true, matchDate: true, matchTime: true, linkedRivalId: true },
         });
 
         const expiredRefereeAds = openRefereeAds.filter(r => {
@@ -94,7 +94,9 @@ export async function cleanupExpiredRivals() {
                     'REFEREE_NOT_FOUND',
                     '🧑‍⚖️ Hakem Bulunamadı',
                     `${r.subCategory} maçınız için hakem bulunamadı, hakem ilanı kaldırıldı. Maçınız hakemsiz devam edecek.`,
-                    { rivalId: r.linkedRivalId },
+                    // category/subCategory olmadan bildirim ekranı hicbir yere yonlendiremiyordu
+                    // ("ortada mac yok" gibi görünüyordu) - asil macin (linkedRivalId) bilgileri.
+                    { rivalId: r.linkedRivalId, category: r.category, subCategory: r.subCategory },
                 ).catch(() => {});
             }
         }
