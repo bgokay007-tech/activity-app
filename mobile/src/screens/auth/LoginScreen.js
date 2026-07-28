@@ -58,8 +58,11 @@ export default function LoginScreen({ navigation }) {
         }
     };
 
+    // Android'de app.json'daki softwareKeyboardLayoutMode:"pan" klavye açılışını zaten native
+    // seviyede kaydırıyor — üstüne KeyboardAvoidingView behavior="height" eklemek çift kaydırmaya
+    // yol açıp klavye kapanınca ekranın altında beyaz boşluk bırakıyordu.
     return (
-        <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             {/* Language selector — sabit sağ üst köşe */}
             <TouchableOpacity
                 onPress={() => setShowLangPicker(true)}
