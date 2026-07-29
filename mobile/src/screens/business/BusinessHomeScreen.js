@@ -2141,7 +2141,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     // Slot önizleme: verilen pencerelerden FULL_HOUR slotlarını hesapla
     const previewSlots = (windows) => {
         const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-        const toT = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+        // 00:00 ve sonrası aslında ertesi güne ait — kapanış "24:00" yerine "00:00" olarak gösterilir, kafa karıştırmasın.
+        const toT = m => { const raw = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; return raw === '24:00' ? '00:00' : raw; };
         const expanded = [];
         for (const w of windows) {
             const o = toM(w.from), c = toM(w.to);

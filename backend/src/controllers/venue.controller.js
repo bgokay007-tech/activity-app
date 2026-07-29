@@ -5,6 +5,25 @@ import { emitToUser } from '../config/socket.js';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 export const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 export const toTime = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+// Kullanıcıya/işletmeciye GÖSTERİLECEK saat metni için: toTime "gece yarısı"nı "24:00" olarak
+// yazar (iç hesaplamalarda — ör. keepOvernight köprülemesinde ve fiyat hesaplamalarında — bu
+// gerekli), ama ekranda "24:00" kafa karıştırıyor çünkü 00:00 ve sonrası aslında ertesi güne ait.
+const displayTime = m => { const t = toTime(m); return t === '24:00' ? '00:00' : t; };
+// computeSlots/buildSlots çıktısı (slots/windows/taken/priceSegments) TÜM dahili hesaplamalar
+// (fiyat, arama filtreleme) bittikten sonra, res.json'a yazılmadan hemen önce çağrılır — nesne
+// grafiğindeki her "24:00" metnini "00:00"a çevirir. Dahili değerler (toMins ile tekrar
+// işlenenler) bu fonksiyon çağrılana kadar hep gerçek "24:00" (1440 dk) olarak kalır, bu yüzden
+// hiçbir köprüleme/fiyat hesaplaması bozulmaz — sadece son adımda ekrana yazılan metin değişir.
+function fixMidnightLabels(val) {
+    if (Array.isArray(val)) { for (const v of val) fixMidnightLabels(v); return val; }
+    if (val && typeof val === 'object') {
+        for (const k of Object.keys(val)) {
+            if (val[k] === '24:00') val[k] = '00:00';
+            else fixMidnightLabels(val[k]);
+        }
+    }
+    return val;
+}
 export const overlaps = (as, ae, bs, be) => as < be && ae > bs;
 
 // Türkiye saatiyle "şu an" — tarih (YYYY-MM-DD) ve gün içi dakika olarak.
@@ -537,7 +556,7 @@ export const getVenueSlots = async (req, res, next) => {
             ? { ...slotsResult, slots: addSlotPrice(slotsResult.slots) }
             : { ...slotsResult, windows: addWindowPrice(slotsResult.windows) };
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
-        res.json({ ...resultWithPrice, acceptedPayments: accepted });
+        res.json(fixMidnightLabels({ ...resultWithPrice, acceptedPayments: accepted }));
     } catch (error) { next(error); }
 };
 
@@ -645,12 +664,12 @@ export async function validateReservationSlot(venue, courtId, date, startTime, e
                     if (b.e <= wS || b.s >= effectiveWE) continue;
                     const gap = Math.min(b.s, effectiveWE) - cur;
                     if (gap > 0 && gap < minGap)
-                        return { status: 400, message: `Bu rezervasyon ${toTime(cur)}–${toTime(Math.min(b.s, effectiveWE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` };
+                        return { status: 400, message: `Bu rezervasyon ${displayTime(cur)}–${displayTime(Math.min(b.s, effectiveWE))} arasında ${gap} dk'lık kullanılamaz boşluk oluşturuyor. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` };
                     cur = Math.max(cur, b.e);
                 }
                 const tail = effectiveWE - cur;
                 if (tail > 0 && tail < minGap)
-                    return { status: 400, message: `Bu rezervasyon sonrasında ${toTime(cur)}–${toTime(effectiveWE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` };
+                    return { status: 400, message: `Bu rezervasyon sonrasında ${displayTime(cur)}–${displayTime(effectiveWE)} arasında ${tail} dk'lık boşluk kalır. En az ${minGap} dk gerekli. Lütfen farklı bir saat seçin.` };
             }
         }
     }
@@ -955,7 +974,7 @@ export const getOwnerSchedule = async (req, res, next) => {
             };
         });
 
-        res.json({ slotType: venue.slotType, openTime: venue.openTime, closeTime: venue.closeTime, courts });
+        res.json(fixMidnightLabels({ slotType: venue.slotType, openTime: venue.openTime, closeTime: venue.closeTime, courts }));
     } catch (error) { next(error); }
 };
 
@@ -1652,7 +1671,7 @@ export const searchVenueAvailability = async (req, res, next) => {
                 results.push({ venue, matchingCourts });
             }
         }
-        res.json({ items: results });
+        res.json(fixMidnightLabels({ items: results }));
     } catch (error) { next(error); }
 };
 
