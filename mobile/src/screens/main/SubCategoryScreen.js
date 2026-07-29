@@ -4421,6 +4421,7 @@ const PADEL_SURFACES = [
 const CAT_LABELS = { EQUIPMENT: '🎾 Ekipman', FOOD: '🍔 Yiyecek', DRINK: '☕ İçecek', OTHER: '🛍 Diğer' };
 
 function VenueMenuOrderModal({ visible, venueId, onClose }) {
+    const insets = useSafeAreaInsets();
     const [items, setItems]   = useState([]);
     const [loading, setLoading] = useState(false);
     const [cart, setCart]     = useState({});
@@ -4514,7 +4515,7 @@ function VenueMenuOrderModal({ visible, venueId, onClose }) {
                         <View style={{ height: 20 }} />
                     </ScrollView>
                     {cartCount > 0 && (
-                        <View style={vm.footer}>
+                        <View style={[vm.footer, { paddingBottom: Math.max(14, insets.bottom + 10) }]}>
                             <View style={{ flex: 1 }}>
                                 <Text style={vm.totalLabel}>Toplam</Text>
                                 <Text style={vm.totalPrice}>{totalPrice} ₺</Text>

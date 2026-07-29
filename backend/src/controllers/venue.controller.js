@@ -410,7 +410,9 @@ export const createVenue = async (req, res, next) => {
                 openDays: openDays ?? [1, 2, 3, 4, 5, 6, 7],
                 slotType: slotType || 'FULL_HOUR',
                 pricePerSlot: pricePerSlot ? parseInt(pricePerSlot) : 0,
-                courts: { create: courts.map(c => ({ name: c })) },
+                // Padel kortlarının gerçekte tek zemin tipi var: sentetik çim — ileride başka
+                // zemin tipleri eklenirse burası genişletilir.
+                courts: { create: courts.map(c => ({ name: c, ...(branch === 'padel' ? { surface: 'SYNTHETIC' } : {}) })) },
             },
             include: { courts: true },
         });
@@ -799,6 +801,9 @@ export const updateVenueSettings = async (req, res, next) => {
         const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder, reservationOpenDaysBefore, reservationOpenTime } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_PAY      = ['CASH', 'EFT', 'CREDIT_CARD']; // ONLINE şu anda bakımda, kabul edilen yöntemlere eklenemez
+        // Fiyat farkı (paymentDeltas) girişinde ONLINE'a da izin verilir — online ödeme
+        // açıldığında fiyat zaten hazır girilmiş olsun diye, kabul edilen yöntem olmasa bile.
+        const VALID_PAY_DELTA = ['CASH', 'EFT', 'ONLINE', 'CREDIT_CARD'];
         const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
         const VALID_OPEN_DAYS_BEFORE = [3, 5, 7, 10, 14];
         if (slotType && !VALID_TYPES.includes(slotType))
@@ -812,7 +817,7 @@ export const updateVenueSettings = async (req, res, next) => {
                 return res.status(400).json({ message: 'Geçersiz saat aralığı kuralı' });
             const invalidDeltas = pricingWindows.some(w => w.paymentDeltas != null && (
                 typeof w.paymentDeltas !== 'object' || Array.isArray(w.paymentDeltas)
-                || Object.keys(w.paymentDeltas).some(k => !VALID_PAY.includes(k) || !Number.isInteger(w.paymentDeltas[k]))
+                || Object.keys(w.paymentDeltas).some(k => !VALID_PAY_DELTA.includes(k) || !Number.isInteger(w.paymentDeltas[k]))
             ));
             if (invalidDeltas) return res.status(400).json({ message: 'Geçersiz ödeme yöntemi fiyat farkı' });
             const hasPaymentDeltas = pricingWindows.some(w => w.paymentDeltas && Object.keys(w.paymentDeltas).length > 0);

@@ -882,6 +882,20 @@ const SURFACE_ICON = {
     CLAY: '🟤', HARD: '⬜', CARPET: '🟥', GRASS: '🟢', PARQUET: '🟫', SYNTHETIC: '🟩',
 };
 
+const SURFACE_OPTIONS_FULL = [
+    { key: 'CLAY',      label: 'Toprak',     icon: '🟤' },
+    { key: 'HARD',      label: 'Sert Zemin', icon: '⬜' },
+    { key: 'CARPET',    label: 'Halı Saha',  icon: '🟥' },
+    { key: 'GRASS',     label: 'Çim',        icon: '🌿' },
+    { key: 'PARQUET',   label: 'Parke',      icon: '🟫' },
+    { key: 'SYNTHETIC', label: 'Sentetik',   icon: '🟩' },
+];
+// Padel kortlarının gerçekte tek zemin tipi var: sentetik çim — ileride başka zemin
+// tipleri eklenirse burası genişletilir.
+const getSurfaceOptions = (branch) => branch === 'padel'
+    ? SURFACE_OPTIONS_FULL.filter(s => s.key === 'SYNTHETIC')
+    : SURFACE_OPTIONS_FULL;
+
 const SCHED_COURT_W = 72;
 
 function normalizeTime(raw) {
@@ -3406,15 +3420,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 ZEMİN TİPİ
                             </Text>
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                {[
-                                    { key: 'CLAY',      label: 'Toprak',     icon: '🟤' },
-                                    { key: 'HARD',      label: 'Sert Zemin', icon: '⬜' },
-                                    { key: 'CARPET',    label: 'Halı Saha',  icon: '🟥' },
-                                    { key: 'GRASS',     label: 'Çim',        icon: '🌿' },
-                                    { key: 'PARQUET',   label: 'Parke',      icon: '🟫' },
-                                    { key: 'SYNTHETIC', label: 'Sentetik',   icon: '🟩' },
-                                ].map(s => {
-                                    const isActive = globalSurface === s.key;
+                                {getSurfaceOptions(venue.branch).map(s => {
+                                    const isActive = globalSurface === s.key || (!globalSurface && venue.branch === 'padel' && s.key === 'SYNTHETIC');
                                     return (
                                         <TouchableOpacity key={s.key}
                                             onPress={() => handleGlobalSurface(s.key)}
@@ -3720,15 +3727,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         ZEMİN TİPİ
                                     </Text>
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                        {[
-                                            { key: 'CLAY',      label: 'Toprak',   icon: '🟤' },
-                                            { key: 'HARD',      label: 'Sert Zemin', icon: '⬜' },
-                                            { key: 'CARPET',    label: 'Halı Saha', icon: '🟥' },
-                                            { key: 'GRASS',     label: 'Çim',       icon: '🌿' },
-                                            { key: 'PARQUET',   label: 'Parke',     icon: '🟫' },
-                                            { key: 'SYNTHETIC', label: 'Sentetik',  icon: '🟩' },
-                                        ].map(s => {
-                                            const isActive = currentSurface === s.key;
+                                        {getSurfaceOptions(venue.branch).map(s => {
+                                            const isActive = currentSurface === s.key || (!currentSurface && venue.branch === 'padel' && s.key === 'SYNTHETIC');
                                             return (
                                                 <TouchableOpacity key={s.key}
                                                     onPress={() => handleUpdateCourtSurface(court.id, s.key)}
@@ -4749,9 +4749,15 @@ export default function BusinessHomeScreen({ navigation, route }) {
                             )}
                         </View>
                     ) : (
-                        venues.map(v => (
-                            <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={route?.params?.openReservations === true} />
-                        ))
+                        venues.map(v => {
+                            // Bildirimden geldiyse (venueId varsa) sadece o tesisin takvimi açılır;
+                            // yoksa (venueId yok) eski davranış korunur — tüm kartlar açılmayı dener.
+                            const shouldOpen = route?.params?.openReservations === true
+                                && (!route?.params?.venueId || route.params.venueId === v.id);
+                            return (
+                                <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={shouldOpen} />
+                            );
+                        })
                     )}
 
                     <View style={{ height: 40 }} />

@@ -40,7 +40,9 @@ function navigateFromNotif(data) {
             navigationRef.navigate('ProfileTab');
         }
     } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'VENUE_ORDER' || type === 'PAYMENT_ALERT') {
-        navigationRef.navigate('BusinessApp', { openReservations: true });
+        // venueId varsa (ör. VENUE_ORDER) sadece o tesisin takvimi açılır — yoksa (ör. bazı
+        // RESERVATION bildirimleri) eski davranış korunur, tüm tesis kartları açılmayı dener.
+        navigationRef.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null });
     } else if (type === 'VENUE_REQUEST') {
         navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
     } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
