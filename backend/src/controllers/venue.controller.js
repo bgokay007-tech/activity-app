@@ -544,7 +544,13 @@ export const getVenueSlots = async (req, res, next) => {
         // göre ağırlıklı toplayarak hesaplar, tek bir uçtaki fiyattan hesaplamaz.
         const addWindowPrice = arr => (arr || []).map(s => {
             const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, s.start);
-            const segs = splitPriceSegments(venue, court, toMins(s.start), toMins(s.end));
+            // Gece yarısını geçen pencerede s.end görüntüleme için "sarılmış" olabilir (ör. 02:00,
+            // gerçekte 26:00) — toMins(s.end) doğrudan kullanılırsa bitiş başlangıçtan küçük çıkar
+            // ve splitPriceSegments bozuk (ters) bir aralık alır. s.durationMins sarılmadan ÖNCEKİ
+            // gerçek süreyi taşıyor, bitiş oradan güvenle yeniden hesaplanır.
+            const startMins = toMins(s.start);
+            const endMins = s.durationMins != null ? startMins + s.durationMins : toMins(s.end);
+            const segs = splitPriceSegments(venue, court, startMins, endMins);
             const priceSegments = segs.map(seg => {
                 const pricePerHourByMethod = {};
                 for (const m of PAYMENT_METHODS) pricePerHourByMethod[m] = resolveMethodRate(seg.basePrice, seg.paymentDeltas, m);

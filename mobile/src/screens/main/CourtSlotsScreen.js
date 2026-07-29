@@ -370,12 +370,17 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                     ) : (slots?.windows || []).map((w, i) => {
                                         const winStartM = toM(w.start);
                                         let winEndM = toM(w.end);
-                                        if (winEndM <= winStartM) winEndM += 1440;
+                                        // Gece yarısını geçen pencerede w.end (ör. "02:00") başlangıçtan
+                                        // küçük görünür — bu aslında ertesi güne ait, "06:00–02:00" tek
+                                        // başına kafa karıştırır, bu yüzden etiket iki parçaya bölünür.
+                                        const overnightWin = winEndM <= winStartM;
+                                        if (overnightWin) winEndM += 1440;
                                         const effStart = roundedNowIfPast(selectedDate, w);
                                         const effStartM = toM(effStart) < winStartM ? toM(effStart) + 1440 : toM(effStart);
                                         const windowPassed = effStartM >= winEndM;
                                         const isRounded = effStart !== w.start;
                                         const active = varWindow === w;
+                                        const rangeLabel = overnightWin ? `${w.start}–00:00, 00:00–${w.end}` : `–${w.end}`;
                                         return (
                                             <TouchableOpacity key={i}
                                                 disabled={windowPassed}
@@ -383,7 +388,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                                 style={[vs.timeBtn, active && vs.timeBtnActive, windowPassed && { opacity: 0.4 }]}
                                             >
                                                 <Text style={[vs.timeBtnText, active && vs.timeBtnTextActive]}>{windowPassed ? w.start : effStart}</Text>
-                                                <Text style={[vs.timeBtnSub, active && vs.timeBtnTextActive]}>–{w.end}</Text>
+                                                <Text style={[vs.timeBtnSub, active && vs.timeBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{rangeLabel}</Text>
                                                 {isRounded && !windowPassed && <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '800', marginTop: 2 }}>🎁 Şimdi</Text>}
                                                 {windowPassed && <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700', marginTop: 2 }}>Doldu</Text>}
                                             </TouchableOpacity>
