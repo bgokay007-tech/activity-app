@@ -752,18 +752,18 @@ export const makeReservation = async (req, res, next) => {
             // İşletmeye bilgi bildirimi
             createNotification(venue.userId, 'RESERVATION', '✅ Otomatik Onaylı Rezervasyon',
                 `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı. Ödeme yöntemi: ${pmLabel}. (Otomatik onaylandı)`,
-                { reservationId: reservation.id }
+                { reservationId: reservation.id, category: 'SPORTS', subCategory: venue.branch }
             ).catch(() => {});
             // Müşteriye onay bildirimi
             createNotification(req.userId, 'RESERVATION', '✅ Rezervasyonunuz Onaylandı',
                 `${venue.name} — ${court?.name || 'Kort'} için ${date} ${startTime}–${endTime} rezervasyonunuz onaylandı. Ödeme yöntemi: ${pmLabel}.`,
-                { reservationId: reservation.id }
+                { reservationId: reservation.id, category: 'SPORTS', subCategory: venue.branch }
             ).catch(() => {});
             emitToUser(req.userId, 'reservationUpdate', { reservationId: reservation.id, status: 'CONFIRMED' });
         } else {
             await createNotification(venue.userId, 'RESERVATION', '📅 Yeni Rezervasyon',
                 `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı. Ödeme yöntemi: ${pmLabel}.`,
-                { reservationId: reservation.id }
+                { reservationId: reservation.id, category: 'SPORTS', subCategory: venue.branch }
             );
         }
         emitToUser(venue.userId, 'notification', {});
@@ -1179,7 +1179,7 @@ export const updateReservationStatus = async (req, res, next) => {
         const res_ = await prisma.courtReservation.findUnique({
             where: { id: resId },
             include: {
-                venue: { select: { userId: true, name: true } },
+                venue: { select: { userId: true, name: true, branch: true } },
                 court: { select: { name: true } },
             },
         });
@@ -1187,6 +1187,7 @@ export const updateReservationStatus = async (req, res, next) => {
         if (res_.venue?.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
         const venueName  = res_.venue?.name || 'Tesis';
+        const venueSub   = { category: 'SPORTS', subCategory: res_.venue?.branch };
         const courtName  = res_.court?.name || 'Kort';
         const dateStr    = `${res_.date} ${res_.startTime}–${res_.endTime}`;
         const customerId = res_.userId;
@@ -1238,7 +1239,7 @@ export const updateReservationStatus = async (req, res, next) => {
             for (const admin of admins) {
                 createNotification(admin.id, 'PAYMENT_ALERT', '🚨 Ödeme Tahsil Edilemedi',
                     `${venueName} — ${courtName}: ${dateStr} rezervasyonunda müşteri gelmedi / ödeme tahsil edilemedi.`,
-                    { reservationId: resId }
+                    { reservationId: resId, ...venueSub }
                 ).catch(() => {});
             }
             return;
@@ -1252,12 +1253,12 @@ export const updateReservationStatus = async (req, res, next) => {
             for (const admin of admins) {
                 createNotification(admin.id, 'PAYMENT_ALERT', '🚨 Ödeme Alınmadı Uyarısı',
                     `${venueName} — ${courtName}: ${dateStr} rezervasyonunda ödeme alınmadı!`,
-                    { reservationId: resId }
+                    { reservationId: resId, ...venueSub }
                 ).catch(() => {});
             }
             createNotification(customerId, 'RESERVATION', '❌ Rezervasyon İptal Edildi',
                 `${venueName} · ${courtName} — ${dateStr} rezervasyonunuz iptal edildi (ödeme alınamadı).`,
-                { reservationId: resId }
+                { reservationId: resId, ...venueSub }
             ).catch(() => {});
             emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CANCELLED' });
             return;
@@ -1269,7 +1270,7 @@ export const updateReservationStatus = async (req, res, next) => {
             createNotification(customerId, 'RESERVATION',
                 '❌ Rezervasyon Reddedildi',
                 `${venueName} · ${courtName} — ${dateStr} rezervasyonunuz reddedildi.`,
-                { reservationId: resId }
+                { reservationId: resId, ...venueSub }
             ).catch(() => {});
             emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CANCELLED' });
             return;
@@ -1285,7 +1286,7 @@ export const updateReservationStatus = async (req, res, next) => {
             createNotification(customerId, 'RESERVATION',
                 '✅ Rezervasyonunuz Onaylandı',
                 `${venueName} · ${courtName} — ${dateStr} rezervasyonunuz onaylandı.`,
-                { reservationId: resId }
+                { reservationId: resId, ...venueSub }
             ).catch(() => {});
             emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CONFIRMED' });
 
@@ -1308,7 +1309,7 @@ export const updateReservationStatus = async (req, res, next) => {
                     for (const uid of recipients) {
                         createNotification(uid, 'RESERVATION', '✅ Maç Kort/Saat Değişikliği Onaylandı',
                             `${venueName} · ${courtName} — ${dateStr} maç saati işletme tarafından onaylandı.`,
-                            { rivalId: activity.id }
+                            { rivalId: activity.id, category: activity.category, subCategory: activity.subCategory }
                         ).catch(() => {});
                         emitToUser(uid, 'rivalUpdate', activity);
                     }
@@ -1318,7 +1319,7 @@ export const updateReservationStatus = async (req, res, next) => {
             createNotification(customerId, 'RESERVATION',
                 '❌ Rezervasyon İptal Edildi',
                 `${venueName} · ${courtName} — ${dateStr} rezervasyonunuz iptal edildi.`,
-                { reservationId: resId }
+                { reservationId: resId, ...venueSub }
             ).catch(() => {});
             emitToUser(customerId, 'reservationUpdate', { reservationId: resId, status: 'CANCELLED' });
         }
@@ -1376,13 +1377,13 @@ export const rescheduleReservation = async (req, res, next) => {
             newStatus === 'CONFIRMED'
                 ? `Rezervasyon ${newDate} ${newStartTime}–${newEndTime} olarak güncellendi ve otomatik onaylandı.`
                 : `Rezervasyon tarihi değiştirildi: ${newDate} ${newStartTime}–${newEndTime}. Onayınız bekleniyor.`,
-            { reservationId: resId }
+            { reservationId: resId, category: 'SPORTS', subCategory: res_.venue.branch }
         ).catch(() => {});
         emitToUser(res_.venue.userId, 'notification', {});
         if (newStatus === 'CONFIRMED') {
             createNotification(res_.userId, 'RESERVATION', '✅ Rezervasyonunuz Onaylandı',
                 `${newDate} ${newStartTime}–${newEndTime} için değiştirdiğiniz rezervasyon otomatik onaylandı.`,
-                { reservationId: resId }
+                { reservationId: resId, category: 'SPORTS', subCategory: res_.venue.branch }
             ).catch(() => {});
             emitToUser(res_.userId, 'reservationUpdate', { reservationId: resId, status: 'CONFIRMED' });
         }
@@ -1419,7 +1420,7 @@ export const rescheduleReservation = async (req, res, next) => {
                 createNotification(
                     uid, 'RESERVATION', '📅 Maç Saati Değişti',
                     `"${activity.courtName || 'Kort'}" için maç ${newDate} ${newStartTime}–${newEndTime} olarak güncellendi.`,
-                    { rivalId: activity.id }
+                    { rivalId: activity.id, category: activity.category, subCategory: activity.subCategory }
                 ).catch(() => {});
                 emitToUser(uid, 'rivalUpdate', updatedActivity);
             }
@@ -1454,7 +1455,7 @@ export const requestCancelReservation = async (req, res, next) => {
             ? `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için saat değişikliği talep edildi.`
             : `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için iptal talebi gönderildi.`;
 
-        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, { reservationId: resId }).catch(() => {});
+        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, { reservationId: resId, category: 'SPORTS', subCategory: r.venue.branch }).catch(() => {});
         emitToUser(r.venue.userId, 'notification', {});
 
         res.json({ ok: true });
@@ -1480,7 +1481,7 @@ export const approveCancelRequest = async (req, res, next) => {
         await createNotification(r.userId, 'RESERVATION',
             '✅ İptal Talebiniz Onaylandı',
             `${r.date} ${r.startTime}–${r.endTime} rezervasyonunuz iptal edildi.`,
-            { reservationId: resId }
+            { reservationId: resId, category: 'SPORTS', subCategory: r.venue.branch }
         ).catch(() => {});
         emitToUser(r.userId, 'notification', {});
         emitToUser(r.userId, 'reservationUpdate', { reservationId: resId, status: 'CANCELLED' });

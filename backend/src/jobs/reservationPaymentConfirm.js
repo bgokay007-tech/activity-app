@@ -15,7 +15,7 @@ export async function processReservationPaymentConfirms() {
                 paymentConfirmStatus: 'PENDING',
             },
             include: {
-                venue: { select: { userId: true, name: true } },
+                venue: { select: { userId: true, name: true, branch: true } },
                 court: { select: { name: true } },
             },
         });
@@ -35,14 +35,14 @@ export async function processReservationPaymentConfirms() {
                 autoConfirmedCount++;
                 createNotification(r.venue.userId, 'RESERVATION', '✅ Rezervasyon Otomatik Onaylandı',
                     `${r.venue.name} — ${r.court?.name}: ${r.date} ${r.startTime}–${r.endTime} rezervasyonu 1 saat içinde yanıtlanmadığı için otomatik onaylandı sayıldı.`,
-                    { reservationId: r.id }
+                    { reservationId: r.id, category: 'SPORTS', subCategory: r.venue.branch }
                 ).catch(() => {});
             } else if (minutesSinceStart >= 30 && !r.paymentPromptSent) {
                 await prisma.courtReservation.update({ where: { id: r.id }, data: { paymentPromptSent: true } });
                 promptedCount++;
                 createNotification(r.venue.userId, 'RESERVATION', '🕐 Ödeme Onayı Bekleniyor',
                     `${r.venue.name} — ${r.court?.name}: ${r.date} ${r.startTime}–${r.endTime} rezervasyonu için müşteri geldi mi, ödeme alındı mı? 1 saat içinde onaylamazsanız otomatik onaylanmış sayılacak.`,
-                    { reservationId: r.id }
+                    { reservationId: r.id, category: 'SPORTS', subCategory: r.venue.branch }
                 ).catch(() => {});
             }
         }

@@ -14,7 +14,7 @@ export async function autoApproveEftReservations() {
                 createdAt: { lte: cutoff },
             },
             include: {
-                venue: { select: { id: true, userId: true, name: true, approvalMode: true } },
+                venue: { select: { id: true, userId: true, name: true, branch: true, approvalMode: true } },
                 court: { select: { id: true, name: true, approvalMode: true } },
                 user:  { select: { id: true, username: true } },
             },
@@ -33,12 +33,12 @@ export async function autoApproveEftReservations() {
 
             createNotification(res.venue.userId, 'RESERVATION', '⏱️ EFT Rezervasyon Otomatik Onaylandı',
                 `${res.user?.username} — ${res.venue.name} / ${res.court?.name} için ${res.date} ${res.startTime}–${res.endTime} EFT rezervasyonu 1 saat içinde onaylanmadı, otomatik onaylandı.`,
-                { reservationId: res.id }
+                { reservationId: res.id, category: 'SPORTS', subCategory: res.venue.branch }
             ).catch(() => {});
 
             createNotification(res.userId, 'RESERVATION', '✅ Rezervasyonunuz Onaylandı',
                 `${res.venue.name} — ${res.court?.name} için ${res.date} ${res.startTime}–${res.endTime} rezervasyonunuz onaylandı.`,
-                { reservationId: res.id }
+                { reservationId: res.id, category: 'SPORTS', subCategory: res.venue.branch }
             ).catch(() => {});
 
             emitToUser(res.userId, 'reservationUpdate', { reservationId: res.id, status: 'CONFIRMED' });

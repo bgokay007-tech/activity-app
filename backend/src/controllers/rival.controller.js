@@ -844,7 +844,7 @@ function notifyMatchParticipants(activity, { title, body, excludeUserId }) {
         if (excludeUserId) recipients.delete(excludeUserId);
         recipients.delete(activity.senderId);
         for (const uid of recipients) {
-            createNotification(uid, 'RESERVATION', title, body, { rivalId: activity.id }).catch(() => {});
+            createNotification(uid, 'RESERVATION', title, body, { rivalId: activity.id, category: activity.category, subCategory: activity.subCategory }).catch(() => {});
             emitToUser(uid, 'rivalUpdate', activity);
         }
     }).catch(() => {});
@@ -1004,13 +1004,13 @@ async function updateMatchedRivalCourt(req, res, rival) {
                 });
                 createNotification(oldReservation.venue.userId, 'RESERVATION', '⏳ İptal Onayı Gerekiyor',
                     `${oldReservation.date} ${oldReservation.startTime}–${oldReservation.endTime} rezervasyonu için oyuncu maçı farklı bir tesise taşıdı, ancak iptal süresi geçtiği için onayınız gerekiyor. Onaylarsanız rezervasyon iptal edilecek.`,
-                    { reservationId: oldReservation.id }
+                    { reservationId: oldReservation.id, category: rival.category, subCategory: rival.subCategory }
                 ).catch(() => {});
             } else {
                 await prisma.courtReservation.update({ where: { id: oldReservation.id }, data: { status: 'CANCELLED' } });
                 createNotification(oldReservation.venue.userId, 'RESERVATION', '🚫 Rezervasyon İptal Edildi',
                     `${oldReservation.date} ${oldReservation.startTime}–${oldReservation.endTime} rezervasyonu, oyuncu farklı bir tesise geçtiği için iptal edildi.`,
-                    { reservationId: oldReservation.id }
+                    { reservationId: oldReservation.id, category: rival.category, subCategory: rival.subCategory }
                 ).catch(() => {});
             }
             emitToUser(oldReservation.venue.userId, 'notification', {});
@@ -1026,7 +1026,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
             createNotification(targetVenue.userId, 'RESERVATION',
                 newStatus === 'CONFIRMED' ? '✅ Otomatik Onaylı Rezervasyon' : '📅 Yeni Rezervasyon',
                 `Bir maç ilanı bu tesise taşındı: ${targetCourt.name} — ${matchDate} ${matchTime}–${newEndTime}.${newStatus === 'PENDING' ? ' Onayınız bekleniyor.' : ''}`,
-                { reservationId: newReservation.id }
+                { reservationId: newReservation.id, category: rival.category, subCategory: rival.subCategory }
             ).catch(() => {});
             emitToUser(targetVenue.userId, 'notification', {});
         } else {
@@ -1037,7 +1037,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
             createNotification(targetVenue.userId, 'RESERVATION',
                 newStatus === 'CONFIRMED' ? '✅ Rezervasyon Değişti (Otomatik Onaylı)' : '📅 Rezervasyon Değiştirme Talebi',
                 `${targetCourt.name} — ${matchDate} ${matchTime}–${newEndTime} olarak güncellendi.${newStatus === 'PENDING' ? ' Onayınız bekleniyor.' : ''}`,
-                { reservationId: oldReservation.id }
+                { reservationId: oldReservation.id, category: rival.category, subCategory: rival.subCategory }
             ).catch(() => {});
             emitToUser(targetVenue.userId, 'notification', {});
         }
