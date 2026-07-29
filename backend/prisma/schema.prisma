@@ -651,6 +651,11 @@ model ActivityRequest {
   refereeId       String?                         // asıl maç ilanında: onaylanmış hakemin userId'si (hakem slotu)
   minRating       Float?                          // min skill rating to join
   maxRating       Float?                          // max skill rating to join
+  ratingGenderSplit Boolean   @default(false)      // true ise minRating/maxRating yerine cinsiyete göre ayrı aralıklar (aşağıda) kullanılır
+  minRatingMale     Float?                         // ratingGenderSplit true iken erkek oyuncular için alt derece sınırı
+  maxRatingMale     Float?                         // ratingGenderSplit true iken erkek oyuncular için üst derece sınırı
+  minRatingFemale   Float?                         // ratingGenderSplit true iken kadın oyuncular için alt derece sınırı
+  maxRatingFemale   Float?                         // ratingGenderSplit true iken kadın oyuncular için üst derece sınırı
   status          String       @default("OPEN")   // OPEN | MATCHED | CANCELLED | COMPLETED
   // Maç MATCHED iken bir katılımcı çıkarılınca/ayrılınca OPEN'a dönerse damgalanır —
   // bu slot yeniden dolana kadar (MATCHED'e geri dönene kadar) kalıcıdır. Bu süre
@@ -813,6 +818,11 @@ model Tournament {
   contactPhone         String?
   minRating            Float?       // minimum skillRating to join (0.0–5.0)
   maxRating            Float?       // maximum skillRating to join (0.0–5.0)
+  ratingGenderSplit    Boolean      @default(false) // true ise minRating/maxRating yerine cinsiyete göre ayrı aralıklar (aşağıda) kullanılır — genderType MIX iken anlamlı
+  minRatingMale        Float?       // ratingGenderSplit true iken erkek katılımcılar için alt derece sınırı
+  maxRatingMale        Float?       // ratingGenderSplit true iken erkek katılımcılar için üst derece sınırı
+  minRatingFemale      Float?       // ratingGenderSplit true iken kadın katılımcılar için alt derece sınırı
+  maxRatingFemale      Float?       // ratingGenderSplit true iken kadın katılımcılar için üst derece sınırı
   matchmakingType      String?      // 'ELO' | 'RANDOM' | 'SEEDED'
   matchFrequency       String?      // 'WEEKLY_1' | 'WEEKLY_2' | 'FLEXIBLE'
   matchTimeStart       String?      // earliest allowed match time e.g. '09:00'

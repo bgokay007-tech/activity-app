@@ -644,7 +644,8 @@ export const updateRivalRequest = async (req, res, next) => {
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık veya eşleşmiş ilanlar düzenlenebilir' });
 
         const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
-                minRating, maxRating, matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
+                minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
+                matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, refereeRequested, refereePayment,
                 teamFlexibility, matchType, participantsCanInvite } = req.body;
 
@@ -673,6 +674,11 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(courtLng !== undefined && { courtLng: courtLng !== null ? Number(courtLng) : null }),
                 ...(minRating !== undefined && { minRating: minRating !== '' && minRating !== null ? parseFloat(minRating) : null }),
                 ...(maxRating !== undefined && { maxRating: maxRating !== '' && maxRating !== null ? parseFloat(maxRating) : null }),
+                ...(ratingGenderSplit !== undefined && { ratingGenderSplit: !!ratingGenderSplit }),
+                ...(minRatingMale !== undefined && { minRatingMale: minRatingMale !== '' && minRatingMale !== null ? parseFloat(minRatingMale) : null }),
+                ...(maxRatingMale !== undefined && { maxRatingMale: maxRatingMale !== '' && maxRatingMale !== null ? parseFloat(maxRatingMale) : null }),
+                ...(minRatingFemale !== undefined && { minRatingFemale: minRatingFemale !== '' && minRatingFemale !== null ? parseFloat(minRatingFemale) : null }),
+                ...(maxRatingFemale !== undefined && { maxRatingFemale: maxRatingFemale !== '' && maxRatingFemale !== null ? parseFloat(maxRatingFemale) : null }),
                 ...(matchMode !== undefined && { matchMode: matchMode.toUpperCase() }),
                 ...(genderReq !== undefined && { genderReq }),
                 ...(partnerGenderReq !== undefined && { partnerGenderReq }),
@@ -1092,6 +1098,7 @@ export const createRivalRequest = async (req, res, next) => {
             refereeRequested, // bu maç ilanı için ayrıca hakem talep ediliyor mu (tenis/padel/voleybol)
             refereeInvites, // [{userId, price, message}] — hakem talebi belirli kullanıcılara doğrudan teklifli davet olarak gönderilecekse
             minRating, maxRating,
+            ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             genderReq = 'MIX',
             partnerGenderReq = 'MIX',
             opp1GenderReq = 'MIX',
@@ -1177,6 +1184,11 @@ export const createRivalRequest = async (req, res, next) => {
                 participantsCanInvite: !!participantsCanInvite,
                 ...(minRating !== undefined && minRating !== null && minRating !== '' && { minRating: parseFloat(minRating) }),
                 ...(maxRating !== undefined && maxRating !== null && maxRating !== '' && { maxRating: parseFloat(maxRating) }),
+                ratingGenderSplit: !!ratingGenderSplit,
+                ...(minRatingMale !== undefined && minRatingMale !== null && minRatingMale !== '' && { minRatingMale: parseFloat(minRatingMale) }),
+                ...(maxRatingMale !== undefined && maxRatingMale !== null && maxRatingMale !== '' && { maxRatingMale: parseFloat(maxRatingMale) }),
+                ...(minRatingFemale !== undefined && minRatingFemale !== null && minRatingFemale !== '' && { minRatingFemale: parseFloat(minRatingFemale) }),
+                ...(maxRatingFemale !== undefined && maxRatingFemale !== null && maxRatingFemale !== '' && { maxRatingFemale: parseFloat(maxRatingFemale) }),
                 ...(courtFeePerPerson !== undefined && courtFeePerPerson !== null && { courtFeePerPerson: parseInt(courtFeePerPerson, 10) }),
                 genderReq: genderReq || 'MIX',
                 partnerGenderReq: partnerGenderReq || 'MIX',
@@ -1625,18 +1637,30 @@ export const sendJoinRequest = async (req, res, next) => {
             return res.status(400).json({ message: 'You already sent a request', status: existing.status });
         }
 
+        // Cinsiyet ve derece kısıtlaması kontrollerinin ikisi de başvuranın cinsiyetine
+        // ihtiyaç duyabiliyor (derece kısıtlaması cinsiyete göre ayrıysa) — tek seferde çekilir.
+        let joinerGenderChecked = false;
+        let joiner = null;
+        const getJoiner = async () => {
+            if (!joinerGenderChecked) {
+                joiner = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
+                joinerGenderChecked = true;
+            }
+            return joiner;
+        };
+
         // Gender restriction check — SINGLE. Cinsiyeti profilinde belirtilmemiş kullanıcı,
         // cinsiyete özel bir ilana uygunluğu doğrulanamadığı için reddedilir (OTHER hariç);
         // bu durumda "hangi cinsiyet aranıyor" değil, ayrıca "profilinden cinsiyetini gir"
         // mesajı gösteriyoruz — yoksa gerçekten o cinsiyette olan kullanıcılar için de
         // çelişkili/hatalı görünüyordu.
         if (request.matchType === 'SINGLE' && request.genderReq && request.genderReq !== 'MIX') {
-            const joiner = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
-            if (joiner?.gender !== 'OTHER') {
-                if (!joiner?.gender) {
+            const j = await getJoiner();
+            if (j?.gender !== 'OTHER') {
+                if (!j?.gender) {
                     return res.status(400).json({ message: 'Bu ilana başvurmak için önce profilinden cinsiyetini belirtmen gerekiyor.' });
                 }
-                if (request.genderReq !== joiner.gender) {
+                if (request.genderReq !== j.gender) {
                     const label = request.genderReq === 'MALE' ? 'erkek' : 'kadın';
                     return res.status(400).json({ message: `Bu ilan yalnızca ${label} oyuncular için açık.` });
                 }
@@ -1647,12 +1671,12 @@ export const sendJoinRequest = async (req, res, next) => {
             const opp1Req = request.opp1GenderReq || 'MIX';
             const opp2Req = request.opp2GenderReq || 'MIX';
             if (opp1Req !== 'MIX' || opp2Req !== 'MIX') {
-                const joiner = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
-                if (joiner?.gender !== 'OTHER') {
-                    if (!joiner?.gender) {
+                const j = await getJoiner();
+                if (j?.gender !== 'OTHER') {
+                    if (!j?.gender) {
                         return res.status(400).json({ message: 'Bu ilana başvurmak için önce profilinden cinsiyetini belirtmen gerekiyor.' });
                     }
-                    const g = joiner.gender;
+                    const g = j.gender;
                     const canFillOpp1 = opp1Req === 'MIX' || g === opp1Req;
                     const canFillOpp2 = opp2Req === 'MIX' || g === opp2Req;
                     if (!canFillOpp1 && !canFillOpp2) {
@@ -1662,15 +1686,26 @@ export const sendJoinRequest = async (req, res, next) => {
             }
         }
 
-        if (request.minRating !== null || request.maxRating !== null) {
+        // Derece kısıtlaması — ilan sahibi "cinsiyete göre ayrı" seçtiyse (ör. erkek 3-4,
+        // kadın 4-5) başvuranın cinsiyetine göre uygun aralık seçilir; cinsiyeti belirtilmemiş/
+        // OTHER olan kullanıcılar için derece kısıtlaması uygulanmaz (gender-req'teki OTHER
+        // muafiyetiyle tutarlı).
+        let effMinRating = request.minRating, effMaxRating = request.maxRating;
+        if (request.ratingGenderSplit) {
+            const j = await getJoiner();
+            if (j?.gender === 'MALE') { effMinRating = request.minRatingMale; effMaxRating = request.maxRatingMale; }
+            else if (j?.gender === 'FEMALE') { effMinRating = request.minRatingFemale; effMaxRating = request.maxRatingFemale; }
+            else { effMinRating = null; effMaxRating = null; }
+        }
+        if (effMinRating !== null || effMaxRating !== null) {
             const userInterest = await prisma.userInterest.findFirst({
                 where: { userId: req.userId, category: request.category, subCategory: request.subCategory },
             });
             const userRating = userInterest?.skillRating ?? 0;
-            if (request.minRating !== null && userRating < request.minRating)
-                return res.status(400).json({ message: `Bu ilan için en az ${request.minRating}★ puan gerekiyor. Sizin puanınız: ${userRating.toFixed(2)}★` });
-            if (request.maxRating !== null && userRating > request.maxRating)
-                return res.status(400).json({ message: `Bu ilan için en fazla ${request.maxRating}★ puan kabul ediliyor. Sizin puanınız: ${userRating.toFixed(2)}★` });
+            if (effMinRating !== null && userRating < effMinRating)
+                return res.status(400).json({ message: `Bu ilan için en az ${effMinRating}★ puan gerekiyor. Sizin puanınız: ${userRating.toFixed(2)}★` });
+            if (effMaxRating !== null && userRating > effMaxRating)
+                return res.status(400).json({ message: `Bu ilan için en fazla ${effMaxRating}★ puan kabul ediliyor. Sizin puanınız: ${userRating.toFixed(2)}★` });
         }
 
         const joiningTeam = Array.isArray(req.body.joiningTeam) ? req.body.joiningTeam : [];

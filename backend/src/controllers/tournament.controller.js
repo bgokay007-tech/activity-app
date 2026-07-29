@@ -649,6 +649,7 @@ export const createTournament = async (req, res, next) => {
             scope, genderType, isPaid, feeType, playerFee, paymentMethod, ibanNumber, ibanHolder,
             prize1, prize2, prize3, contactPhone,
             minPlayers, maxPlayers, minRating, maxRating,
+            ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd, dayTrip,
             setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers,
             rules,
@@ -694,6 +695,11 @@ export const createTournament = async (req, res, next) => {
                 contactPhone: contactPhone || null,
                 minRating: minRating !== undefined && minRating !== '' ? parseFloat(minRating) : null,
                 maxRating: maxRating !== undefined && maxRating !== '' ? parseFloat(maxRating) : null,
+                ratingGenderSplit: !!ratingGenderSplit,
+                minRatingMale: minRatingMale !== undefined && minRatingMale !== '' ? parseFloat(minRatingMale) : null,
+                maxRatingMale: maxRatingMale !== undefined && maxRatingMale !== '' ? parseFloat(maxRatingMale) : null,
+                minRatingFemale: minRatingFemale !== undefined && minRatingFemale !== '' ? parseFloat(minRatingFemale) : null,
+                maxRatingFemale: maxRatingFemale !== undefined && maxRatingFemale !== '' ? parseFloat(maxRatingFemale) : null,
                 matchmakingType: matchmakingType || 'ELO',
                 matchFrequency: matchFrequency || 'FLEXIBLE',
                 matchTimeStart: matchTimeStart || null,
@@ -856,7 +862,7 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
             where: { userId_category_subCategory: { userId, category: tournament.category, subCategory: tournament.subCategory } },
             select: { assessmentCompleted: true, wins: true, losses: true, skillRating: true },
         }),
-        prisma.user.findUnique({ where: { id: userId }, select: { tournamentBanRemaining: true } }),
+        prisma.user.findUnique({ where: { id: userId }, select: { tournamentBanRemaining: true, gender: true } }),
     ]);
     if (!interest?.assessmentCompleted) {
         return { ok: false, message: 'Derecelendirme anketini tamamlamadığınız için otomatik başvurunuz oluşturulamadı.' };
@@ -868,11 +874,19 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
         return { ok: false, message: 'Geç iptal cezası nedeniyle şu anda turnuvalara katılamadığınız için otomatik başvurunuz oluşturulamadı.' };
     }
     const userRating = interest?.skillRating ?? 0;
-    if (tournament.minRating != null && userRating < tournament.minRating) {
-        return { ok: false, message: `Bu turnuva en az ${tournament.minRating}★ derece gerektirdiği için otomatik başvurunuz oluşturulamadı.` };
+    // Cinsiyete göre ayrı derece aralığı seçiliyse (ör. erkek 3-4, kadın 4-5) o aralık kullanılır;
+    // cinsiyeti belirtilmemiş/OTHER olan kullanıcılar için derece kısıtlaması uygulanmaz.
+    let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
+    if (tournament.ratingGenderSplit) {
+        if (userRec?.gender === 'MALE') { effMinRating = tournament.minRatingMale; effMaxRating = tournament.maxRatingMale; }
+        else if (userRec?.gender === 'FEMALE') { effMinRating = tournament.minRatingFemale; effMaxRating = tournament.maxRatingFemale; }
+        else { effMinRating = null; effMaxRating = null; }
     }
-    if (tournament.maxRating != null && userRating > tournament.maxRating) {
-        return { ok: false, message: `Bu turnuva en fazla ${tournament.maxRating}★ dereceli oyuncular için olduğundan otomatik başvurunuz oluşturulamadı.` };
+    if (effMinRating != null && userRating < effMinRating) {
+        return { ok: false, message: `Bu turnuva en az ${effMinRating}★ derece gerektirdiği için otomatik başvurunuz oluşturulamadı.` };
+    }
+    if (effMaxRating != null && userRating > effMaxRating) {
+        return { ok: false, message: `Bu turnuva en fazla ${effMaxRating}★ dereceli oyuncular için olduğundan otomatik başvurunuz oluşturulamadı.` };
     }
     return { ok: true };
 }
@@ -942,7 +956,7 @@ export const joinTournament = async (req, res, next) => {
 
         // Check tournament ban + rating
         const [userBan, userInterest] = await Promise.all([
-            prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true } }),
+            prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true, gender: true } }),
             prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: req.userId, category: tournament.category, subCategory: tournament.subCategory } },
                 select: { skillRating: true },
@@ -953,13 +967,21 @@ export const joinTournament = async (req, res, next) => {
             return res.status(403).json({ message: `Geç iptal cezası nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katılamazsınız.` });
         }
 
-        // Check rating limits
+        // Check rating limits — cinsiyete göre ayrı aralık seçiliyse (ör. erkek 3-4, kadın 4-5)
+        // katılımcının cinsiyetine göre uygun aralık kullanılır; cinsiyeti belirtilmemiş/OTHER
+        // olan kullanıcılar için derece kısıtlaması uygulanmaz.
         const userRating = userInterest?.skillRating ?? 0;
-        if (tournament.minRating !== null && tournament.minRating !== undefined && userRating < tournament.minRating) {
-            return res.status(403).json({ message: `Bu turnuvaya katılmak için en az ${tournament.minRating}★ dereceniz olması gerekiyor. Mevcut dereceniz: ${userRating.toFixed(2)}★` });
+        let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
+        if (tournament.ratingGenderSplit) {
+            if (userBan?.gender === 'MALE') { effMinRating = tournament.minRatingMale; effMaxRating = tournament.maxRatingMale; }
+            else if (userBan?.gender === 'FEMALE') { effMinRating = tournament.minRatingFemale; effMaxRating = tournament.maxRatingFemale; }
+            else { effMinRating = null; effMaxRating = null; }
         }
-        if (tournament.maxRating !== null && tournament.maxRating !== undefined && userRating > tournament.maxRating) {
-            return res.status(403).json({ message: `Bu turnuva en fazla ${tournament.maxRating}★ dereceli oyuncular içindir. Mevcut dereceniz: ${userRating.toFixed(2)}★` });
+        if (effMinRating !== null && effMinRating !== undefined && userRating < effMinRating) {
+            return res.status(403).json({ message: `Bu turnuvaya katılmak için en az ${effMinRating}★ dereceniz olması gerekiyor. Mevcut dereceniz: ${userRating.toFixed(2)}★` });
+        }
+        if (effMaxRating !== null && effMaxRating !== undefined && userRating > effMaxRating) {
+            return res.status(403).json({ message: `Bu turnuva en fazla ${effMaxRating}★ dereceli oyuncular içindir. Mevcut dereceniz: ${userRating.toFixed(2)}★` });
         }
 
         const existing = await prisma.tournamentParticipant.findUnique({
@@ -1506,6 +1528,11 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.prize3              !== undefined && { prize3: b.prize3 || null }),
                 ...(b.minRating          !== undefined && { minRating: b.minRating !== '' && b.minRating !== null ? parseFloat(b.minRating) : null }),
                 ...(b.maxRating          !== undefined && { maxRating: b.maxRating !== '' && b.maxRating !== null ? parseFloat(b.maxRating) : null }),
+                ...(b.ratingGenderSplit  !== undefined && { ratingGenderSplit: !!b.ratingGenderSplit }),
+                ...(b.minRatingMale      !== undefined && { minRatingMale: b.minRatingMale !== '' && b.minRatingMale !== null ? parseFloat(b.minRatingMale) : null }),
+                ...(b.maxRatingMale      !== undefined && { maxRatingMale: b.maxRatingMale !== '' && b.maxRatingMale !== null ? parseFloat(b.maxRatingMale) : null }),
+                ...(b.minRatingFemale    !== undefined && { minRatingFemale: b.minRatingFemale !== '' && b.minRatingFemale !== null ? parseFloat(b.minRatingFemale) : null }),
+                ...(b.maxRatingFemale    !== undefined && { maxRatingFemale: b.maxRatingFemale !== '' && b.maxRatingFemale !== null ? parseFloat(b.maxRatingFemale) : null }),
                 ...(b.matchmakingType    !== undefined && { matchmakingType: b.matchmakingType || null }),
                 ...(b.matchFrequency     !== undefined && { matchFrequency: b.matchFrequency || null }),
                 ...(b.matchTimeStart     !== undefined && { matchTimeStart: b.matchTimeStart || null }),
