@@ -9,15 +9,18 @@ export const toTime = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${Str
 // yazar (iç hesaplamalarda — ör. keepOvernight köprülemesinde ve fiyat hesaplamalarında — bu
 // gerekli), ama ekranda "24:00" kafa karıştırıyor çünkü 00:00 ve sonrası aslında ertesi güne ait.
 const displayTime = m => { const t = toTime(m); return t === '24:00' ? '00:00' : t; };
-// computeSlots/buildSlots çıktısı (slots/windows/taken/priceSegments) TÜM dahili hesaplamalar
-// (fiyat, arama filtreleme) bittikten sonra, res.json'a yazılmadan hemen önce çağrılır — nesne
-// grafiğindeki her "24:00" metnini "00:00"a çevirir. Dahili değerler (toMins ile tekrar
-// işlenenler) bu fonksiyon çağrılana kadar hep gerçek "24:00" (1440 dk) olarak kalır, bu yüzden
-// hiçbir köprüleme/fiyat hesaplaması bozulmaz — sadece son adımda ekrana yazılan metin değişir.
+// computeSlots/buildSlots çıktısı (slots/windows/taken) TÜM dahili hesaplamalar (fiyat, arama
+// filtreleme) bittikten sonra, res.json'a yazılmadan hemen önce çağrılır — nesne grafiğindeki her
+// "24:00" metnini "00:00"a çevirir. Dahili değerler (toMins ile tekrar işlenenler) bu fonksiyon
+// çağrılana kadar hep gerçek "24:00" (1440 dk) olarak kalır, bu yüzden hiçbir köprüleme/fiyat
+// hesaplaması bozulmaz — sadece son adımda ekrana yazılan metin değişir. "priceSegments" İSTİSNA:
+// o alan sadece görüntülenmiyor, mobil taraf computeVarDurationPrice içinde tekrar toM() ile
+// işliyor — "00:00"a çevrilirse gün sonu segmenti "0" (gün başı) sanılır ve fiyattan düşer.
 function fixMidnightLabels(val) {
     if (Array.isArray(val)) { for (const v of val) fixMidnightLabels(v); return val; }
     if (val && typeof val === 'object') {
         for (const k of Object.keys(val)) {
+            if (k === 'priceSegments') continue;
             if (val[k] === '24:00') val[k] = '00:00';
             else fixMidnightLabels(val[k]);
         }
@@ -329,28 +332,22 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
     const allTaken = [...taken, ...maintWindows].sort((a, b) => a.s - b.s);
 
     if (venue.slotType === 'VAR_DURATION') {
-        // Esnek saatte gece yarısını geçen pencere (ör. 17:00–01:00) BÖLÜNMEDEN tek blok
-        // olarak gelir (keepOvernight) — "to" 1440'ı geçebilir (ör. "25:00" = ertesi 01:00).
-        const varWindows = getOpenWindows(venue, date, courtId, true);
+        // Diğer slot tiplerinde olduğu gibi gece yarısını geçen pencereler (ör. 06:00–02:00)
+        // burada da 00:00'da ikiye bölünür (openWindows zaten splitOvernight ile bunu yapıyor) —
+        // tek parça halinde "06:00–02:00" gibi kapanışı açılıştan küçük görünen, kafa karıştıran
+        // bir aralık üretmek yerine, her parça kendi başına ayrı bir başlangıç-saati penceresi olur.
         const windows = [];
-        for (const w of varWindows) {
-            const open = toMins(w.from);
-            const close = toMins(w.to); // >1440 olabilir
-            const overnight = close > 1440;
-            // Gece yarısını geçen pencerede, 00:00 sonrasına düşen alınan/bakım kayıtları da
-            // aynı sürekli sayı uzayına (+1440) taşınır ki köprüleme doğru karşılaştırılsın.
-            const wTaken = allTaken
-                .map(r => (overnight && r.s < open ? { ...r, s: r.s + 1440, e: r.e + 1440 } : r))
-                .filter(r => r.s < close && r.e > open)
-                .sort((a, b) => a.s - b.s);
+        for (const w of openWindows) {
+            const open = toMins(w.from), close = toMins(w.to);
+            const wTaken = allTaken.filter(r => r.s < close && r.e > open).sort((a, b) => a.s - b.s);
             let prev = isToday ? Math.max(open, nowMins) : open;
             for (const r of wTaken) {
                 if (r.s > prev && r.s - prev >= 60)
-                    windows.push({ start: toTime(prev % 1440), end: toTime(r.s % 1440), durationMins: r.s - prev });
+                    windows.push({ start: toTime(prev), end: toTime(r.s), durationMins: r.s - prev });
                 prev = Math.max(prev, r.e);
             }
             if (prev < close && close - prev >= 60)
-                windows.push({ start: toTime(prev % 1440), end: toTime(close % 1440), durationMins: close - prev });
+                windows.push({ start: toTime(prev), end: toTime(close), durationMins: close - prev });
         }
         return {
             type: 'VAR_DURATION',

@@ -26,7 +26,8 @@ function formatDateLabel(dateStr) {
 }
 
 const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
+// Gece yarısı "24:00" değil "00:00" olarak gösterilir/gönderilir — 00:00 ve sonrası ertesi güne ait.
+const toT = m => { const raw = `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`; return raw === '24:00' ? '00:00' : raw; };
 
 // Slot listesi ekrana yüklendikten sonra saat ilerlemiş olabilir (gece yarısı geçişi vb.) —
 // tıklama anında cihaz saatiyle tekrar kontrol edilir, sadece ilk yüklemedeki backend
@@ -369,18 +370,15 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                         <Text style={s.noSlotsText}>Bu tarihte müsait pencere yok.</Text>
                                     ) : (slots?.windows || []).map((w, i) => {
                                         const winStartM = toM(w.start);
-                                        let winEndM = toM(w.end);
-                                        // Gece yarısını geçen pencerede w.end (ör. "02:00") başlangıçtan
-                                        // küçük görünür — bu aslında ertesi güne ait, "06:00–02:00" tek
-                                        // başına kafa karıştırır, bu yüzden etiket iki parçaya bölünür.
-                                        const overnightWin = winEndM <= winStartM;
-                                        if (overnightWin) winEndM += 1440;
+                                        // Artık pencereler gece yarısında zaten ikiye bölünmüş geliyor (backend),
+                                        // yani "end" başlangıçtan küçük olmaz — tek istisna: pencere tam gece
+                                        // yarısında bitiyorsa ("00:00") bu gün sonu demektir, 1440 kabul edilir.
+                                        const winEndM = toM(w.end) === 0 ? 1440 : toM(w.end);
                                         const effStart = roundedNowIfPast(selectedDate, w);
-                                        const effStartM = toM(effStart) < winStartM ? toM(effStart) + 1440 : toM(effStart);
+                                        const effStartM = toM(effStart);
                                         const windowPassed = effStartM >= winEndM;
                                         const isRounded = effStart !== w.start;
                                         const active = varWindow === w;
-                                        const rangeLabel = overnightWin ? `${w.start}–00:00, 00:00–${w.end}` : `–${w.end}`;
                                         return (
                                             <TouchableOpacity key={i}
                                                 disabled={windowPassed}
@@ -388,7 +386,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                                 style={[vs.timeBtn, active && vs.timeBtnActive, windowPassed && { opacity: 0.4 }]}
                                             >
                                                 <Text style={[vs.timeBtnText, active && vs.timeBtnTextActive]}>{windowPassed ? w.start : effStart}</Text>
-                                                <Text style={[vs.timeBtnSub, active && vs.timeBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{rangeLabel}</Text>
+                                                <Text style={[vs.timeBtnSub, active && vs.timeBtnTextActive]}>–{w.end}</Text>
                                                 {isRounded && !windowPassed && <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '800', marginTop: 2 }}>🎁 Şimdi</Text>}
                                                 {windowPassed && <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: '700', marginTop: 2 }}>Doldu</Text>}
                                             </TouchableOpacity>
@@ -397,9 +395,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                                 </View>
                                 {varStartTime && varWindow && (() => {
                                     const w = varWindow;
-                                    const winStartM = toM(w.start);
-                                    let winEnd = toM(w.end);
-                                    if (winEnd <= winStartM) winEnd += 1440;
+                                    const winEnd = toM(w.end) === 0 ? 1440 : toM(w.end);
                                     const options = [60, 90, 120, 150, 180].filter(d => {
                                         const endM = toM(varStartTime) + d;
                                         return endM <= winEnd && (endM === winEnd || winEnd - endM >= 60);
