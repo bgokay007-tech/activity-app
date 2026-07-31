@@ -10476,10 +10476,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             ))}
 
-                            {['tennis', 'padel', 'volleyball'].includes(sub) && (
-                                <ExtraServicesEditor services={f.extraServices} onChange={v => set('extraServices', v)} />
-                            )}
-
                             {/* Tournament type — kendim seçerim / kullanıcılar oylasın */}
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:3 }}>
                                 <Text style={s.fieldLabelRed}>{t.tournTypeLabel}</Text>
