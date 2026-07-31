@@ -1078,17 +1078,21 @@ export const getMyReservations = async (req, res, next) => {
         const withLinks = reservations.map(r => {
             // Rezervasyonun kendi anlık ücreti hiçbir yerde saklanmıyor — "Rakip Bul'da İlan Aç"
             // önizlemesi için, kortun kendi fiyat kuralı yoksa tesisin fiyat pencerelerine
-            // (pricingWindows) göre aynı hesaplama tekrar yapılır (bkz. getSlotPrice), böylece
-            // sadece düz pricePerSlot kullanan tesislerle sınırlı kalınmaz.
+            // (pricingWindows) göre aynı hesaplama tekrar yapılır, böylece sadece düz pricePerSlot
+            // kullanan tesislerle sınırlı kalınmaz. estimatedFee, rezervasyonun GERÇEK ödeme
+            // yöntemine göre hesaplanır (ör. kredi kartında fiyat farkı varsa o yansır) —
+            // estimatedFeeByMethod ise tüm yöntemlerin fiyatını taşır (bilgilendirme amaçlı).
             let durationMins = 60;
             if (r.startTime && r.endTime) {
                 const d = toMins(r.endTime) - toMins(r.startTime);
                 durationMins = d > 0 ? d : d + 1440;
             }
-            const estimatedFee = getSlotPrice(r.venue, r.court, r.startTime, durationMins);
+            const estimatedFeeByMethod = buildPriceByMethod(r.venue, r.court, r.startTime, durationMins);
+            const estimatedFee = estimatedFeeByMethod[r.paymentMethod] ?? getSlotPrice(r.venue, r.court, r.startTime, durationMins);
             return {
                 ...r,
                 estimatedFee,
+                estimatedFeeByMethod,
                 linkedRival: linkedRivals.find(a => a.venueReservationId === r.id) || null,
             };
         });
@@ -1129,14 +1133,17 @@ export const getUnlistedReservations = async (req, res, next) => {
             )
             // "Mevcut rezervasyonlarından seç" hızlı seçiminde kişi başı ücret otomatik
             // dolabilsin diye (bkz. getMyReservations'daki aynı hesaplama) — reservation'ın
-            // kendi ücreti hiçbir yerde saklanmıyor, tesisin güncel fiyat kuralına göre yeniden hesaplanır.
+            // kendi ücreti hiçbir yerde saklanmıyor, tesisin güncel fiyat kuralına göre yeniden
+            // hesaplanır. estimatedFee rezervasyonun GERÇEK ödeme yöntemine göre hesaplanır.
             .map(r => {
                 let durationMins = 60;
                 if (r.startTime && r.endTime) {
                     const d = toMins(r.endTime) - toMins(r.startTime);
                     durationMins = d > 0 ? d : d + 1440;
                 }
-                return { ...r, estimatedFee: getSlotPrice(r.venue, r.court, r.startTime, durationMins) };
+                const estimatedFeeByMethod = buildPriceByMethod(r.venue, r.court, r.startTime, durationMins);
+                const estimatedFee = estimatedFeeByMethod[r.paymentMethod] ?? getSlotPrice(r.venue, r.court, r.startTime, durationMins);
+                return { ...r, estimatedFee, estimatedFeeByMethod };
             });
 
         res.json(unlisted);

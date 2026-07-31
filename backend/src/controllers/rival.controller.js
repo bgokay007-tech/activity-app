@@ -646,7 +646,7 @@ export const updateRivalRequest = async (req, res, next) => {
         const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
-                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, refereeRequested, refereePayment,
+                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment,
                 teamFlexibility, matchType, participantsCanInvite } = req.body;
 
         // matchType (tekli/çiftli) sadece hiç katılımcı/partner kabul edilmemişse
@@ -690,6 +690,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(isCourtReserved !== undefined && { isCourtReserved: !!isCourtReserved }),
                 ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
                 ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
+                ...(courtFeePerPersonByMethod !== undefined && { courtFeePerPersonByMethod: courtFeePerPersonByMethod && typeof courtFeePerPersonByMethod === 'object' ? courtFeePerPersonByMethod : null }),
                 ...(refereeRequested !== undefined && { refereeRequested: !!refereeRequested }),
                 ...(refereePayment !== undefined && { refereePayment: refereePayment || null }),
                 ...(teamFlexibility !== undefined && ['FLEXIBLE', 'STRICT'].includes(teamFlexibility) && { teamFlexibility }),
@@ -866,7 +867,7 @@ function notifyMatchParticipants(activity, { title, body, excludeUserId }) {
 // (otomatik/manuel) computeReservationStatus ile tesisin onay moduna göre belirlenir.
 async function updateMatchedRivalCourt(req, res, rival) {
     try {
-        const { matchDate, matchTime, duration, venueId, venueCourtId, courtName, courtAddress, courtLat, courtLng, surface, courtFeePerPerson } = req.body;
+        const { matchDate, matchTime, duration, venueId, venueCourtId, courtName, courtAddress, courtLat, courtLng, surface, courtFeePerPerson, courtFeePerPersonByMethod } = req.body;
 
         const oldDateStr = rival.matchDate ? rival.matchDate.toISOString().slice(0, 10) : null;
         const dateChanged = matchDate !== undefined && matchDate !== oldDateStr;
@@ -887,6 +888,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
                     ...(courtLng !== undefined && { courtLng: courtLng !== null ? Number(courtLng) : null }),
                     ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
                     ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
+                ...(courtFeePerPersonByMethod !== undefined && { courtFeePerPersonByMethod: courtFeePerPersonByMethod && typeof courtFeePerPersonByMethod === 'object' ? courtFeePerPersonByMethod : null }),
                     ...(duration !== undefined && { duration: duration !== null && duration !== '' ? parseInt(duration, 10) : null }),
                 },
                 include: { sender: { select: SENDER_SELECT } },
@@ -916,6 +918,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
                     ...(courtLng !== undefined && { courtLng: courtLng !== null ? Number(courtLng) : null }),
                     ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
                     ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
+                ...(courtFeePerPersonByMethod !== undefined && { courtFeePerPersonByMethod: courtFeePerPersonByMethod && typeof courtFeePerPersonByMethod === 'object' ? courtFeePerPersonByMethod : null }),
                 },
                 include: { sender: { select: SENDER_SELECT } },
             });
@@ -1059,6 +1062,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
                 isCourtReserved: true,
                 ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
                 ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
+                ...(courtFeePerPersonByMethod !== undefined && { courtFeePerPersonByMethod: courtFeePerPersonByMethod && typeof courtFeePerPersonByMethod === 'object' ? courtFeePerPersonByMethod : null }),
             },
             include: { sender: { select: SENDER_SELECT } },
         });
@@ -1091,7 +1095,7 @@ export const createRivalRequest = async (req, res, next) => {
             venueId, venueCourtId, venueReservationId,
             isCourtReserved, flexibleSchedule, matchDate, matchTime,
             matchType = 'SINGLE', matchMode = 'PRACTICE', teamFlexibility = 'FLEXIBLE',
-            surface, teamSize = 1, courtFeePerPerson,
+            surface, teamSize = 1, courtFeePerPerson, courtFeePerPersonByMethod,
             senderTeam, // COMPETITIVE football: [{id,username,fullName,skillRating}]
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
             refereePayment,
@@ -1190,6 +1194,7 @@ export const createRivalRequest = async (req, res, next) => {
                 ...(minRatingFemale !== undefined && minRatingFemale !== null && minRatingFemale !== '' && { minRatingFemale: parseFloat(minRatingFemale) }),
                 ...(maxRatingFemale !== undefined && maxRatingFemale !== null && maxRatingFemale !== '' && { maxRatingFemale: parseFloat(maxRatingFemale) }),
                 ...(courtFeePerPerson !== undefined && courtFeePerPerson !== null && { courtFeePerPerson: parseInt(courtFeePerPerson, 10) }),
+                ...(courtFeePerPersonByMethod && typeof courtFeePerPersonByMethod === 'object' && { courtFeePerPersonByMethod }),
                 genderReq: genderReq || 'MIX',
                 partnerGenderReq: partnerGenderReq || 'MIX',
                 opp1GenderReq: opp1GenderReq || 'MIX',

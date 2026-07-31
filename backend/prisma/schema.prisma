@@ -630,6 +630,7 @@ model ActivityRequest {
   venueReservationId   String?   // hangi rezervasyondan oluşturuldu
   isCourtReserved    Boolean      @default(false)
   courtFeePerPerson  Int?
+  courtFeePerPersonByMethod Json?   // {CASH,EFT,ONLINE,CREDIT_CARD} -> kişi başı ücret — sadece bilgi amaçlı, katılımcı hangi yöntemle öderse o tutarı görsün diye
   flexibleSchedule   Boolean      @default(false)
   matchDate          DateTime?
   matchTime       String?

@@ -110,6 +110,18 @@ function getConfig(sub) {
     return SUB_CONFIG[sub] || { ...SUB_CONFIG.default, name: sub.charAt(0).toUpperCase()+sub.slice(1) };
 }
 
+const FEE_METHOD_LABEL = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kredi Kartı' };
+// Kort ücreti ödeme yöntemine göre farklıysa (ör. kredi kartı komisyonu) bilgi amaçlı kırılım
+// metni üretir — sadece nakit dışı gerçek bir fark varsa gösterilir, yoksa null döner ve
+// var olan tek satırlık "💰 X₺/kişi" gösterimi kalabalıklaşmaz.
+function feeByMethodHint(byMethod) {
+    if (!byMethod || typeof byMethod !== 'object') return null;
+    const entries = Object.entries(byMethod).filter(([, v]) => v > 0);
+    if (entries.length < 2) return null;
+    if (new Set(entries.map(([, v]) => v)).size < 2) return null;
+    return entries.map(([k, v]) => `${FEE_METHOD_LABEL[k] || k}: ${v}₺`).join(' · ');
+}
+
 // Basitleştirilmiş sekme setiyle açılan yeni dallar — rekabetçi maç/turnuva/hakem
 // yapısı yok, sadece Etkinlik (rivals), Destek (coaches), Ekipman, Medya, Yazılar,
 // Bilet Al, Haberler, Arşiv.
@@ -988,6 +1000,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             {item.courtFeePerPerson > 0 && (
                                 <Text style={{ color:'#4ade80', fontSize:moderateScale(10) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''}/{t.perPerson}
+                                </Text>
+                            )}
+                            {!!feeByMethodHint(item.courtFeePerPersonByMethod) && (
+                                <Text style={{ color:'#86efac', fontSize:moderateScale(9) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                    {feeByMethodHint(item.courtFeePerPersonByMethod)}
                                 </Text>
                             )}
                             {item.level && (
@@ -2254,6 +2271,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
                     </Text>
                 )}
+                {!!feeByMethodHint(item.courtFeePerPersonByMethod) && (
+                    <Text style={{ fontSize:moderateScale(10), marginBottom:3, color:'#86efac' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                        {feeByMethodHint(item.courtFeePerPersonByMethod)}
+                    </Text>
+                )}
 
                 {item.venueId && isRivalParticipant && (
                     <TouchableOpacity onPress={() => setOrderVenueId(item.venueId)} style={{ marginBottom:3 }}>
@@ -3311,6 +3333,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 💰 {match.refereeFeePerPerson > 0
                                     ? t.refereeFeeTotalLabel(match.courtFeePerPerson, match.refereeFeePerPerson, match.courtFeePerPerson + match.refereeFeePerPerson)
                                     : `${match.courtFeePerPerson}₺${match.refereeRequested ? ` +${t.refereeFeeHint}` : ''}`} / {t.perPerson}
+                            </Text>
+                        )}
+                        {!!feeByMethodHint(match.courtFeePerPersonByMethod) && (
+                            <Text style={{ color:'#86efac', fontSize:11, marginTop:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                {feeByMethodHint(match.courtFeePerPersonByMethod)}
                             </Text>
                         )}
                         {match.venueId && isParticipant && (
@@ -4721,13 +4748,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     // bastığında (submit() içinde) yapılır; böylece ilan yarım kalırsa kort boşta kalmaz.
     // Yapılandırılmış (FULL_HOUR/HALF_HOUR/NINETY_MIN) slotlarda bir slotun fiyatı
     // eksikse (venue.pricePerSlot'tan hesaplanan) tekli seçimdeki mevcut mantıkla aynı.
-    const applyPayDelta = (base) => Math.max(0, (base || 0) + (venue?.paymentPriceDeltas?.[payMethod] || 0));
-    const priceForSlot = (s) => {
-        if (s.priceByMethod?.[payMethod] != null) return s.priceByMethod[payMethod];
+    const applyPayDelta = (base, method = payMethod) => Math.max(0, (base || 0) + (venue?.paymentPriceDeltas?.[method] || 0));
+    const priceForSlot = (s, method = payMethod) => {
+        if (s.priceByMethod?.[method] != null) return s.priceByMethod[method];
         const base = (s.price != null && s.price > 0)
             ? s.price
             : (venue?.pricePerSlot ? Math.round(((toM(s.end) - toM(s.start)) / 60) * venue.pricePerSlot) : 0);
-        return applyPayDelta(base);
+        return applyPayDelta(base, method);
     };
 
     const confirmBooking = async () => {
@@ -4760,12 +4787,18 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         setValidatingSlot(false);
 
         const slotDurMins = isFlexible ? flexDur : (isVarDur ? (slot.durationMins ?? 60) : 60);
-        const courtTotalPrice = isStructured
-            ? (rangeSlots || [slot]).reduce((sum, s) => sum + priceForSlot(s), 0)
-            : (slot.priceByMethod?.[payMethod] != null ? slot.priceByMethod[payMethod]
-                : applyPayDelta(slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0)));
+        const totalForMethod = (method) => isStructured
+            ? (rangeSlots || [slot]).reduce((sum, s) => sum + priceForSlot(s, method), 0)
+            : (slot.priceByMethod?.[method] != null ? slot.priceByMethod[method]
+                : applyPayDelta(slot.price != null && slot.price > 0 ? slot.price : (venue?.pricePerSlot ? Math.round((slotDurMins / 60) * venue.pricePerSlot) : 0), method));
+        const courtTotalPrice = totalForMethod(payMethod);
+        // Diğer katılımcılar hangi yöntemle öderse o tutarı bilsin diye — ilanda bilgi
+        // amaçlı gösterilir, sadece ilanı açanın seçtiği yönteme kilitli kalınmaz.
+        const acceptedMethods = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : ['CASH'];
+        const totalPriceByMethod = {};
+        for (const m of acceptedMethods) totalPriceByMethod[m] = totalForMethod(m);
         const effectiveIndoor = activeCourt?.indoor ?? venue?.courtIndoorDefault ?? false;
-        const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, surface: activeCourt?.surface || null, indoor: effectiveIndoor };
+        const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, totalPriceByMethod, surface: activeCourt?.surface || null, indoor: effectiveIndoor };
         onBooked?.(courtObj, selDate, slot.start, endTime, payMethod);
         setBooked(true);
     };
@@ -5492,6 +5525,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         manualCourtName: '', manualCity: '', manualAddress: '',
         surface: '', venueType: '', courtReserved: false, courtMutual: false,
         courtFeePerPerson: '',
+        courtFeePerPersonByMethod: null,
         message: '',
         ticketUrl: '',
         minRating: '', maxRating: '',
@@ -5542,6 +5576,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 manualCity: editItem.location || '',
                 manualAddress: editItem.courtAddress || '',
                 courtFeePerPerson: editItem.courtFeePerPerson != null ? String(editItem.courtFeePerPerson) : '',
+                courtFeePerPersonByMethod: editItem.courtFeePerPersonByMethod || null,
                 message: editItem.message || '',
                 ticketUrl: editItem.ticketUrl || '',
                 minRating: editItem.minRating != null ? String(editItem.minRating) : '',
@@ -5652,6 +5687,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             .catch(() => setMyUnlistedRes([]));
     }, [visible, sub]);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
+    // Kort ücretinin ödeme yöntemine göre kişi başı kırılımı — sadece bilgi amaçlı, katılımcılar
+    // hangi yöntemle öderse o tutarı görsün diye ilanla birlikte saklanır.
+    const divideFeeByMethod = (byMethod, n) => {
+        if (!byMethod || typeof byMethod !== 'object' || !n) return {};
+        const out = {};
+        for (const k of Object.keys(byMethod)) {
+            if (byMethod[k] > 0) out[k] = Math.round(byMethod[k] / n);
+        }
+        return out;
+    };
     // Bu formdaki seçenek butonlarında emoji istenmiyor — paylaşılan i18n metinlerindeki
     // baştaki emoji'yi sadece burada (diğer ekranları etkilemeden) kırpar.
     const noEmoji = (str) => (str || '').replace(/^\S+\s+/, '');
@@ -5941,6 +5986,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 isCourtReserved: f.courtReserved,
                 surface: f.surface || null,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? f.courtFeePerPerson : null,
+                courtFeePerPersonByMethod: f.courtFeePerPersonByMethod || null,
                 ...((sub === 'tennis' || sub === 'padel') && { genderReq: f.genderReq, matchType: f.matchType }),
                 ...((sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' && {
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
@@ -6041,6 +6087,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueType: f.venueType || undefined,
                 isCourtReserved: f.courtReserved,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? parseInt(f.courtFeePerPerson, 10) : undefined,
+                courtFeePerPersonByMethod: f.courtFeePerPersonByMethod || undefined,
                 message:   f.message || undefined,
                 ticketUrl: (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) ? (f.ticketUrl || undefined) : undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
@@ -6186,6 +6233,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             courtFeePerPerson: p.selectedCourt?.totalPrice > 0
                                                                 ? String(Math.round(p.selectedCourt.totalPrice / (fmt.id === 'DOUBLE' ? 4 : 2)))
                                                                 : p.courtFeePerPerson,
+                                                            courtFeePerPersonByMethod: divideFeeByMethod(p.selectedCourt?.totalPriceByMethod, fmt.id === 'DOUBLE' ? 4 : 2),
                                                         }));
                                                     }}
                                                         style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive, editHasParticipants && { opacity:0.5 }]}>
@@ -6553,6 +6601,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 id: r.courtId,
                                                                 city: venue?.city,
                                                                 totalPrice: r.estimatedFee || 0,
+                                                                totalPriceByMethod: r.estimatedFeeByMethod || null,
                                                                 surface: court?.surface || null,
                                                                 indoor: effectiveIndoor,
                                                             };
@@ -6568,6 +6617,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 venueCourtId: r.courtId,
                                                                 reservationId: r.id,
                                                                 venueReservationId: r.id,
+                                                                venuePayMethod: r.paymentMethod || 'CASH',
                                                                 courtReserved: true,
                                                                 manualCity: venue?.city || '',
                                                                 surface: court?.surface || p.surface,
@@ -6575,6 +6625,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 courtFeePerPerson: r.estimatedFee > 0
                                                                     ? String(Math.round(r.estimatedFee / (p.matchType === 'DOUBLE' ? 4 : 2)))
                                                                     : p.courtFeePerPerson,
+                                                                courtFeePerPersonByMethod: divideFeeByMethod(r.estimatedFeeByMethod, p.matchType === 'DOUBLE' ? 4 : 2),
                                                             }));
                                                         }}
                                                         style={{ backgroundColor: '#22c55e10', borderRadius: 8, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#22c55e30', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -7155,6 +7206,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     courtFeePerPerson: court.totalPrice > 0
                         ? String(Math.round(court.totalPrice / (p.matchType === 'DOUBLE' ? 4 : 2)))
                         : p.courtFeePerPerson,
+                    courtFeePerPersonByMethod: divideFeeByMethod(court.totalPriceByMethod, p.matchType === 'DOUBLE' ? 4 : 2),
                     surface: court.surface || p.surface,
                     venueType: court.indoor != null ? (court.indoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
                 }));
