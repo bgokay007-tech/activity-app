@@ -98,6 +98,7 @@ model User {
   storyViews       StoryView[]
   assessmentVotesCast AssessmentVote[]
   coachListings       CoachListing[]
+  artistListing       ArtistListing?
   refereeListings     RefereeListing[]
   refereedMatches     ActivityRequest[] @relation("MatchRefereeUser")
   coachLessonRequests CoachLessonRequest[] @relation("CoachLessonStudent")
@@ -339,6 +340,29 @@ model CoachReview {
   reviewer       User         @relation("CoachReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
 
   @@unique([coachListingId, reviewerId])
+}
+
+// SANATÇI İLANI — müzik dalı altındaki "Sanatçılar" sekmesi: sanatçılar kendi
+// etkinlik/performans/yeteneklerini tanıtır, etkinlik sahipleri (ör. maç/turnuva
+// ilanına "hizmet" olarak DJ/sanatçı eklerken) buradan seçip iletişime geçer.
+// Kullanıcı başına tek aktif profil (upsert mantığıyla oluşturulur/güncellenir).
+model ArtistListing {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  artistType    String   // DJ | BAND | SOLO_MUSICIAN | DANCER | OTHER
+  stageName     String?  // sahne adı — boşsa kullanıcı adı gösterilir
+  genres        String?  // "Pop, Rock, Elektronik" gibi serbest metin
+  description   String?
+  pricePerEvent Int?     // etkinlik başı ücret — boşsa "iletişime geç"
+  portfolioUrl1 String?  // Instagram/YouTube/portfolyo linki
+  portfolioUrl2 String?
+  city          String?
+  status        String   @default("ACTIVE") // ACTIVE | REMOVED
+  reportCount   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // HAKEM İLANI — CoachListing'in küçültülmüş hali, bireysel/grup ayrımı yok,
@@ -645,6 +669,7 @@ model ActivityRequest {
   participants    Json         @default("[]")     // [{id, username, fullName}]
   senderTeam      Json         @default("[]")     // COMPETITIVE team: creator's additional teammates [{id,username,fullName,skillRating}]
   positions       Json         @default("[]")     // e.g. ['REFEREE'] | ['REFEREE_OFFER'] | ['GOALKEEPER']
+  extraServices   Json         @default("[]")     // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. ek hizmetler (tenis/padel/voleybol)
   refereePayment  String?                         // fee offered or rate per match
   refereeRequested Boolean     @default(false)    // bu maç ilanı için hakem talep edildi mi (tenis/padel/voleybol)
   linkedRivalId   String?                         // hakem-arama ilanıysa (matchType PLAYER_WANTED, positions:['REFEREE']) bağlı olduğu asıl maç ilanının id'si
@@ -853,6 +878,7 @@ model Tournament {
   status         String       @default("OPEN")  // OPEN | IN_PROGRESS | COMPLETED | CANCELLED | POLL
   creatorId      String
   rules          Json?        @default("[]") // seçili kural ID'leri örn. [1, 2, 3]
+  extraServices  Json?        @default("[]") // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. ek hizmetler
   bracketData    Json?        // standings + phase info
   ratingSnapshot Json?        // {userId: {username, fullName, totalPoints, skillRating}}
   completedAt    DateTime?

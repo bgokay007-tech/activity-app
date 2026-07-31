@@ -7,6 +7,7 @@ import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisP
 import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
 import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES } from './venue.controller.js';
 import { RATING_REQUIRED_SUBCATEGORIES } from '../config/assessments.js';
+import { sanitizeExtraServices } from '../utils/extraServices.js';
 
 // İlan açma/katılma öncesi ortak aktivite kontrolü: kullanıcı bu dalı "Aktivitelerim"e
 // eklememişse veya gizlemişse (hidden=true, gizliyken hiçbir şey yapamaz) reddedilir.
@@ -647,7 +648,13 @@ export const updateRivalRequest = async (req, res, next) => {
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment,
-                teamFlexibility, matchType, participantsCanInvite } = req.body;
+                teamFlexibility, matchType, participantsCanInvite, extraServices } = req.body;
+
+        let cleanExtraServices;
+        if (extraServices !== undefined) {
+            cleanExtraServices = sanitizeExtraServices(extraServices);
+            if (cleanExtraServices === null) return res.status(400).json({ message: 'Geçersiz ekstra hizmet' });
+        }
 
         // matchType (tekli/çiftli) sadece hiç katılımcı/partner kabul edilmemişse
         // değiştirilebilir — aksi halde participants/senderTeam dizisinin şekli
@@ -695,6 +702,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(refereePayment !== undefined && { refereePayment: refereePayment || null }),
                 ...(teamFlexibility !== undefined && ['FLEXIBLE', 'STRICT'].includes(teamFlexibility) && { teamFlexibility }),
                 ...(participantsCanInvite !== undefined && { participantsCanInvite: !!participantsCanInvite }),
+                ...(cleanExtraServices !== undefined && { extraServices: cleanExtraServices }),
                 ...(applyMatchType && {
                     matchType: matchType.toUpperCase(),
                     ...(matchType.toUpperCase() === 'SINGLE' && { partnerGenderReq: null, opp1GenderReq: null, opp2GenderReq: null }),
@@ -1101,6 +1109,7 @@ export const createRivalRequest = async (req, res, next) => {
             refereePayment,
             refereeRequested, // bu maç ilanı için ayrıca hakem talep ediliyor mu (tenis/padel/voleybol)
             refereeInvites, // [{userId, price, message}] — hakem talebi belirli kullanıcılara doğrudan teklifli davet olarak gönderilecekse
+            extraServices, // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. (tenis/padel/voleybol)
             minRating, maxRating,
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             genderReq = 'MIX',
@@ -1112,6 +1121,12 @@ export const createRivalRequest = async (req, res, next) => {
             participantsCanInvite, // true ise kabul edilmiş katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
+
+        let cleanExtraServices = [];
+        if (extraServices !== undefined) {
+            cleanExtraServices = sanitizeExtraServices(extraServices);
+            if (cleanExtraServices === null) return res.status(400).json({ message: 'Geçersiz ekstra hizmet' });
+        }
 
         await requireActiveInterest(creatorId, category, subCategory);
 
@@ -1183,6 +1198,7 @@ export const createRivalRequest = async (req, res, next) => {
                     ? []
                     : (Array.isArray(senderTeam) ? senderTeam : []),
                 positions: Array.isArray(positions) ? positions : [],
+                extraServices: cleanExtraServices,
                 ...(refereePayment && { refereePayment }),
                 refereeRequested: !!refereeRequested,
                 participantsCanInvite: !!participantsCanInvite,

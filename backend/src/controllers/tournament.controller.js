@@ -5,6 +5,7 @@ import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
+import { sanitizeExtraServices } from '../utils/extraServices.js';
 
 // Geçerli turnuva türü ID'leri — bkz. mobil TOURN_TYPES. '1' (Bireysel Rekabetçi), '2'
 // (Çiftler Rekabetçi), '3' (Bireysel Antrenman) ve '4' (Çiftler Antrenman) tam olarak
@@ -652,7 +653,7 @@ export const createTournament = async (req, res, next) => {
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd, dayTrip,
             setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers,
-            rules,
+            rules, extraServices,
             location, city,
             surface, isIndoor,
             eventDate, eventTime, eventEndDate, eventEndTime,
@@ -661,6 +662,11 @@ export const createTournament = async (req, res, next) => {
         } = req.body;
         if (pollEnabled === true && !pollEndDate) {
             return res.status(400).json({ message: 'Anket bitiş tarihi zorunludur.' });
+        }
+        let cleanExtraServices = [];
+        if (extraServices !== undefined) {
+            cleanExtraServices = sanitizeExtraServices(extraServices);
+            if (cleanExtraServices === null) return res.status(400).json({ message: 'Geçersiz ekstra hizmet' });
         }
         let validPollTypes = null;
         if (pollEnabled === true) {
@@ -724,6 +730,7 @@ export const createTournament = async (req, res, next) => {
                 endDate: endDate ? new Date(endDate) : null,
                 endTime: endTime || null,
                 rules: Array.isArray(rules) ? rules : [],
+                extraServices: cleanExtraServices,
                 creatorId: req.userId,
             },
             include: {
@@ -1506,10 +1513,18 @@ export const updateTournament = async (req, res, next) => {
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not authorized' });
+
+        let cleanExtraServices;
+        if (b.extraServices !== undefined) {
+            cleanExtraServices = sanitizeExtraServices(b.extraServices);
+            if (cleanExtraServices === null) return res.status(400).json({ message: 'Geçersiz ekstra hizmet' });
+        }
+
         const updated = await prisma.tournament.update({
             where: { id },
             data: {
                 ...(b.name                !== undefined && { name: b.name }),
+                ...(cleanExtraServices    !== undefined && { extraServices: cleanExtraServices }),
                 ...(b.description         !== undefined && { description: b.description || null }),
                 ...(b.contactPhone        !== undefined && { contactPhone: b.contactPhone || null }),
                 ...(b.scope               !== undefined && { scope: b.scope }),

@@ -24,6 +24,8 @@ import CalendarPickerModal from '../../components/CalendarPickerModal';
 import DateRangePickerModal from '../../components/DateRangePickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
 import PeerReviewModal from '../../components/PeerReviewModal';
+import ArtistsTab from '../../components/ArtistsTab';
+import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
 import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
@@ -131,6 +133,10 @@ const SIMPLE_TAB_SUBS = new Set([
 ]);
 
 function getTabs(sub, category) {
+    // Müzik: sanatçıların kendini/etkinliklerini tanıttığı ayrı bir sekme —
+    // "Destek"in (müzik dersi vb.) hemen sağında.
+    if (sub === 'music')
+        return ['rivals', 'coaches', 'artists', 'media', 'archive'];
     if (category === 'ARTS')
         return ['rivals', 'coaches', 'media', 'archive'];
     // Doğa Yürüyüşü: Wikiloc tarzı GPS rota paylaşımı — "Etkinlik"in hemen
@@ -3360,6 +3366,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 ★ {match.minRating != null ? `${match.minRating}` : '0'} – {match.maxRating != null ? `${match.maxRating}` : '∞'}
                             </Text>
                         )}
+                        {Array.isArray(match.extraServices) && match.extraServices.length > 0 && (
+                            <View style={{ marginTop:6 }}>
+                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:2 }}>EKSTRA HİZMETLER</Text>
+                                {match.extraServices.map(sv => (
+                                    <Text key={sv.id} style={{ color:'#e5e7eb', fontSize:12, marginTop:1 }}>
+                                        🎉 {sv.name} — {sv.price}₺
+                                    </Text>
+                                ))}
+                            </View>
+                        )}
                     </View>
 
                     {/* DOUBLE team management */}
@@ -5550,6 +5566,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         refereeRequested: false,
         refereePayment: '',
         participantsCanInvite: true,
+        extraServices: [],
     };
 
     const buildInitialState = () => {
@@ -5605,6 +5622,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 // eklenip "1000₺₺" oluşuyordu.
                 refereePayment: (editItem.refereePayment || '').toString().replace(/[^0-9]/g, ''),
                 participantsCanInvite: !!editItem.participantsCanInvite,
+                extraServices: Array.isArray(editItem.extraServices) ? editItem.extraServices : [],
             };
         }
         if (!prefill) return INIT;
@@ -5996,6 +6014,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
                     participantsCanInvite: !!f.participantsCanInvite,
+                    extraServices: f.extraServices,
                 }),
             }).then(res => {
                 // Backend katılımcı olduğu için formatı sessizce yoksaydıysa haber ver.
@@ -6120,6 +6139,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     ? f.refereeInvites.map(inv => ({ userId: inv.user.id, message: inv.message || undefined, price: inv.price || undefined }))
                     : undefined,
                 participantsCanInvite: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.participantsCanInvite : undefined,
+                extraServices: ['tennis', 'padel', 'volleyball'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
@@ -6912,6 +6932,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             ))}
                                         </View>
                                     )}
+                                    <ExtraServicesEditor services={f.extraServices} onChange={v => set('extraServices', v)} />
                                 </>
                             )}
 
@@ -7472,6 +7493,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [editPrize1, setEditPrize1] = useState(item.prize1 || '');
     const [editPrize2, setEditPrize2] = useState(item.prize2 || '');
     const [editPrize3, setEditPrize3] = useState(item.prize3 || '');
+    const [editExtraServices, setEditExtraServices] = useState(Array.isArray(item.extraServices) ? item.extraServices : []);
     const [editEventDate, setEditEventDate] = useState(item.eventDate ? new Date(item.eventDate) : null);
     const [editEventTime, setEditEventTime] = useState(item.eventTime || '');
     const [editEventEndDate, setEditEventEndDate] = useState(item.eventEndDate ? new Date(item.eventEndDate) : null);
@@ -8142,6 +8164,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 prize1: editPrize1 || null,
                 prize2: editPrize2 || null,
                 prize3: editPrize3 || null,
+                ...(['tennis', 'padel', 'volleyball'].includes(item.subCategory) && { extraServices: editExtraServices }),
                 eventDate: fmtD(editEventDate),
                 eventTime: editEventTime || null,
                 eventEndDate: fmtD(editEventEndDate),
@@ -8359,6 +8382,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {item.prize1 && <Text style={{ color:'#fbbf24', fontSize:11 }}>🥇 {item.prize1}</Text>}
                             {item.prize2 && <Text style={{ color:'#94a3b8', fontSize:11 }}>🥈 {item.prize2}</Text>}
                             {item.prize3 && <Text style={{ color:'#cd7f32', fontSize:11 }}>🥉 {item.prize3}</Text>}
+                        </View>
+                    )}
+                    {Array.isArray(item.extraServices) && item.extraServices.length > 0 && (
+                        <View style={{ gap:2, marginTop:4 }}>
+                            <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>EKSTRA HİZMETLER</Text>
+                            {item.extraServices.map(sv => (
+                                <Text key={sv.id} style={{ color:'#e5e7eb', fontSize:11 }}>🎉 {sv.name} — {sv.price}₺</Text>
+                            ))}
                         </View>
                     )}
                     {item.eventDate && (<>
@@ -9184,6 +9215,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize2} onChangeText={setEditPrize2} placeholder="🥈 2. Ödül" placeholderTextColor={colors.textMuted} />
                                 <TextInput style={s.fieldInput} value={editPrize3} onChangeText={setEditPrize3} placeholder="🥉 3. Ödül" placeholderTextColor={colors.textMuted} />
 
+                                {['tennis', 'padel', 'volleyball'].includes(item.subCategory) && (
+                                    <ExtraServicesEditor services={editExtraServices} onChange={setEditExtraServices} />
+                                )}
+
                                 <TouchableOpacity
                                     style={[s.submitBtn, { backgroundColor: infoColor, marginTop:20 }, saving && { opacity:0.6 }]}
                                     onPress={saveEdit} disabled={saving}>
@@ -9926,6 +9961,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         setsPerMatch: '3', advantageScoring: true,
         matchesBeforePlayoff: '', playoffQualifiers: '',
         rules: [],
+        extraServices: [],
     };
 
     const [f, setF] = useState(INIT);
@@ -10079,6 +10115,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 endDate: fmtISO(f.regEndDate),
                 endTime: f.regEndTime || undefined,
                 rules: f.rules,
+                extraServices: ['tennis', 'padel', 'volleyball'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
                 description: f.description.trim() || undefined,
             });
             reset();
@@ -10475,6 +10512,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             ))}
 
+                            {['tennis', 'padel', 'volleyball'].includes(sub) && (
+                                <ExtraServicesEditor services={f.extraServices} onChange={v => set('extraServices', v)} />
+                            )}
 
                             {/* Tournament type — kendim seçerim / kullanıcılar oylasın */}
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:3 }}>
@@ -14031,6 +14071,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                         );
                     })()}
 
+                    {activeTab === 'artists' && (
+                        <ArtistsTab myId={myId} navigation={navigation} />
+                    )}
 
                     {activeTab === 'coaches' && (() => {
                         const isCoachExpanded = ['tennis', 'padel', 'volleyball'].includes(sub);
@@ -16226,6 +16269,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {tourn.prize2 ? row('🥈 2. Ödül', tourn.prize2) : null}
                                                 {tourn.prize3 ? row('🥉 3. Ödül', tourn.prize3) : null}
                                                 {tourn.isPaid ? row('💰 Katılım Ücreti', `${tourn.playerFee} ₺`) : null}
+                                                {Array.isArray(tourn.extraServices) && tourn.extraServices.length > 0
+                                                    ? row('🎉 Ekstra Hizmetler', tourn.extraServices.map(sv => `${sv.name} (${sv.price}₺)`).join(', '))
+                                                    : null}
                                                 {tourn.completedAt ? row('🏁 Tamamlandı', new Date(tourn.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
                                             </>
                                         )}
