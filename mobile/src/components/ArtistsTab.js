@@ -3,6 +3,7 @@ import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
     Modal, ScrollView, ActivityIndicator, Alert, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
 import api from '../services/api';
 
@@ -112,6 +113,7 @@ export default function ArtistsTab({ myId, navigation }) {
 }
 
 function ArtistFormModal({ visible, listing, onClose, onSaved }) {
+    const insets = useSafeAreaInsets();
     const [artistType, setArtistType] = useState('DJ');
     const [stageName, setStageName] = useState('');
     const [genres, setGenres] = useState('');
@@ -164,7 +166,7 @@ function ArtistFormModal({ visible, listing, onClose, onSaved }) {
                             <Text style={s.title}>{listing ? 'Sanatçı Profilimi Düzenle' : 'Sanatçı Profili Oluştur'}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView contentContainerStyle={{ padding: 13 }} keyboardShouldPersistTaps="handled">
+                        <ScrollView contentContainerStyle={{ padding: 13, paddingBottom: Math.max(20, insets.bottom + 16) }} keyboardShouldPersistTaps="handled">
                             <Text style={s.label}>TÜR</Text>
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                                 {ARTIST_TYPES.map(t => (

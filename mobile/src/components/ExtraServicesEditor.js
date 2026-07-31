@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
-    Modal, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform,
+    Modal, FlatList, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
 import api from '../services/api';
 
@@ -14,6 +15,7 @@ const EXTRA_TYPES = [
 ];
 
 function ArtistPickerModal({ visible, onClose, onSelect }) {
+    const insets = useSafeAreaInsets();
     const [query, setQuery] = useState('');
     const [artists, setArtists] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -56,6 +58,7 @@ function ArtistPickerModal({ visible, onClose, onSelect }) {
                             keyExtractor={item => item.id}
                             keyboardShouldPersistTaps="handled"
                             style={{ maxHeight: 360 }}
+                            contentContainerStyle={{ paddingBottom: Math.max(12, insets.bottom + 10) }}
                             ListEmptyComponent={!loading ? <Text style={s.emptyText}>Sanatçı bulunamadı</Text> : null}
                             renderItem={({ item }) => (
                                 <TouchableOpacity style={s.artistRow} onPress={() => { onSelect(item); onClose(); }}>
@@ -172,6 +175,7 @@ function AddServiceForm({ onAdd, onCancel }) {
 // Maç/turnuva ilanına eklenen ekstra hizmetler (DJ, sanatçı, mangal partisi vb.)
 // services: [{id, type, name, price, included, artistListingId?}]
 export default function ExtraServicesEditor({ services = [], onChange }) {
+    const insets = useSafeAreaInsets();
     const [showModal, setShowModal] = useState(false);
     const [adding, setAdding] = useState(false);
 
@@ -195,7 +199,11 @@ export default function ExtraServicesEditor({ services = [], onChange }) {
                                 <Text style={s.title}>Ekstra Hizmetler</Text>
                                 <TouchableOpacity onPress={() => { setShowModal(false); setAdding(false); }}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
                             </View>
-                            <View style={{ padding: 13, maxHeight: 460 }}>
+                            <ScrollView
+                                style={{ maxHeight: 460 }}
+                                contentContainerStyle={{ padding: 13, paddingBottom: Math.max(20, insets.bottom + 16) }}
+                                keyboardShouldPersistTaps="handled"
+                            >
                                 {services.map(sv => (
                                     <View key={sv.id} style={st.row}>
                                         <Text style={st.rowText}>
@@ -220,7 +228,7 @@ export default function ExtraServicesEditor({ services = [], onChange }) {
                                 ) : (
                                     <AddServiceForm onAdd={addService} onCancel={() => setAdding(false)} />
                                 )}
-                            </View>
+                            </ScrollView>
                         </View>
                     </KeyboardAvoidingView>
                 </View>
