@@ -9,11 +9,13 @@ export function sanitizeExtraServices(raw) {
         if (!item || typeof item !== 'object') return null;
         const type = VALID_TYPES.includes(item.type) ? item.type : null;
         const name = typeof item.name === 'string' ? item.name.trim() : '';
-        const price = Number.isFinite(Number(item.price)) ? Math.max(0, parseInt(item.price, 10)) : null;
-        if (!type || !name || price === null) return null;
+        const included = !!item.included;
+        // Fiyata dahilse ücret 0 sayılır — ekstraysa pozitif bir tutar zorunludur.
+        const price = included ? 0 : (Number.isFinite(Number(item.price)) ? Math.max(0, parseInt(item.price, 10)) : null);
+        if (!type || !name || price === null || (!included && price <= 0)) return null;
         cleaned.push({
             id: item.id || `${Date.now()}_${cleaned.length}`,
-            type, name, price,
+            type, name, price, included,
             ...(item.artistListingId ? { artistListingId: item.artistListingId } : {}),
         });
     }
