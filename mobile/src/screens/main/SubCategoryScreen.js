@@ -9961,8 +9961,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
         : undefined;
 
-    // Compact input style for this modal
-    const ti = { paddingVertical:4, paddingHorizontal:7, fontSize:12, marginBottom:8 };
+    // Compact input style for this modal — alanlar arası boşluk (marginBottom) diğer
+    // formlardaki gibi bırakılıyor: alanlar sıkışık olunca aralarında parmakla aşağı
+    // kaydırmaya başlayabilecek boş yer kalmıyor, dokunuş her seferinde bir TextInput'a
+    // denk gelip kaydırma yerine imleç/metin seçimi başlatıyordu.
+    const ti = { paddingVertical:4, paddingHorizontal:7, fontSize:12, marginBottom:14 };
 
     const searchCourts = async (text) => {
         set('courtSearchText', text);
