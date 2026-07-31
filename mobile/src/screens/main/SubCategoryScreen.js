@@ -5704,7 +5704,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [showRatingRange, setShowRatingRange] = useState(false);
-    const [ratingPickerGender, setRatingPickerGender] = useState(null); // null kapalı, 'MALE'|'FEMALE' hangi cinsiyet için açık
     const [showSurfacePicker, setShowSurfacePicker] = useState(false);
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
     const [showEloWarning, setShowEloWarning] = useState(false);
