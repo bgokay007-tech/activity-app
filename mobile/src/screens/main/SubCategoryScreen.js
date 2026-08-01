@@ -9953,7 +9953,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     // null | 'evStart' | 'evEnd' | 'start' | 'end'
     const [dpField, setDpField] = useState(null);
     const [timeField, setTimeField] = useState(null);
-    const [ratingField, setRatingField] = useState(null); // null | 'min' | 'max' | 'minMale' | 'maxMale' | 'minFemale' | 'maxFemale'
+    const [ratingField, setRatingField] = useState(null); // null | 'timeStart' | 'timeEnd'
+    const [showRatingRange, setShowRatingRange] = useState(false);
 
     const fmtISO = (d) => d
         ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -10717,7 +10718,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </>
                             )}
 
-                            {/* Min / Max players + Rating limits — 4 in a row */}
+                            {/* Min / Max players + Rating limit (tek buton — ilan oluşturmadaki gibi tek modal içinde cinsiyete göre ayrılabilir) */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8, marginTop:4 }}>
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMinPlayers}</Text>
@@ -10731,77 +10732,17 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                 </View>
-                                {!f.ratingGenderSplit ? (
-                                    <>
-                                        <TouchableOpacity onPress={() => setRatingField('min')} style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Alt Derece</Text>
-                                            <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: f.minRating ? cfg.color : colors.border }}>
-                                                <Text style={{ color: f.minRating ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                                    {f.minRating ? `${f.minRating}★` : 'Serbest'}
-                                                </Text>
-                                            </View>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => setRatingField('max')} style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Üst Derece</Text>
-                                            <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: f.maxRating ? cfg.color : colors.border }}>
-                                                <Text style={{ color: f.maxRating ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                                    {f.maxRating ? `${f.maxRating}★` : 'Serbest'}
-                                                </Text>
-                                            </View>
-                                        </TouchableOpacity>
-                                    </>
-                                ) : (
-                                    <>
-                                        <TouchableOpacity onPress={() => setRatingField('minMale')} style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>👨 Erkek Alt</Text>
-                                            <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: f.minRatingMale ? cfg.color : colors.border }}>
-                                                <Text style={{ color: f.minRatingMale ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                                    {f.minRatingMale ? `${f.minRatingMale}★` : 'Serbest'}
-                                                </Text>
-                                            </View>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => setRatingField('maxMale')} style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>👨 Erkek Üst</Text>
-                                            <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: f.maxRatingMale ? cfg.color : colors.border }}>
-                                                <Text style={{ color: f.maxRatingMale ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                                    {f.maxRatingMale ? `${f.maxRatingMale}★` : 'Serbest'}
-                                                </Text>
-                                            </View>
-                                        </TouchableOpacity>
-                                    </>
-                                )}
-                            </View>
-                            {f.ratingGenderSplit && (
-                                <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                    <View style={{ flex:1 }} />
-                                    <View style={{ flex:1 }} />
-                                    <TouchableOpacity onPress={() => setRatingField('minFemale')} style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>👩 Kadın Alt</Text>
-                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: f.minRatingFemale ? cfg.color : colors.border }}>
-                                            <Text style={{ color: f.minRatingFemale ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                                {f.minRatingFemale ? `${f.minRatingFemale}★` : 'Serbest'}
-                                            </Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setRatingField('maxFemale')} style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>👩 Kadın Üst</Text>
-                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: f.maxRatingFemale ? cfg.color : colors.border }}>
-                                            <Text style={{ color: f.maxRatingFemale ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                                {f.maxRatingFemale ? `${f.maxRatingFemale}★` : 'Serbest'}
-                                            </Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                            {f.genderType === 'MIX' && (
-                                <TouchableOpacity
-                                    onPress={() => set('ratingGenderSplit', !f.ratingGenderSplit)}
-                                    style={[s.chipBtn, { alignSelf:'flex-start', paddingHorizontal:7, paddingVertical:4, marginBottom:8 }, f.ratingGenderSplit && s.chipBtnActive]}>
-                                    <Text style={[s.chipBtnText, { fontSize:10 }, f.ratingGenderSplit && s.chipBtnTextActive]}>
-                                        {t.ratingGenderSplitToggle}
-                                    </Text>
+                                <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ flex:1 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ {t.ratingLimitLabel}</Text>
+                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
+                                        <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {f.ratingGenderSplit
+                                                ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
+                                                : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
+                                        </Text>
+                                    </View>
                                 </TouchableOpacity>
-                            )}
+                            </View>
 
                             {/* Contact phone */}
                             <Text style={s.fieldLabelRed}>{t.tournContactPhoneLabel}</Text>
@@ -10826,32 +10767,21 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                     </View>
                 </KeyboardAvoidingView>
             </View>
-            <RatingPickerModal
-                visible={ratingField === 'min' || ratingField === 'max'}
-                title={ratingField === 'min' ? '⭐ Alt Derece Limiti' : '⭐ Üst Derece Limiti'}
-                value={ratingField === 'min' ? f.minRating : f.maxRating}
-                onSelect={(v) => { set(ratingField === 'min' ? 'minRating' : 'maxRating', v); setRatingField(null); }}
-                onClose={() => setRatingField(null)}
-            />
-            <RatingPickerModal
-                visible={['minMale','maxMale','minFemale','maxFemale'].includes(ratingField)}
-                title={
-                    ratingField === 'minMale' ? '👨 Erkek Alt Derece Limiti' :
-                    ratingField === 'maxMale' ? '👨 Erkek Üst Derece Limiti' :
-                    ratingField === 'minFemale' ? '👩 Kadın Alt Derece Limiti' : '👩 Kadın Üst Derece Limiti'
-                }
-                value={
-                    ratingField === 'minMale' ? f.minRatingMale :
-                    ratingField === 'maxMale' ? f.maxRatingMale :
-                    ratingField === 'minFemale' ? f.minRatingFemale : f.maxRatingFemale
-                }
-                onSelect={(v) => {
-                    const key = ratingField === 'minMale' ? 'minRatingMale' : ratingField === 'maxMale' ? 'maxRatingMale'
-                        : ratingField === 'minFemale' ? 'minRatingFemale' : 'maxRatingFemale';
-                    set(key, v);
-                    setRatingField(null);
-                }}
-                onClose={() => setRatingField(null)}
+            <RatingRangeModal
+                visible={showRatingRange}
+                minValue={f.minRating}
+                maxValue={f.maxRating}
+                onSelectMin={(v) => set('minRating', v)}
+                onSelectMax={(v) => set('maxRating', v)}
+                onClose={() => setShowRatingRange(false)}
+                genderSplit={f.ratingGenderSplit}
+                onToggleGenderSplit={f.genderType === 'MIX' ? (v) => set('ratingGenderSplit', v) : undefined}
+                maleMin={f.minRatingMale} maleMax={f.maxRatingMale}
+                onSelectMaleMin={(v) => set('minRatingMale', v)}
+                onSelectMaleMax={(v) => set('maxRatingMale', v)}
+                femaleMin={f.minRatingFemale} femaleMax={f.maxRatingFemale}
+                onSelectFemaleMin={(v) => set('minRatingFemale', v)}
+                onSelectFemaleMax={(v) => set('maxRatingFemale', v)}
             />
             <TimePickerModal
                 visible={ratingField === 'timeStart' || ratingField === 'timeEnd'}
