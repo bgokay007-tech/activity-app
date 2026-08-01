@@ -9957,6 +9957,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const [timeField, setTimeField] = useState(null);
     const [ratingField, setRatingField] = useState(null); // null | 'timeStart' | 'timeEnd'
     const [showRatingRange, setShowRatingRange] = useState(false);
+    const [showScoringPicker, setShowScoringPicker] = useState(false);
 
     const fmtISO = (d) => d
         ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -10120,55 +10121,63 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                         </View>
                         <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
 
-                            {/* Name */}
-                            <Text style={s.fieldLabelRed}>{t.tournNameLabel}</Text>
-                            <TextInput style={[s.fieldInput, ti]} value={f.name} onChangeText={v => set('name', v)}
-                                placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
-
-                            {/* Scope */}
-                            <Text style={s.fieldLabelRed}>{t.tournScopeLabel}</Text>
-                            <View style={[s.chipRow, { marginBottom:8 }]}>
-                                {TOURN_SCOPES.map(sc => (
-                                    <TouchableOpacity key={sc}
-                                        style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.scope === sc && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                        onPress={() => set('scope', sc)}>
-                                        <Text style={[s.chipText, f.scope === sc && { color: cfg.color, fontWeight:'800' }]}>
-                                            {t['tournScope' + sc.charAt(0) + sc.slice(1).toLowerCase()]}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
+                            {/* Ad | Kapsam — tek satır, kompakt */}
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournNameLabel}</Text>
+                                    <TextInput style={[s.fieldInput, ti, { marginBottom:0, paddingVertical:3, fontSize:12 }]} value={f.name} onChangeText={v => set('name', v)}
+                                        placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
+                                </View>
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournScopeLabel}</Text>
+                                    <View style={{ flexDirection:'row', gap:2 }}>
+                                        {TOURN_SCOPES.map(sc => (
+                                            <TouchableOpacity key={sc}
+                                                style={[s.chip, { flex:1, paddingVertical:3, paddingHorizontal:0, justifyContent:'center', alignItems:'center' }, f.scope === sc && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                onPress={() => set('scope', sc)}>
+                                                <Text style={[s.chipText, { fontSize:9, textAlign:'center' }, f.scope === sc && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+                                                    {t['tournScope' + sc.charAt(0) + sc.slice(1).toLowerCase()]}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
                             </View>
                             {f.scope === 'YEREL' && (
-                                <>
-                                    <Text style={s.fieldLabelRed}>{t.tournCityLabel}</Text>
-                                    <TextInput style={[s.fieldInput, ti]} value={f.scopeCity}
-                                        onChangeText={searchCityProvince}
-                                        placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
-                                    {citySuggestions.length > 0 && (
-                                        <View style={s.courtResultsBox}>
-                                            {citySuggestions.map(p => (
-                                                <TouchableOpacity key={p} style={s.courtResultRow}
-                                                    onPress={() => { set('scopeCity', p); setCitySuggestions([]); }}>
-                                                    <Text style={s.courtResultName}>📍 {p}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    )}
-                                    <Text style={s.fieldLabelRed}>{t.tournDistrictLabel}</Text>
-                                    <TextInput style={[s.fieldInput, ti]} value={f.scopeDistrict}
-                                        onChangeText={searchDistrict}
-                                        placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
-                                    {districtSuggestions.length > 0 && (
-                                        <View style={s.courtResultsBox}>
-                                            {districtSuggestions.map(d => (
-                                                <TouchableOpacity key={d} style={s.courtResultRow}
-                                                    onPress={() => { set('scopeDistrict', d); setDistrictSuggestions([]); }}>
-                                                    <Text style={s.courtResultName}>🏘️ {d}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    )}
-                                </>
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournCityLabel}</Text>
+                                        <TextInput style={[s.fieldInput, ti, { marginBottom:0, paddingVertical:3, fontSize:12 }]} value={f.scopeCity}
+                                            onChangeText={searchCityProvince}
+                                            placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
+                                        {citySuggestions.length > 0 && (
+                                            <View style={s.courtResultsBox}>
+                                                {citySuggestions.map(p => (
+                                                    <TouchableOpacity key={p} style={s.courtResultRow}
+                                                        onPress={() => { set('scopeCity', p); setCitySuggestions([]); }}>
+                                                        <Text style={s.courtResultName}>📍 {p}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        )}
+                                    </View>
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournDistrictLabel}</Text>
+                                        <TextInput style={[s.fieldInput, ti, { marginBottom:0, paddingVertical:3, fontSize:12 }]} value={f.scopeDistrict}
+                                            onChangeText={searchDistrict}
+                                            placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
+                                        {districtSuggestions.length > 0 && (
+                                            <View style={s.courtResultsBox}>
+                                                {districtSuggestions.map(d => (
+                                                    <TouchableOpacity key={d} style={s.courtResultRow}
+                                                        onPress={() => { set('scopeDistrict', d); setDistrictSuggestions([]); }}>
+                                                        <Text style={s.courtResultName}>🏘️ {d}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        )}
+                                    </View>
+                                </View>
                             )}
                             {f.scope === 'ULUSAL' && (
                                 <>
@@ -10274,56 +10283,33 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </>
                             )}
 
-                            {/* Son Başvuru | Cinsiyet | Set — tek satır */}
-                            <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
-                                {/* Son Başvuru */}
-                                <View style={{ width:110 }}>
-                                    <Text style={s.fieldLabelRed}>{t.tournRegEndLabel} *</Text>
-                                    <View style={{ flexDirection:'row', gap:3 }}>
-                                        <TouchableOpacity
-                                            style={[s.triBtn, f.regEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
-                                            onPress={() => { setTimeField(null); setDpField('end'); }}>
-                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.dateLabel}</Text>
-                                            <Text style={[s.triValue, !f.regEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                {f.regEndDate ? `${String(f.regEndDate.getDate()).padStart(2,'0')}/${String(f.regEndDate.getMonth()+1).padStart(2,'0')}` : '—'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.triBtn, f.regEndTime && s.triBtnFilled, { paddingVertical:3, paddingHorizontal:2 }]}
-                                            onPress={() => { setDpField(null); setTimeField('end'); }}>
-                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.timeLabel}</Text>
-                                            <Text style={[s.triValue, !f.regEndTime && s.triPlaceholder, { fontSize:10 }]}>{f.regEndTime || '—'}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                                {/* Cinsiyet */}
-                                <View style={{ flex:1 }}>
-                                    <Text style={s.fieldLabelRed}>{t.tournGenderLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:3 }}>
-                                        {TOURN_GENDERS.map(g => (
-                                            <TouchableOpacity key={g}
-                                                style={[s.chip, { flex:1, paddingVertical:2, paddingHorizontal:0, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                                onPress={() => set('genderType', g)}>
-                                                <Text style={[s.chipText, { fontSize:10, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]}>
-                                                    {t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()]}
+                            {/* Son Başvuru | Turnuva Başlangıcı | Tahmini Bitiş — tek satır, kompakt */}
+                            <View style={{ flexDirection:'row', gap:2, marginBottom:8 }}>
+                                {[
+                                    { field:'end',     label: t.tournRegEndLabel + ' *', dateVal: f.regEndDate,     timeVal: f.regEndTime },
+                                    { field:'evStart', label: t.tournEventStartLabel,     dateVal: f.eventStartDate, timeVal: f.eventStartTime },
+                                    { field:'evEnd',   label: t.tournEventEndLabel,       dateVal: f.eventEndDate,   timeVal: f.eventEndTime   },
+                                ].map(({ field, label, dateVal, timeVal }) => (
+                                    <View key={field} style={{ flex:1 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{label}</Text>
+                                        <View style={{ flexDirection:'row', gap:2 }}>
+                                            <TouchableOpacity
+                                                style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
+                                                onPress={() => { setTimeField(null); setDpField(field); }}>
+                                                <Text style={[s.triLabel, { fontSize:7 }]}>{t.dateLabel}</Text>
+                                                <Text style={[s.triValue, !dateVal && s.triPlaceholder, { fontSize:9 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                    {dateVal ? `${String(dateVal.getDate()).padStart(2,'0')}/${String(dateVal.getMonth()+1).padStart(2,'0')}` : '—'}
                                                 </Text>
                                             </TouchableOpacity>
-                                        ))}
+                                            <TouchableOpacity
+                                                style={[s.triBtn, timeVal && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
+                                                onPress={() => { setDpField(null); setTimeField(field); }}>
+                                                <Text style={[s.triLabel, { fontSize:7 }]}>{t.timeLabel}</Text>
+                                                <Text style={[s.triValue, !timeVal && s.triPlaceholder, { fontSize:9 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{timeVal || '—'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
-                                </View>
-                                {/* Set */}
-                                <View style={{ width:48 }}>
-                                    <Text style={s.fieldLabelRed}>{t.tournSetsLabel}</Text>
-                                    <TextInput
-                                        style={[s.fieldInput, ti, { marginBottom:0, textAlign:'center', paddingHorizontal:1 }]}
-                                        value={f.setsPerMatch}
-                                        onChangeText={v => set('setsPerMatch', v.replace(/[^0-9]/g, '').slice(0, 1))}
-                                        placeholder="3"
-                                        placeholderTextColor={colors.textMuted}
-                                        keyboardType="numeric"
-                                        maxLength={1}
-                                    />
-                                </View>
+                                ))}
                             </View>
                             <CalendarPickerModal
                                 visible={dpField === 'end'}
@@ -10338,34 +10324,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 onSelect={(v) => { set('regEndTime', v); setTimeField(null); }}
                                 onClose={() => setTimeField(null)}
                             />
-
-                            {/* Event start | end — side by side */}
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                {[
-                                    { field:'evStart', label: t.tournEventStartLabel, dateVal: f.eventStartDate, timeVal: f.eventStartTime },
-                                    { field:'evEnd',   label: t.tournEventEndLabel,   dateVal: f.eventEndDate,   timeVal: f.eventEndTime   },
-                                ].map(({ field, label, dateVal, timeVal }) => (
-                                    <View key={field} style={{ flex:1 }}>
-                                        <Text style={s.fieldLabelRed}>{label}</Text>
-                                        <View style={{ flexDirection:'row', gap:3 }}>
-                                            <TouchableOpacity
-                                                style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:4, paddingHorizontal:3 }]}
-                                                onPress={() => { setTimeField(null); setDpField(field); }}>
-                                                <Text style={[s.triLabel, { fontSize:9 }]}>{t.dateLabel}</Text>
-                                                <Text style={[s.triValue, !dateVal && s.triPlaceholder, { fontSize:11 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                    {dateVal ? `${String(dateVal.getDate()).padStart(2,'0')}/${String(dateVal.getMonth()+1).padStart(2,'0')}/${dateVal.getFullYear()}` : '—'}
-                                                </Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={[s.triBtn, timeVal && s.triBtnFilled, { paddingVertical:4, paddingHorizontal:5 }]}
-                                                onPress={() => { setDpField(null); setTimeField(field); }}>
-                                                <Text style={[s.triLabel, { fontSize:9 }]}>{t.timeLabel}</Text>
-                                                <Text style={[s.triValue, !timeVal && s.triPlaceholder, { fontSize:11 }]}>{timeVal || '—'}</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                ))}
-                            </View>
                             <CalendarPickerModal
                                 visible={dpField === 'evStart' || dpField === 'evEnd'}
                                 value={dpField === 'evStart' ? f.eventStartDate : f.eventEndDate}
@@ -10380,66 +10338,94 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 onClose={() => setTimeField(null)}
                             />
 
-                            {/* Derece — tek buton/modal (ilan olusturmadaki gibi) */}
-                            <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ alignSelf:'flex-start', minWidth:110, marginBottom:8 }}>
-                                <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ {t.ratingLimitLabel}</Text>
-                                <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, paddingHorizontal:10, alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
-                                    <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                        {f.ratingGenderSplit
-                                            ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
-                                            : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Scoring + matches/qualifiers — Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
-                            {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
-                                <>
-                                    <Text style={s.fieldLabelRed}>{t.tournScoringLabel}</Text>
-                                    <View style={[s.chipRow, { marginBottom:8 }]}>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === true && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('advantageScoring', true)}>
-                                            <Text style={[s.chipText, f.advantageScoring === true && { color: cfg.color, fontWeight:'800' }]}>{t.tournAdvantage}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === false && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('advantageScoring', false)}>
-                                            <Text style={[s.chipText, f.advantageScoring === false && { color: cfg.color, fontWeight:'800' }]}>{t.tournDeciding}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === null && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('advantageScoring', null)}>
-                                            <Text style={[s.chipText, f.advantageScoring === null && { color: cfg.color, fontWeight:'800' }]}>{t.tournFreeScoring}</Text>
-                                        </TouchableOpacity>
+                            {/* Katılımcı Cinsiyeti | Derece | Sayı Sistemi | Set — tek satır, kompakt */}
+                            <View style={{ flexDirection:'row', gap:2, alignItems:'flex-end', marginBottom:8 }}>
+                                <View style={{ flex:1.4 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournGenderLabel}</Text>
+                                    <View style={{ flexDirection:'row', gap:2 }}>
+                                        {TOURN_GENDERS.map(g => (
+                                            <TouchableOpacity key={g}
+                                                style={[s.chip, { flex:1, paddingVertical:3, paddingHorizontal:0, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                onPress={() => set('genderType', g)}>
+                                                <Text style={[s.chipText, { fontSize:9, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+                                                    {noEmojiStr(t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()])}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
                                     </View>
-                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                </View>
+                                <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ flex:1 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>⭐ {t.ratingLimitLabel}</Text>
+                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
+                                        <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                            {f.ratingGenderSplit
+                                                ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
+                                                : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                                {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
+                                    <TouchableOpacity onPress={() => setShowScoringPicker(true)} style={{ flex:1 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournScoringLabel}</Text>
+                                        <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: colors.border }}>
+                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                                {f.advantageScoring === true ? t.tournAdvantage : f.advantageScoring === false ? t.tournDeciding : t.tournFreeScoring}
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                )}
+                                <View style={{ width:36 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournSetsLabel}</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti, { marginBottom:0, paddingVertical:4, textAlign:'center', paddingHorizontal:1, fontSize:12 }]}
+                                        value={f.setsPerMatch}
+                                        onChangeText={v => set('setsPerMatch', v.replace(/[^0-9]/g, '').slice(0, 1))}
+                                        placeholder="3"
+                                        placeholderTextColor={colors.textMuted}
+                                        keyboardType="numeric"
+                                        maxLength={1}
+                                    />
+                                </View>
+                            </View>
+                            <OptionPickerModal
+                                visible={showScoringPicker}
+                                title={t.tournScoringLabel}
+                                options={[
+                                    { value: true,  label: t.tournAdvantage },
+                                    { value: false, label: t.tournDeciding },
+                                    { value: null,  label: t.tournFreeScoring },
+                                ]}
+                                value={f.advantageScoring}
+                                onSelect={(v) => set('advantageScoring', v)}
+                                onClose={() => setShowScoringPicker(false)}
+                            />
+
+                            {/* Play-off Öncesi Maç | Play-off'a Kalan Oyuncu | Min Oyuncu | Max Oyuncu — tek satır */}
+                            <View style={{ flexDirection:'row', gap:2, marginBottom:8 }}>
+                                {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
+                                    <>
                                         <View style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMatchesBeforePlayoff}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMatchesBeforePlayoff}</Text>
                                             <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.matchesBeforePlayoff}
                                                 onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournMatchesPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                         </View>
                                         <View style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournPlayoffQualifiers}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournPlayoffQualifiers}</Text>
                                             <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.playoffQualifiers}
                                                 onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournPlayoffPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                         </View>
-                                    </View>
-                                </>
-                            )}
-
-                            {/* Min / Max oyuncu */}
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                    </>
+                                )}
                                 <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMinPlayers}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMinPlayers}</Text>
                                     <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
                                         onChangeText={v => set('minPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="2" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                 </View>
                                 <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMaxPlayers}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMaxPlayers}</Text>
                                     <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.maxPlayers}
                                         onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
