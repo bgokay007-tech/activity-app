@@ -10650,26 +10650,26 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             )}
 
 
-                            {/* Gender | Sets — side by side */}
+                            {/* Cinsiyet | Set | Derece — tek satır, kompakt */}
                             <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
                                 <View style={{ flex:1 }}>
-                                    <Text style={s.fieldLabelRed}>{t.tournGenderLabel}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournGenderLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         {TOURN_GENDERS.map(g => (
                                             <TouchableOpacity key={g}
-                                                style={[s.chip, { flex:1, paddingVertical:2, paddingHorizontal:1, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                style={[s.chip, { flex:1, paddingVertical:3, paddingHorizontal:0, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                                 onPress={() => set('genderType', g)}>
-                                                <Text style={[s.chipText, { fontSize:11, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]}>
-                                                    {t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()]}
+                                                <Text style={[s.chipText, { fontSize:10, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                    {noEmojiStr(t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()])}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
                                 </View>
-                                <View style={{ width:72 }}>
-                                    <Text style={s.fieldLabelRed}>{t.tournSetsLabel}</Text>
+                                <View style={{ width:40 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournSetsLabel}</Text>
                                     <TextInput
-                                        style={[s.fieldInput, ti, { marginBottom:0, textAlign:'center' }]}
+                                        style={[s.fieldInput, ti, { marginBottom:0, paddingVertical:3, paddingHorizontal:1, textAlign:'center', fontSize:12 }]}
                                         value={f.setsPerMatch}
                                         onChangeText={v => set('setsPerMatch', v.replace(/[^0-9]/g, '').slice(0, 1))}
                                         placeholder="3"
@@ -10678,6 +10678,16 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         maxLength={1}
                                     />
                                 </View>
+                                <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ flex:1 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ {t.ratingLimitLabel}</Text>
+                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
+                                        <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {f.ratingGenderSplit
+                                                ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
+                                                : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
                             </View>
 
                             {/* Scoring + matches/qualifiers — Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
@@ -10703,14 +10713,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         <View style={{ flex:1 }}>
-                                            <Text style={s.fieldLabelRed}>{t.tournMatchesBeforePlayoff}</Text>
-                                            <TextInput style={[s.fieldInput, ti]} value={f.matchesBeforePlayoff}
+                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMatchesBeforePlayoff}</Text>
+                                            <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.matchesBeforePlayoff}
                                                 onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournMatchesPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                         </View>
                                         <View style={{ flex:1 }}>
-                                            <Text style={s.fieldLabelRed}>{t.tournPlayoffQualifiers}</Text>
-                                            <TextInput style={[s.fieldInput, ti]} value={f.playoffQualifiers}
+                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournPlayoffQualifiers}</Text>
+                                            <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.playoffQualifiers}
                                                 onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournPlayoffPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                         </View>
@@ -10718,7 +10728,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </>
                             )}
 
-                            {/* Min / Max players + Rating limit (tek buton — ilan oluşturmadaki gibi tek modal içinde cinsiyete göre ayrılabilir) */}
+                            {/* Min / Max oyuncu — kompakt (derece artık yukarıda cinsiyet/set satırında) */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8, marginTop:4 }}>
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMinPlayers}</Text>
@@ -10732,16 +10742,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                 </View>
-                                <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ {t.ratingLimitLabel}</Text>
-                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
-                                        <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {f.ratingGenderSplit
-                                                ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
-                                                : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
-                                        </Text>
-                                    </View>
-                                </TouchableOpacity>
                             </View>
 
                             {/* Contact phone */}
