@@ -10091,9 +10091,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={s.modalOverlay}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1, justifyContent:'flex-end' }}>
+                {/* Android'de behavior="height" modal içindeki ScrollView'la çakışıp klavye
+                    açılmasa/kapanmasa bile kaydırma sırasında yeniden boyutlandırma tetikleyip
+                    kaydırma jestini bozuyordu — CreateRivalModal'daki gibi "padding" kullanılıyor. */}
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{t.createTournamentTitle}</Text>
