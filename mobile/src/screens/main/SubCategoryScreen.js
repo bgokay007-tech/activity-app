@@ -10100,7 +10100,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <Text style={s.modalTitle}>{t.createTournamentTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
 
                             {/* Name */}
                             <Text style={s.fieldLabelRed}>{t.tournNameLabel}</Text>
