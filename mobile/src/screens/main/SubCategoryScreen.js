@@ -10095,7 +10095,10 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                     açılmasa/kapanmasa bile kaydırma sırasında yeniden boyutlandırma tetikleyip
                     kaydırma jestini bozuyordu — CreateRivalModal'daki gibi "padding" kullanılıyor. */}
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    <View style={s.modalBox}>
+                    {/* Form çok uzun olduğu için maxHeight'a bırakılırsa Android'de ScrollView'ın
+                        kaydırma sınırı ilk çizimde eksik hesaplanıyor, bir alana odaklanana kadar
+                        belli bir noktadan öteye kaydırılamıyordu — sabit height bunu çözüyor. */}
+                    <View style={[s.modalBox, { height: '92%' }]}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{t.createTournamentTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
