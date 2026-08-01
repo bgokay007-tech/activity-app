@@ -18,6 +18,7 @@ const DIFFICULTIES = [
 ];
 
 export default function RecordTrailScreen({ navigation, route }) {
+    const sub = route.params?.sub || 'hiking';
     const insets = useSafeAreaInsets();
     const [recording, setRecording] = useState(false);
     const [points, setPoints] = useState([]);
@@ -86,7 +87,7 @@ export default function RecordTrailScreen({ navigation, route }) {
             }
             const durationMin = startedAt ? Math.round((Date.now() - startedAt) / 60000) : undefined;
             await api.post('/trails', {
-                subCategory: 'hiking',
+                subCategory: sub,
                 title: title.trim(),
                 description: description.trim() || undefined,
                 difficulty,

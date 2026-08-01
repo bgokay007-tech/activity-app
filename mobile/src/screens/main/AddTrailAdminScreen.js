@@ -38,6 +38,7 @@ function parseGpx(xml) {
 }
 
 export default function AddTrailAdminScreen({ navigation, route }) {
+    const sub = route.params?.sub || 'hiking';
     const insets = useSafeAreaInsets();
     const [points, setPoints] = useState([]);
     const [fileName, setFileName] = useState('');
@@ -90,7 +91,7 @@ export default function AddTrailAdminScreen({ navigation, route }) {
                 images.push(data.url);
             }
             await api.post('/trails', {
-                subCategory: 'hiking',
+                subCategory: sub,
                 title: title.trim(),
                 description: description.trim() || undefined,
                 city: city.trim() || undefined,

@@ -12,7 +12,7 @@ const DIFFICULTIES = [
     { id: 'HARD', label: 'Zor' },
 ];
 
-export default function TrailsTab({ trails, loading, onRefresh, myId, myIsAdmin, navigation }) {
+export default function TrailsTab({ trails, loading, onRefresh, myId, myIsAdmin, navigation, sub }) {
     const [difficulty, setDifficulty] = useState(null);
     const [cityQuery, setCityQuery] = useState('');
     const [openTrailId, setOpenTrailId] = useState(null);
@@ -27,14 +27,14 @@ export default function TrailsTab({ trails, loading, onRefresh, myId, myIsAdmin,
         <View>
             <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
                 <TouchableOpacity
-                    onPress={() => navigation.navigate('RecordTrail', { onDone: onRefresh })}
+                    onPress={() => navigation.navigate('RecordTrail', { sub, onDone: onRefresh })}
                     style={{ flex: 1, backgroundColor: '#65a30d20', borderRadius: moderateScale(8), paddingVertical: moderateScale(7), alignItems: 'center', borderWidth: 1, borderColor: '#65a30d60' }}
                 >
                     <Text style={{ color: '#84cc16', fontWeight: '800', fontSize: moderateScale(12) }}>🥾 Rota Kaydet</Text>
                 </TouchableOpacity>
                 {myIsAdmin && (
                     <TouchableOpacity
-                        onPress={() => navigation.navigate('AddTrailAdmin', { onDone: onRefresh })}
+                        onPress={() => navigation.navigate('AddTrailAdmin', { sub, onDone: onRefresh })}
                         style={{ flex: 1, backgroundColor: colors.purple + '20', borderRadius: moderateScale(8), paddingVertical: moderateScale(7), alignItems: 'center', borderWidth: 1, borderColor: colors.purple + '60' }}
                     >
                         <Text style={{ color: colors.purple, fontWeight: '800', fontSize: moderateScale(12) }}>📥 GPX ile Rota Ekle</Text>

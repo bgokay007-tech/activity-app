@@ -131,15 +131,17 @@ const SIMPLE_TAB_SUBS = new Set([
     'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting',
 ]);
 
+// GPS rota kaydetme/paylaşma (Wikiloc tarzı) mantıklı olan dallar — "Etkinlik"in
+// hemen sağında ayrı bir "Rotalar" sekmesi.
+const ROUTE_ENABLED_SUBS = new Set(['hiking', 'camping', 'running', 'motorcycle', 'sup_kano', 'climbing', 'walking']);
+
 function getTabs(sub, category) {
     // Not: 'music' bu ekrana hiç gelmez — CategoryScreen'deki SPECIAL_SCREENS
     // haritası onu ayrı bir ekrana (MusicHomeScreen) yönlendiriyor. "Sanatçılar"
     // sekmesi orada, amateurTab satırına eklendi (bkz. o dosya).
     if (category === 'ARTS')
         return ['rivals', 'coaches', 'media', 'archive'];
-    // Doğa Yürüyüşü: Wikiloc tarzı GPS rota paylaşımı — "Etkinlik"in hemen
-    // sağında ayrı bir "Rotalar" sekmesi.
-    if (sub === 'hiking')
+    if (ROUTE_ENABLED_SUBS.has(sub))
         return ['rivals', 'routes', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (SIMPLE_TAB_SUBS.has(sub))
         return ['rivals', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
@@ -15413,6 +15415,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             myId={myId}
                             myIsAdmin={myIsAdmin}
                             navigation={navigation}
+                            sub={sub}
                         />
                     )}
 
