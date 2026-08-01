@@ -9928,6 +9928,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const [submitting, setSubmitting] = useState(false);
     const [citySuggestions, setCitySuggestions] = useState([]);
     const [districtSuggestions, setDistrictSuggestions] = useState([]);
+    const scrollRef = useRef(null);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
 
     const searchCityProvince = async (text) => {
@@ -10090,7 +10091,18 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing"
+            onShow={() => {
+                // Modal'ın "slide" açılış animasyonu bitmeden ScrollView'ın içerik yüksekliği
+                // ölçülüyor, Android bu ölçümü donduruyor — form gerçekte daha uzun olsa da
+                // belli bir noktadan öteye kaydırılamıyordu (bir input'a dokununca klavye
+                // ölçümü tetikleyip düzeltiyordu). Animasyon bittikten hemen sonra 1px'lik
+                // görünmez bir kaydırma, Android'e gerçek içerik boyutunu yeniden ölçtürüyor.
+                setTimeout(() => {
+                    scrollRef.current?.scrollTo({ y: 1, animated: false });
+                    scrollRef.current?.scrollTo({ y: 0, animated: false });
+                }, 350);
+            }}>
             <View style={s.modalOverlay}>
                 {/* Android'de behavior="height" modal içindeki ScrollView'la çakışıp klavye
                     açılmasa/kapanmasa bile kaydırma sırasında yeniden boyutlandırma tetikleyip
@@ -10104,7 +10116,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <Text style={s.modalTitle}>{t.createTournamentTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
+                        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
 
                             {/* Name */}
                             <Text style={s.fieldLabelRed}>{t.tournNameLabel}</Text>
