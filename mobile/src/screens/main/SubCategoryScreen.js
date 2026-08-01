@@ -10380,6 +10380,72 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 onClose={() => setTimeField(null)}
                             />
 
+                            {/* Derece — tek buton/modal (ilan olusturmadaki gibi) */}
+                            <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ alignSelf:'flex-start', minWidth:110, marginBottom:8 }}>
+                                <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ {t.ratingLimitLabel}</Text>
+                                <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, paddingHorizontal:10, alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
+                                    <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                        {f.ratingGenderSplit
+                                            ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
+                                            : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Scoring + matches/qualifiers — Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
+                            {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
+                                <>
+                                    <Text style={s.fieldLabelRed}>{t.tournScoringLabel}</Text>
+                                    <View style={[s.chipRow, { marginBottom:8 }]}>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === true && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('advantageScoring', true)}>
+                                            <Text style={[s.chipText, f.advantageScoring === true && { color: cfg.color, fontWeight:'800' }]}>{t.tournAdvantage}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === false && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('advantageScoring', false)}>
+                                            <Text style={[s.chipText, f.advantageScoring === false && { color: cfg.color, fontWeight:'800' }]}>{t.tournDeciding}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === null && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('advantageScoring', null)}>
+                                            <Text style={[s.chipText, f.advantageScoring === null && { color: cfg.color, fontWeight:'800' }]}>{t.tournFreeScoring}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMatchesBeforePlayoff}</Text>
+                                            <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.matchesBeforePlayoff}
+                                                onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
+                                                placeholder={t.tournMatchesPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                        </View>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournPlayoffQualifiers}</Text>
+                                            <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.playoffQualifiers}
+                                                onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
+                                                placeholder={t.tournPlayoffPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                        </View>
+                                    </View>
+                                </>
+                            )}
+
+                            {/* Min / Max oyuncu */}
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMinPlayers}</Text>
+                                    <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
+                                        onChangeText={v => set('minPlayers', v.replace(/[^0-9]/g,''))}
+                                        placeholder="2" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                </View>
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMaxPlayers}</Text>
+                                    <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.maxPlayers}
+                                        onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
+                                        placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+                                </View>
+                            </View>
+
                             {/* Entry fee */}
                             <Text style={s.fieldLabelRed}>{t.tournFeeLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:6 }]}>
@@ -10662,101 +10728,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     ))}
                                 </View>
                             )}
-
-
-                            {/* Cinsiyet | Set | Derece — tek satır, kompakt */}
-                            <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', marginBottom:8 }}>
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournGenderLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:3 }}>
-                                        {TOURN_GENDERS.map(g => (
-                                            <TouchableOpacity key={g}
-                                                style={[s.chip, { flex:1, paddingVertical:3, paddingHorizontal:0, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                                onPress={() => set('genderType', g)}>
-                                                <Text style={[s.chipText, { fontSize:10, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                                    {noEmojiStr(t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()])}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </View>
-                                <View style={{ width:40 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournSetsLabel}</Text>
-                                    <TextInput
-                                        style={[s.fieldInput, ti, { marginBottom:0, paddingVertical:3, paddingHorizontal:1, textAlign:'center', fontSize:12 }]}
-                                        value={f.setsPerMatch}
-                                        onChangeText={v => set('setsPerMatch', v.replace(/[^0-9]/g, '').slice(0, 1))}
-                                        placeholder="3"
-                                        placeholderTextColor={colors.textMuted}
-                                        keyboardType="numeric"
-                                        maxLength={1}
-                                    />
-                                </View>
-                                <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ {t.ratingLimitLabel}</Text>
-                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
-                                        <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {f.ratingGenderSplit
-                                                ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
-                                                : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
-                                        </Text>
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Scoring + matches/qualifiers — Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
-                            {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
-                                <>
-                                    <Text style={s.fieldLabelRed}>{t.tournScoringLabel}</Text>
-                                    <View style={[s.chipRow, { marginBottom:8 }]}>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === true && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('advantageScoring', true)}>
-                                            <Text style={[s.chipText, f.advantageScoring === true && { color: cfg.color, fontWeight:'800' }]}>{t.tournAdvantage}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === false && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('advantageScoring', false)}>
-                                            <Text style={[s.chipText, f.advantageScoring === false && { color: cfg.color, fontWeight:'800' }]}>{t.tournDeciding}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.advantageScoring === null && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('advantageScoring', null)}>
-                                            <Text style={[s.chipText, f.advantageScoring === null && { color: cfg.color, fontWeight:'800' }]}>{t.tournFreeScoring}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                    <View style={{ flexDirection:'row', gap:3 }}>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMatchesBeforePlayoff}</Text>
-                                            <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.matchesBeforePlayoff}
-                                                onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
-                                                placeholder={t.tournMatchesPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-                                        </View>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournPlayoffQualifiers}</Text>
-                                            <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.playoffQualifiers}
-                                                onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
-                                                placeholder={t.tournPlayoffPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-                                        </View>
-                                    </View>
-                                </>
-                            )}
-
-                            {/* Min / Max oyuncu — kompakt (derece artık yukarıda cinsiyet/set satırında) */}
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:8, marginTop:4 }}>
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMinPlayers}</Text>
-                                    <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
-                                        onChangeText={v => set('minPlayers', v.replace(/[^0-9]/g,''))}
-                                        placeholder="2" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-                                </View>
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournMaxPlayers}</Text>
-                                    <TextInput style={[s.fieldInput, ti, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={f.maxPlayers}
-                                        onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
-                                        placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-                                </View>
-                            </View>
 
                             {/* Contact phone */}
                             <Text style={s.fieldLabelRed}>{t.tournContactPhoneLabel}</Text>
