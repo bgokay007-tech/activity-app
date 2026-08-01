@@ -9929,6 +9929,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const [citySuggestions, setCitySuggestions] = useState([]);
     const [districtSuggestions, setDistrictSuggestions] = useState([]);
     const scrollRef = useRef(null);
+    const [scrollNudge, setScrollNudge] = useState(0);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
 
     const searchCityProvince = async (text) => {
@@ -10096,11 +10097,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 // Modal'ın "slide" açılış animasyonu bitmeden ScrollView'ın içerik yüksekliği
                 // ölçülüyor, Android bu ölçümü donduruyor — form gerçekte daha uzun olsa da
                 // belli bir noktadan öteye kaydırılamıyordu (bir input'a dokununca klavye
-                // ölçümü tetikleyip düzeltiyordu). Animasyon bittikten hemen sonra 1px'lik
-                // görünmez bir kaydırma, Android'e gerçek içerik boyutunu yeniden ölçtürüyor.
+                // ölçümü tetikleyip düzeltiyordu). scrollTo denemesi işe yaramadı çünkü sadece
+                // pozisyonu değiştiriyor, boyutu yeniden ölçtürmüyor — bunun yerine içeriğin
+                // gerçek boyutunu 1px artırıp geri alarak Android'e yeniden ölçtürüyoruz.
                 setTimeout(() => {
-                    scrollRef.current?.scrollTo({ y: 1, animated: false });
-                    scrollRef.current?.scrollTo({ y: 0, animated: false });
+                    setScrollNudge(1);
+                    setTimeout(() => setScrollNudge(0), 80);
                 }, 350);
             }}>
             <View style={s.modalOverlay}>
@@ -10775,6 +10777,10 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 onPress={submit} disabled={submitting}>
                                 <Text style={s.submitBtnText}>{submitting ? t.submittingBtn : t.tournSubmitBtn}</Text>
                             </TouchableOpacity>
+                            {/* İçerik boyutunu 1px değiştirip geri almak, scrollTo ile aksine
+                                Android'in ScrollView'ın gerçek kaydırma sınırını (contentSize)
+                                yeniden ölçmesini tetikliyor — bir input'a dokunmadan da. */}
+                            <View style={{ height: scrollNudge }} />
                         </ScrollView>
                     </View>
                 </KeyboardAvoidingView>
