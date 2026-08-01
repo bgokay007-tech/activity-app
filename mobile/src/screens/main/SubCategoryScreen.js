@@ -24,7 +24,6 @@ import CalendarPickerModal from '../../components/CalendarPickerModal';
 import DateRangePickerModal from '../../components/DateRangePickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
 import PeerReviewModal from '../../components/PeerReviewModal';
-import ArtistsTab from '../../components/ArtistsTab';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
 import { shareRival, shareTournament } from '../../utils/share';
@@ -133,10 +132,9 @@ const SIMPLE_TAB_SUBS = new Set([
 ]);
 
 function getTabs(sub, category) {
-    // Müzik: sanatçıların kendini/etkinliklerini tanıttığı ayrı bir sekme —
-    // "Destek"in (müzik dersi vb.) hemen sağında.
-    if (sub === 'music')
-        return ['rivals', 'coaches', 'artists', 'media', 'archive'];
+    // Not: 'music' bu ekrana hiç gelmez — CategoryScreen'deki SPECIAL_SCREENS
+    // haritası onu ayrı bir ekrana (MusicHomeScreen) yönlendiriyor. "Sanatçılar"
+    // sekmesi orada, amateurTab satırına eklendi (bkz. o dosya).
     if (category === 'ARTS')
         return ['rivals', 'coaches', 'media', 'archive'];
     // Doğa Yürüyüşü: Wikiloc tarzı GPS rota paylaşımı — "Etkinlik"in hemen
@@ -14033,10 +14031,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                         </View>
                         );
                     })()}
-
-                    {activeTab === 'artists' && (
-                        <ArtistsTab myId={myId} navigation={navigation} />
-                    )}
 
                     {activeTab === 'coaches' && (() => {
                         const isCoachExpanded = ['tennis', 'padel', 'volleyball'].includes(sub);

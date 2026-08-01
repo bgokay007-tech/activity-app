@@ -11,6 +11,7 @@ import useT from '../../hooks/useT';
 import { playTrack } from '../../services/musicPlayer';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
+import ArtistsTab from '../../components/ArtistsTab';
 
 function fmtDate(d) {
     if (!d) return null;
@@ -575,6 +576,7 @@ export default function MusicHomeScreen({ navigation }) {
                         {[
                             { id: 'events',  label: t.musicSubEvents  || '🎉 Etkinlikler' },
                             { id: 'courses', label: t.musicSubCourses || '🎓 Kurslar' },
+                            { id: 'artists', label: t.musicSubArtists || '🎤 Sanatçılar' },
                             { id: 'media',   label: t.musicSubMedia   || '📷 Medya' },
                         ].map(tb => (
                             <TouchableOpacity key={tb.id} onPress={() => setAmateurTab(tb.id)}
@@ -632,6 +634,12 @@ export default function MusicHomeScreen({ navigation }) {
                                 />
                             )}
                         </>
+                    )}
+
+                    {amateurTab === 'artists' && (
+                        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
+                            <ArtistsTab myId={myId} navigation={navigation} />
+                        </ScrollView>
                     )}
 
                     {amateurTab === 'media' && (
