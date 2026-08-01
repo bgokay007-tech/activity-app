@@ -11,6 +11,7 @@ const ENABLED_SUBS = new Set([
     'tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak', 'okey', 'chess', 'tavla', 'friend_finding',
     // Basitleştirilmiş sekme setiyle (Etkinlik/Destek/Ekipman/Medya/Yazılar/Bilet Al/Haberler/Arşiv) açılan yeni dallar
     'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
+    'sanal_alem',
 ]);
 
 // Bu dallar "ilan" (rakip bul) mantığına değil kendi özel ekranlarına gider —
@@ -50,7 +51,7 @@ const SUB_MAP = {
     ],
     SOCIAL:  [
         { id: 'friend_finding', label: 'Friend Finding',    labelTR: 'Arkadaş Bulma',   emoji: '🎉' },
-        { id: 'language',       label: 'Language Exchange', labelTR: 'Dil Değişimi',    emoji: '🌍' },
+        { id: 'sanal_alem',     label: 'Virtual World',     labelTR: 'Sanal Alem',      emoji: '🌐' },
     ],
     ARTS:    [
         { id: 'painting',     label: 'Painting',      labelTR: 'Resim',       emoji: '🎨' },

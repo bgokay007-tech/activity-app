@@ -12,7 +12,7 @@ import { getSubCategoryLabel } from '../utils/subCategoryLabels';
 import useT from '../hooks/useT';
 
 const ENABLED_SUBS = new Set([
-    'tennis', 'padel', 'volleyball', 'friend_finding',
+    'tennis', 'padel', 'volleyball', 'friend_finding', 'sanal_alem',
     // Sanat — tüm dallar
     'music', 'painting', 'dance', 'photography', 'theater', 'writing', 'sculpture', 'cinema', 'poetry', 'illustration',
     // Oyunlar — tüm dallar

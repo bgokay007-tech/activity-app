@@ -51,7 +51,7 @@ export const SUBCATEGORIES = {
     ],
     SOCIAL: [
         { id: 'friend_finding', name: 'Friend Finding', emoji: '🎉' },
-        { id: 'language', name: 'Language Exchange', emoji: '🌍' },
+        { id: 'sanal_alem', name: 'Virtual World', emoji: '🌐' },
     ],
     GAMES: [
         { id: 'fps', name: 'FPS', emoji: '🎯' },

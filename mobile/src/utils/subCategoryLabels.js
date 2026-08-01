@@ -36,7 +36,7 @@ const LABELS = {
     martial_arts: { en: 'Martial Arts', tr: 'Dövüş Sanatları' },
     // SOCIAL
     friend_finding: { en: 'Friend Finding', tr: 'Arkadaş Bulma' },
-    language: { en: 'Language Exchange', tr: 'Dil Değişimi' },
+    sanal_alem: { en: 'Virtual World', tr: 'Sanal Alem' },
     // ARTS
     painting: { en: 'Painting', tr: 'Resim' },
     music: { en: 'Music', tr: 'Müzik' },

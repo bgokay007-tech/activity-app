@@ -17,7 +17,7 @@ export const ENABLED_SUBS = {
     basketball: false,
     // Social
     friend_finding: true,
-    language:       false,
+    sanal_alem: true,
     // Arts
     music:      true,
     // Games

@@ -3348,7 +3348,7 @@ function SubCategoryPage() {
             return JSON.parse(atob(token.split('.')[1])).userId || myIdFromRedux;
         } catch { return myIdFromRedux || null; }
     })();
-    const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || (sub === 'football' ? 'player_wanted' : 'rivals'));
+    const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || (sub === 'football' ? 'player_wanted' : sub === 'sanal_alem' ? 'media' : 'rivals'));
     const [tournamentView, setTournamentView] = useState(null); // null | 'pick' | 'mix_double' | 'singles' | 'team' | 'bracket' | 'manage'
     const [tournaments, setTournaments] = useState([]);
     const [tournamentsLoading, setTournamentsLoading] = useState(false);

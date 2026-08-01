@@ -104,6 +104,7 @@ const SUB_CONFIG = {
     running:        { name:'Running',        nameTR:'Koşu',            emoji:'🏃', color:'#16a34a' },
     walking:        { name:'Walking',        nameTR:'Yürüyüş',         emoji:'🚶', color:'#0d9488' },
     hiking:         { name:'Hiking',         nameTR:'Doğa Yürüyüşü',   emoji:'🥾', color:'#65a30d' },
+    sanal_alem:     { name:'Virtual World',  nameTR:'Sanal Alem',     emoji:'🌐', color:'#ec4899' },
     default:    { name:'Sport',      nameTR:'Spor',       emoji:'🏅', color: colors.purple },
 };
 
@@ -141,6 +142,10 @@ function getTabs(sub, category) {
     // sekmesi orada, amateurTab satırına eklendi (bkz. o dosya).
     if (category === 'ARTS')
         return ['rivals', 'coaches', 'media', 'archive'];
+    // Sanal Alem — rekabetçi maç/turnuva/hakem yapısı yok, Instagram tarzı
+    // foto/video akışının olduğu tek sekme.
+    if (sub === 'sanal_alem')
+        return ['media'];
     if (ROUTE_ENABLED_SUBS.has(sub))
         return ['rivals', 'routes', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (SIMPLE_TAB_SUBS.has(sub))
@@ -11208,7 +11213,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         return t[tab + 'Tab'];
     };
 
-    const [activeTab, setActiveTab] = useState(initialTab && tabs.includes(initialTab) ? initialTab : 'rivals');
+    const [activeTab, setActiveTab] = useState(initialTab && tabs.includes(initialTab) ? initialTab : tabs[0]);
 
     useEffect(() => {
         if (route.params?.initialTab && tabs.includes(route.params.initialTab)) {
