@@ -713,7 +713,9 @@ export const createTournament = async (req, res, next) => {
                 dayTrip: dayTrip === true,
                 minPlayers: minPlayers ? parseInt(minPlayers) : 2,
                 setsPerMatch: setsPerMatch ? parseInt(setsPerMatch) : null,
-                advantageScoring: advantageScoring !== false,
+                // true/false/null (serbest) istemciden geldiği gibi kaydedilir — sadece hiç
+                // gönderilmediyse (undefined) şema varsayılanı (true) devreye girsin diye dokunulmaz.
+                ...(advantageScoring !== undefined && { advantageScoring }),
                 matchesBeforePlayoff: matchesBeforePlayoff ? parseInt(matchesBeforePlayoff) : null,
                 playoffQualifiers: playoffQualifiers ? parseInt(playoffQualifiers) : null,
                 maxPlayers: maxPlayers ? parseInt(maxPlayers) : 32,
@@ -1555,7 +1557,7 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.minPlayers          !== undefined && { minPlayers: parseInt(b.minPlayers) }),
                 ...(b.maxPlayers          !== undefined && { maxPlayers: parseInt(b.maxPlayers) }),
                 ...(b.setsPerMatch        !== undefined && { setsPerMatch: b.setsPerMatch ? parseInt(b.setsPerMatch) : null }),
-                ...(b.advantageScoring    !== undefined && { advantageScoring: b.advantageScoring === true }),
+                ...(b.advantageScoring    !== undefined && { advantageScoring: b.advantageScoring }),
                 ...(b.matchesBeforePlayoff !== undefined && { matchesBeforePlayoff: b.matchesBeforePlayoff ? parseInt(b.matchesBeforePlayoff) : null }),
                 ...(b.playoffQualifiers   !== undefined && { playoffQualifiers: b.playoffQualifiers ? parseInt(b.playoffQualifiers) : null }),
                 ...(b.eventDate    !== undefined && { eventDate:    b.eventDate ? new Date(b.eventDate) : null }),
