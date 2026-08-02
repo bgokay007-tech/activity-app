@@ -4388,6 +4388,11 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
                             </>
                         )}
                     </ScrollView>
+                    <TouchableOpacity
+                        onPress={onClose}
+                        style={{ backgroundColor: colors.purple, borderRadius:12, paddingVertical:12, alignItems:'center', marginTop:10 }}>
+                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || 'Onayla'}</Text>
+                    </TouchableOpacity>
                 </View>
             </View>
         </Modal>
@@ -11366,9 +11371,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [equipmentMedia, setEquipmentMedia] = useState([]);
     const [uploadingEquipmentMedia, setUploadingEquipmentMedia] = useState(false);
     const [equipmentSearch, setEquipmentSearch] = useState('');
-    const [equipmentCity, setEquipmentCity] = useState('');
     const [equipmentMinPrice, setEquipmentMinPrice] = useState('');
     const [equipmentMaxPrice, setEquipmentMaxPrice] = useState('');
+    const [showEquipmentFilter, setShowEquipmentFilter] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [equipmentViewStatus, setEquipmentViewStatus] = useState('ACTIVE'); // 'ACTIVE' | 'SOLD'
     const [equipmentOffers, setEquipmentOffers] = useState([]);
