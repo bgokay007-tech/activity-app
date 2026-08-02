@@ -4332,6 +4332,28 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     const t = useT();
     const ratings = ['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0','9.5','10.0'];
     const showGenderToggle = !!onToggleGenderSplit;
+
+    // Alt limit üst limitten büyük, üst limit alt limitten küçük seçilemesin — hangi spor
+    // dalında (bireysel/takım) veya cinsiyete göre ayrılmış alanda olursa olsun geçerli.
+    // '' (Serbest) sınırsız kabul edilir, karşı taraf zaten boşsa kısıtlama yok.
+    const numOf = (v) => (v === '' || v == null) ? null : parseFloat(v);
+    const guardMin = (onSelect, otherMax) => (v) => {
+        const nv = numOf(v), om = numOf(otherMax);
+        if (nv != null && om != null && nv > om) {
+            Alert.alert('', 'Alt limit üst limitten büyük olamaz.');
+            return;
+        }
+        onSelect(v);
+    };
+    const guardMax = (onSelect, otherMin) => (v) => {
+        const nv = numOf(v), om = numOf(otherMin);
+        if (nv != null && om != null && nv < om) {
+            Alert.alert('', 'Üst limit alt limitten küçük olamaz.');
+            return;
+        }
+        onSelect(v);
+    };
+
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={tg.overlay}>
@@ -4352,17 +4374,17 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
                     <ScrollView showsVerticalScrollIndicator={false}>
                         {!genderSplit ? (
                             <>
-                                <RatingGrid label={t.ratingMinHeader} value={minValue} onSelect={onSelectMin} ratings={ratings} t={t} />
-                                <RatingGrid label={t.ratingMaxHeader} value={maxValue} onSelect={onSelectMax} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMinHeader} value={minValue} onSelect={guardMin(onSelectMin, maxValue)} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMaxHeader} value={maxValue} onSelect={guardMax(onSelectMax, minValue)} ratings={ratings} t={t} />
                             </>
                         ) : (
                             <>
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{noEmojiStr(t.genderMale || '👨 Erkek')}</Text>
-                                <RatingGrid label={t.ratingMinHeader} value={maleMin} onSelect={onSelectMaleMin} ratings={ratings} t={t} />
-                                <RatingGrid label={t.ratingMaxHeader} value={maleMax} onSelect={onSelectMaleMax} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMinHeader} value={maleMin} onSelect={guardMin(onSelectMaleMin, maleMax)} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMaxHeader} value={maleMax} onSelect={guardMax(onSelectMaleMax, maleMin)} ratings={ratings} t={t} />
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8, marginTop:6 }}>{noEmojiStr(t.genderFemale || '👩 Kadın')}</Text>
-                                <RatingGrid label={t.ratingMinHeader} value={femaleMin} onSelect={onSelectFemaleMin} ratings={ratings} t={t} />
-                                <RatingGrid label={t.ratingMaxHeader} value={femaleMax} onSelect={onSelectFemaleMax} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMinHeader} value={femaleMin} onSelect={guardMin(onSelectFemaleMin, femaleMax)} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMaxHeader} value={femaleMax} onSelect={guardMax(onSelectFemaleMax, femaleMin)} ratings={ratings} t={t} />
                             </>
                         )}
                     </ScrollView>
@@ -7464,6 +7486,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [editPrize1, setEditPrize1] = useState(item.prize1 || '');
     const [editPrize2, setEditPrize2] = useState(item.prize2 || '');
     const [editPrize3, setEditPrize3] = useState(item.prize3 || '');
+    const [editSurpriseGifts, setEditSurpriseGifts] = useState(item.surpriseGifts || '');
     const [editExtraServices, setEditExtraServices] = useState(Array.isArray(item.extraServices) ? item.extraServices : []);
     const [editEventDate, setEditEventDate] = useState(item.eventDate ? new Date(item.eventDate) : null);
     const [editEventTime, setEditEventTime] = useState(item.eventTime || '');
@@ -8107,6 +8130,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const saveEdit = async () => {
+        const minP = parseInt(editMin) || item.minPlayers;
+        const maxP = parseInt(editMax) || item.maxPlayers;
+        if (minP > maxP) { Alert.alert('', 'Min oyuncu, max oyuncudan büyük olamaz.'); return; }
         setSaving(true);
         try {
             await api.patch(`/tournaments/${item.id}`, {
@@ -8135,6 +8161,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 prize1: editPrize1 || null,
                 prize2: editPrize2 || null,
                 prize3: editPrize3 || null,
+                surpriseGifts: editSurpriseGifts || null,
                 ...(['tennis', 'padel', 'volleyball'].includes(item.subCategory) && { extraServices: editExtraServices }),
                 eventDate: fmtD(editEventDate),
                 eventTime: editEventTime || null,
@@ -8348,11 +8375,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </Text>
                         </View>
                     )}
-                    {(item.prize1 || item.prize2 || item.prize3) && (
+                    {(item.prize1 || item.prize2 || item.prize3 || item.surpriseGifts) && (
                         <View style={{ gap:3 }}>
                             {item.prize1 && <Text style={{ color:'#fbbf24', fontSize:11 }}>🥇 {item.prize1}</Text>}
                             {item.prize2 && <Text style={{ color:'#94a3b8', fontSize:11 }}>🥈 {item.prize2}</Text>}
                             {item.prize3 && <Text style={{ color:'#cd7f32', fontSize:11 }}>🥉 {item.prize3}</Text>}
+                            {item.surpriseGifts && <Text style={{ color:'#c084fc', fontSize:11 }}>🎁 {item.surpriseGifts}</Text>}
                         </View>
                     )}
                     {Array.isArray(item.extraServices) && item.extraServices.length > 0 && (
@@ -9184,7 +9212,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={s.fieldLabel}>🏆 Ödüller</Text>
                                 <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize1} onChangeText={setEditPrize1} placeholder="🥇 1. Ödül" placeholderTextColor={colors.textMuted} />
                                 <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize2} onChangeText={setEditPrize2} placeholder="🥈 2. Ödül" placeholderTextColor={colors.textMuted} />
-                                <TextInput style={s.fieldInput} value={editPrize3} onChangeText={setEditPrize3} placeholder="🥉 3. Ödül" placeholderTextColor={colors.textMuted} />
+                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize3} onChangeText={setEditPrize3} placeholder="🥉 3. Ödül" placeholderTextColor={colors.textMuted} />
+                                <TextInput style={s.fieldInput} value={editSurpriseGifts} onChangeText={setEditSurpriseGifts} placeholder="🎁 Sürpriz Hediyeler" placeholderTextColor={colors.textMuted} />
 
                                 {['tennis', 'padel', 'volleyball'].includes(item.subCategory) && (
                                     <ExtraServicesEditor services={editExtraServices} onChange={setEditExtraServices} />
@@ -9229,8 +9258,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     title={editRf === 'min' ? '⭐ Alt Derece Limiti' : '⭐ Üst Derece Limiti'}
                     value={editRf === 'min' ? editMinRating : editMaxRating}
                     onSelect={(v) => {
-                        if (editRf === 'min') setEditMinRating(v);
-                        else setEditMaxRating(v);
+                        if (editRf === 'min') {
+                            if (v !== '' && editMaxRating !== '' && parseFloat(v) > parseFloat(editMaxRating)) {
+                                Alert.alert('', 'Alt limit üst limitten büyük olamaz.'); return;
+                            }
+                            setEditMinRating(v);
+                        } else {
+                            if (v !== '' && editMinRating !== '' && parseFloat(v) < parseFloat(editMinRating)) {
+                                Alert.alert('', 'Üst limit alt limitten küçük olamaz.'); return;
+                            }
+                            setEditMaxRating(v);
+                        }
                         setEditRf(null);
                     }}
                     onClose={() => setEditRf(null)}
@@ -9911,7 +9949,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const cfg = getConfig(sub);
 
     const INIT = {
-        name: '', scope: 'YEREL', scopeCity: '', scopeDistrict: '', scopeCountry: '',
+        name: '', scope: '', scopeCity: '', scopeDistrict: '', scopeCountry: '',
         type: '1', minPlayers: '', maxPlayers: '', minRating: '', maxRating: '',
         ratingGenderSplit: false,
         minRatingMale: '', maxRatingMale: '',
@@ -9925,10 +9963,10 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         courtSearchText: '', courtResults: [], selectedCourt: null,
         showManualCourt: false, manualCourtName: '', manualCourtCity: '',
         isIndoor: false,
-        genderType: 'MIX',
+        genderType: '',
         surface: '', isPaid: false,
         feeType: 'SHARED', playerFee: '', paymentMethod: '', ibanNumber: '', ibanHolder: '',
-        prize1: '', prize2: '', prize3: '', contactPhone: '', description: '',
+        prize1: '', prize2: '', prize3: '', surpriseGifts: '', contactPhone: '', description: '',
         setsPerMatch: '', advantageScoring: undefined,
         matchesBeforePlayoff: '', playoffQualifiers: '',
         rules: [],
@@ -9971,6 +10009,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const [showRatingRange, setShowRatingRange] = useState(false);
     const [showScoringPicker, setShowScoringPicker] = useState(false);
     const [showSetsPicker, setShowSetsPicker] = useState(false);
+    const [showScopePicker, setShowScopePicker] = useState(false);
+    const [showGenderPicker, setShowGenderPicker] = useState(false);
 
     const fmtISO = (d) => d
         ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -10007,6 +10047,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
     const submit = async () => {
         if (!f.name.trim()) { Alert.alert('', t.tournMissingName); return; }
+        if (!f.scope) { Alert.alert('', 'Kapsamı seçin.'); return; }
+        if (!f.genderType) { Alert.alert('', 'Katılımcı cinsiyetini seçin.'); return; }
         if (f.scope === 'YEREL' && !f.scopeCity.trim()) { Alert.alert('', t.tournMissingCity); return; }
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
@@ -10023,6 +10065,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         if (f.isPaid && (!f.prize1.trim() || !f.prize2.trim() || !f.prize3.trim())) { Alert.alert('', t.tournMissingPrizes); return; }
         if (f.isPaid && !f.paymentMethod) { Alert.alert('', 'Ödeme yöntemini seçin.'); return; }
         if (f.isPaid && f.paymentMethod === 'EFT' && (!f.ibanNumber.trim() || !f.ibanHolder.trim())) { Alert.alert('', 'IBAN numarası ve hesap sahibi adını girin.'); return; }
+        if (f.minPlayers && f.maxPlayers && parseInt(f.minPlayers) > parseInt(f.maxPlayers)) { Alert.alert('', 'Min oyuncu, max oyuncudan büyük olamaz.'); return; }
 
         const province = f.scopeCity.trim();
         const district = f.scopeDistrict.trim();
@@ -10082,6 +10125,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 prize1: f.prize1.trim() || undefined,
                 prize2: f.prize2.trim() || undefined,
                 prize3: f.prize3.trim() || undefined,
+                surpriseGifts: f.surpriseGifts.trim() || undefined,
                 contactPhone: f.contactPhone.trim() || undefined,
                 ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : undefined,
@@ -10136,71 +10180,75 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                         </View>
                         <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
 
-                            {/* Ad | Kapsam — tek satır, kompakt */}
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournNameLabel}</Text>
-                                    <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.name} onChangeText={v => set('name', v)}
-                                        placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
-                                </View>
-                                <View style={{ flex:1 }}>
-                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournScopeLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:2 }}>
-                                        {TOURN_SCOPES.map(sc => (
-                                            <TouchableOpacity key={sc}
-                                                style={[s.chip, { flex:1, height:30, paddingVertical:0, paddingHorizontal:0, justifyContent:'center', alignItems:'center' }, f.scope === sc && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                                onPress={() => set('scope', sc)}>
-                                                <Text style={[s.chipText, { fontSize:9, textAlign:'center' }, f.scope === sc && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                                                    {t['tournScope' + sc.charAt(0) + sc.slice(1).toLowerCase()]}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </View>
+                            {/* Ad — kendi satırında */}
+                            <View style={{ marginBottom:8 }}>
+                                <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournNameLabel}</Text>
+                                <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.name} onChangeText={v => set('name', v)}
+                                    placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
                             </View>
-                            {f.scope === 'YEREL' && (
-                                <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                    <View style={{ flex:1 }}>
-                                        <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournCityLabel}</Text>
-                                        <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeCity}
-                                            onChangeText={searchCityProvince}
-                                            placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
-                                        {citySuggestions.length > 0 && (
-                                            <View style={s.courtResultsBox}>
-                                                {citySuggestions.map(p => (
-                                                    <TouchableOpacity key={p} style={s.courtResultRow}
-                                                        onPress={() => { set('scopeCity', p); setCitySuggestions([]); }}>
-                                                        <Text style={s.courtResultName}>📍 {p}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
-                                        )}
+
+                            {/* Kapsam | İl | İlçe (Yerel ise) / Ülke (Ulusal ise) — tek satır, tek buton/modal */}
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                <TouchableOpacity onPress={() => setShowScopePicker(true)} style={{ flex:1 }}>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournScopeLabel}</Text>
+                                    <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.scope ? cfg.color : colors.border }}>
+                                        <Text style={{ color: f.scope ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {f.scope ? t['tournScope' + f.scope.charAt(0) + f.scope.slice(1).toLowerCase()] : t.tournSelectPlaceholder}
+                                        </Text>
                                     </View>
-                                    <View style={{ flex:1 }}>
-                                        <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournDistrictLabel}</Text>
-                                        <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeDistrict}
-                                            onChangeText={searchDistrict}
-                                            placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
-                                        {districtSuggestions.length > 0 && (
-                                            <View style={s.courtResultsBox}>
-                                                {districtSuggestions.map(d => (
-                                                    <TouchableOpacity key={d} style={s.courtResultRow}
-                                                        onPress={() => { set('scopeDistrict', d); setDistrictSuggestions([]); }}>
-                                                        <Text style={s.courtResultName}>🏘️ {d}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
-                                        )}
+                                </TouchableOpacity>
+                                {f.scope === 'YEREL' && (
+                                    <>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournCityLabel}</Text>
+                                            <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeCity}
+                                                onChangeText={searchCityProvince}
+                                                placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
+                                            {citySuggestions.length > 0 && (
+                                                <View style={s.courtResultsBox}>
+                                                    {citySuggestions.map(p => (
+                                                        <TouchableOpacity key={p} style={s.courtResultRow}
+                                                            onPress={() => { set('scopeCity', p); setCitySuggestions([]); }}>
+                                                            <Text style={s.courtResultName}>📍 {p}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            )}
+                                        </View>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournDistrictLabel}</Text>
+                                            <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeDistrict}
+                                                onChangeText={searchDistrict}
+                                                placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
+                                            {districtSuggestions.length > 0 && (
+                                                <View style={s.courtResultsBox}>
+                                                    {districtSuggestions.map(d => (
+                                                        <TouchableOpacity key={d} style={s.courtResultRow}
+                                                            onPress={() => { set('scopeDistrict', d); setDistrictSuggestions([]); }}>
+                                                            <Text style={s.courtResultName}>🏘️ {d}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            )}
+                                        </View>
+                                    </>
+                                )}
+                                {f.scope === 'ULUSAL' && (
+                                    <View style={{ flex:2 }}>
+                                        <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournCountryLabel}</Text>
+                                        <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeCountry} onChangeText={v => set('scopeCountry', v)}
+                                            placeholder={t.tournCountryPh} placeholderTextColor={colors.textMuted} />
                                     </View>
-                                </View>
-                            )}
-                            {f.scope === 'ULUSAL' && (
-                                <>
-                                    <Text style={s.fieldLabelRed}>{t.tournCountryLabel}</Text>
-                                    <TextInput style={[s.fieldInput, ti]} value={f.scopeCountry} onChangeText={v => set('scopeCountry', v)}
-                                        placeholder={t.tournCountryPh} placeholderTextColor={colors.textMuted} />
-                                </>
-                            )}
+                                )}
+                            </View>
+                            <OptionPickerModal
+                                visible={showScopePicker}
+                                title={t.tournScopeLabel}
+                                options={TOURN_SCOPES.map(sc => ({ value: sc, label: t['tournScope' + sc.charAt(0) + sc.slice(1).toLowerCase()] }))}
+                                value={f.scope}
+                                onSelect={(v) => set('scope', v)}
+                                onClose={() => setShowScopePicker(false)}
+                            />
                             {f.scope === 'ULUSLARARASI' && (
                                 <View style={{ backgroundColor: cfg.color + '15', borderRadius:8, padding:5, marginBottom:8, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>{t.tournWorldAuto}</Text>
@@ -10355,20 +10403,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Katılımcı Cinsiyeti | Derece | Sayı Sistemi | Set — tek satır, hepsi aynı yükseklikte (34) */}
                             <View style={{ flexDirection:'row', gap:2, alignItems:'flex-end', marginBottom:8 }}>
-                                <View style={{ flex:1.4 }}>
+                                <TouchableOpacity onPress={() => setShowGenderPicker(true)} style={{ flex:1.4 }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournGenderLabel}</Text>
-                                    <View style={{ flexDirection:'row', gap:2 }}>
-                                        {TOURN_GENDERS.map(g => (
-                                            <TouchableOpacity key={g}
-                                                style={[s.chip, { flex:1, height:30, paddingVertical:0, paddingHorizontal:0, justifyContent:'center', alignItems:'center' }, f.genderType === g && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                                onPress={() => set('genderType', g)}>
-                                                <Text style={[s.chipText, { fontSize:9, textAlign:'center' }, f.genderType === g && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                                                    {noEmojiStr(t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()])}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
+                                    <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.genderType ? cfg.color : colors.border }}>
+                                        <Text style={{ color: f.genderType ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                            {f.genderType ? t['tournGender' + f.genderType.charAt(0) + f.genderType.slice(1).toLowerCase()] : t.tournSelectPlaceholder}
+                                        </Text>
                                     </View>
-                                </View>
+                                </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ flex:1 }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>⭐ {t.ratingLimitLabel}</Text>
                                     <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
@@ -10398,6 +10440,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 </TouchableOpacity>
                             </View>
+                            <OptionPickerModal
+                                visible={showGenderPicker}
+                                title={t.tournGenderLabel}
+                                options={TOURN_GENDERS.map(g => ({ value: g, label: t['tournGender' + g.charAt(0) + g.slice(1).toLowerCase()] }))}
+                                value={f.genderType}
+                                onSelect={(v) => set('genderType', v)}
+                                onClose={() => setShowGenderPicker(false)}
+                            />
                             <OptionPickerModal
                                 visible={showScoringPicker}
                                 title={t.tournScoringLabel}
@@ -10437,7 +10487,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </View>
                                     </>
                                 )}
-                                <View style={{ flex:1 }}>
+                                <View style={{ flex:1, marginLeft:4 }}>
                                     <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMinPlayers}</Text>
                                     <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
                                         onChangeText={v => set('minPlayers', v.replace(/[^0-9]/g,''))}
@@ -10552,19 +10602,34 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </>)}
                             </>)}
 
-                            {/* Prizes — required for paid, optional for free */}
-                            {[
-                                { key:'prize1', label: f.isPaid ? t.tournPrize1 : t.tournPrize1Opt },
-                                { key:'prize2', label: f.isPaid ? t.tournPrize2 : t.tournPrize2Opt },
-                                { key:'prize3', label: f.isPaid ? t.tournPrize3 : t.tournPrize3Opt },
-                            ].map(({ key, label }) => (
-                                <View key={key}>
-                                    <Text style={s.fieldLabelRed}>{label}</Text>
-                                    <TextInput style={[s.fieldInput, ti]} value={f[key]}
-                                        onChangeText={v => set(key, v)}
+                            {/* Prizes — required for paid, optional for free — 1./2. yan yana, 3./Sürpriz yan yana */}
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                {[
+                                    { key:'prize1', label: f.isPaid ? t.tournPrize1 : t.tournPrize1Opt },
+                                    { key:'prize2', label: f.isPaid ? t.tournPrize2 : t.tournPrize2Opt },
+                                ].map(({ key, label }) => (
+                                    <View key={key} style={{ flex:1 }}>
+                                        <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{label}</Text>
+                                        <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f[key]}
+                                            onChangeText={v => set(key, v)}
+                                            placeholder={t.tournPrizePh} placeholderTextColor={colors.textMuted} />
+                                    </View>
+                                ))}
+                            </View>
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{f.isPaid ? t.tournPrize3 : t.tournPrize3Opt}</Text>
+                                    <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.prize3}
+                                        onChangeText={v => set('prize3', v)}
                                         placeholder={t.tournPrizePh} placeholderTextColor={colors.textMuted} />
                                 </View>
-                            ))}
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournSurpriseGifts}</Text>
+                                    <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.surpriseGifts}
+                                        onChangeText={v => set('surpriseGifts', v)}
+                                        placeholder={t.tournPrizePh} placeholderTextColor={colors.textMuted} />
+                                </View>
+                            </View>
 
                             {/* Tournament type — kendim seçerim / kullanıcılar oylasın */}
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:3 }}>
@@ -16153,6 +16218,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {tourn.prize1 ? row('🥇 1. Ödül', tourn.prize1) : null}
                                                 {tourn.prize2 ? row('🥈 2. Ödül', tourn.prize2) : null}
                                                 {tourn.prize3 ? row('🥉 3. Ödül', tourn.prize3) : null}
+                                                {tourn.surpriseGifts ? row('🎁 Sürpriz Hediyeler', tourn.surpriseGifts) : null}
                                                 {tourn.isPaid ? row('💰 Katılım Ücreti', `${tourn.playerFee} ₺`) : null}
                                                 {Array.isArray(tourn.extraServices) && tourn.extraServices.length > 0
                                                     ? row('🎉 Ekstra Hizmetler', tourn.extraServices.map(sv => `${sv.name} (${sv.included ? 'Dahil' : `+${sv.price}₺`})`).join(', '))

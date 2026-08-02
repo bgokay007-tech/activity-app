@@ -841,6 +841,7 @@ model Tournament {
   prize1               String?
   prize2               String?
   prize3               String?
+  surpriseGifts        String?  // isteğe bağlı, ödüllerin yanına ek bilgi amaçlı "sürpriz hediyeler" notu
   contactPhone         String?
   minRating            Float?       // minimum skillRating to join (0.0–5.0)
   maxRating            Float?       // maximum skillRating to join (0.0–5.0)
