@@ -13536,10 +13536,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'equipment' && (() => {
                         const filteredEquipment = equipmentListings.filter(eq => {
                             if (equipmentSearch && !eq.title.toLowerCase().includes(equipmentSearch.toLowerCase())) return false;
-                            // unified city filter — filterCity overrides equipmentCity
-                            const cityQ = filterCity || equipmentCity;
-                            if (cityQ) {
-                                const city = cityQ.toLowerCase();
+                            if (filterCity) {
+                                const city = filterCity.toLowerCase();
                                 const inLoc = (eq.location||'').toLowerCase().includes(city);
                                 const inCity = (eq.city||'').toLowerCase().includes(city);
                                 if (!inLoc && !inCity) return false;
@@ -13548,26 +13546,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                             if (equipmentMaxPrice && eq.price > parseInt(equipmentMaxPrice)) return false;
                             return true;
                         });
+                        const equipFilterActive = !!(equipmentSearch || filterCity || equipmentMinPrice || equipmentMaxPrice || equipmentCondition !== 'ALL');
                         return (
                         <View>
-                            {/* Kompakt filtre + bildirim butonu — İl filtresi + zil tek hizada */}
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
-                                <TouchableOpacity
-                                    onPress={() => setShowCityFilter(true)}
-                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
-                                >
-                                    <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
-                                        {filterCity ? filterCity : '📍 İl'}
-                                    </Text>
-                                    {filterCity
-                                        ? <TouchableOpacity onPress={() => setFilterCity('')} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
-                                          </TouchableOpacity>
-                                        : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
-                                    }
-                                </TouchableOpacity>
-                                <CityAlertBtn tab="equipment" />
-                            </View>
                             {/* Aktif / Satılanlar sekmesi */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                 {['ACTIVE','SOLD'].map(v => (
@@ -13579,66 +13560,104 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                 ))}
                             </View>
-                            {/* Durum filtresi */}
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
-                                {['ALL','NEW','USED'].map(c => (
-                                    <TouchableOpacity key={c} onPress={() => setEquipmentCondition(c)}
-                                        style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: equipmentCondition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentCondition===c ? cfg.color : colors.border }}>
-                                        <Text style={{ color: equipmentCondition===c ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                            {c==='ALL' ? t.conditionAll : c==='NEW' ? t.conditionNew : t.conditionUsed}
-                                        </Text>
+                            {/* İlan ver + Filtrele + bildirim butonu yan yana */}
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:10 }}>
+                                {equipmentViewStatus === 'ACTIVE' && (
+                                    <TouchableOpacity onPress={() => setShowEquipmentForm(true)}
+                                        style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:6, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                        <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.postListingBtn}</Text>
                                     </TouchableOpacity>
-                                ))}
-                            </View>
-                            {/* Filtre alanları */}
-                            <View style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:10, borderWidth:1, borderColor: colors.border, gap:3 }}>
-                                <TextInput
-                                    placeholder={t.equipSearchPh}
-                                    placeholderTextColor={colors.textMuted}
-                                    value={equipmentSearch}
-                                    onChangeText={setEquipmentSearch}
-                                    style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:4, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
-                                />
-                                <TextInput
-                                    placeholder={t.equipCityPh}
-                                    placeholderTextColor={colors.textMuted}
-                                    value={equipmentCity}
-                                    onChangeText={setEquipmentCity}
-                                    style={{ backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:4, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
-                                />
-                                <View style={{ flexDirection:'row', gap:3 }}>
-                                    <TextInput
-                                        placeholder="Min ₺"
-                                        placeholderTextColor={colors.textMuted}
-                                        value={equipmentMinPrice}
-                                        onChangeText={v => setEquipmentMinPrice(v.replace(/[^0-9]/g,''))}
-                                        keyboardType="numeric"
-                                        style={{ flex:1, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:4, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
-                                    />
-                                    <TextInput
-                                        placeholder="Max ₺"
-                                        placeholderTextColor={colors.textMuted}
-                                        value={equipmentMaxPrice}
-                                        onChangeText={v => setEquipmentMaxPrice(v.replace(/[^0-9]/g,''))}
-                                        keyboardType="numeric"
-                                        style={{ flex:1, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:4, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:13 }}
-                                    />
-                                    {(equipmentSearch || equipmentCity || equipmentMinPrice || equipmentMaxPrice) && (
-                                        <TouchableOpacity
-                                            onPress={() => { setEquipmentSearch(''); setEquipmentCity(''); setEquipmentMinPrice(''); setEquipmentMaxPrice(''); }}
-                                            style={{ justifyContent:'center', paddingHorizontal:7, backgroundColor:'#ef444420', borderRadius:8, borderWidth:1, borderColor:'#ef444440' }}>
-                                            <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>{t.clearFilter}</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            </View>
-                            {/* İlan ekle butonu */}
-                            {equipmentViewStatus === 'ACTIVE' && (
-                                <TouchableOpacity onPress={() => setShowEquipmentForm(true)}
-                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:6, marginBottom:10, borderWidth:1, borderColor: cfg.color+'50' }}>
-                                    <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>{t.postListingBtn}</Text>
+                                )}
+                                <TouchableOpacity onPress={() => setShowEquipmentFilter(true)}
+                                    style={{ flex: equipmentViewStatus === 'ACTIVE' ? undefined : 1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, backgroundColor: equipFilterActive ? cfg.color+'20' : colors.surface2, borderRadius:10, paddingVertical:6, paddingHorizontal:13, borderWidth:1, borderColor: equipFilterActive ? cfg.color+'60' : colors.border }}>
+                                    <Text style={{ color: equipFilterActive ? cfg.color : colors.textSecondary, fontSize:13, fontWeight:'800' }} numberOfLines={1}>{t.filterBtn}</Text>
+                                    {equipFilterActive && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
                                 </TouchableOpacity>
-                            )}
+                                <CityAlertBtn tab="equipment" />
+                            </View>
+                            {/* Filtre modalı */}
+                            <Modal visible={showEquipmentFilter} animationType="slide" transparent onRequestClose={() => setShowEquipmentFilter(false)}>
+                                <View style={s.modalOverlay}>
+                                    <View style={s.modalBox}>
+                                        <View style={s.modalHeader}>
+                                            <Text style={s.modalTitle}>{t.filterBtn}</Text>
+                                            <TouchableOpacity onPress={() => setShowEquipmentFilter(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                                        </View>
+                                        <ScrollView showsVerticalScrollIndicator={false}>
+                                            <Text style={s.fieldLabel}>{t.equipCityPh}</Text>
+                                            <TouchableOpacity
+                                                onPress={() => setShowCityFilter(true)}
+                                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:11, paddingVertical:9, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border, marginBottom:14 }}>
+                                                <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:14, fontWeight:'700' }}>
+                                                    {filterCity ? `📍 ${filterCity}` : `📍 ${t.equipCityPh}`}
+                                                </Text>
+                                                {filterCity
+                                                    ? <TouchableOpacity onPress={() => setFilterCity('')} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>✕</Text>
+                                                      </TouchableOpacity>
+                                                    : <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
+                                                }
+                                            </TouchableOpacity>
+
+                                            <Text style={s.fieldLabel}>{t.conditionLabel}</Text>
+                                            <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                                {['ALL','NEW','USED'].map(c => (
+                                                    <TouchableOpacity key={c} onPress={() => setEquipmentCondition(c)}
+                                                        style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor: equipmentCondition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentCondition===c ? cfg.color : colors.border }}>
+                                                        <Text style={{ color: equipmentCondition===c ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                            {c==='ALL' ? t.conditionAll : c==='NEW' ? t.conditionNew : t.conditionUsed}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+
+                                            <Text style={s.fieldLabel}>{t.equipSearchPh}</Text>
+                                            <TextInput
+                                                placeholder={t.equipSearchPh}
+                                                placeholderTextColor={colors.textMuted}
+                                                value={equipmentSearch}
+                                                onChangeText={setEquipmentSearch}
+                                                style={[s.fieldInput, { marginBottom:14 }]}
+                                            />
+
+                                            <Text style={s.fieldLabel}>{t.priceRangeLabel}</Text>
+                                            <View style={{ flexDirection:'row', gap:3, marginBottom:20 }}>
+                                                <TextInput
+                                                    placeholder="Min ₺"
+                                                    placeholderTextColor={colors.textMuted}
+                                                    value={equipmentMinPrice}
+                                                    onChangeText={v => setEquipmentMinPrice(v.replace(/[^0-9]/g,''))}
+                                                    keyboardType="numeric"
+                                                    style={[s.fieldInput, { flex:1 }]}
+                                                />
+                                                <TextInput
+                                                    placeholder="Max ₺"
+                                                    placeholderTextColor={colors.textMuted}
+                                                    value={equipmentMaxPrice}
+                                                    onChangeText={v => setEquipmentMaxPrice(v.replace(/[^0-9]/g,''))}
+                                                    keyboardType="numeric"
+                                                    style={[s.fieldInput, { flex:1 }]}
+                                                />
+                                            </View>
+
+                                            <View style={{ flexDirection:'row', gap:8 }}>
+                                                {equipFilterActive && (
+                                                    <TouchableOpacity
+                                                        onPress={() => { setEquipmentSearch(''); setFilterCity(''); setEquipmentMinPrice(''); setEquipmentMaxPrice(''); setEquipmentCondition('ALL'); }}
+                                                        style={{ flex:1, justifyContent:'center', alignItems:'center', paddingVertical:11, backgroundColor:'#ef444420', borderRadius:12, borderWidth:1, borderColor:'#ef444440' }}>
+                                                        <Text style={{ color:'#ef4444', fontSize:13, fontWeight:'800' }}>{t.clearFilter}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                <TouchableOpacity
+                                                    onPress={() => setShowEquipmentFilter(false)}
+                                                    style={{ flex:1, justifyContent:'center', alignItems:'center', paddingVertical:11, backgroundColor: cfg.color, borderRadius:12 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{t.filterBtn}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </ScrollView>
+                                    </View>
+                                </View>
+                            </Modal>
                             {/* Liste */}
                             {loadingEquipment ? (
                                 <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:10 }} />
