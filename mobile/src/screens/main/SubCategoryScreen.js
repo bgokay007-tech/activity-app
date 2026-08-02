@@ -10134,12 +10134,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {/* Ad | Kapsam — tek satır, kompakt */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                 <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournNameLabel}</Text>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournNameLabel}</Text>
                                     <TextInput style={[s.fieldInput, ti, { height:34, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.name} onChangeText={v => set('name', v)}
                                         placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
                                 </View>
                                 <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournScopeLabel}</Text>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournScopeLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:2 }}>
                                         {TOURN_SCOPES.map(sc => (
                                             <TouchableOpacity key={sc}
@@ -10156,7 +10156,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {f.scope === 'YEREL' && (
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournCityLabel}</Text>
+                                        <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournCityLabel}</Text>
                                         <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeCity}
                                             onChangeText={searchCityProvince}
                                             placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
@@ -10172,7 +10172,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         )}
                                     </View>
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.tournDistrictLabel}</Text>
+                                        <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournDistrictLabel}</Text>
                                         <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeDistrict}
                                             onChangeText={searchDistrict}
                                             placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
@@ -10301,7 +10301,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     { field:'evEnd',   label: t.tournEventEndLabel,       dateVal: f.eventEndDate,   timeVal: f.eventEndTime   },
                                 ].map(({ field, label, dateVal, timeVal }) => (
                                     <View key={field} style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{label}</Text>
+                                        <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{label}</Text>
                                         <View style={{ flexDirection:'row', gap:2 }}>
                                             <TouchableOpacity
                                                 style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
@@ -10351,7 +10351,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {/* Katılımcı Cinsiyeti | Derece | Sayı Sistemi | Set — tek satır, hepsi aynı yükseklikte (34) */}
                             <View style={{ flexDirection:'row', gap:2, alignItems:'flex-end', marginBottom:8 }}>
                                 <View style={{ flex:1.4 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournGenderLabel}</Text>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournGenderLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:2 }}>
                                         {TOURN_GENDERS.map(g => (
                                             <TouchableOpacity key={g}
@@ -10365,7 +10365,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 </View>
                                 <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>⭐ {t.ratingLimitLabel}</Text>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>⭐ {t.ratingLimitLabel}</Text>
                                     <View style={{ height:34, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
                                         <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                             {f.ratingGenderSplit
@@ -10376,7 +10376,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </TouchableOpacity>
                                 {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
                                     <TouchableOpacity onPress={() => setShowScoringPicker(true)} style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournScoringLabel}</Text>
+                                        <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournScoringLabel}</Text>
                                         <View style={{ height:34, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.advantageScoring !== undefined ? cfg.color : colors.border }}>
                                             <Text style={{ color: f.advantageScoring !== undefined ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                                 {f.advantageScoring === true ? t.tournAdvantage : f.advantageScoring === false ? t.tournDeciding : f.advantageScoring === null ? t.tournFreeScoring : t.tournSelectPlaceholder}
@@ -10385,7 +10385,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </TouchableOpacity>
                                 )}
                                 <TouchableOpacity onPress={() => setShowSetsPicker(true)} style={{ width:44 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournSetsLabel}</Text>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournSetsLabel}</Text>
                                     <View style={{ height:34, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.setsPerMatch ? cfg.color : colors.border }}>
                                         <Text style={{ color: f.setsPerMatch ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                             {f.setsPerMatch || t.tournSelectPlaceholder}
@@ -10419,13 +10419,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
                                     <>
                                         <View style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMatchesBeforePlayoff}</Text>
+                                            <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMatchesBeforePlayoff}</Text>
                                             <TextInput style={[s.fieldInput, ti, { height:34, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.matchesBeforePlayoff}
                                                 onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournMatchesPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                         </View>
                                         <View style={{ flex:1 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournPlayoffQualifiers}</Text>
+                                            <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournPlayoffQualifiers}</Text>
                                             <TextInput style={[s.fieldInput, ti, { height:34, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.playoffQualifiers}
                                                 onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournPlayoffPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
@@ -10433,13 +10433,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </>
                                 )}
                                 <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMinPlayers}</Text>
+                                    <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMinPlayers}</Text>
                                     <TextInput style={[s.fieldInput, ti, { height:34, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
                                         onChangeText={v => set('minPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="2" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                 </View>
                                 <View style={{ flex:1 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:8, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMaxPlayers}</Text>
+                                    <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMaxPlayers}</Text>
                                     <TextInput style={[s.fieldInput, ti, { height:34, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.maxPlayers}
                                         onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
