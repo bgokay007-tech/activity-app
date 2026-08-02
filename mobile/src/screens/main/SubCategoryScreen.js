@@ -10406,9 +10406,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Katılımcı Cinsiyeti | Derece | Sayı Sistemi | Set — tek satır, hepsi aynı yükseklikte (34) */}
                             <View style={{ flexDirection:'row', gap:2, alignItems:'flex-end', marginBottom:8 }}>
-                                <TouchableOpacity onPress={() => setShowGenderPicker(true)} style={{ flex:1.4 }}>
+                                <TouchableOpacity onPress={() => setShowGenderPicker(true)} style={{ alignSelf:'flex-start' }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournGenderLabel}</Text>
-                                    <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.genderType ? cfg.color : colors.border }}>
+                                    <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.genderType ? cfg.color : colors.border }}>
                                         <Text style={{ color: f.genderType ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                             {f.genderType ? t['tournGender' + f.genderType.charAt(0) + f.genderType.slice(1).toLowerCase()] : t.tournSelectPlaceholder}
                                         </Text>
@@ -10425,9 +10425,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 </TouchableOpacity>
                                 {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
-                                    <TouchableOpacity onPress={() => setShowScoringPicker(true)} style={{ flex:1 }}>
+                                    <TouchableOpacity onPress={() => setShowScoringPicker(true)} style={{ alignSelf:'flex-start' }}>
                                         <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournScoringLabel}</Text>
-                                        <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.advantageScoring !== undefined ? cfg.color : colors.border }}>
+                                        <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.advantageScoring !== undefined ? cfg.color : colors.border }}>
                                             <Text style={{ color: f.advantageScoring !== undefined ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                                 {f.advantageScoring === true ? t.tournAdvantage : f.advantageScoring === false ? t.tournDeciding : f.advantageScoring === null ? t.tournFreeScoring : t.tournSelectPlaceholder}
                                             </Text>
@@ -10490,15 +10490,15 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </View>
                                     </>
                                 )}
-                                <View style={{ flex:1, marginLeft:4 }}>
+                                <View style={{ width:56, marginLeft:4 }}>
                                     <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMinPlayers}</Text>
-                                    <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
+                                    <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, paddingHorizontal:4, textAlign:'center', fontSize:12 }]} value={f.minPlayers}
                                         onChangeText={v => set('minPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="2" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                 </View>
-                                <View style={{ flex:1 }}>
+                                <View style={{ width:56 }}>
                                     <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournMaxPlayers}</Text>
-                                    <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.maxPlayers}
+                                    <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, paddingHorizontal:4, textAlign:'center', fontSize:12 }]} value={f.maxPlayers}
                                         onChangeText={v => set('maxPlayers', v.replace(/[^0-9]/g,''))}
                                         placeholder="32" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                 </View>
