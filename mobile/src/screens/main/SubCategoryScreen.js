@@ -12362,7 +12362,6 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [trimEnd, setTrimEnd] = useState('30');
     const [musicDuration, setMusicDuration] = useState(null);
     const [detectingImage, setDetectingImage] = useState(false);
-    const [imageSuggestions, setImageSuggestions] = useState([]);
     // Trim bar drag refs
     const trimBarWidthRef = useRef(0);
     const trimStartCapturedRef = useRef(0);
@@ -12378,7 +12377,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const detectImageMusic = async () => {
         if (!mediaShareUri) return;
         setDetectingImage(true);
-        setImageSuggestions([]);
+        setMusicResults([]);
         try {
             const resp = await fetch(mediaShareUri);
             const blob = await resp.blob();
@@ -12393,7 +12392,27 @@ export default function SubCategoryScreen({ route, navigation }) {
                 mimeType: 'image/jpeg',
                 subCategory: sub,
             });
-            setImageSuggestions(data.keywords || []);
+            const keywords = data.keywords || [];
+            setMusicQuery('');
+            // Önerilen anahtar kelimeleri arka planda Deezer'da arayıp tek bir
+            // parça listesinde birleştiriyoruz — kullanıcıya "aramalar" değil
+            // doğrudan seçilebilir şarkılar gösteriliyor.
+            const lists = await Promise.all(keywords.slice(0, 4).map(async (kw) => {
+                try {
+                    const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(kw)}&limit=8&output=json`);
+                    const json = await res.json();
+                    return json.data || [];
+                } catch { return []; }
+            }));
+            const seen = new Set();
+            const merged = [];
+            for (const list of lists) {
+                for (const track of list) {
+                    if (!seen.has(track.id)) { seen.add(track.id); merged.push(track); }
+                }
+            }
+            setMusicResults(merged);
+            if (merged.length === 0) Alert.alert('', 'Görsele uygun müzik bulunamadı');
         } catch { Alert.alert('', 'Görsel analiz edilemedi'); }
         finally { setDetectingImage(false); }
     };
@@ -15470,20 +15489,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             </View>
                                                             {detectingImage && <ActivityIndicator size="small" color="#a78bfa" />}
                                                         </TouchableOpacity>
-                                                    )}
-                                                    {/* Görsel önerileri */}
-                                                    {imageSuggestions.length > 0 && (
-                                                        <View style={{ marginHorizontal: 12, marginBottom: 10 }}>
-                                                            <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700', marginBottom: 6 }}>✨ Önerilen aramalar:</Text>
-                                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3 }}>
-                                                                {imageSuggestions.map((kw, i) => (
-                                                                    <TouchableOpacity key={i} onPress={() => searchDeezer(kw)}
-                                                                        style={{ backgroundColor: '#7c3aed20', borderRadius: 16, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: '#7c3aed40' }}>
-                                                                        <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700' }}>{kw}</Text>
-                                                                    </TouchableOpacity>
-                                                                ))}
-                                                            </View>
-                                                        </View>
                                                     )}
                                                     <ScrollView contentContainerStyle={{ padding: 9 }}>
                                                         {musicResults.map(track => (
