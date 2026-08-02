@@ -10180,15 +10180,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                         </View>
                         <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
 
-                            {/* Ad — kendi satırında */}
-                            <View style={{ marginBottom:8 }}>
-                                <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournNameLabel}</Text>
-                                <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.name} onChangeText={v => set('name', v)}
-                                    placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
-                            </View>
-
-                            {/* Kapsam | İl | İlçe (Yerel ise) / Ülke (Ulusal ise) — tek satır, tek buton/modal */}
+                            {/* Ad | Kapsam | İl | İlçe (Yerel ise) / Ülke (Ulusal ise) — tek satır, tek buton/modal */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournNameLabel}</Text>
+                                    <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.name} onChangeText={v => set('name', v)}
+                                        placeholder={t.tournNamePh} placeholderTextColor={colors.textMuted} />
+                                </View>
                                 <TouchableOpacity onPress={() => setShowScopePicker(true)} style={{ flex:1 }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournScopeLabel}</Text>
                                     <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.scope ? cfg.color : colors.border }}>
@@ -10834,7 +10832,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 onSelectMax={(v) => set('maxRating', v)}
                 onClose={() => setShowRatingRange(false)}
                 genderSplit={f.ratingGenderSplit}
-                onToggleGenderSplit={f.genderType === 'MIX' ? (v) => set('ratingGenderSplit', v) : undefined}
+                onToggleGenderSplit={(f.genderType !== 'ERKEK' && f.genderType !== 'KADIN') ? (v) => set('ratingGenderSplit', v) : undefined}
                 maleMin={f.minRatingMale} maleMax={f.maxRatingMale}
                 onSelectMaleMin={(v) => set('minRatingMale', v)}
                 onSelectMaleMax={(v) => set('maxRatingMale', v)}
