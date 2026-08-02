@@ -13013,7 +13013,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             : `You'll get notified about new ${sub} referee listings in your selected cities.`,
     };
 
-    const CityAlertBtn = ({ tab }) => {
+    const CityAlertBtn = ({ tab, style }) => {
         const cities = tabSubCities[tab] || [];
         const active = cities.length > 0;
         const isLoading = cityAlertLoading === tab;
@@ -13023,7 +13023,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
-                style={{ paddingVertical:0, paddingHorizontal:2, borderRadius:6, backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }}
+                style={[{ paddingVertical:0, paddingHorizontal:2, borderRadius:6, backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
             >
                 {isLoading
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
@@ -13573,7 +13573,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color: equipFilterActive ? cfg.color : colors.textSecondary, fontSize:13, fontWeight:'800' }} numberOfLines={1}>{t.filterBtn}</Text>
                                     {equipFilterActive && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
                                 </TouchableOpacity>
-                                <CityAlertBtn tab="equipment" />
+                                <CityAlertBtn tab="equipment" style={{ paddingVertical:6, paddingHorizontal:5 }} />
                             </View>
                             {/* Filtre modalı */}
                             <Modal visible={showEquipmentFilter} animationType="slide" transparent onRequestClose={() => setShowEquipmentFilter(false)}>
