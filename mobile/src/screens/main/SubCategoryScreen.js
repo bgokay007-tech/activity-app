@@ -5566,9 +5566,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // durumda sadece bu alanları kabul ediyor, bkz. updateMatchedRivalCourt).
     const isMatchedEdit = !!editItem && editItem.status === 'MATCHED';
 
+    const isTennis = sub === 'tennis';
     const INIT = {
-        matchType: isPadel ? 'DOUBLE' : 'SINGLE', teamSize: isFootball ? 5 : isVolleyball ? 6 : 1,
-        matchMode: 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
+        matchType: isTennis ? null : (isPadel ? 'DOUBLE' : 'SINGLE'), teamSize: isFootball ? 5 : isVolleyball ? 6 : 1,
+        matchMode: isTennis ? null : 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
         matchDate: null, matchTime: '', duration: isVolleyball ? '90' : '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
         courtSearchText: '', courtResults: [], selectedCourt: null,
@@ -6066,6 +6067,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const submit = async () => {
+        if (isTennis && !editItem) {
+            if (!f.matchMode) { Alert.alert('', 'Lütfen mod seçin (Antrenman/Rekabetçi).'); return; }
+            if (!f.matchType) { Alert.alert('', 'Lütfen format seçin (Tekli/Çiftler).'); return; }
+        }
         if (!f.flexibleSchedule) {
             if (!f.matchDate)  { Alert.alert('', t.missingDate); return; }
             if (!f.matchTime)  { Alert.alert('', t.missingTime); return; }
@@ -6245,7 +6250,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         : f.matchMode === mode;
                                                     const handleModePress = () => {
                                                         if (mode === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
-                                                        if ((sub !== 'tennis' && sub !== 'padel') || !f.flexibleSchedule) { set('matchMode', mode); return; }
+                                                        if ((sub !== 'tennis' && sub !== 'padel') || !f.flexibleSchedule || !f.matchMode) { set('matchMode', mode); return; }
                                                         if (mode === 'PRACTICE') {
                                                             if (f.matchMode === 'PRACTICE') return;
                                                             set('matchMode', f.matchMode === 'BOTH' ? 'COMPETITIVE' : 'BOTH');
