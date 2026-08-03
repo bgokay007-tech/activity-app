@@ -8818,7 +8818,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const hasRating = rB != null && rA != null;
                                                                 const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
                                                                 const eloStr = hasRating
-                                                                    ? `${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                    ? `${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}  ${rA.toFixed(2)}`
                                                                     : (match.p1Id && skillRatingMap[match.p1Id] != null ? `${starEmoji(Number(skillRatingMap[match.p1Id]))} ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
                                                                 return (
                                                                     <View style={{ flexDirection:'row', alignItems:'flex-start' }}>
@@ -8874,7 +8874,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 const hasRating = rB != null && rA != null;
                                                                 const diff = hasRating ? parseFloat((rA - rB).toFixed(2)) : 0;
                                                                 const eloStr = hasRating
-                                                                    ? `${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}${diff >= 0 ? '📈' : '📉'}  ${rA.toFixed(2)}`
+                                                                    ? `${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}  ${rA.toFixed(2)}`
                                                                     : (match.p2Id && skillRatingMap[match.p2Id] != null ? `${starEmoji(Number(skillRatingMap[match.p2Id]))} ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
                                                                 return (
                                                                     <View style={{ flexDirection:'row', alignItems:'flex-start' }}>

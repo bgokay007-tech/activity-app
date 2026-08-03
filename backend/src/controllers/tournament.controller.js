@@ -2459,10 +2459,15 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     }
                 }
 
-                p1RatingBefore = winner === 'p1' ? wAvg : lAvg;
-                p2RatingBefore = winner === 'p2' ? wAvg : lAvg;
-                p1RatingAfter  = skipElo ? p1RatingBefore : (winner === 'p1' ? wAvg + wStep : lAvg - lStep);
-                p2RatingAfter  = skipElo ? p2RatingBefore : (winner === 'p2' ? wAvg + wStep : lAvg - lStep);
+                // Ekrana yazılan önce/sonra değerleri de DB'ye yazılan skillRating ile AYNI
+                // hassasiyette (4 ondalık) yuvarlanır — aksi halde ör. wAvg+wStep gibi
+                // yuvarlanmamış bir toplamdan sonra istemci tarafında "sonra - önce" farkı
+                // alınınca kayan nokta artığı yüzünden gerçek değişim (ör. 0.005) "+0.00"
+                // gibi görünüyordu, üstelik gerçek puan zaten değişmişti.
+                p1RatingBefore = parseFloat((winner === 'p1' ? wAvg : lAvg).toFixed(4));
+                p2RatingBefore = parseFloat((winner === 'p2' ? wAvg : lAvg).toFixed(4));
+                p1RatingAfter  = skipElo ? p1RatingBefore : parseFloat((winner === 'p1' ? wAvg + wStep : lAvg - lStep).toFixed(4));
+                p2RatingAfter  = skipElo ? p2RatingBefore : parseFloat((winner === 'p2' ? wAvg + wStep : lAvg - lStep).toFixed(4));
                 p1EloDelta = skipElo ? 0 : (winner === 'p1' ? +transferWin : -transferLose);
                 p2EloDelta = skipElo ? 0 : (winner === 'p2' ? +transferWin : -transferLose);
             }
