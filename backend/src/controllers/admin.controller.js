@@ -245,6 +245,34 @@ export const moderateListing = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+const RATING_APPROVAL_USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
+
+// Voleybol "onaylı antrenör" onayı — VolleyballRating'de COACH rolüyle resmi değerlendirme
+// verebilmek için admin tek tek onaylamalı (CoachListing kendi kendine eklendiği için).
+export const getCoachRatingApprovals = async (req, res, next) => {
+    try {
+        const { status } = req.query; // PENDING | APPROVED
+        const listings = await prisma.coachListing.findMany({
+            where: { subCategory: 'volleyball', status: 'ACTIVE', approvedForRating: status === 'APPROVED' },
+            include: { user: { select: RATING_APPROVAL_USER_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(listings);
+    } catch (e) { next(e); }
+};
+
+export const setCoachRatingApproval = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { action } = req.body; // 'APPROVE' | 'REVOKE'
+        await prisma.coachListing.update({
+            where: { id },
+            data: { approvedForRating: action === 'APPROVE' },
+        });
+        res.json({ ok: true });
+    } catch (e) { next(e); }
+};
+
 export const revokeTournamentPermission = async (req, res, next) => {
     try {
         const { userId } = req.params;

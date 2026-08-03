@@ -18,6 +18,7 @@ import ManageActivitiesModal from '../../components/ManageActivitiesModal';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
+import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
@@ -410,6 +411,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [surveyLoaded, setSurveyLoaded] = useState(false);
     const [showAchievements, setShowAchievements] = useState(false);
     const [showDart, setShowDart] = useState(false);
+    const [showVolleyballRating, setShowVolleyballRating] = useState(false);
 
     useEffect(() => {
         if (!visible) {
@@ -417,7 +419,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             setShowEloModal(false); setShowAnketModal(false);
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
-            setShowAchievements(false); setShowDart(false);
+            setShowAchievements(false); setShowDart(false); setShowVolleyballRating(false);
         }
     }, [visible]);
 
@@ -613,6 +615,13 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 </View>
                             )}
 
+                            {/* ── Voleybol Değerlendirmesi ── */}
+                            {item.subCategory === 'volleyball' && (
+                                <TouchableOpacity style={fc.actionBtn} onPress={() => setShowVolleyballRating(true)}>
+                                    <Text style={[fc.actionTxt, { color: '#a855f7', textAlign: 'center' }]}>{t.volleyballRatingBtn}</Text>
+                                </TouchableOpacity>
+                            )}
+
                         </ScrollView>
                         <BottomBtns />
 
@@ -716,6 +725,11 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 }}
             />
             <DartModal visible={showDart} onClose={() => setShowDart(false)} lang={lang} cfg={cfg} />
+            <VolleyballRatingModal
+                visible={showVolleyballRating}
+                subjectId={profileUserId}
+                onClose={() => setShowVolleyballRating(false)}
+            />
         </Modal>
     );
 }

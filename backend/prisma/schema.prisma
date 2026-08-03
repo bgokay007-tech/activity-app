@@ -119,6 +119,8 @@ model User {
   notifiedExternalEvents NotifiedExternalEvent[]
   surveyGiven      SportSurvey[] @relation("SurveyRater")
   surveyReceived   SportSurvey[] @relation("SurveySubject")
+  volleyballRatingsGiven    VolleyballRating[] @relation("VolleyballRatingRater")
+  volleyballRatingsReceived VolleyballRating[] @relation("VolleyballRatingSubject")
   profileChangeRequests ProfileChangeRequest[]
   supportMessages       SupportMessage[]
   subscriptions         BusinessSubscription[]
@@ -203,6 +205,43 @@ model SportSurvey {
   subject     User     @relation("SurveySubject", fields: [subjectId], references: [id], onDelete: Cascade)
   rater       User     @relation("SurveyRater",   fields: [raterId],   references: [id], onDelete: Cascade)
   @@unique([subjectId, raterId, subCategory])
+}
+
+// Voleybol oyuncu değerlendirme anketi — kendi/onaylı antrenör/takım arkadaşı olmak üzere
+// üç ayrı kaynaktan doldurulur, %40/%50/%10 ile harmanlanıp derece puanına dönüşür
+// (bkz. backend/src/utils/volleyballRating.js). UserInterest.skillRating'e (ELO) DOKUNMAZ,
+// tamamen izole bir puanlama.
+model VolleyballRating {
+  id                String   @id @default(uuid())
+  subjectId         String
+  raterId           String
+  raterRole         String   // SELF | COACH | TEAMMATE — sunucu belirler, client'tan gelmez
+  serve             Int      // Servis
+  receptionPass     Int      // Manşet ve Pas
+  spike             Int      // Smaç ve Hücum
+  block             Int      // Blok
+  serveReception    Int      // Manşet Karşılama (Servis Karşılama)
+  endurance         Int      // Dayanıklılık
+  agility           Int      // Çeviklik ve Hız
+  jump              Int      // Sıçrama Yeteneği
+  gameVision        Int      // Oyun Görüşü
+  teamCommunication Int      // Takım Uyumu ve İletişim
+  decisionMaking    Int      // Baskı Altında Karar Verme
+
+  // 4. Genel Değerlendirme — sadece raterRole COACH/TEAMMATE iken doldurulur (SELF'te null
+  // kalır). Derece puanına hiç katılmaz, salt yorum olarak saklanır.
+  strongestPoint         String?
+  weakestPoint           String?
+  generalPerformanceNote Int?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subject User @relation("VolleyballRatingSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  rater   User @relation("VolleyballRatingRater",   fields: [raterId],   references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, raterId])
+  @@index([subjectId])
 }
 
 model TournamentPermissionRequest {
@@ -302,6 +341,7 @@ model CoachListing {
   description     String?
   status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
   reportCount     Int      @default(0)
+  approvedForRating Boolean @default(false)  // admin onayı — voleybolde resmi oyuncu değerlendirmesi verebilir (bkz. VolleyballRating)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

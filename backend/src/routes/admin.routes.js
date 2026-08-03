@@ -8,6 +8,7 @@ import {
     getAllPosts, deletePost,
     getTournamentPermissionRequests, approveTournamentPermission, rejectTournamentPermission, revokeTournamentPermission,
     getFlaggedListings, moderateListing,
+    getCoachRatingApprovals, setCoachRatingApproval,
     getProfileChangeRequests, reviewProfileChangeRequest,
     getSupportMessages, replySupportMessage,
 } from '../controllers/admin.controller.js';
@@ -36,6 +37,8 @@ router.get('/cities',        adminGetCities);
 router.patch('/cities/:id',  adminUpdateCity);
 router.get('/flagged-listings',              getFlaggedListings);
 router.patch('/listings/:type/:id',          moderateListing);
+router.get('/coach-rating-approvals',        getCoachRatingApprovals);
+router.patch('/coach-rating-approvals/:id',  setCoachRatingApproval);
 router.get('/tournament-permissions',                   getTournamentPermissionRequests);
 router.patch('/tournament-permissions/:userId/approve', approveTournamentPermission);
 router.patch('/tournament-permissions/:userId/reject',  rejectTournamentPermission);
