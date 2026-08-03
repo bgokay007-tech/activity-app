@@ -1,13 +1,14 @@
 ﻿import { useEffect, useState } from 'react';
 import {
     Modal, View, Text, TouchableOpacity, StyleSheet,
-    ScrollView, ActivityIndicator,
+    ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { store } from '../store';
 import api from '../services/api';
 import colors from '../theme/colors';
 import useT from '../hooks/useT';
+import { getSubCategoryLabel } from '../utils/subCategoryLabels';
 
 const LEVEL_COLORS = {
     BEGINNER:     '#4ade80',
@@ -66,9 +67,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
     const needsPosition = isFootball && position === null;
     const q             = questions[current];
     const progress      = questions.length > 0 ? (current / questions.length) * 100 : 0;
-    const safeLabel     = subCategory
-        ? subCategory.charAt(0).toUpperCase() + subCategory.slice(1)
-        : '';
+    const safeLabel     = getSubCategoryLabel(subCategory, lang);
 
     // ── Handlers ──
     const handleNext = () => {
@@ -104,7 +103,9 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
         try {
             const { data } = await api.patch(`/interests/${interestId}/assess`, { answers: finalAnswers });
             setResult(data);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.assessmentSubmitFailed);
+        }
         finally { setSaving(false); }
     };
 
